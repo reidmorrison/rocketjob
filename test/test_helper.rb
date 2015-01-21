@@ -1,5 +1,4 @@
 $LOAD_PATH.unshift File.dirname(__FILE__) + '/../lib'
-#require 'rubygems'
 require 'minitest/autorun'
 require 'shoulda'
 require 'batch_job'
