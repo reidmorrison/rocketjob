@@ -14,6 +14,12 @@ class JobTest < Minitest::Test
       @job.destroy unless @job.new_record?
     end
 
+    context '.config' do
+      should 'support multiple databases' do
+        assert_equal 'test_batch_job', BatchJob::Job.collection.db.name
+      end
+    end
+
     context '#save!' do
       should 'save a blank job' do
         @job.save!

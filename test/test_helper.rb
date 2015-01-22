@@ -1,8 +1,13 @@
 $LOAD_PATH.unshift File.dirname(__FILE__) + '/../lib'
+
 require 'minitest/autorun'
-require 'shoulda'
+require 'minitest/reporters'
+require 'minitest/stub_any_instance'
+require 'shoulda/context'
 require 'batch_job'
 require 'yaml'
+
+Minitest::Reporters.use! Minitest::Reporters::SpecReporter.new
 
 # Setup MongoMapper from mongo config file
 config_file = File.join(File.dirname(__FILE__), 'config', 'mongo.yml')
