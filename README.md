@@ -25,7 +25,7 @@ config.before_initialize do
   if config_file.file?
     if config = YAML.load(ERB.new(config_file.read).result)["#{Rails.env}_work]
       options = (config['options']||{}).symbolize_keys
-      options[:logger] = SemanticLogger['MongoWork']
+      options[:logger] = SemanticLogger::DebugAsTraceLogger.new('Mongo:Work')
       BatchJob::MultiRecordJob.work_connection = Mongo::MongoClient.from_uri(config['uri'], options)
     end
   else
