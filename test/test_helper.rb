@@ -24,12 +24,12 @@ if config = YAML.load(ERB.new(File.read(config_file)).result)
   if cfg = config['test_work']
     options                = cfg['options'] || {}
     options[:logger]       = SemanticLogger['MongoWork']
-    BatchJob::MultiRecordJob.work_connection = Mongo::MongoClient.from_uri(cfg['uri'], options)
+    BatchJob::MultiRecord.work_connection = Mongo::MongoClient.from_uri(cfg['uri'], options)
   end
 end
 
 # Ensure Batch Job Indexes have been created
-BatchJob::Job.create_indexes
+BatchJob::Simple.create_indexes
 
 # Test cipher
 SymmetricEncryption.cipher = SymmetricEncryption::Cipher.new(
