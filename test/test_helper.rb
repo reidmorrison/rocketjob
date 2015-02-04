@@ -9,12 +9,15 @@ require 'batch_job'
 
 Minitest::Reporters.use! Minitest::Reporters::SpecReporter.new
 
+SemanticLogger.add_appender('test.log', &SemanticLogger::Appender::Base.colorized_formatter)
+SemanticLogger.default_level = :debug
+
 # Setup MongoMapper from mongo config file
 config_file = File.join(File.dirname(__FILE__), 'config', 'mongo.yml')
 if config = YAML.load(ERB.new(File.read(config_file)).result)
   cfg                    = config['test']
   options                = cfg['options'] || {}
-  options[:logger]       = SemanticLogger['Mongo']
+  options[:logger]       = SemanticLogger::DebugAsTraceLogger.new('Mongo')
 
   MongoMapper.config     = cfg
   MongoMapper.connection = Mongo::MongoClient.from_uri(cfg['uri'], options)
@@ -23,13 +26,13 @@ if config = YAML.load(ERB.new(File.read(config_file)).result)
   # If this environment has a separate Work server
   if cfg = config['test_work']
     options                = cfg['options'] || {}
-    options[:logger]       = SemanticLogger['MongoWork']
+    options[:logger]       = SemanticLogger::DebugAsTraceLogger.new('MongoWork')
     BatchJob::MultiRecord.work_connection = Mongo::MongoClient.from_uri(cfg['uri'], options)
   end
 end
 
 # Ensure Batch Job Indexes have been created
-BatchJob::Simple.create_indexes
+BatchJob.create_indexes
 
 # Test cipher
 SymmetricEncryption.cipher = SymmetricEncryption::Cipher.new(
