@@ -5,6 +5,7 @@
         <data xmlns="http://www.netbeans.org/ns/ruby-project/1">
             <name>batch_job</name>
             <source-roots>
+                <root id="src.bin.dir"/>
                 <root id="src.dir"/>
             </source-roots>
             <test-roots>
