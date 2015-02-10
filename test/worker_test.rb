@@ -1,5 +1,6 @@
 require_relative 'test_helper'
 require_relative 'workers/single'
+require_relative 'workers/multi_record'
 
 # Unit Test for BatchJob::Single
 class WorkerTest < Minitest::Test
@@ -14,9 +15,9 @@ class WorkerTest < Minitest::Test
         BatchJob::Config.test_mode = false
       end
 
-      context '#async_perform' do
+      context '#perform_later' do
         should "process single request (test_mode=#{test_mode})" do
-          @job = Workers::Single.async_perform(1)
+          @job = Workers::Single.perform_later(1)
           assert_nil   @job.server
           assert_nil   @job.completed_at
           assert       @job.created_at
@@ -34,7 +35,9 @@ class WorkerTest < Minitest::Test
           assert_nil   @job.started_at
           assert_equal :queued, @job.state
 
-          assert_equal true, @job.work
+          @job.server = 'me'
+          @job.start
+          assert_equal 1, @job.work, @job.exception.inspect
           assert_equal true, @job.completed?
           assert_equal 2,    Workers::Single.result
 
@@ -56,7 +59,13 @@ class WorkerTest < Minitest::Test
         end
 
         should "process multi-record request (test_mode=#{test_mode})" do
-          @job = Workers::MultiRecord.async_perform(1)
+          @lines = [ 'line1', 'line2', 'line3', 'line4', 'line5' ]
+          @job = Workers::MultiRecord.perform_later do |job|
+            job.collect_output = true
+            job.input_slice @lines
+          end
+          assert_equal BatchJob::MultiRecord, @job.class
+          assert_equal @lines.size, @job.record_count
           assert_nil   @job.server
           assert_nil   @job.completed_at
           assert       @job.created_at
@@ -74,11 +83,17 @@ class WorkerTest < Minitest::Test
           assert_nil   @job.started_at
           assert_equal :queued, @job.state
 
-          assert_equal true, @job.work
+          @job.start!
+          @job.save!
+          assert_equal 5, @job.work, @job.exception.inspect
+          assert_equal 0, @job.failed_slices
+          assert_equal @lines.size, @job.record_count
+          assert_equal 0, @job.slices_queued
           assert_equal true, @job.completed?
-          assert_equal 2,    Workers::Single.result
+          @job.each_output_slice do |slice|
+            assert_equal @lines, slice
+          end
 
-          assert       @job.server
           assert       @job.completed_at
           assert       @job.created_at
           assert_nil   @job.description
@@ -96,10 +111,11 @@ class WorkerTest < Minitest::Test
         end
       end
 
-      context '#async' do
+      context '#later' do
         should "process non default method (test_mode=#{test_mode})" do
-          @job = Workers::Single.async(:sum, 23, 45)
-          assert_equal true, @job.work
+          @job = Workers::Single.later(:sum, 23, 45)
+          @job.start
+          assert_equal 1, @job.work, @job.exception.inspect
           assert_equal true, @job.completed?
           assert_equal 68,    Workers::Single.result
         end
