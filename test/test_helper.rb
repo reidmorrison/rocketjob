@@ -31,9 +31,6 @@ if config = YAML.load(ERB.new(File.read(config_file)).result)
   end
 end
 
-# Ensure Batch Job Indexes have been created
-BatchJob.create_indexes
-
 # Test cipher
 SymmetricEncryption.cipher = SymmetricEncryption::Cipher.new(
   cipher_name: 'aes-128-cbc',
