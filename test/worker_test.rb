@@ -88,7 +88,7 @@ class WorkerTest < Minitest::Test
           @job.start!
           @job.save!
           assert_equal 5, @job.work, @job.exception.inspect
-          assert_equal 0, @job.failed_slices
+          assert_equal 0, @job.slices_failed
           assert_equal @lines.size, @job.record_count
           assert_equal 0, @job.slices_queued
           assert_equal true, @job.completed?
