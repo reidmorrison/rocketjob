@@ -8,6 +8,7 @@ class WorkerTest < Minitest::Test
     [true, false].each do |test_mode|
       setup do
         BatchJob::Config.test_mode = test_mode
+        @server = BatchJob::Server.new
       end
 
       teardown do
@@ -38,7 +39,7 @@ class WorkerTest < Minitest::Test
 
           @job.server = 'me'
           @job.start
-          assert_equal 1, @job.work, @job.exception.inspect
+          assert_equal 1, @job.work(@server), @job.exception.inspect
           assert_equal true, @job.completed?
           assert_equal 2,    Workers::Single.result
 
@@ -87,7 +88,7 @@ class WorkerTest < Minitest::Test
 
           @job.start!
           @job.save!
-          assert_equal 5, @job.work, @job.exception.inspect
+          assert_equal 5, @job.work(@server), @job.exception.inspect
           assert_equal 0, @job.slices_failed
           assert_equal @lines.size, @job.record_count
           assert_equal 0, @job.slices_queued
@@ -117,7 +118,7 @@ class WorkerTest < Minitest::Test
         should "process non default method (test_mode=#{test_mode})" do
           @job = Workers::Single.later(:sum, 23, 45)
           @job.start
-          assert_equal 1, @job.work, @job.exception.inspect
+          assert_equal 1, @job.work(@server), @job.exception.inspect
           assert_equal true, @job.completed?
           assert_equal 68,    Workers::Single.result
         end
