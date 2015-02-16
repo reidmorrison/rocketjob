@@ -25,7 +25,6 @@ class WorkerTest < Minitest::Test
           assert_nil   @job.description
           skip 'need ability to set destroy_on_complete to false'
           assert_equal false, @job.destroy_on_complete
-          assert_equal 0, @job.email_addresses.count
           assert_nil   @job.expires_at
           assert_nil   @job.group
           assert_equal 0, @job.percent_complete
@@ -48,7 +47,6 @@ class WorkerTest < Minitest::Test
           assert       @job.created_at
           assert_nil   @job.description
           assert_equal false, @job.destroy_on_complete
-          assert_equal 0, @job.email_addresses.count
           assert_nil   @job.expires_at
           assert_nil   @job.group
           assert_equal 100, @job.percent_complete
@@ -74,7 +72,6 @@ class WorkerTest < Minitest::Test
           assert       @job.created_at
           assert_nil   @job.description
           assert_equal false, @job.destroy_on_complete
-          assert_equal 0, @job.email_addresses.count
           assert_nil   @job.expires_at
           assert_nil   @job.group
           assert_equal 0, @job.percent_complete
@@ -101,7 +98,6 @@ class WorkerTest < Minitest::Test
           assert       @job.created_at
           assert_nil   @job.description
           assert_equal false, @job.destroy_on_complete
-          assert_equal 0, @job.email_addresses.count
           assert_nil   @job.expires_at
           assert_nil   @job.group
           assert_equal 100, @job.percent_complete
