@@ -1,6 +1,6 @@
 require_relative 'test_helper'
-require_relative 'workers/single'
-require_relative 'workers/multi_record'
+require_relative 'workers/job'
+require_relative 'workers/batch_job'
 
 # Unit Test for RocketJob::Job
 class WorkerTest < Minitest::Test

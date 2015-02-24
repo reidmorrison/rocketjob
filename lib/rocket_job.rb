@@ -9,8 +9,8 @@ require 'rocket_job/version'
 module RocketJob
   autoload :Config,                'rocket_job/config'
   autoload :Heartbeat,             'rocket_job/heartbeat'
-  autoload :Job,                   'rocket_job/single'
-  autoload :BatchJob,              'rocket_job/multi_record'
+  autoload :Job,                   'rocket_job/job'
+  autoload :BatchJob,              'rocket_job/batch_job'
   autoload :Server,                'rocket_job/server'
   autoload :Worker,                'rocket_job/worker'
   module Reader

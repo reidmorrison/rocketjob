@@ -1,5 +1,5 @@
 require_relative 'test_helper'
-require_relative 'workers/single'
+require_relative 'workers/job'
 
 # Unit Test for RocketJob::Server
 class ServerTest < Minitest::Test
@@ -22,7 +22,7 @@ class ServerTest < Minitest::Test
 
     context '.config' do
       should 'support multiple databases' do
-        assert_equal 'test_batch_job', RocketJob::Job.collection.db.name
+        assert_equal 'test_rocket_job', RocketJob::Job.collection.db.name
       end
     end
 
