@@ -5,7 +5,7 @@ require 'minitest/autorun'
 require 'minitest/reporters'
 require 'minitest/stub_any_instance'
 require 'shoulda/context'
-require 'batch_job'
+require 'rocket_job'
 
 Minitest::Reporters.use! Minitest::Reporters::SpecReporter.new
 
@@ -27,7 +27,7 @@ if config = YAML.load(ERB.new(File.read(config_file)).result)
   if cfg = config['test_work']
     options                = cfg['options'] || {}
     options[:logger]       = SemanticLogger::DebugAsTraceLogger.new('MongoWork')
-    BatchJob::MultiRecord.work_connection = Mongo::MongoClient.from_uri(cfg['uri'], options)
+    RocketJob::BatchJob.work_connection = Mongo::MongoClient.from_uri(cfg['uri'], options)
   end
 end
 

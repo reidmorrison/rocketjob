@@ -1,16 +1,16 @@
 require_relative 'test_helper'
 require_relative 'workers/single'
 
-# Unit Test for BatchJob::Server
+# Unit Test for RocketJob::Server
 class ServerTest < Minitest::Test
-  context BatchJob::Server do
+  context RocketJob::Server do
     setup do
-      @server = BatchJob::Server.new
+      @server = RocketJob::Server.new
       @description = 'Hello World'
       @arguments   = [ 1 ]
-      @job = BatchJob::Single.new(
+      @job = RocketJob::Job.new(
         description:         @description,
-        klass:               'Workers::Single',
+        klass:               'Workers::Job',
         arguments:           @arguments,
         destroy_on_complete: false
       )
@@ -22,7 +22,7 @@ class ServerTest < Minitest::Test
 
     context '.config' do
       should 'support multiple databases' do
-        assert_equal 'test_batch_job', BatchJob::Single.collection.db.name
+        assert_equal 'test_batch_job', RocketJob::Job.collection.db.name
       end
     end
 
