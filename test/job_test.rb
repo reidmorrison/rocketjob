@@ -2,7 +2,7 @@ require_relative 'test_helper'
 require_relative 'workers/job'
 
 # Unit Test for RocketJob::Job
-class SingleTest < Minitest::Test
+class JobTest < Minitest::Test
   context RocketJob::Job do
     setup do
       @server = RocketJob::Server.new
