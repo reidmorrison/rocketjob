@@ -141,9 +141,19 @@ module RocketJob
       end
     end
 
-    # Stop all running servers
+    # Stop all running, paused, or starting servers
     def self.stop_all
-      each {|s| s.stop! if s.running? || s.paused? }
+      each { |server| server.stop! if server.running? || server.paused? || server.starting? }
+    end
+
+    # Pause all running servers
+    def self.pause_all
+      each { |server| server.pause! if server.running? }
+    end
+
+    # Resume all paused servers
+    def self.resume_all
+      each { |server| server.resume! if server.paused? }
     end
 
     # Returns [Array<Thread>] threads in the thread_pool
