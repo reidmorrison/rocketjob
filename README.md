@@ -69,3 +69,9 @@ config.before_initialize do
   end
 end
 ```
+
+## Requirements
+
+Mongo V2.6 or greater
+
+* V2.6 includes a feature to allow lookups using the `$or` clause to use an index
