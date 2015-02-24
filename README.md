@@ -35,7 +35,7 @@ Loaded records are kept in a separate collection for better performance, and
 once each block of records is processed it is deleted. When the job is completed
 the entire collection that held the records is dropped.
 
-Optionally, the result from processing each record can be stored by Batch Job.
+Optionally, the result from processing each record can be stored by Rocket Job.
 When `collect_results` is `true`, the results returned from the workers are
 held in a separate collection for that instance of the job.
 When the job is destroyed
@@ -49,7 +49,7 @@ the entire collection that held the records is dropped.
 MongoMapper will already configure itself in Rails environments. Sometimes we want
 to use a different Mongo Database instance for the records and results.
 
-For example, the Batch::Job can be stored in a Mongo Database that is replicated
+For example, the RocketJob::Job can be stored in a Mongo Database that is replicated
 across data centers, whereas we may not want to replicate record and result data
 due to it's sheer volume.
 

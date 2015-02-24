@@ -1,0 +1,15 @@
+#!/usr/bin/env ruby
+require 'rocket_job'
+
+# Start a rocket_job server instance
+# Parameters
+#   server_name
+begin
+  RocketJob::Server.run(ARGV[0])
+rescue => exc
+  # Failsafe logger that writes to STDERROR
+  SemanticLogger.add_appender(STDERROR, :error, &SemanticLogger::Appender::Base.colorized_formatter)
+  SemanticLogger['RocketJob'].error('Rocket Job shutting down due to exception', exc)
+  SemanticLogger.flush
+  exit 1
+end
