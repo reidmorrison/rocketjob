@@ -301,24 +301,6 @@ module RocketJob
       h
     end
 
-    # Add AASM support for MongoMapper
-    if AASM::VERSION.to_f <= 4.0
-      def aasm_read_state
-        state
-      end
-
-      # may be overwritten by persistence mixins
-      def aasm_write_state(new_state)
-        self.state = new_state
-        save!
-      end
-
-      # may be overwritten by persistence mixins
-      def aasm_write_state_without_persistence(new_state)
-        self.state = new_state
-      end
-    end
-
     # Same basic formula for calculating retry interval as delayed_job and Sidekiq
     # TODO Consider lowering the priority automatically after every retry?
     def seconds_to_delay(count)
