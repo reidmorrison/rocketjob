@@ -5,6 +5,8 @@ require_relative 'workers/job'
 class ServerTest < Minitest::Test
   context RocketJob::Server do
     setup do
+      RocketJob::Config.instance.heartbeat_seconds = 0.1
+      RocketJob::Config.instance.max_poll_seconds  = 0.1
       @server = RocketJob::Server.new
       @description = 'Hello World'
       @arguments   = [ 1 ]

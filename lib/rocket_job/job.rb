@@ -39,7 +39,7 @@ module RocketJob
     key :klass,                   String
 
     # Method that must be invoked to complete this job
-    key :method,                  Symbol, default: :perform
+    key :perform_method,          Symbol, default: :perform
 
     # Priority of this job as it relates to other jobs [1..100]
     #   1: Lowest Priority
@@ -139,7 +139,7 @@ module RocketJob
     set_collection_name 'rocket_job.jobs'
 
     validates_presence_of :state, :failure_count, :created_at, :percent_complete,
-      :klass, :method
+      :klass, :perform_method
     # :repeatable, :destroy_on_complete, :collect_output, :arguments
     validates :percent_complete, inclusion: 0..100
     validates :priority, inclusion: 1..100
@@ -189,56 +189,34 @@ module RocketJob
       # Job was aborted and cannot be resumed ( End state )
       state :aborted
 
-      event :start do
-        before do
-          self.started_at = Time.now
-        end
+      event :start, before: :before_start do
         transitions from: :queued, to: :running
       end
 
-      event :complete do
-        before do
-          self.percent_complete = 100
-          self.completed_at = Time.now
-        end
+      event :complete, before: :before_complete do
         after do
           destroy if destroy_on_complete
         end
         transitions from: :running, to: :completed
       end
 
-      event :fail do
-        before do
-          self.completed_at = Time.now
-        end
+      event :fail, before: :before_fail do
         transitions from: :running, to: :failed
       end
 
-      event :retry do
-        before do
-          self.completed_at = nil
-        end
+      event :retry, before: :before_retry do
         transitions from: :failed, to: :running
       end
 
-      event :pause do
-        before do
-          self.completed_at = Time.now
-        end
+      event :pause, before: :before_pause do
         transitions from: :running, to: :paused
       end
 
-      event :resume do
-        before do
-          self.completed_at = nil
-        end
+      event :resume, before: :before_resume do
         transitions from: :running, to: :paused
       end
 
-      event :abort do
-        before do
-          self.completed_at = Time.now
-        end
+      event :abort, before: :before_abort do
         transitions from: :running, to: :aborted
         transitions from: :queued, to: :aborted
       end
@@ -352,6 +330,36 @@ module RocketJob
 
     protected
 
+    # Before events that can be overridden by child classes
+    def before_start
+      self.started_at = Time.now
+    end
+
+    def before_complete
+      self.percent_complete = 100
+      self.completed_at = Time.now
+    end
+
+    def before_fail
+      self.completed_at = Time.now
+    end
+
+    def before_retry
+      self.completed_at = nil
+    end
+
+    def before_pause
+      self.completed_at = Time.now
+    end
+
+    def before_resume
+      self.completed_at = nil
+    end
+
+    def before_abort
+      self.completed_at = Time.now
+    end
+
     # Calls a method on the worker, if it is defined for the worker
     # Adds the event name to the method call if supplied
     #
@@ -364,7 +372,7 @@ module RocketJob
     #     Default: None, just call the method itself
     #
     def call_method(worker, event=nil)
-      the_method = event.nil? ? self.method : "#{event}_#{self.method}".to_sym
+      the_method = event.nil? ? self.perform_method : "#{event}_#{self.perform_method}".to_sym
       if worker.respond_to?(the_method)
         method_name = "#{worker.class.name}##{the_method}"
         logger.info "Start #{method_name}"
@@ -393,7 +401,7 @@ module RocketJob
         'server'        => server_name,
       }
       fail!
-      logger.error("Exception running #{klass}##{method}", exc)
+      logger.error("Exception running #{klass}##{perform_method}", exc)
     end
 
   end

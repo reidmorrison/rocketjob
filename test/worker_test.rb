@@ -70,7 +70,7 @@ class WorkerTest < Minitest::Test
           assert_nil   @job.server
           assert_nil   @job.completed_at
           assert       @job.created_at
-          assert_nil   @job.description
+          assert_equal 'Hello World',  @job.description
           assert_equal false, @job.destroy_on_complete
           assert_nil   @job.expires_at
           assert_nil   @job.group
@@ -96,7 +96,7 @@ class WorkerTest < Minitest::Test
 
           assert       @job.completed_at
           assert       @job.created_at
-          assert_nil   @job.description
+          assert_equal 'Hello World',  @job.description
           assert_equal false, @job.destroy_on_complete
           assert_nil   @job.expires_at
           assert_nil   @job.group

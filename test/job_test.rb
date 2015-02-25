@@ -69,7 +69,7 @@ class JobTest < Minitest::Test
       end
 
       should 'call specific method' do
-        @job.method = :sum
+        @job.perform_method = :sum
         @job.arguments = [ 23, 45 ]
         @job.start!
         assert_equal 1, @job.work(@server)
@@ -87,7 +87,7 @@ class JobTest < Minitest::Test
       should 'silence logging when log_level is set' do
         @job.destroy_on_complete = true
         @job.log_level           = :warn
-        @job.method              = :noisy_logger
+        @job.perform_method              = :noisy_logger
         @job.arguments           = []
         @job.start!
         logged = false
@@ -100,7 +100,7 @@ class JobTest < Minitest::Test
       should 'raise logging when log_level is set' do
         @job.destroy_on_complete = true
         @job.log_level           = :trace
-        @job.method              = :debug_logging
+        @job.perform_method              = :debug_logging
         @job.arguments           = []
         @job.start!
         logged = false
