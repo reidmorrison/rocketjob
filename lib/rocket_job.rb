@@ -3,10 +3,10 @@ require 'mongo'
 require 'mongo_ha'
 require 'mongo_mapper'
 require 'semantic_logger'
-require 'symmetric-encryption'
 require 'rocket_job/version'
 
 module RocketJob
+  autoload :CLI,                   'rocket_job/cli'
   autoload :Config,                'rocket_job/config'
   autoload :Heartbeat,             'rocket_job/heartbeat'
   autoload :Job,                   'rocket_job/job'

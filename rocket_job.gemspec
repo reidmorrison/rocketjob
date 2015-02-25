@@ -14,7 +14,8 @@ Gem::Specification.new do |s|
   s.homepage    = 'https://github.com/reidmorrison/rocket_job'
   s.summary     = "High volume, priority based, Enterprise Batch Processing solution for Ruby"
   s.description = "Designed for batch processing from single records to millions of records in a single batch. Uses threading instead of process forking for greater throughtput."
-  s.files       = Dir["lib/**/*", "LICENSE.txt", "Rakefile", "README.md"]
+  s.executables = ['rocket_job']
+  s.files       = Dir["lib/**/*", "bin/*", "LICENSE.txt", "Rakefile", "README.md"]
   s.test_files  = Dir["test/**/*"]
   s.license     = "Apache License V2.0"
   s.has_rdoc    = true
