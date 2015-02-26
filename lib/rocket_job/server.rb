@@ -196,14 +196,14 @@ module RocketJob
 
         sleep Config.instance.heartbeat_seconds
       end
-      logger.debug 'Waiting for worker threads to stop'
+      logger.info 'Waiting for worker threads to stop'
       # TODO Put a timeout on join.
       # Log Thread dump for active threads
       # Compare thread dumps for any changes, force down if no change?
       # reload, if model missing: Send Shutdown exception to each thread
       #           5 more seconds then exit
       thread_pool.each { |t| t.join }
-      logger.debug 'Shutdown'
+      logger.info 'Shutdown'
     rescue Exception => exc
       logger.error('RocketJob::Server is stopping due to an exception', exc)
     ensure
@@ -262,7 +262,7 @@ module RocketJob
     # Keep processing jobs until server stops running
     def worker(worker_id)
       Thread.current.name = "RocketJob Worker #{worker_id}"
-      logger.debug 'Started'
+      logger.info 'Started'
       loop do
         worked = false
         if job = next_job
@@ -282,7 +282,7 @@ module RocketJob
         end
         break if @@shutdown || !running?
       end
-      logger.debug "Stopping. Server state: #{state.inspect}"
+      logger.info "Stopping. Server state: #{state.inspect}"
     rescue Exception => exc
       logger.fatal('Unhandled exception in job processing thread', exc)
     end
