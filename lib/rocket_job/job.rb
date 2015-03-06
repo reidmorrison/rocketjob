@@ -130,10 +130,11 @@ module RocketJob
     # Store the last exception for this job
     key :exception,               Hash
 
-    # Store the Hash output from this job if collect_output is true,
+    # Store the Hash result from this job if collect_output is true,
     # and the job returned actually returned a Hash, otherwise nil
-    # Not applicable to BatchJob jobs
-    key :output,                  Hash
+    # Not applicable to BatchJob jobs, since its output is stored in a
+    # separate collection
+    key :result,                  Hash
 
     # Store all job types in this collection
     set_collection_name 'rocket_job.jobs'
@@ -285,6 +286,13 @@ module RocketJob
       (count ** 4) + 15 + (rand(30)*(count+1))
     end
 
+    # Returns a new instance of the worker for this job
+    def new_worker
+      worker = klass.constantize.new
+      worker.rocket_job = self
+      worker
+    end
+
     # Invokes the worker to process this job
     #
     # Returns the result of the method called
@@ -296,8 +304,7 @@ module RocketJob
     def work(server)
       raise 'Job must be started before calling #work' unless running?
       begin
-        worker           = self.klass.constantize.new
-        worker.rocket_job = self
+        worker = new_worker
         # before_perform
         call_method(worker, :before)
 

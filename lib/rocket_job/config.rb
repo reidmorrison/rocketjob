@@ -1,4 +1,5 @@
 # encoding: UTF-8
+require 'sync_attr'
 module RocketJob
   # Centralized Configuration for Rocket Jobs
   class Config
@@ -47,13 +48,23 @@ module RocketJob
       Job.set_database_name(db_name)
     end
 
-    # By default use global MongoMapper connection
-    @@connection = MongoMapper.connection
-
-    # Replace the MongoMapper default mongo connection for holding working data.
-    # For example, slices, records, etc.
+    # Use a separate Mongo connection for the Records and Results
+    # Allows the records and results to be stored in a separate Mongo database
+    # from the Jobs themselves.
+    #
+    # It is recommended to set the work_connection to a local Mongo Server that
+    # is not replicated to another data center to prevent flooding the network
+    # with replication of data records and results.
+    # The jobs themselves can/should be replicated across data centers so that
+    # they are never lost.
     def self.mongo_work_connection=(connection)
-      RocketJob::BatchJob.work_connection = connection
+      @@mongo_work_connection = connection
     end
+
+    # Returns the Mongo connection for the Records and Results
+    def self.mongo_work_connection
+      @@mongo_work_connection || connection
+    end
+
   end
 end

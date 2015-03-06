@@ -38,7 +38,7 @@ class WorkerTest < Minitest::Test
 
           @job.server = 'me'
           @job.start
-          assert_equal 1, @job.work(@server), @job.exception.inspect
+          assert_equal 1,    @job.work(@server), @job.exception.inspect
           assert_equal true, @job.completed?
           assert_equal 2,    Workers::Job.result
 
@@ -61,9 +61,10 @@ class WorkerTest < Minitest::Test
         should "process multi-record request (test_mode=#{test_mode})" do
           @lines = [ 'line1', 'line2', 'line3', 'line4', 'line5' ]
           @job = Workers::BatchJob.perform_later do |job|
-            job.collect_output = true
-            job.input_slice @lines
             job.destroy_on_complete = false
+            job.collect_output      = true
+
+            job.upload_slice @lines
           end
           assert_equal RocketJob::BatchJob, @job.class
           assert_equal @lines.size, @job.record_count
@@ -86,11 +87,11 @@ class WorkerTest < Minitest::Test
           @job.start!
           @job.save!
           assert_equal 5, @job.work(@server), @job.exception.inspect
-          assert_equal 0, @job.slices_failed
+          assert_equal 0, @job.input.failed_slices
           assert_equal @lines.size, @job.record_count
-          assert_equal 0, @job.slices_queued
+          assert_equal 0, @job.input.queued_slices
           assert_equal true, @job.completed?
-          @job.each_output_slice do |slice|
+          @job.output.each_slice do |slice|
             assert_equal @lines, slice
           end
 
@@ -114,9 +115,9 @@ class WorkerTest < Minitest::Test
         should "process non default method (test_mode=#{test_mode})" do
           @job = Workers::Job.later(:sum, 23, 45)
           @job.start
-          assert_equal 1, @job.work(@server), @job.exception.inspect
+          assert_equal 1,    @job.work(@server), @job.exception.inspect
           assert_equal true, @job.completed?
-          assert_equal 68,    Workers::Job.result
+          assert_equal 68,   Workers::Job.result
         end
       end
 

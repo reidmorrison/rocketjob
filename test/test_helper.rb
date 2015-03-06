@@ -7,6 +7,7 @@ require 'minitest/stub_any_instance'
 require 'shoulda/context'
 require 'rocket_job'
 require 'awesome_print'
+require 'symmetric-encryption'
 
 Minitest::Reporters.use! Minitest::Reporters::SpecReporter.new
 
@@ -26,9 +27,9 @@ if config = YAML.load(ERB.new(File.read(config_file)).result)
 
   # If this environment has a separate Work server
   if cfg = config['test_work']
-    options                = cfg['options'] || {}
-    options[:logger]       = SemanticLogger::DebugAsTraceLogger.new('MongoWork')
-    RocketJob::BatchJob.work_connection = Mongo::MongoClient.from_uri(cfg['uri'], options)
+    options           = cfg['options'] || {}
+    options[:logger]  = SemanticLogger::DebugAsTraceLogger.new('MongoWork')
+    RocketJob::Config.mongo_work_connection = Mongo::MongoClient.from_uri(cfg['uri'], options)
   end
 end
 

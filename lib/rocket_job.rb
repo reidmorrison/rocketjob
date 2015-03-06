@@ -25,6 +25,11 @@ module RocketJob
   module Jobs
     autoload :PerformanceJob,      'rocket_job/jobs/performance_job'
   end
+  module Collection
+    autoload :Base,                'rocket_job/collection/base'
+    autoload :Input,               'rocket_job/collection/input'
+    autoload :Output,              'rocket_job/collection/output'
+  end
 
   UTF8_ENCODING = Encoding.find("UTF-8").freeze
 end
