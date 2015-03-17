@@ -1,6 +1,6 @@
 require_relative 'test_helper'
 require_relative 'workers/job'
-require_relative 'workers/batch_job'
+require_relative 'workers/sliced_job'
 
 # Unit Test for RocketJob::Job
 class WorkerTest < Minitest::Test
@@ -59,13 +59,13 @@ class WorkerTest < Minitest::Test
 
         should "process multi-record request (test_mode=#{test_mode})" do
           @lines = [ 'line1', 'line2', 'line3', 'line4', 'line5' ]
-          @job = Workers::BatchJob.perform_later do |job|
+          @job = Workers::SlicedJob.perform_later do |job|
             job.destroy_on_complete = false
             job.collect_output      = true
 
             job.upload_slice @lines
           end
-          assert_equal RocketJob::BatchJob, @job.class
+          assert_equal RocketJob::SlicedJob, @job.class
           assert_equal @lines.size, @job.record_count
           assert_nil   @job.server_name
           assert_nil   @job.completed_at

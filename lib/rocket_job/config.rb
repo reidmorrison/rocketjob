@@ -6,7 +6,7 @@ module RocketJob
     include MongoMapper::Document
     include SyncAttr
 
-    # Returns the single instance of the Batch Configuration
+    # Returns the single instance of the Rocket Job Configuration for this site
     # in a thread-safe way
     sync_cattr_reader(:instance) do
       begin
@@ -37,13 +37,13 @@ module RocketJob
     # Replace the MongoMapper default mongo connection for holding jobs
     def self.mongo_connection=(connection)
       connection(connection)
-      BatchJob.connection(connection)
+      SlicedJob.connection(connection)
       Server.connection(connection)
       Job.connection(connection)
 
       db_name = connection.db.name
       set_database_name(db_name)
-      BatchJob.set_database_name(db_name)
+      SlicedJob.set_database_name(db_name)
       Server.set_database_name(db_name)
       Job.set_database_name(db_name)
     end

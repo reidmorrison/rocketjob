@@ -297,7 +297,7 @@ module RocketJob
         '$or' => [
           # Job Jobs
           { 'state' => 'queued' },
-          # BatchJob Jobs available for additional workers
+          # SlicedJob Jobs available for additional workers
           { 'state' => 'running', 'sub_state' => :processing }
         ]
       }
@@ -317,7 +317,7 @@ module RocketJob
     # Requeue any jobs assigned to this server
     def requeue_jobs
       stop! if running? || paused?
-      RocketJob::BatchJob.requeue_dead_server(name)
+      RocketJob::SlicedJob.requeue_dead_server(name)
     end
 
     @@shutdown = false

@@ -10,7 +10,7 @@ module RocketJob
   autoload :Config,                'rocket_job/config'
   autoload :Heartbeat,             'rocket_job/heartbeat'
   autoload :Job,                   'rocket_job/job'
-  autoload :BatchJob,              'rocket_job/batch_job'
+  autoload :SlicedJob,             'rocket_job/sliced_job'
   autoload :Server,                'rocket_job/server'
   autoload :Worker,                'rocket_job/worker'
   module Reader

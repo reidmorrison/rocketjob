@@ -133,7 +133,7 @@ module RocketJob
 
     # Store the Hash result from this job if collect_output is true,
     # and the job returned actually returned a Hash, otherwise nil
-    # Not applicable to BatchJob jobs, since its output is stored in a
+    # Not applicable to SlicedJob jobs, since its output is stored in a
     # separate collection
     key :result,                  Hash
 
