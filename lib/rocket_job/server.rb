@@ -30,7 +30,7 @@ module RocketJob
   #     server.stop!
   #
   #   Sending the kill signal locally will result in starting the shutdown process
-  #   immediately. Via the UI or Ruby code the server can take up to 30 seconds
+  #   immediately. Via the UI or Ruby code the server can take up to 15 seconds
   #   (the heartbeat interval) to start shutting down.
   #
   # Restarting a server:
@@ -158,7 +158,7 @@ module RocketJob
 
     # Returns [Array<Thread>] threads in the thread_pool
     def thread_pool
-      @thread_pool ||=[]
+      @thread_pool ||= []
     end
 
     # Run this instance of the server
@@ -305,7 +305,7 @@ module RocketJob
       if doc = Job.find_and_modify(
           query:  query,
           sort:   [['priority', 'asc'], ['created_at', 'asc']],
-          update: { '$set' => { 'server' => self.name, 'state' => 'running' } }
+          update: { '$set' => { 'server_name' => name, 'state' => 'running' } }
         )
         job = Job.load(doc)
         # Also update in-memory state and run call-backs

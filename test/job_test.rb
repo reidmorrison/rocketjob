@@ -30,13 +30,12 @@ class JobTest < Minitest::Test
     context '#save!' do
       should 'save a blank job' do
         @job.save!
-        assert_nil   @job.server
+        assert_nil   @job.server_name
         assert_nil   @job.completed_at
         assert       @job.created_at
         assert_equal @description, @job.description
         assert_equal false, @job.destroy_on_complete
         assert_nil   @job.expires_at
-        assert_nil   @job.group
         assert_equal @arguments, @job.arguments
         assert_equal 0, @job.percent_complete
         assert_equal 50, @job.priority

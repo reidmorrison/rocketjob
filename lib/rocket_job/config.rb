@@ -24,15 +24,15 @@ module RocketJob
     # The maximum number of worker threads to create on any one server
     key :max_worker_threads,         Integer, default: 10
 
-    # Number of seconds between heartbeats from Batch Server processes
+    # Number of seconds between heartbeats from Rocket Job Server processes
     key :heartbeat_seconds,          Integer, default: 15
 
-    # Maximum number of seconds between checks for new jobs
+    # Maximum number of seconds a Server will wait before checking for new jobs
     key :max_poll_seconds,           Integer, default: 5
 
     # Limit the number of workers per job class per server
     #    'class_name' / group => 100
-    key :limits, Hash
+    #key :limits, Hash
 
     # Replace the MongoMapper default mongo connection for holding jobs
     def self.mongo_connection=(connection)

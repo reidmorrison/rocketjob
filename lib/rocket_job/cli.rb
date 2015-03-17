@@ -2,14 +2,14 @@ require 'optparse'
 module RocketJob
   # Command Line Interface parser for RocketJob
   class CLI
-    attr_reader :name, :threads, :re_check_seconds, :environment, :pidfile, :directory, :quiet, :preload
+    attr_reader :name, :threads, :re_check_seconds, :environment, :pidfile, :directory, :quiet, :eagerload
 
     def initialize(argv)
       @name             = nil
       @threads          = nil
       @re_check_seconds = nil
 
-      @preload          = true
+      @eagerload        = true
       @quiet            = false
       @environment      = ENV['RAILS_ENV'] || ENV['RACK_ENV'] || 'development'
       @pidfile          = nil
@@ -33,7 +33,7 @@ module RocketJob
     # Initialize the Rails environment
     def boot_rails
       require File.expand_path("#{directory}/config/environment.rb")
-      if preload
+      if eagerload
         RocketJob::Server.logger.benchmark_info('Eager loaded Rails and all Engines') do
           Rails.application.eager_load!
           Rails::Engine.subclasses.each { |engine| engine.eager_load! }
@@ -62,8 +62,8 @@ module RocketJob
         o.on('-d', '--dir DIR', 'Directory containing Rails app, if not current directory') { |arg| @directory = arg }
         o.on('-e', '--environment ENVIRONMENT', 'The environment to run the app on (Default: RAILS_ENV || RACK_ENV || development)') { |arg| @environment = arg }
         o.on('--pidfile PATH', 'Use PATH as a pidfile') { |arg| @pidfile = arg }
-        o.on('--noeagerload', 'Don\'t Eager load all files') { @preload = false }
-        o.on('--re_check_seconds', 'Number of seconds job workers will be requested to return during processing') { @preload = false }
+        o.on('--noeagerload', 'Don\'t Eager load all files') { @eagerload = false }
+        o.on('--re_check_seconds', 'Number of seconds job workers will be requested to return during processing') { @eagerload = false }
         o.on('-v', '--version', 'Print the version information') do
           puts "Rocket Job v#{RocketJob::VERSION}"
           exit 1

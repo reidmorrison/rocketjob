@@ -91,10 +91,11 @@ module RocketJob
     # Raise or lower the log level when calling the job
     # Can be used to reduce log noise, especially during high volume calls
     # For debugging a single job can be logged at a low level such as :trace
+    #   Levels supported: :trace, :debug, :info, :warn, :error, :fatal
     key :log_level,               Symbol
 
     # Only give access through the Web UI to this group identifier
-    key :group,                   String
+    #key :group,                   String
 
     #
     # Read-only attributes
@@ -112,11 +113,11 @@ module RocketJob
     # When the job completed processing
     key :completed_at,            Time
 
-    # Number of times that this job has been retried
+    # Number of times that this job has failed to process
     key :failure_count,           Integer, default: 0
 
-    # This job is being processed by, or was processed by this server
-    key :server,                  String
+    # This name of the server that this job is being processed by, or was processed by
+    key :server_name,             String
 
     #
     # Values that jobs can update during processing
@@ -231,8 +232,8 @@ module RocketJob
     # Requeue all jobs for the specified dead server
     def self.requeue_dead_server(server_name)
       collection.update(
-        { 'server' => server_name, 'state' => :running },
-        { '$unset' => { 'server' => true, 'started_at' => true }, '$set' => { 'state' => :queued } },
+        { 'server_name' => server_name, 'state' => :running },
+        { '$unset' => { 'server_name' => true, 'started_at' => true }, '$set' => { 'state' => :queued } },
         multi: true
       )
     end
@@ -295,7 +296,7 @@ module RocketJob
 
     # Invokes the worker to process this job
     #
-    # Returns the result of the method called
+    # Returns the number of records processed
     #
     # If an exception is thrown the job is marked as failed and the exception
     # is set in the job itself.
@@ -399,13 +400,13 @@ module RocketJob
 
     # Set exception information for this job
     def set_exception(server_name, exc)
-      self.server = nil
+      self.server_name = nil
       self.failure_count += 1
       self.exception = {
         'class'         => exc.class.to_s,
         'message'       => exc.message,
         'backtrace'     => exc.backtrace || [],
-        'server'        => server_name,
+        'server_name'   => server_name,
       }
       fail!
       logger.error("Exception running #{klass}##{perform_method}", exc)

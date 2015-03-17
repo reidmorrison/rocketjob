@@ -18,15 +18,15 @@ class WorkerTest < Minitest::Test
 
       context '#perform_later' do
         should "process single request (test_mode=#{test_mode})" do
-          @job = Workers::Job.perform_later(1)
-          assert_nil   @job.server
+          @job = Workers::Job.perform_later(1) do |job|
+            job.destroy_on_complete = false
+          end
+          assert_nil   @job.server_name
           assert_nil   @job.completed_at
           assert       @job.created_at
           assert_nil   @job.description
-          skip 'need ability to set destroy_on_complete to false'
           assert_equal false, @job.destroy_on_complete
           assert_nil   @job.expires_at
-          assert_nil   @job.group
           assert_equal 0, @job.percent_complete
           assert_equal 50, @job.priority
           assert_equal true, @job.repeatable
@@ -36,19 +36,18 @@ class WorkerTest < Minitest::Test
           assert_nil   @job.started_at
           assert_equal :queued, @job.state
 
-          @job.server = 'me'
+          @job.server_name = 'me'
           @job.start
           assert_equal 1,    @job.work(@server), @job.exception.inspect
           assert_equal true, @job.completed?
           assert_equal 2,    Workers::Job.result
 
-          assert       @job.server
+          assert       @job.server_name
           assert       @job.completed_at
           assert       @job.created_at
           assert_nil   @job.description
           assert_equal false, @job.destroy_on_complete
           assert_nil   @job.expires_at
-          assert_nil   @job.group
           assert_equal 100, @job.percent_complete
           assert_equal 50, @job.priority
           assert_equal true, @job.repeatable
@@ -68,13 +67,12 @@ class WorkerTest < Minitest::Test
           end
           assert_equal RocketJob::BatchJob, @job.class
           assert_equal @lines.size, @job.record_count
-          assert_nil   @job.server
+          assert_nil   @job.server_name
           assert_nil   @job.completed_at
           assert       @job.created_at
           assert_equal 'Hello World',  @job.description
           assert_equal false, @job.destroy_on_complete
           assert_nil   @job.expires_at
-          assert_nil   @job.group
           assert_equal 0, @job.percent_complete
           assert_equal 50, @job.priority
           assert_equal true, @job.repeatable
@@ -100,7 +98,6 @@ class WorkerTest < Minitest::Test
           assert_equal 'Hello World',  @job.description
           assert_equal false, @job.destroy_on_complete
           assert_nil   @job.expires_at
-          assert_nil   @job.group
           assert_equal 100, @job.percent_complete
           assert_equal 50, @job.priority
           assert_equal true, @job.repeatable
