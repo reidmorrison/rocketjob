@@ -17,10 +17,6 @@ module RocketJob
       end
     end
 
-    # By enabling test_mode jobs will be called in-line
-    # No server processes will be created, nor threads created
-    sync_cattr_accessor(:test_mode) { false }
-
     # The maximum number of worker threads to create on any one server
     key :max_worker_threads,         Integer, default: 10
 

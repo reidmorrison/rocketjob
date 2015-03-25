@@ -220,7 +220,8 @@ module RocketJob
 
       event :abort, before: :before_abort do
         transitions from: :running, to: :aborted
-        transitions from: :queued, to: :aborted
+        transitions from: :queued,  to: :aborted
+        transitions from: :failed,  to: :aborted
       end
     end
 
