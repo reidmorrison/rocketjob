@@ -277,8 +277,10 @@ module RocketJob
         h[:percent_complete] = percent_complete if percent_complete
         h[:exception]        = exception.dup
       else
+        h[:seconds]          = 0
         h[:status]           = "Unknown job state: #{state}"
       end
+      h[:duration] = Time.at(h[:seconds]).strftime('%H:%M:%S')
       h
     end
 
