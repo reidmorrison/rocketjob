@@ -323,6 +323,7 @@ module RocketJob
       rescue Exception => exc
         worker.on_exception(exc) if worker && worker.respond_to?(:on_exception)
         set_exception(server.name, exc)
+        raise exc if RocketJob::Config.inline_mode
         0
       end
     end

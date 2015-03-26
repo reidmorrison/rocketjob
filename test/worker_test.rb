@@ -5,19 +5,19 @@ require_relative 'workers/sliced_job'
 # Unit Test for RocketJob::Job
 class WorkerTest < Minitest::Test
   context RocketJob::Worker do
-    [true, false].each do |test_mode|
+    [true, false].each do |inline_mode|
     setup do
-        RocketJob::Config.test_mode = test_mode
+        RocketJob::Config.inline_mode = inline_mode
       @server = RocketJob::Server.new
     end
 
     teardown do
       @job.destroy if @job && !@job.new_record?
-        RocketJob::Config.test_mode = false
+        RocketJob::Config.inline_mode = false
     end
 
     context '#perform_later' do
-        should "process single request (test_mode=#{test_mode})" do
+        should "process single request (inline_mode=#{inline_mode})" do
         @job = Workers::Job.perform_later(1) do |job|
           job.destroy_on_complete = false
         end
@@ -57,7 +57,7 @@ class WorkerTest < Minitest::Test
         assert       @job.started_at
       end
 
-        should "process multi-record request (test_mode=#{test_mode})" do
+        should "process multi-record request (inline_mode=#{inline_mode})" do
         @lines = [ 'line1', 'line2', 'line3', 'line4', 'line5' ]
         @job = Workers::SlicedJob.perform_later do |job|
           job.destroy_on_complete = false
@@ -109,7 +109,7 @@ class WorkerTest < Minitest::Test
     end
 
     context '#later' do
-        should "process non default method (test_mode=#{test_mode})" do
+        should "process non default method (inline_mode=#{inline_mode})" do
         @job = Workers::Job.later(:sum, 23, 45)
         @job.start
         assert_equal 1,    @job.work(@server), @job.exception.inspect
