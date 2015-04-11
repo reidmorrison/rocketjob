@@ -6,6 +6,9 @@ module RocketJob
     include MongoMapper::Document
     include SyncAttr
 
+    # Prevent data in MongoDB from re-defining the model behavior
+    #self.static_keys = true
+
     # Returns the single instance of the Rocket Job Configuration for this site
     # in a thread-safe way
     sync_cattr_reader(:instance) do
@@ -29,6 +32,17 @@ module RocketJob
 
     # Maximum number of seconds a Server will wait before checking for new jobs
     key :max_poll_seconds,           Integer, default: 5
+
+    # Number of seconds between checking for:
+    # - Jobs with a higher priority
+    # - If the current job has been paused, or aborted
+    #
+    # Making this interval too short results in too many checks for job status
+    # changes instead of focusing on completing the active tasks
+    #
+    # Note:
+    #   Not all job types support pausing in the middle
+    key :re_check_seconds,           Integer, default: 60
 
     # Limit the number of workers per job class per server
     #    'class_name' / group => 100

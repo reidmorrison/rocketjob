@@ -25,5 +25,5 @@ Gem::Specification.new do |s|
   s.add_dependency 'mongo', '~> 1.11'
   s.add_dependency 'mongo_mapper', '~> 0.13'
   s.add_dependency 'symmetric-encryption', '~> 3.0'
-  s.add_dependency 'sync_attr', '>= 1.0'
+  s.add_dependency 'sync_attr', '~> 2.0'
 end

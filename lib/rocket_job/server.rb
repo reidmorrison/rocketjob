@@ -48,6 +48,9 @@ module RocketJob
     include SyncAttr
     include SemanticLogger::Loggable
 
+    # Prevent data in MongoDB from re-defining the model behavior
+    #self.static_keys = true
+
     # Unique Name of this server instance
     #   Defaults to the `hostname` but _must_ be overriden if mutiple Server instances
     #   are started on the same host
@@ -64,13 +67,6 @@ module RocketJob
 
     # The heartbeat information for this server
     one :heartbeat,          class_name: 'RocketJob::Heartbeat'
-
-    # Number of seconds job workers will be requested to return after so that
-    # jobs with a higher priority can interrupt current jobs
-    #
-    # Note:
-    #   Not all job types support stopping in the middle
-    key :re_check_seconds,   Integer, default: 900
 
     # Current state
     #   Internal use only. Do not set this field directly
@@ -143,12 +139,12 @@ module RocketJob
 
     # Stop all running, paused, or starting servers
     def self.stop_all
-      each { |server| server.stop! if server.running? || server.paused? || server.starting? }
+      where(state: ['running', 'paused', 'starting']).each { |server| server.stop! }
     end
 
     # Pause all running servers
     def self.pause_all
-      each { |server| server.pause! if server.running? }
+      where(state: 'running').each { |server| server.pause! }
     end
 
     # Resume all paused servers
@@ -266,7 +262,7 @@ module RocketJob
       loop do
         worked = false
         if job = next_job
-          logger.tagged(job.id.to_s) do
+          logger.tagged("Job #{job.id}") do
             job.work(self)
             worked = true
           end

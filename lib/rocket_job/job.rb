@@ -27,6 +27,9 @@ module RocketJob
     include AASM
     include SemanticLogger::Loggable
 
+    # Prevent data in MongoDB from re-defining the model behavior
+    #self.static_keys = true
+
     #
     # User definable attributes
     #
@@ -215,13 +218,14 @@ module RocketJob
       end
 
       event :resume, before: :before_resume do
-        transitions from: :running, to: :paused
+        transitions from: :paused, to: :running
       end
 
       event :abort, before: :before_abort do
         transitions from: :running, to: :aborted
         transitions from: :queued,  to: :aborted
         transitions from: :failed,  to: :aborted
+        transitions from: :paused,  to: :aborted
       end
     end
 
@@ -237,6 +241,16 @@ module RocketJob
         { '$unset' => { 'server_name' => true, 'started_at' => true }, '$set' => { 'state' => :queued } },
         multi: true
       )
+    end
+
+    # Pause all running jobs
+    def self.pause_all
+      where(state: 'running').each { |job| job.pause! }
+    end
+
+    # Resume all paused jobs
+    def self.resume_all
+      where(state: 'paused').each { |job| job.resume! }
     end
 
     # Returns [Hash] status of this job
