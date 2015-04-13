@@ -25,8 +25,9 @@ module RocketJob
   module Jobs
     autoload :PerformanceJob,      'rocket_job/jobs/performance_job'
   end
-  module Collection
-    autoload :Base,                'rocket_job/collection/base'
+  module Sliced
+    autoload :Slice,               'rocket_job/collection/slice'
+    autoload :Slices,              'rocket_job/collection/slices'
     autoload :Input,               'rocket_job/collection/input'
     autoload :Output,              'rocket_job/collection/output'
   end
