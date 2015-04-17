@@ -337,7 +337,6 @@ module RocketJob
         complete!
         1
       rescue Exception => exc
-        worker.on_exception(exc) if worker && worker.respond_to?(:on_exception)
         set_exception(server.name, exc)
         raise exc if RocketJob::Config.inline_mode
         0
@@ -414,6 +413,37 @@ module RocketJob
       end
     end
 
+    ############################################################################
+    protected
+
+    # Returns the next job to work on in priority based order
+    # Returns nil if there are currently no queued jobs, or processing batch jobs
+    #   with records that require processing
+    #
+    # If a job is in queued state it will be started
+    def self.next_job(server_name)
+      query = {
+        '$or' => [
+          # Job Jobs
+          { 'state' => 'queued' },
+          # SlicedJob Jobs available for additional workers
+          { 'state' => 'running', 'sub_state' => :processing }
+        ]
+      }
+
+      if doc = find_and_modify(
+          query:  query,
+          sort:   [['priority', 'asc'], ['created_at', 'asc']],
+          update: { '$set' => { 'server_name' => server_name, 'state' => 'running' } }
+        )
+        job = load(doc)
+        # Also update in-memory state and run call-backs
+        job.start unless job.running?
+        job
+      end
+    end
+
+    ############################################################################
     private
 
     # Set exception information for this job

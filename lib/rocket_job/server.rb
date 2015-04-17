@@ -261,7 +261,7 @@ module RocketJob
       logger.info 'Started'
       loop do
         worked = false
-        if job = next_job
+        if job = Job.next_job(name)
           logger.tagged("Job #{job.id}") do
             job.work(self)
             worked = true
@@ -281,33 +281,6 @@ module RocketJob
       logger.info "Stopping. Server state: #{state.inspect}"
     rescue Exception => exc
       logger.fatal('Unhandled exception in job processing thread', exc)
-    end
-
-    # Returns the next job to work on in priority based order
-    # Returns nil if there are currently no queued jobs, or processing batch jobs
-    #   with records that require processing
-    #
-    # If a job is in queued state it will be started
-    def next_job
-      query = {
-        '$or' => [
-          # Job Jobs
-          { 'state' => 'queued' },
-          # SlicedJob Jobs available for additional workers
-          { 'state' => 'running', 'sub_state' => :processing }
-        ]
-      }
-
-      if doc = Job.find_and_modify(
-          query:  query,
-          sort:   [['priority', 'asc'], ['created_at', 'asc']],
-          update: { '$set' => { 'server_name' => name, 'state' => 'running' } }
-        )
-        job = Job.load(doc)
-        # Also update in-memory state and run call-backs
-        job.start unless job.running?
-        job
-      end
     end
 
     # Requeue any jobs assigned to this server
