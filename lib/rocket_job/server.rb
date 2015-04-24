@@ -128,7 +128,7 @@ module RocketJob
     # Destroy dead servers ( missed at least the last 4 heartbeats )
     # Requeue jobs assigned to dead servers
     # Destroy dead servers
-    def self.cleanup_dead_servers
+    def self.destroy_dead_servers
       dead_seconds = Config.instance.heartbeat_seconds * 4
       each do |server|
         next if (Time.now - server.heartbeat.updated_at) < dead_seconds

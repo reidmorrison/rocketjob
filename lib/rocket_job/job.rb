@@ -253,6 +253,24 @@ module RocketJob
       where(state: 'paused').each { |job| job.resume! }
     end
 
+    # Returns [true|false] whether to collect the results from running this batch
+    def collect_output?
+      collect_output == true
+    end
+
+    # Returns [Time] how long the job has taken to complete
+    # If not started then it is the time spent waiting in the queue
+    def duration
+      seconds = if completed_at
+        completed_at - (started_at || created_at)
+      elsif started_at
+        Time.now - started_at
+      else
+        Time.now - created_at
+      end
+      Time.at(seconds)
+    end
+
     # Returns [Hash] status of this job
     def status(time_zone='EST')
       h = {
@@ -263,38 +281,19 @@ module RocketJob
 
       case
       when running? || paused?
-        if running?
-          h[:status]         = started_at ? "Started at #{started_at.in_time_zone(time_zone)}" : "Started"
-        else
-          h[:status]         = "Paused at #{completed_at.in_time_zone(time_zone)}"
-        end
-        h[:seconds]          = started_at ? Time.now - started_at : 0
         h[:paused_at]        = completed_at.in_time_zone(time_zone) if paused?
         h[:percent_complete] = percent_complete if percent_complete
-        h[:status]           = "Running for #{'%.2f' % h[:seconds]} seconds"
       when completed?
-        h[:seconds]          = completed_at - started_at
-        h[:status]           = "Completed at #{completed_at.in_time_zone(time_zone)}"
         h[:completed_at]     = completed_at.in_time_zone(time_zone)
-      when queued?
-        h[:seconds]          = Time.now - created_at
-        h[:status]           = "Queued for #{'%.2f' % h[:seconds]} seconds"
       when aborted?
-        h[:seconds]          = started_at ? completed_at - started_at : 0
-        h[:status]           = "Aborted at #{completed_at.in_time_zone(time_zone)}"
         h[:aborted_at]       = completed_at.in_time_zone(time_zone)
         h[:percent_complete] = percent_complete if percent_complete
       when failed?
-        h[:seconds]          = started_at ? completed_at - started_at : 0
-        h[:status]           = "Failed at #{completed_at.in_time_zone(time_zone)}"
         h[:failed_at]        = completed_at.in_time_zone(time_zone)
         h[:percent_complete] = percent_complete if percent_complete
         h[:exception]        = exception.dup
-      else
-        h[:seconds]          = 0
-        h[:status]           = "Unknown job state: #{state}"
       end
-      h[:duration] = Time.at(h[:seconds]).strftime('%H:%M:%S')
+      h[:duration]           = duration.strftime('%H:%M:%S')
       h
     end
 
@@ -434,7 +433,7 @@ module RocketJob
       if doc = find_and_modify(
           query:  query,
           sort:   [['priority', 'asc'], ['created_at', 'asc']],
-          update: { '$set' => { 'server_name' => server_name, 'state' => 'running' } }
+          update: { '$set' => { 'server_name' => server_name, 'state' => 'running', 'started_at' => Time.now } }
         )
         job = load(doc)
         # Also update in-memory state and run call-backs
