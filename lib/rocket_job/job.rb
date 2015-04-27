@@ -323,16 +323,16 @@ module RocketJob
       begin
         worker = new_worker
         # before_perform
-        call_method(worker, :before)
+        worker.rocket_job_call(perform_method, arguments, event: :before, log_level: log_level)
 
         # perform
-        result = call_method(worker)
+        worker.rocket_job_call(perform_method, arguments, log_level: log_level)
         if self.collect_output?
           self.output = (result.is_a?(Hash) || result.is_a?(BSON::OrderedHash)) ? result : { result: result }
         end
 
         # after_perform
-        call_method(worker, :after)
+        worker.rocket_job_call(perform_method, arguments, event: :after, log_level: log_level)
         complete!
         1
       rescue Exception => exc
@@ -348,7 +348,7 @@ module RocketJob
         load_from_database(doc)
         self
       else
-        raise DocumentNotFound, "Document match #{_id.inspect} does not exist in #{collection.name} collection"
+        raise MongoMapper::DocumentNotFound, "Document match #{_id.inspect} does not exist in #{collection.name} collection"
       end
     end
 
@@ -382,34 +382,6 @@ module RocketJob
 
     def before_abort
       self.completed_at = Time.now
-    end
-
-    # Calls a method on the worker, if it is defined for the worker
-    # Adds the event name to the method call if supplied
-    #
-    # Parameters
-    #   worker [RocketJob::Worker]
-    #     The worker instance on which to invoke the method
-    #
-    #   event [Symbol]
-    #     Any one of: :before, :after
-    #     Default: None, just call the method itself
-    #
-    def call_method(worker, event=nil)
-      the_method = event.nil? ? self.perform_method : "#{event}_#{self.perform_method}".to_sym
-      if worker.respond_to?(the_method)
-        method_name = "#{worker.class.name}##{the_method}"
-        logger.info "Start #{method_name}"
-        logger.benchmark_info(
-          "Completed #{method_name}",
-          metric:             "rocket_job/#{worker.class.name.underscore}/#{the_method}",
-          log_exception:      :full,
-          on_exception_level: :error,
-          silence:            self.log_level
-        ) do
-          worker.send(the_method, *self.arguments)
-        end
-      end
     end
 
     ############################################################################

@@ -317,7 +317,7 @@ module RocketJob
         load_from_database(doc)
         self
       else
-        raise DocumentNotFound, "Document match #{_id.inspect} does not exist in #{collection.name} collection"
+        raise MongoMapper::DocumentNotFound, "Document match #{_id.inspect} does not exist in #{collection.name} collection"
       end
     end
 

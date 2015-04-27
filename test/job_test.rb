@@ -84,12 +84,12 @@ class JobTest < Minitest::Test
       should 'silence logging when log_level is set' do
         @job.destroy_on_complete = true
         @job.log_level           = :warn
-        @job.perform_method              = :noisy_logger
+        @job.perform_method      = :noisy_logger
         @job.arguments           = []
         @job.start!
         logged = false
-        Workers::Job.logger.stub(:log_internal, -> { logged = true }) do
-          assert_equal 1, @job.work(@server)
+        Workers::Job.logger.stub(:log_internal, -> level, index, message, payload, exception { logged = true if message.include?('some very noisy logging')}) do
+          assert_equal 1, @job.work(@server), @job.inspect
         end
         assert_equal false, logged
       end
@@ -97,7 +97,7 @@ class JobTest < Minitest::Test
       should 'raise logging when log_level is set' do
         @job.destroy_on_complete = true
         @job.log_level           = :trace
-        @job.perform_method              = :debug_logging
+        @job.perform_method      = :debug_logging
         @job.arguments           = []
         @job.start!
         logged = false
@@ -109,6 +109,17 @@ class JobTest < Minitest::Test
         end
         assert_equal false, logged
       end
+
+      should 'call before and after' do
+        named_parameters = { 'counter' => 23 }
+        @job.perform_method = :event
+        @job.arguments = [ named_parameters ]
+        @job.start!
+        assert_equal 1, @job.work(@server), @job.inspect
+        assert_equal true, @job.completed?
+        assert_equal named_parameters.merge('before_event' => true, 'after_event' => true), @job.arguments.first
+      end
+
     end
 
   end
