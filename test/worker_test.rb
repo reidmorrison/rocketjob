@@ -39,7 +39,7 @@ class WorkerTest < Minitest::Test
 
           @job.server_name = 'me'
           @job.start
-          assert_equal 1,    @job.work(@server), @job.exception.inspect
+          assert_equal false,    @job.work(@server), @job.exception.inspect
           assert_equal true, @job.completed?
           assert_equal 2,    Workers::Job.result
 
@@ -85,11 +85,11 @@ class WorkerTest < Minitest::Test
 
           @job.start!
           @job.save!
-          assert_equal 5, @job.work(@server), @job.exception.inspect
-          assert_equal 0, @job.input.failed_count
+          assert_equal false, @job.work(@server), @job.exception.inspect
+          assert_equal 0,     @job.input.failed_count
           assert_equal @lines.size, @job.record_count
-          assert_equal 0, @job.input.queued_count
-          assert_equal true, @job.completed?, @job.state
+          assert_equal 0,     @job.input.queued_count
+          assert_equal true,  @job.completed?, @job.state
           @job.output.each do |slice|
             assert_equal @lines, slice.to_a
           end
@@ -113,9 +113,9 @@ class WorkerTest < Minitest::Test
         should "process non default method (inline_mode=#{inline_mode})" do
           @job = Workers::Job.later(:sum, 23, 45)
           @job.start
-          assert_equal 1,    @job.work(@server), @job.exception.inspect
-          assert_equal true, @job.completed?
-          assert_equal 68,   Workers::Job.result
+          assert_equal false, @job.work(@server), @job.exception.inspect
+          assert_equal true,  @job.completed?
+          assert_equal 68,    Workers::Job.result
         end
       end
 

@@ -152,6 +152,12 @@ module RocketJob
       each { |server| server.resume! if server.paused? }
     end
 
+    # Returns [Boolean] whether the server is shutting down
+    def shutting_down?
+      # TODO Protect with a Mutex
+      @@shutdown || !running?
+    end
+
     # Returns [Array<Thread>] threads in the thread_pool
     def thread_pool
       @thread_pool ||= []
@@ -260,27 +266,41 @@ module RocketJob
       Thread.current.name = "RocketJob Worker #{worker_id}"
       logger.info 'Started'
       loop do
-        worked = false
-        if job = Job.next_job(name)
-          logger.tagged("Job #{job.id}") do
-            job.work(self)
-            worked = true
-          end
+        break if shutting_down?
+        if process_next_job
+          # Keeps workers staggered across the poll interval so that not
+          # all workers poll at the same time
+          sleep rand(RocketJob::Config.instance.max_poll_seconds * 1000) / 1000
         else
-          if worked
-            # Keeps workers staggered across the poll interval so that not
-            # all workers poll again at the same time
-            sleep rand(RocketJob::Config.instance.max_poll_seconds * 1000) / 1000
-            worked = false
-          else
-            sleep RocketJob::Config.instance.max_poll_seconds
-          end
+          sleep RocketJob::Config.instance.max_poll_seconds
         end
-        break if @@shutdown || !running?
       end
       logger.info "Stopping. Server state: #{state.inspect}"
     rescue Exception => exc
       logger.fatal('Unhandled exception in job processing thread', exc)
+    end
+
+    # Process the next available job
+    # Returns [Boolean] whether any job was actually processed
+    def process_next_job
+      processed_job = false
+      skip_job_ids  = []
+      loop do
+        if job = Job.next_job(name, skip_job_ids)
+          logger.tagged("Job #{job.id}") do
+            if job.work(self)
+              # Need to skip the specified job due to throttling or no work available
+              skip_job_ids << job.id
+            else
+              processed_job = true
+              break
+            end
+          end
+        else
+          break
+        end
+      end
+      processed_job
     end
 
     # Requeue any jobs assigned to this server

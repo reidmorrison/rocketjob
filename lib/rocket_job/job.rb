@@ -231,7 +231,10 @@ module RocketJob
 
     # Create indexes
     def self.create_indexes
+      # Used by find_and_modify below
       ensure_index [[:state, 1], [:priority, 1], [:created_at, 1], [:sub_state, 1]]
+      # Used by Mission Control
+      ensure_index [[:created_at, 1]]
     end
 
     # Requeue all jobs for the specified dead server
@@ -312,7 +315,7 @@ module RocketJob
 
     # Invokes the worker to process this job
     #
-    # Returns the number of records processed
+    # Returns [true|false] whether this job should be excluded from the next lookup
     #
     # If an exception is thrown the job is marked as failed and the exception
     # is set in the job itself.
@@ -334,12 +337,11 @@ module RocketJob
         # after_perform
         worker.rocket_job_call(perform_method, arguments, event: :after, log_level: log_level)
         complete!
-        1
       rescue Exception => exc
         set_exception(server.name, exc)
         raise exc if RocketJob::Config.inline_mode
-        0
       end
+      false
     end
 
     # Patch the way MongoMapper reloads a model
@@ -391,8 +393,16 @@ module RocketJob
     # Returns nil if there are currently no queued jobs, or processing batch jobs
     #   with records that require processing
     #
-    # If a job is in queued state it will be started
-    def self.next_job(server_name)
+    # Parameters
+    #   server_name [String]
+    #     Name of the server that will be processing this job
+    #
+    #   skip_job_ids [Array<BSON::ObjectId>]
+    #     Job ids to exclude when looking for 3the next job
+    #
+    # Note:
+    #   If a job is in queued state it will be started
+    def self.next_job(server_name, skip_job_ids = nil)
       query = {
         '$or' => [
           # Job Jobs
@@ -401,6 +411,7 @@ module RocketJob
           { 'state' => 'running', 'sub_state' => :processing }
         ]
       }
+      query['_id'] = { '$nin' => skip_job_ids } if skip_job_ids
 
       if doc = find_and_modify(
           query:  query,

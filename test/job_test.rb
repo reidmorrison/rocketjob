@@ -60,7 +60,7 @@ class JobTest < Minitest::Test
     context '#work' do
       should 'call default perform method' do
         @job.start!
-        assert_equal 1, @job.work(@server)
+        assert_equal false, @job.work(@server)
         assert_equal true, @job.completed?
         assert_equal 2,    Workers::Job.result
       end
@@ -69,7 +69,7 @@ class JobTest < Minitest::Test
         @job.perform_method = :sum
         @job.arguments = [ 23, 45 ]
         @job.start!
-        assert_equal 1, @job.work(@server)
+        assert_equal false, @job.work(@server)
         assert_equal true, @job.completed?
         assert_equal 68,    Workers::Job.result
       end
@@ -77,7 +77,7 @@ class JobTest < Minitest::Test
       should 'destroy on complete' do
         @job.destroy_on_complete = true
         @job.start!
-        assert_equal 1, @job.work(@server)
+        assert_equal false, @job.work(@server)
         assert_equal nil, RocketJob::Job.find_by_id(@job.id)
       end
 
@@ -89,7 +89,7 @@ class JobTest < Minitest::Test
         @job.start!
         logged = false
         Workers::Job.logger.stub(:log_internal, -> level, index, message, payload, exception { logged = true if message.include?('some very noisy logging')}) do
-          assert_equal 1, @job.work(@server), @job.inspect
+          assert_equal false, @job.work(@server), @job.inspect
         end
         assert_equal false, logged
       end
@@ -104,7 +104,7 @@ class JobTest < Minitest::Test
         # Raise global log level to :info
         SemanticLogger.stub(:default_level_index, 3) do
           Workers::Job.logger.stub(:log_internal, -> { logged = true }) do
-            assert_equal 1, @job.work(@server)
+            assert_equal false, @job.work(@server)
           end
         end
         assert_equal false, logged
@@ -115,7 +115,7 @@ class JobTest < Minitest::Test
         @job.perform_method = :event
         @job.arguments = [ named_parameters ]
         @job.start!
-        assert_equal 1, @job.work(@server), @job.inspect
+        assert_equal false, @job.work(@server), @job.inspect
         assert_equal true, @job.completed?
         assert_equal named_parameters.merge('before_event' => true, 'after_event' => true), @job.arguments.first
       end
