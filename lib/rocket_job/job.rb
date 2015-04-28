@@ -132,7 +132,7 @@ module RocketJob
     key :percent_complete,        Integer, default: 0
 
     # Store the last exception for this job
-    key :exception,               Hash
+    one :exception,               class_name: 'RocketJob::JobException'
 
     # Store the Hash result from this job if collect_output is true,
     # and the job returned actually returned a Hash, otherwise nil
@@ -293,7 +293,7 @@ module RocketJob
       when failed?
         h[:failed_at]        = completed_at.in_time_zone(time_zone)
         h[:percent_complete] = percent_complete if percent_complete
-        h[:exception]        = exception.dup
+        h[:exception]        = exception.attributes
       end
       h[:duration]           = duration.strftime('%H:%M:%S')
       h

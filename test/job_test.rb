@@ -52,8 +52,23 @@ class JobTest < Minitest::Test
       should 'return status for a queued job' do
         assert_equal true, @job.queued?
         h = @job.status
-        assert_equal :queued,      h[:state]
-        assert_equal @description, h[:description]
+        assert_equal :queued,       h[:state]
+        assert_equal @description,  h[:description]
+      end
+
+      should 'return status for a failed job' do
+        @job.build_exception(
+          class_name: 'Test',
+          message: 'hello world'
+        )
+        @job.start!
+        @job.fail!
+        assert_equal true, @job.failed?
+        h = @job.status
+        assert_equal :failed,       h[:state]
+        assert_equal @description,  h[:description]
+        assert_equal 'Test',        h[:exception][:class_name], h
+        assert_equal 'hello world', h[:exception][:message], h
       end
     end
 
