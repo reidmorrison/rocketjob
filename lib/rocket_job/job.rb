@@ -431,12 +431,8 @@ module RocketJob
     def set_exception(server_name, exc)
       self.server_name = nil
       self.failure_count += 1
-      self.exception = {
-        'class'         => exc.class.to_s,
-        'message'       => exc.message,
-        'backtrace'     => exc.backtrace || [],
-        'server_name'   => server_name,
-      }
+      self.exception = JobException.from_exception(exc)
+      exception.server_name = server_name
       fail!
       logger.error("Exception running #{klass}##{perform_method}", exc)
     end
