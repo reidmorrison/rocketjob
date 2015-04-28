@@ -143,10 +143,9 @@ module RocketJob
     # Store all job types in this collection
     set_collection_name 'rocket_job.jobs'
 
-    validates_presence_of :state, :failure_count, :created_at, :percent_complete,
+    validates_presence_of :state, :failure_count, :created_at,
       :klass, :perform_method
     # :repeatable, :destroy_on_complete, :collect_output, :arguments
-    validates :percent_complete, inclusion: 0..100
     validates :priority, inclusion: 1..100
 
     # State Machine events and transitions
