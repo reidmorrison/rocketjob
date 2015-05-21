@@ -295,7 +295,7 @@ module RocketJob
       when failed?
         h[:failed_at]        = completed_at.in_time_zone(time_zone)
         h[:percent_complete] = percent_complete if percent_complete
-        h[:exception]        = exception.attributes
+        h[:exception]        = exception.nil? ? {} : exception.attributes
       end
       h[:duration]           = duration.strftime('%H:%M:%S')
       h
