@@ -205,7 +205,9 @@ module RocketJob
       end
 
       event :fail, before: :before_fail do
+        transitions from: :queued,  to: :failed
         transitions from: :running, to: :failed
+        transitions from: :paused,  to: :failed
       end
 
       event :retry, before: :before_retry do
