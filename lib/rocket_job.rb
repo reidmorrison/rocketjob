@@ -14,14 +14,9 @@ module RocketJob
   autoload :SlicedJob,             'rocket_job/sliced_job'
   autoload :Server,                'rocket_job/server'
   autoload :Worker,                'rocket_job/worker'
-  module Reader
-    autoload :Zip,                 'rocket_job/reader/zip'
-  end
+  autoload :Streams,               'rocket_job/streams'
   module Utility
     autoload :CSVRow,              'rocket_job/utility/csv_row'
-  end
-  module Writer
-    autoload :Zip,                 'rocket_job/writer/zip'
   end
   module Jobs
     autoload :PerformanceJob,      'rocket_job/jobs/performance_job'
