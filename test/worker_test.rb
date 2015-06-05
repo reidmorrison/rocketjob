@@ -17,7 +17,7 @@ class WorkerTest < Minitest::Test
         RocketJob::Config.inline_mode = false
       end
 
-      context '#perform_later' do
+      context '.perform_later' do
         should "process single request (inline_mode=#{inline_mode})" do
           @job = Workers::Job.perform_later(1) do |job|
             job.destroy_on_complete = false
@@ -109,11 +109,27 @@ class WorkerTest < Minitest::Test
         end
       end
 
-      context '#later' do
+      context '.later' do
         should "process non default method (inline_mode=#{inline_mode})" do
           @job = Workers::Job.later(:sum, 23, 45)
           @job.start
           assert_equal false, @job.work(@server), @job.exception.inspect
+          assert_equal true,  @job.completed?
+          assert_equal 68,    Workers::Job.result
+        end
+      end
+
+      context '.perform_now' do
+        should "process perform (inline_mode=#{inline_mode})" do
+          @job = Workers::Job.perform_now(5)
+          assert_equal true,  @job.completed?
+          assert_equal 6,     Workers::Job.result
+        end
+      end
+
+      context '.now' do
+        should "process non default method (inline_mode=#{inline_mode})" do
+          @job = Workers::Job.now(:sum, 23, 45)
           assert_equal true,  @job.completed?
           assert_equal 68,    Workers::Job.result
         end
