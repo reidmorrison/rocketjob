@@ -27,6 +27,24 @@ class JobTest < Minitest::Test
       end
     end
 
+    context '#reload' do
+      should 'handle hash' do
+        @job = RocketJob::Job.new(
+          description:         @description,
+          klass:               'Workers::Job',
+          arguments:           [ { key: 'value' } ],
+          destroy_on_complete: false
+        )
+
+        assert_equal 'value', @job.arguments.first[:key]
+        @job.save!
+        @job.reload
+        assert @job.arguments.first.is_a?(ActiveSupport::HashWithIndifferentAccess), @job.arguments.first.class.inspect
+        assert_equal 'value', @job.arguments.first['key']
+        assert_equal 'value', @job.arguments.first[:key]
+      end
+    end
+
     context '#save!' do
       should 'save a blank job' do
         @job.save!
@@ -76,8 +94,8 @@ class JobTest < Minitest::Test
       should 'call default perform method' do
         @job.start!
         assert_equal false, @job.work(@server)
-        assert_equal true, @job.completed?
-        assert_equal 2,    Workers::Job.result
+        assert_equal true,  @job.completed?, @job.state
+        assert_equal 2,     Workers::Job.result
       end
 
       should 'call specific method' do

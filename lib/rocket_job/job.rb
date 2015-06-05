@@ -355,6 +355,12 @@ module RocketJob
       end
     end
 
+    # After this model is read, convert any hashes in the arguments list to HashWithIndifferentAccess
+    def load_from_database(*args)
+      super
+      self.arguments = arguments.collect {|i| i.is_a?(BSON::OrderedHash) ? i.with_indifferent_access : i  } if arguments.present?
+    end
+
     protected
 
     # Before events that can be overridden by child classes
