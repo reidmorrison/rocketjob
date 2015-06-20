@@ -87,9 +87,7 @@ Simple single task jobs:
 Example job to run in a separate worker process
 
 ```ruby
-class MyJob
-  include RocketJob::Worker
-
+class MyJob < RocketJob::Job
   # Method to call asynchronously by the worker
   def perform(email_address, message)
     # For example send an email to the supplied address with the supplied message
@@ -109,10 +107,8 @@ MyJob.perform_later('jack@blah.com', 'lets meet')
 Sliced jobs consist of more than one record that needs to be processed.
 
 ```ruby
-class MyJob
-  include RocketJob::Worker
-
-  rocket_job(RocketJob::SlicedJob) do |job|
+class MyJob < RocketJob::SlicedJob
+  rocket_job do |job|
     job.destroy_on_complete = false
     job.encrypt             = true
     job.compress            = true

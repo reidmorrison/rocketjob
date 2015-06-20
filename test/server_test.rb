@@ -1,5 +1,5 @@
 require_relative 'test_helper'
-require_relative 'workers/job'
+require_relative 'workers/test_job'
 
 # Unit Test for RocketJob::Server
 class ServerTest < Minitest::Test
@@ -10,9 +10,8 @@ class ServerTest < Minitest::Test
       @server = RocketJob::Server.new
       @description = 'Hello World'
       @arguments   = [ 1 ]
-      @job = RocketJob::Job.new(
+      @job = Workers::TestJob.new(
         description:         @description,
-        klass:               'Workers::Job',
         arguments:           @arguments,
         destroy_on_complete: false
       )

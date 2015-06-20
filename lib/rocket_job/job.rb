@@ -26,6 +26,7 @@ module RocketJob
     include MongoMapper::Document
     include AASM
     include SemanticLogger::Loggable
+    include Concerns::Worker
 
     # Prevent data in MongoDB from re-defining the model behavior
     #self.static_keys = true
@@ -37,9 +38,6 @@ module RocketJob
 
     # Description for this job instance
     key :description,             String
-
-    # Class that implements this jobs behavior
-    key :klass,                   String
 
     # Method that must be invoked to complete this job
     key :perform_method,          Symbol, default: :perform
@@ -143,8 +141,7 @@ module RocketJob
     # Store all job types in this collection
     set_collection_name 'rocket_job.jobs'
 
-    validates_presence_of :state, :failure_count, :created_at,
-      :klass, :perform_method
+    validates_presence_of :state, :failure_count, :created_at, :perform_method
     # :repeatable, :destroy_on_complete, :collect_output, :arguments
     validates :priority, inclusion: 1..100
 
@@ -307,44 +304,6 @@ module RocketJob
       (count ** 4) + 15 + (rand(30)*(count+1))
     end
 
-    # Returns a new instance of the worker for this job
-    def new_worker
-      worker = klass.constantize.new
-      worker.rocket_job = self
-      worker
-    end
-
-    # Invokes the worker to process this job
-    #
-    # Returns [true|false] whether this job should be excluded from the next lookup
-    #
-    # If an exception is thrown the job is marked as failed and the exception
-    # is set in the job itself.
-    #
-    # Thread-safe, can be called by multiple threads at the same time
-    def work(server)
-      raise 'Job must be started before calling #work' unless running?
-      begin
-        worker = new_worker
-        # before_perform
-        worker.rocket_job_call(perform_method, arguments, event: :before, log_level: log_level)
-
-        # perform
-        worker.rocket_job_call(perform_method, arguments, log_level: log_level)
-        if self.collect_output?
-          self.output = (result.is_a?(Hash) || result.is_a?(BSON::OrderedHash)) ? result : { result: result }
-        end
-
-        # after_perform
-        worker.rocket_job_call(perform_method, arguments, event: :after, log_level: log_level)
-        complete!
-      rescue Exception => exc
-        set_exception(server.name, exc)
-        raise exc if RocketJob::Config.inline_mode
-      end
-      false
-    end
-
     # Patch the way MongoMapper reloads a model
     def reload
       if doc = collection.find_one(:_id => id)
@@ -442,7 +401,49 @@ module RocketJob
       self.exception = JobException.from_exception(exc)
       exception.server_name = server_name
       fail!
-      logger.error("Exception running #{klass}##{perform_method}", exc)
+      logger.error("Exception running #{self.class.name}##{perform_method}", exc)
+    end
+
+    # Calls a method on this worker, if it is defined
+    # Adds the event name to the method call if supplied
+    #
+    # Returns [Object] the result of calling the method
+    #
+    # Parameters
+    #   method [Symbol]
+    #     The method to call on this worker
+    #
+    #   arguments [Array]
+    #     Arguments to pass to the method call
+    #
+    #   Options:
+    #     event: [Symbol]
+    #       Any one of: :before, :after
+    #       Default: None, just calls the method itself
+    #
+    #     log_level: [Symbol]
+    #       Log level to apply to silence logging during the call
+    #       Default: nil ( no change )
+    #
+    def rocket_job_call(method, arguments, options={})
+      options               = options.dup
+      event                 = options.delete(:event)
+      log_level             = options.delete(:log_level)
+      raise(ArgumentError, "Unknown #{self.class.name}#rocket_job_call options: #{options.inspect}") if options.size > 0
+
+      the_method = event.nil? ? method : "#{event}_#{method}".to_sym
+      if respond_to?(the_method)
+        method_name = "#{self.class.name}##{the_method}"
+        logger.info "Start #{method_name}"
+        logger.benchmark_info("Completed #{method_name}",
+          metric:             "rocket_job/#{self.class.name.underscore}/#{the_method}",
+          log_exception:      :full,
+          on_exception_level: :error,
+          silence:            log_level
+        ) do
+          self.send(the_method, *arguments)
+        end
+      end
     end
 
   end

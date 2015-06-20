@@ -13,7 +13,6 @@ module RocketJob
   autoload :JobException,          'rocket_job/job_exception'
   autoload :SlicedJob,             'rocket_job/sliced_job'
   autoload :Server,                'rocket_job/server'
-  autoload :Worker,                'rocket_job/worker'
   autoload :Streams,               'rocket_job/streams'
   module Utility
     autoload :CSVRow,              'rocket_job/utility/csv_row'
@@ -26,6 +25,9 @@ module RocketJob
     autoload :Slices,              'rocket_job/sliced/slices'
     autoload :Input,               'rocket_job/sliced/input'
     autoload :Output,              'rocket_job/sliced/output'
+  end
+  module Concerns
+    autoload :Worker,              'rocket_job/concerns/worker'
   end
 
   UTF8_ENCODING      = Encoding.find("UTF-8").freeze

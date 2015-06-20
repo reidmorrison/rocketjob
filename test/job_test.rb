@@ -1,5 +1,5 @@
 require_relative 'test_helper'
-require_relative 'workers/job'
+require_relative 'workers/test_job'
 
 # Unit Test for RocketJob::Job
 class JobTest < Minitest::Test
@@ -9,9 +9,8 @@ class JobTest < Minitest::Test
       @server.started
       @description = 'Hello World'
       @arguments   = [ 1 ]
-      @job = RocketJob::Job.new(
+      @job = Workers::TestJob.new(
         description:         @description,
-        klass:               'Workers::Job',
         arguments:           @arguments,
         destroy_on_complete: false
       )
@@ -29,9 +28,8 @@ class JobTest < Minitest::Test
 
     context '#reload' do
       should 'handle hash' do
-        @job = RocketJob::Job.new(
+        @job = Workers::TestJob.new(
           description:         @description,
-          klass:               'Workers::Job',
           arguments:           [ { key: 'value' } ],
           destroy_on_complete: false
         )
@@ -95,7 +93,7 @@ class JobTest < Minitest::Test
         @job.start!
         assert_equal false, @job.work(@server)
         assert_equal true,  @job.completed?, @job.state
-        assert_equal 2,     Workers::Job.result
+        assert_equal 2,     Workers::TestJob.result
       end
 
       should 'call specific method' do
@@ -104,7 +102,7 @@ class JobTest < Minitest::Test
         @job.start!
         assert_equal false, @job.work(@server)
         assert_equal true, @job.completed?
-        assert_equal 68,    Workers::Job.result
+        assert_equal 68,    Workers::TestJob.result
       end
 
       should 'destroy on complete' do
@@ -121,7 +119,7 @@ class JobTest < Minitest::Test
         @job.arguments           = []
         @job.start!
         logged = false
-        Workers::Job.logger.stub(:log_internal, -> level, index, message, payload, exception { logged = true if message.include?('some very noisy logging')}) do
+        Workers::TestJob.logger.stub(:log_internal, -> level, index, message, payload, exception { logged = true if message.include?('some very noisy logging')}) do
           assert_equal false, @job.work(@server), @job.inspect
         end
         assert_equal false, logged
@@ -136,7 +134,7 @@ class JobTest < Minitest::Test
         logged = false
         # Raise global log level to :info
         SemanticLogger.stub(:default_level_index, 3) do
-          Workers::Job.logger.stub(:log_internal, -> { logged = true }) do
+          Workers::TestJob.logger.stub(:log_internal, -> { logged = true }) do
             assert_equal false, @job.work(@server)
           end
         end
