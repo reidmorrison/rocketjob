@@ -4,16 +4,17 @@
 module RocketJob
   module Concerns
     module Worker
-      extend ActiveSupport::Concern
+      def self.included(base)
+        base.extend ClassMethods
+        base.class_eval do
+          # While working on a slice, the current slice is available via this reader
+          attr_reader :rocket_job_slice
 
-      included do
-        # While working on a slice, the current slice is available via this reader
-        attr_reader :rocket_job_slice
-
-        @rocket_job_defaults = nil
+          @rocket_job_defaults = nil
+        end
       end
 
-      class_methods do
+      module ClassMethods
         # Returns [Job] after queue-ing it for processing
         def later(method, *args, &block)
           if RocketJob::Config.inline_mode

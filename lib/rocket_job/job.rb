@@ -273,7 +273,7 @@ module RocketJob
     end
 
     # Returns [Hash] status of this job
-    def status(time_zone='EST')
+    def status(time_zone='Eastern Time (US & Canada)')
       h = {
         state:                state,
         description:          description
