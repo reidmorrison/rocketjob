@@ -1,0 +1,10 @@
+language: ruby
+bundler_args: --without development
+
+rvm:
+  - 2.0
+  - 2.2
+  - jruby-1.7
+
+services:
+  - mongodb
