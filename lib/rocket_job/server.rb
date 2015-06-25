@@ -265,8 +265,7 @@ module RocketJob
     def worker(worker_id)
       Thread.current.name = "RocketJob Worker #{worker_id}"
       logger.info 'Started'
-      loop do
-        break if shutting_down?
+      while !shutting_down?
         if process_next_job
           # Keeps workers staggered across the poll interval so that not
           # all workers poll at the same time
@@ -283,24 +282,19 @@ module RocketJob
     # Process the next available job
     # Returns [Boolean] whether any job was actually processed
     def process_next_job
-      processed_job = false
       skip_job_ids  = []
-      loop do
-        if job = Job.next_job(name, skip_job_ids)
-          logger.tagged("Job #{job.id}") do
-            if job.work(self)
-              # Need to skip the specified job due to throttling or no work available
-              skip_job_ids << job.id
-            else
-              processed_job = true
-              break
-            end
+      while job = Job.next_job(name, skip_job_ids)
+        logger.tagged("Job #{job.id}") do
+          if job.work(self)
+            return true if shutting_down?
+            # Need to skip the specified job due to throttling or no work available
+            skip_job_ids << job.id
+          else
+            return true
           end
-        else
-          break
         end
       end
-      processed_job
+      false
     end
 
     # Requeue any jobs assigned to this server

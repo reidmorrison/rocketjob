@@ -32,8 +32,7 @@ module RocketJob
           server = Server.new(name: 'inline')
           server.started
           job.start
-          while job.running?
-            job.work(server)
+          while job.running? && !job.work(server)
           end
           job
         end

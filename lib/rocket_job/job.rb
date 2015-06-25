@@ -400,7 +400,7 @@ module RocketJob
       self.failure_count += 1
       self.exception = JobException.from_exception(exc)
       exception.server_name = server_name
-      fail!
+      fail! unless failed?
       logger.error("Exception running #{self.class.name}##{perform_method}", exc)
     end
 
