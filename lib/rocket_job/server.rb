@@ -116,6 +116,8 @@ module RocketJob
       server.save!
       create_indexes
       register_signal_handlers
+      raise "The RocketJob configuration is being applied after the system has been initialized" unless RocketJob::Job.database.name == RocketJob::SlicedJob.database.name
+      logger.info "Using MongoDB Database: #{RocketJob::Job.database.name}"
       server.run
     end
 
