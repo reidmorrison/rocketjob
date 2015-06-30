@@ -51,13 +51,11 @@ module RocketJob
     # Replace the MongoMapper default mongo connection for holding jobs
     def self.mongo_connection=(connection)
       connection(connection)
-      SlicedJob.connection(connection)
       Server.connection(connection)
       Job.connection(connection)
 
       db_name = connection.db.name
       set_database_name(db_name)
-      SlicedJob.set_database_name(db_name)
       Server.set_database_name(db_name)
       Job.set_database_name(db_name)
     end
