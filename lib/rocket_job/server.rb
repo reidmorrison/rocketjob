@@ -157,8 +157,7 @@ module RocketJob
 
     # Returns [Boolean] whether the server is shutting down
     def shutting_down?
-      # TODO Protect with a Mutex
-      @@shutdown || !running?
+      self.class.shutdown || !running?
     end
 
     # Returns [Array<Thread>] threads in the thread_pool
@@ -195,7 +194,7 @@ module RocketJob
         end
 
         # Stop server if shutdown signal was raised
-        stop! if @@shutdown && !stopping?
+        stop! if self.class.shutdown && !stopping?
 
         break if stopping?
 
@@ -244,7 +243,7 @@ module RocketJob
         thread_pool.delete_if { |t| !t.alive? }
       end
 
-      return unless running?
+      return if shutting_down?
 
       # Need to add more threads?
       if count < max_threads
@@ -306,7 +305,10 @@ module RocketJob
       RocketJob::SlicedJob.requeue_dead_server(name)
     end
 
-    @@shutdown = false
+    # Mutex protected shutdown indicator
+    sync_cattr_accessor :shutdown do
+      false
+    end
 
     # Register handlers for the various signals
     # Term:
@@ -315,12 +317,12 @@ module RocketJob
     def self.register_signal_handlers
       begin
         Signal.trap "SIGTERM" do
-          @@shutdown = true
+          self.shutdown = true
           logger.warn "Shutdown signal (SIGTERM) received. Will shutdown as soon as active jobs/slices have completed."
         end
 
         Signal.trap "INT" do
-          @@shutdown = true
+          self.shutdown = true
           logger.warn "Shutdown signal (INT) received. Will shutdown as soon as active jobs/slices have completed."
         end
       rescue Exception

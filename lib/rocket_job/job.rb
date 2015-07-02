@@ -377,16 +377,19 @@ module RocketJob
           { 'state' => 'running', 'sub_state' => :processing }
         ]
       }
-      query['_id'] = { '$nin' => skip_job_ids } if skip_job_ids
+      query['_id'] = { '$nin' => skip_job_ids } if skip_job_ids && skip_job_ids.size > 0
 
       if doc = find_and_modify(
           query:  query,
           sort:   [['priority', 'asc'], ['created_at', 'asc']],
-          update: { '$set' => { 'server_name' => server_name, 'state' => 'running', 'started_at' => Time.now } }
+          update: { '$set' => { 'server_name' => server_name, 'state' => 'running' } }
         )
         job = load(doc)
-        # Also update in-memory state and run call-backs
-        job.start unless job.running?
+        unless job.running?
+          # Also update in-memory state and run call-backs
+          job.start
+          job.set(started_at: job.started_at)
+        end
         job
       end
     end
