@@ -1,5 +1,5 @@
 require_relative 'test_helper'
-require_relative 'workers/test_job'
+require_relative 'jobs/test_job'
 
 # Unit Test for RocketJob::Job
 class JobTest < Minitest::Test
@@ -9,7 +9,7 @@ class JobTest < Minitest::Test
       @server.started
       @description = 'Hello World'
       @arguments   = [ 1 ]
-      @job = Workers::TestJob.new(
+      @job = Jobs::TestJob.new(
         description:         @description,
         arguments:           @arguments,
         destroy_on_complete: false
@@ -28,7 +28,7 @@ class JobTest < Minitest::Test
 
     context '#reload' do
       should 'handle hash' do
-        @job = Workers::TestJob.new(
+        @job = Jobs::TestJob.new(
           description:         @description,
           arguments:           [ { key: 'value' } ],
           destroy_on_complete: false
@@ -93,7 +93,7 @@ class JobTest < Minitest::Test
         @job.start!
         assert_equal false, @job.work(@server)
         assert_equal true,  @job.completed?, @job.state
-        assert_equal 2,     Workers::TestJob.result
+        assert_equal 2,     Jobs::TestJob.result
       end
 
       should 'call specific method' do
@@ -102,7 +102,7 @@ class JobTest < Minitest::Test
         @job.start!
         assert_equal false, @job.work(@server)
         assert_equal true, @job.completed?
-        assert_equal 68,    Workers::TestJob.result
+        assert_equal 68,    Jobs::TestJob.result
       end
 
       should 'destroy on complete' do
@@ -119,7 +119,7 @@ class JobTest < Minitest::Test
         @job.arguments           = []
         @job.start!
         logged = false
-        Workers::TestJob.logger.stub(:log_internal, -> level, index, message, payload, exception { logged = true if message.include?('some very noisy logging')}) do
+        Jobs::TestJob.logger.stub(:log_internal, -> level, index, message, payload, exception { logged = true if message.include?('some very noisy logging')}) do
           assert_equal false, @job.work(@server), @job.inspect
         end
         assert_equal false, logged
@@ -134,7 +134,7 @@ class JobTest < Minitest::Test
         logged = false
         # Raise global log level to :info
         SemanticLogger.stub(:default_level_index, 3) do
-          Workers::TestJob.logger.stub(:log_internal, -> { logged = true }) do
+          Jobs::TestJob.logger.stub(:log_internal, -> { logged = true }) do
             assert_equal false, @job.work(@server)
           end
         end
@@ -153,5 +153,34 @@ class JobTest < Minitest::Test
 
     end
 
+    context '.next_job' do
+      setup do
+        RocketJob::Job.destroy_all
+      end
+
+      should 'return nil when no jobs available' do
+        assert_equal nil, RocketJob::Job.next_job(@server.name)
+      end
+
+      should 'return the first job' do
+        @job.save!
+        assert job = RocketJob::Job.next_job(@server.name), "Failed to find job"
+        assert_equal @job.id, job.id
+      end
+
+      should 'Ignore future dated jobs' do
+        @job.run_at = Time.now + 1.hour
+        @job.save!
+        assert_equal nil, RocketJob::Job.next_job(@server.name)
+      end
+
+      should 'Process future dated jobs when time is now' do
+        @job.run_at = Time.now
+        @job.save!
+        assert job = RocketJob::Job.next_job(@server.name), "Failed to find future job"
+        assert_equal @job.id, job.id
+      end
+
+    end
   end
 end

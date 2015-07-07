@@ -2,13 +2,12 @@ require 'optparse'
 module RocketJob
   # Command Line Interface parser for RocketJob
   class CLI
-    attr_reader :name, :threads, :environment, :pidfile, :directory, :quiet, :eagerload
+    attr_reader :name, :threads, :environment, :pidfile, :directory, :quiet
 
     def initialize(argv)
       @name             = nil
       @threads          = nil
 
-      @eagerload        = true
       @quiet            = false
       @environment      = ENV['RAILS_ENV'] || ENV['RACK_ENV'] || 'development'
       @pidfile          = nil
@@ -31,7 +30,7 @@ module RocketJob
     # Initialize the Rails environment
     def boot_rails
       require File.expand_path("#{directory}/config/environment.rb")
-      if eagerload
+      if Rails.configuration.eager_load
         RocketJob::Server.logger.benchmark_info('Eager loaded Rails and all Engines') do
           Rails.application.eager_load!
           Rails::Engine.subclasses.each { |engine| engine.eager_load! }
@@ -60,7 +59,6 @@ module RocketJob
         o.on('-d', '--dir DIR', 'Directory containing Rails app, if not current directory') { |arg| @directory = arg }
         o.on('-e', '--environment ENVIRONMENT', 'The environment to run the app on (Default: RAILS_ENV || RACK_ENV || development)') { |arg| @environment = arg }
         o.on('--pidfile PATH', 'Use PATH as a pidfile') { |arg| @pidfile = arg }
-        o.on('--noeagerload', 'Don\'t Eager load all files') { @eagerload = false }
         o.on('-v', '--version', 'Print the version information') do
           puts "Rocket Job v#{RocketJob::VERSION}"
           exit 1

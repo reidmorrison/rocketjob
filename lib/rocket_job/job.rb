@@ -229,8 +229,10 @@ module RocketJob
 
     # Create indexes
     def self.create_indexes
-      # Used by find_and_modify below
-      ensure_index [[:state, 1], [:priority, 1], [:created_at, 1], [:sub_state, 1]]
+      # Used by find_and_modify in .next_job
+      ensure_index({ state:1, run_at: 1, priority: 1, created_at: 1, sub_state: 1}, background: true)
+      # Remove outdated index if present
+      drop_index("state_1_priority_1_created_at_1_sub_state_1") rescue nil
       # Used by Mission Control
       ensure_index [[:created_at, 1]]
     end
@@ -370,11 +372,19 @@ module RocketJob
     #   If a job is in queued state it will be started
     def self.next_job(server_name, skip_job_ids = nil)
       query = {
-        '$or' => [
-          # Job Jobs
-          { 'state' => 'queued' },
-          # SlicedJob Jobs available for additional workers
-          { 'state' => 'running', 'sub_state' => :processing }
+        '$and' => [
+          {
+            '$or' => [
+              { 'state' => 'queued' }, # Jobs
+              { 'state' => 'running', 'sub_state' => :processing }  # Slices
+            ]
+          },
+          {
+            '$or' => [
+              { run_at: { '$exists' => false } },
+              { run_at: { '$lte' => Time.now } }
+            ]
+          },
         ]
       }
       query['_id'] = { '$nin' => skip_job_ids } if skip_job_ids && skip_job_ids.size > 0

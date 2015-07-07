@@ -157,7 +157,12 @@ module RocketJob
 
     # Returns [Boolean] whether the server is shutting down
     def shutting_down?
-      self.class.shutdown || !running?
+      if self.class.shutdown
+        stop! if running?
+        true
+      else
+        !running?
+      end
     end
 
     # Returns [Array<Thread>] threads in the thread_pool
@@ -317,12 +322,14 @@ module RocketJob
     def self.register_signal_handlers
       begin
         Signal.trap "SIGTERM" do
-          self.shutdown = true
+          # Cannot use Mutex protected writer here since it is in a signal handler
+          @@shutdown = true
           logger.warn "Shutdown signal (SIGTERM) received. Will shutdown as soon as active jobs/slices have completed."
         end
 
         Signal.trap "INT" do
-          self.shutdown = true
+          # Cannot use Mutex protected writer here since it is in a signal handler
+          @@shutdown = true
           logger.warn "Shutdown signal (INT) received. Will shutdown as soon as active jobs/slices have completed."
         end
       rescue Exception
