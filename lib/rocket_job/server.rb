@@ -10,17 +10,11 @@ module RocketJob
   #
   # Starting a server in the foreground:
   #   - Using a Rails runner:
-  #     bin/rails r 'RocketJob::Server.start'
-  #
-  #   - Or, using a rake task:
-  #     bin/rake rocket_job:server
+  #     bin/rocketjob
   #
   # Starting a server in the background:
   #   - Using a Rails runner:
-  #     nohup bin/rails r 'RocketJob::Server.start' 2>&1 1>output.log &
-  #
-  #   - Or, using a rake task:
-  #     nohup bin/rake rocket_job:server 2>&1 1>output.log &
+  #     nohup bin/rocketjob --quiet 2>&1 1>output.log &
   #
   # Stopping a server:
   #   - Stop the server via the Web UI
@@ -33,16 +27,6 @@ module RocketJob
   #   Sending the kill signal locally will result in starting the shutdown process
   #   immediately. Via the UI or Ruby code the server can take up to 15 seconds
   #   (the heartbeat interval) to start shutting down.
-  #
-  # Restarting a server:
-  #   - Restart the server via the Web UI
-  #   - Or, use the following Ruby code:
-  #     server = RocketJob::Server.where(name: 'server name').first
-  #     server.restart!
-  #
-  #   It can take up to 30 seconds (the heartbeat interval) before the server re-starts
-  #
-  #
   class Server
     include MongoMapper::Document
     include AASM
@@ -59,7 +43,7 @@ module RocketJob
     # at the time the server or host unexpectedly terminated, if any
     key :name,               String, default: -> { "#{Socket.gethostname}:#{$$}" }
 
-    # The maximum number of worker threads
+    # The maximum number of threads that this worker should use
     #   If set, it will override the default value in RocketJob::Config
     key :max_threads,        Integer, default: -> { Config.instance.max_worker_threads }
 
@@ -153,6 +137,12 @@ module RocketJob
     # Resume all paused servers
     def self.resume_all
       each { |server| server.resume! if server.paused? }
+    end
+
+    # Register a handler to perform cleanups etc. whenever a server is
+    # explicitly destroyed
+    def self.register_destroy_handler(&block)
+      @@destroy_handlers << block
     end
 
     # Returns [Boolean] whether the server is shutting down
@@ -270,7 +260,7 @@ module RocketJob
 
     # Keep processing jobs until server stops running
     def worker(worker_id)
-      Thread.current.name = "RocketJob Worker #{worker_id}"
+      Thread.current.name = "rocketjob #{worker_id}"
       logger.info 'Started'
       while !shutting_down?
         if process_next_job
@@ -307,7 +297,7 @@ module RocketJob
     # Requeue any jobs assigned to this server
     def requeue_jobs
       stop! if running? || paused?
-      RocketJob::SlicedJob.requeue_dead_server(name)
+      @@destroy_handlers.each { |handler| handler.call(name) }
     end
 
     # Mutex protected shutdown indicator
@@ -346,6 +336,10 @@ module RocketJob
         raise MongoMapper::DocumentNotFound, "Document match #{_id.inspect} does not exist in #{collection.name} collection"
       end
     end
+
+    private
+
+    @@destroy_handlers = ThreadSafe::Array.new
 
   end
 end

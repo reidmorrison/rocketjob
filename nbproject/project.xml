@@ -3,7 +3,7 @@
     <type>org.netbeans.modules.ruby.rubyproject</type>
     <configuration>
         <data xmlns="http://www.netbeans.org/ns/ruby-project/1">
-            <name>rocket_job</name>
+            <name>rocketjob</name>
             <source-roots>
                 <root id="src.bin.dir"/>
                 <root id="src.dir"/>

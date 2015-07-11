@@ -1,27 +1,7 @@
 # encoding: UTF-8
 require 'aasm'
 module RocketJob
-  # Rocket Job identifies each batch job submission
-  #
-  # - Make it an expired collection with purging of jobs completed_at older than 14 days
-  #
-  # Rocket Job is a global "priority based queue" (wikipedia link).
-  # All jobs are placed in a single global queue and the job with the highest priority
-  # is always processed first.
-  #
-  # This differs from the traditional approach of separate
-  # queues for jobs which quickly becomes cumbersome when their are for example
-  # over a hundred different types of workers.
-  #
-  # The global priority based queue ensures that the servers are utilized to their
-  # capacity without requiring constant manual intervention.
-  #
-  # Rocket Job is designed to handle upwards of hundreds of millions of concurrent
-  # "jobs" that are often encountered in high volume batch processing environments.
-  # It is designed from the ground up to support large batch file processing.
-  # For example a single file that contains millions of records to be processed
-  # as quickly as possible without impacting other batch jobs with a higher priority.
-  #
+  # The base job from which all jobs are created
   class Job
     include MongoMapper::Document
     include AASM
@@ -124,9 +104,8 @@ module RocketJob
     # Values that jobs can update during processing
     #
 
-    # Allow the worker to set how far it is in the job
+    # Allow a job to updates its estimated progress
     # Any integer from 0 to 100
-    # For Multi-record jobs do not set this value directly
     key :percent_complete,        Integer, default: 0
 
     # Store the last exception for this job
@@ -417,14 +396,14 @@ module RocketJob
       logger.error("Exception running #{self.class.name}##{perform_method}", exc)
     end
 
-    # Calls a method on this worker, if it is defined
+    # Calls a method on this job, if it is defined
     # Adds the event name to the method call if supplied
     #
     # Returns [Object] the result of calling the method
     #
     # Parameters
     #   method [Symbol]
-    #     The method to call on this worker
+    #     The method to call on this job
     #
     #   arguments [Array]
     #     Arguments to pass to the method call
@@ -438,18 +417,18 @@ module RocketJob
     #       Log level to apply to silence logging during the call
     #       Default: nil ( no change )
     #
-    def rocket_job_call(method, arguments, options={})
+    def call_method(method, arguments, options={})
       options               = options.dup
       event                 = options.delete(:event)
       log_level             = options.delete(:log_level)
-      raise(ArgumentError, "Unknown #{self.class.name}#rocket_job_call options: #{options.inspect}") if options.size > 0
+      raise(ArgumentError, "Unknown #{self.class.name}#call_method options: #{options.inspect}") if options.size > 0
 
       the_method = event.nil? ? method : "#{event}_#{method}".to_sym
       if respond_to?(the_method)
         method_name = "#{self.class.name}##{the_method}"
         logger.info "Start #{method_name}"
         logger.benchmark_info("Completed #{method_name}",
-          metric:             "rocket_job/#{self.class.name.underscore}/#{the_method}",
+          metric:             "rocketjob/#{self.class.name.underscore}/#{the_method}",
           log_exception:      :full,
           on_exception_level: :error,
           silence:            log_level

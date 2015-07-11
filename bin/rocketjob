@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
-require 'rocket_job'
+require 'rocketjob'
 
-# Start a rocket_job server instance from the command line
+# Start a rocketjob server instance from the command line
 begin
   RocketJob::CLI.new(ARGV).run
 rescue => exc

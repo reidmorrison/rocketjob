@@ -1,4 +1,4 @@
-require 'rocket_job'
+require 'rocketjob'
 module Jobs
   class TestJob < RocketJob::Job
     @@result = nil

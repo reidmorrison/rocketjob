@@ -5,14 +5,14 @@ $LOAD_PATH.unshift File.expand_path("../lib", __FILE__)
 require 'rocket_job/version'
 
 task :gem do
-  system "gem build rocket_job.gemspec"
+  system "gem build rocketjob.gemspec"
 end
 
 task :publish => :gem do
   system "git tag -a v#{RocketJob::VERSION} -m 'Tagging #{RocketJob::VERSION}'"
   system "git push --tags"
-  system "gem push rocket_job-#{RocketJob::VERSION}.gem"
-  system "rm rocket_job-#{RocketJob::VERSION}.gem"
+  system "gem push rocketjob-#{RocketJob::VERSION}.gem"
+  system "rm rocketjob-#{RocketJob::VERSION}.gem"
 end
 
 desc "Run Test Suite"

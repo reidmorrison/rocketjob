@@ -64,7 +64,7 @@ module RocketJob
           exit 1
         end
       end
-      parser.banner = 'rocket_job <options>'
+      parser.banner = 'rocketjob <options>'
       parser.on_tail '-h', '--help', 'Show help' do
         puts parser
         exit 1

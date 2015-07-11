@@ -1,6 +1,6 @@
-# rocket_job
+# rocketjob
 
-High volume, priority based, batch processing solution for Ruby.
+High volume, priority based, background job processing solution for Ruby.
 
 ## Status
 
@@ -24,7 +24,7 @@ where those lost jobs went.
 In our environment we cannot lose even a single job or record, as all data is
 business critical. The existing batch processing solution do not supply any way
 to collect the output from batch processing and as a result every job has custom
-code to collect it's output. RocketJob has built in support to collect the results
+code to collect it's output. rocketjob has built in support to collect the results
 of any batch job.
 
 High availability and high throughput were being limited by how much we could get
@@ -39,7 +39,7 @@ up. Its single CPU would often hit 100% CPU utilization when running many `sidek
 servers. We also had to store actual job data in a separate MySQL database since
 it would not fit in memory on the `redis` server.
 
-`RocketJob` was created out of necessity due to constant support. End-users were
+`rocketjob` was created out of necessity due to constant support. End-users were
 constantly contacting the development team to ask on the status of "hung" or
 "in-complete" jobs, as part of our DevOps role.
 
@@ -56,9 +56,9 @@ End-users are now able to modify the priority of their various jobs at runtime
 so that they can get that business critical job out first, instead of having to
 wait for other jobs of the same type/priority to finish first.
 
-Since `RocketJob` uploads the entire file, or all data for processing it does not
+Since `rocketjob` uploads the entire file, or all data for processing it does not
 require jobs to store the data in other databases.
-Additionally, `RocketJob` supports encryption and compression of any data uploaded
+Additionally, `rocketjob` supports encryption and compression of any data uploaded
 into Sliced Jobs to ensure PCI compliance and to prevent sensitive from being exposed
 either at rest in the data store, or in flight as it is being read or written to the
 backend data store.
@@ -66,19 +66,39 @@ Often large files received for processing contain sensitive data that must not b
 in the backend job store. Having this capability built-in ensures all our jobs
 are properly securing sensitive data.
 
-Since moving to `RocketJob` our production support has diminished and now we can
+Since moving to `rocketjob` our production support has diminished and now we can
 focus on writing code again. :)
+
+## Introduction
+
+`rocketjob` is a global "priority based queue" (https://en.wikipedia.org/wiki/Priority_queue)
+All jobs are placed in a single global queue and the job with the highest priority
+is processed first. Jobs with the same priority are processed on a first-in
+first-out (FIFO) basis.
+
+This differs from the traditional approach of separate queues for jobs which
+quickly becomes cumbersome when there are for example over a hundred different
+types of jobs.
+
+The global priority based queue ensures that the servers are utilized to their
+capacity without requiring constant manual intervention.
+
+`rocketjob` is designed to handle hundreds of millions of concurrent jobs
+that are often encountered in high volume batch processing environments.
+It is designed from the ground up to support large batch file processing.
+For example a single file that contains millions of records to be processed
+as quickly as possible without impacting other jobs with a higher priority.
 
 ## Management
 
-The companion project [RocketJob Mission Control](https://github.com/mjcloutier/rocket_job_mission_control)
+The companion project [rocketjob mission control](https://github.com/lambcr/rocket_job_mission_control)
 contains the Rails Engine that can be loaded into your Rails project to add
-a web interface for viewing and managing `RocketJob` jobs.
+a web interface for viewing and managing `rocketjob` jobs.
 
-`RocketJob Mission Control` can also be run stand-alone in a shell Rails application.
+`rocketjob mission control` can also be run stand-alone in a shell Rails application.
 
-By separating `RocketJob Mission Control` into a separate gem means it does not
-have to be loaded where `RocketJob` jobs are defined or run.
+By separating `rocketjob mission control` into a separate gem means it does not
+have to be loaded where `rocketjob` jobs are defined or run.
 
 ## Jobs
 
@@ -101,88 +121,6 @@ To queue the above job for processing:
 ```ruby
 MyJob.perform_later('jack@blah.com', 'lets meet')
 ```
-
-## Sliced jobs
-
-Sliced jobs consist of more than one record that needs to be processed.
-
-```ruby
-class MyJob < RocketJob::SlicedJob
-  rocket_job do |job|
-    job.destroy_on_complete = false
-    job.encrypt             = true
-    job.compress            = true
-    job.description         = "Reverse names"
-    job.slice_size          = 100
-    job.collect_output      = true
-    job.priority            = 25
-  end
-
-  # Method to call asynchronously by the worker
-  def perform(name)
-    name.reverse
-  end
-end
-```
-
-Upload a file for processing, for example `names.csv` which could contain:
-
-```
-jack
-jane
-bill
-john
-blake
-chris
-dave
-marc
-```
-
-To queue the above job for processing:
-
-```ruby
-job = MyJob.perform_later do |job|
-  job.upload('names.csv')
-end
-```
-
-Once the job has completed, download the results into a file:
-
-```ruby
-job.download('names_reversed.csv')
-```
-
-To improve performance and throughput, records are grouped together into slices.
-Benefits of processing records in slices:
-* Each slice is processed by a single worker at a time.
-* One read fetches all the records in that slice.
-* The results are written as a single slice to the results collection.
-* Less IO wait time.
-* Less load on the system.
-
-Some factors for deciding on the slice size for the records:
-* How many records can a worker process in 1 to 5 minutes?
-
-If the slice size is too high workers will be busy too long on a single slice
-that will hamper worker restarts, for example during deployments.
-
-If the slice size is too small the workers will hammer the system CPU and network IO
-reading slices with very little time actually spent on performing the
-required work for each record.
-
-Loaded records are kept in a separate collection for better performance, and
-once each slice of records is processed it is deleted. When the job is completed
-the entire collection that held the records is dropped.
-
-Optionally, the result from processing each record can be stored by `RocketJob`.
-When `collect_results` is `true`, the results returned from the workers are
-held in a separate collection for that instance of the job.
-When the job is destroyed its upload and download collections are automatically
-dropped to ensure housekeeping.
-
-Loaded records are kept in a separate collection for better performance, and
-once each slice of records is processed it is deleted. When the job is completed
-the entire collection that held the records is dropped.
 
 ## Configuration
 
@@ -217,6 +155,6 @@ end
 
 ## Requirements
 
-MongoDB V2.6 or greater
+MongoDB V2.6 or greater. V3 is recommended
 
 * V2.6 includes a feature to allow lookups using the `$or` clause to use an index

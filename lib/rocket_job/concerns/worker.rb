@@ -1,6 +1,6 @@
 # encoding: UTF-8
 
-# Mix-in to add Worker behavior to a class
+# Worker behavior for a job
 module RocketJob
   module Concerns
     module Worker
@@ -8,9 +8,9 @@ module RocketJob
         base.extend ClassMethods
         base.class_eval do
           # While working on a slice, the current slice is available via this reader
-          attr_reader :rocket_job_slice
+          attr_reader :rocketjob_slice
 
-          @rocket_job_defaults = nil
+          @rocketjob_defaults = nil
         end
       end
 
@@ -37,8 +37,7 @@ module RocketJob
           job
         end
 
-        # Build a Rocket Job instance that can be used to call a specific
-        # method as a rocket job worker
+        # Build a Rocket Job instance
         #
         # Note:
         #  - #save! must be called on the return job instance if it needs to be
@@ -47,7 +46,7 @@ module RocketJob
         #    discarded, call #cleanup! to clear out any partially uploaded data
         def build(method, *args, &block)
           job = new(arguments: args, perform_method: method.to_sym)
-          @rocket_job_defaults.call(job) if @rocket_job_defaults
+          @rocketjob_defaults.call(job) if @rocketjob_defaults
           block.call(job) if block
           job
         end
@@ -68,23 +67,18 @@ module RocketJob
         end
 
         # Define job defaults
-        def rocket_job(&block)
-          @rocket_job_defaults = block
+        def rocketjob(&block)
+          @rocketjob_defaults = block
           self
-        end
-
-        # Returns the job class
-        def rocket_job_class
-          @rocket_job_class
         end
       end
 
-      def rocket_job_csv_parser
+      def rocketjob_csv_parser
         # TODO Change into an instance variable once CSV handling has been re-worked
         RocketJob::Utility::CSVRow.new
       end
 
-      # Invokes the worker to process this job
+      # Works on this job
       #
       # Returns [true|false] whether this job should be excluded from the next lookup
       #
@@ -96,16 +90,16 @@ module RocketJob
         raise 'Job must be started before calling #work' unless running?
         begin
           # before_perform
-          rocket_job_call(perform_method, arguments, event: :before, log_level: log_level)
+          call_method(perform_method, arguments, event: :before, log_level: log_level)
 
           # perform
-          rocket_job_call(perform_method, arguments, log_level: log_level)
+          call_method(perform_method, arguments, log_level: log_level)
           if self.collect_output?
             self.output = (result.is_a?(Hash) || result.is_a?(BSON::OrderedHash)) ? result : { result: result }
           end
 
           # after_perform
-          rocket_job_call(perform_method, arguments, event: :after, log_level: log_level)
+          call_method(perform_method, arguments, event: :after, log_level: log_level)
           complete!
         rescue Exception => exc
           set_exception(server.name, exc)
@@ -116,14 +110,14 @@ module RocketJob
 
       protected
 
-      # Calls a method on this worker, if it is defined
+      # Calls a method on this job, if it is defined
       # Adds the event name to the method call if supplied
       #
       # Returns [Object] the result of calling the method
       #
       # Parameters
       #   method [Symbol]
-      #     The method to call on this worker
+      #     The method to call on this job
       #
       #   arguments [Array]
       #     Arguments to pass to the method call
@@ -137,18 +131,18 @@ module RocketJob
       #       Log level to apply to silence logging during the call
       #       Default: nil ( no change )
       #
-      def rocket_job_call(method, arguments, options={})
+      def call_method(method, arguments, options={})
         options               = options.dup
         event                 = options.delete(:event)
         log_level             = options.delete(:log_level)
-        raise(ArgumentError, "Unknown RocketJob::Worker#rocket_job_call options: #{options.inspect}") if options.size > 0
+        raise(ArgumentError, "Unknown #{self.class.name}#call_method options: #{options.inspect}") if options.size > 0
 
         the_method = event.nil? ? method : "#{event}_#{method}".to_sym
         if respond_to?(the_method)
           method_name = "#{self.class.name}##{the_method}"
           logger.info "Start #{method_name}"
           logger.benchmark_info("Completed #{method_name}",
-            metric:             "rocket_job/#{self.class.name.underscore}/#{the_method}",
+            metric:             "rocketjob/#{self.class.name.underscore}/#{the_method}",
             log_exception:      :full,
             on_exception_level: :error,
             silence:            log_level

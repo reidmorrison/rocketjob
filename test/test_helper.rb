@@ -5,7 +5,7 @@ require 'minitest/autorun'
 require 'minitest/reporters'
 require 'minitest/stub_any_instance'
 require 'shoulda/context'
-require 'rocket_job'
+require 'rocketjob'
 require 'awesome_print'
 require 'symmetric-encryption'
 
