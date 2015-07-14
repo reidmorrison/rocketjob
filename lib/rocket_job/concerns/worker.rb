@@ -8,9 +8,9 @@ module RocketJob
         base.extend ClassMethods
         base.class_eval do
           # While working on a slice, the current slice is available via this reader
-          attr_reader :rocketjob_slice
+          attr_reader :rocket_job_slice
 
-          @rocketjob_defaults = nil
+          @rocket_job_defaults = nil
         end
       end
 
@@ -46,7 +46,7 @@ module RocketJob
         #    discarded, call #cleanup! to clear out any partially uploaded data
         def build(method, *args, &block)
           job = new(arguments: args, perform_method: method.to_sym)
-          @rocketjob_defaults.call(job) if @rocketjob_defaults
+          @rocket_job_defaults.call(job) if @rocket_job_defaults
           block.call(job) if block
           job
         end
@@ -67,13 +67,13 @@ module RocketJob
         end
 
         # Define job defaults
-        def rocketjob(&block)
-          @rocketjob_defaults = block
+        def rocket_job(&block)
+          @rocket_job_defaults = block
           self
         end
       end
 
-      def rocketjob_csv_parser
+      def rocket_job_csv_parser
         # TODO Change into an instance variable once CSV handling has been re-worked
         RocketJob::Utility::CSVRow.new
       end
