@@ -1,10 +1,10 @@
-# rocketjob
+# rocketjob[![Build Status](https://secure.travis-ci.org/rocketjob/rocketjob.png?branch=master)](http://travis-ci.org/rocketjob/rocketjob) ![](http://ruby-gem-downloads-badge.herokuapp.com/rocketjob?type=total)
 
 High volume, priority based, background job processing solution for Ruby.
 
 ## Status
 
-Alpha - Feedback on the API is welcome. API will change.
+Beta - Feedback on the API is welcome. API may change.
 
 Already in use in production internally processing large files with millions
 of records, as well as large jobs to walk though large databases.

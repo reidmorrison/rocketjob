@@ -57,7 +57,6 @@ class JobTest < Minitest::Test
         assert_equal 50, @job.priority
         assert_equal 0, @job.failure_count
         assert_nil   @job.run_at
-        assert_nil   @job.schedule
         assert_nil   @job.started_at
         assert_equal :queued, @job.state
       end
@@ -178,6 +177,14 @@ class JobTest < Minitest::Test
         @job.save!
         assert job = RocketJob::Job.next_job(@server.name), "Failed to find future job"
         assert_equal @job.id, job.id
+      end
+
+      should 'Skip expired jobs' do
+        count = RocketJob::Job.count
+        @job.expires_at = Time.now - 100
+        @job.save!
+        assert_equal nil, RocketJob::Job.next_job(@server.name)
+        assert_equal count, RocketJob::Job.count
       end
 
     end

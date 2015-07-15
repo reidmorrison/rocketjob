@@ -31,7 +31,6 @@ class WorkerTest < Minitest::Test
           assert_equal 50, @job.priority
           assert_equal 0, @job.failure_count
           assert_nil   @job.run_at
-          assert_nil   @job.schedule
           assert_nil   @job.started_at
           assert_equal :queued, @job.state
 
@@ -51,7 +50,6 @@ class WorkerTest < Minitest::Test
           assert_equal 50, @job.priority
           assert_equal 0, @job.failure_count
           assert_nil   @job.run_at
-          assert_nil   @job.schedule
           assert       @job.started_at
         end
       end

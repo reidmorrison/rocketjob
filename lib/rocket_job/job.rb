@@ -364,7 +364,7 @@ module RocketJob
         if job.running?
           return job
         else
-          if expired?
+          if job.expired?
             job.destroy
             logger.info "Destroyed expired job #{job.class.name}, id:#{job.id}"
           else
