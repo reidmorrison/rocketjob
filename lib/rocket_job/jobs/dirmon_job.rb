@@ -59,9 +59,11 @@ module RocketJob
         DirmonEntry.where(enabled: true).each do |entry|
           Dir[entry.path].each do |file_name|
             next if file_name.include?(DEFAULT_STAGING_PATH)
-            previous_size = previous_file_names[file_name]
+            # BSON Keys cannot contain periods
+            key = file_name.gsub('.', '_')
+            previous_size = previous_file_names[key]
             if size = check_file(entry, file_name, previous_size)
-              new_file_names[file_name] = size
+              new_file_names[key] = size
             end
           end
         end
@@ -81,6 +83,7 @@ module RocketJob
         end
       rescue Errno::ENOENT => exc
         # File may have been deleted since the scan was performed
+        nil
       end
 
       # Starts the job for the supplied entry
