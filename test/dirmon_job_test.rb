@@ -18,7 +18,7 @@ class DirmonJobTest < Minitest::Test
       )
       @job = Jobs::TestJob.new
       @paths = {
-        'abc/*' => %w(abc/file1.txt abc/file2.csv)
+        'abc/*' => %w(abc/file1 abc/file2)
       }
     end
 
