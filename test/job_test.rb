@@ -55,7 +55,6 @@ class JobTest < Minitest::Test
         assert_equal @arguments, @job.arguments
         assert_equal 0, @job.percent_complete
         assert_equal 50, @job.priority
-        assert_equal true, @job.repeatable
         assert_equal 0, @job.failure_count
         assert_nil   @job.run_at
         assert_nil   @job.schedule

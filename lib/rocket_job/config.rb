@@ -53,11 +53,15 @@ module RocketJob
       connection(connection)
       Server.connection(connection)
       Job.connection(connection)
+      Config.connection(connection)
+      DirmonEntry.connection(connection)
 
       db_name = connection.db.name
       set_database_name(db_name)
       Server.set_database_name(db_name)
       Job.set_database_name(db_name)
+      Config.set_database_name(db_name)
+      DirmonEntry.set_database_name(db_name)
     end
 
     # Use a separate Mongo connection for the Records and Results
