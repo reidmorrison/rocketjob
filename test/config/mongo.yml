@@ -11,35 +11,35 @@ default_options: &default_options
   :reconnect_max_retry_seconds: 5
 
 development:
-  uri: mongodb://localhost:27017/development_rocket_job
+  uri: mongodb://localhost:27017/development_rocketjob
   options:
     <<: *default_options
 
 development_work:
-  uri: mongodb://localhost:27017/development_rocket_job_work
+  uri: mongodb://localhost:27017/development_rocketjob_work
   options:
     <<: *default_options
 
 test:
-  uri: mongodb://localhost:27017/test_rocket_job
+  uri: mongodb://localhost:27017/test_rocketjob
   options:
     <<: *default_options
 
 test_work:
-  uri: mongodb://localhost:27017/test_rocket_job_work
+  uri: mongodb://localhost:27017/test_rocketjob_work
   options:
     <<: *default_options
 
 # Sample Production Settings
 production:
-  uri: mongodb://mongo1.site.com:27017,mongo2.site.com:27017/production_rocket_job
+  uri: mongodb://mongo1.site.com:27017,mongo2.site.com:27017/production_rocketjob
   options:
     <<: *default_options
     :pool_size:    50
     :pool_timeout: 5
 
 production_work:
-  uri: mongodb://mongo_local.site.com:27017/production_rocket_job_work
+  uri: mongodb://mongo_local.site.com:27017/production_rocketjob_work
   options:
     <<: *default_options
     :pool_size:    50

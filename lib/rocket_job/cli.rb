@@ -18,7 +18,7 @@ module RocketJob
     # Run a RocketJob::Server from the command line
     def run
       SemanticLogger.add_appender(STDOUT,  &SemanticLogger::Appender::Base.colorized_formatter) unless quiet
-      boot_rails
+      boot_rails if defined?(:Rails)
       write_pidfile
 
       opts = {}

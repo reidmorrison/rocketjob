@@ -8,13 +8,13 @@ class DirmonJobTest < Minitest::Test
       @server = RocketJob::Server.new
       @server.started
       @dirmon_job   = RocketJob::Jobs::DirmonJob.new
-      @staging_path = '/tmp/staging_path'
+      @archive_directory = '/tmp/archive_directory'
       @entry        = RocketJob::DirmonEntry.new(
         path:         'abc/*',
         job:          'Jobs::TestJob',
         arguments:    [ { input: 'yes' } ],
         properties:   { priority: 23, perform_method: :event },
-        staging_path: @staging_path
+        archive_directory: @archive_directory
       )
       @job = Jobs::TestJob.new
       @paths = {
@@ -24,39 +24,39 @@ class DirmonJobTest < Minitest::Test
 
     teardown do
       @dirmon_job.destroy if @dirmon_job && !@dirmon_job.new_record?
-      FileUtils.remove_dir(@staging_path, true) if Dir.exist?(@staging_path)
+      FileUtils.remove_dir(@archive_directory, true) if Dir.exist?(@archive_directory)
     end
 
     context '.config' do
       should 'support multiple databases' do
-        assert_equal 'test_rocket_job', RocketJob::DirmonEntry.collection.db.name
+        assert_equal 'test_rocketjob', RocketJob::DirmonEntry.collection.db.name
       end
     end
 
-    context '#stage_file' do
-      should 'stage absolute path file' do
+    context '#archive_file' do
+      should 'archive absolute path file' do
         begin
-          file = Tempfile.new('staging')
+          file = Tempfile.new('archive')
           file_name = file.path
           File.open(file_name, 'w') { |file| file.write('Hello World') }
           assert File.exists?(file_name)
-          @dirmon_job.stage_file(file_name, @staging_path)
-          stage_file_name = File.join(@staging_path, File.basename(file_name))
-          assert File.exists?(stage_file_name), stage_file_name
+          @dirmon_job.archive_file(file_name, @archive_directory)
+          archive_file_name = File.join(@archive_directory, File.basename(file_name))
+          assert File.exists?(archive_file_name), archive_file_name
         ensure
           file.delete if file
         end
       end
 
-      should 'stage relative path file' do
+      should 'archive relative path file' do
         begin
           relative_path = 'tmp'
           FileUtils.mkdir_p(relative_path)
           file_name = File.join(relative_path, 'dirmon_job_test.txt')
           File.open(file_name, 'w') { |file| file.write('Hello World') }
-          @dirmon_job.stage_file(file_name, @staging_path)
-          stage_file_name = File.join(@staging_path, file_name)
-          assert File.exists?(stage_file_name), stage_file_name
+          @dirmon_job.archive_file(file_name, @archive_directory)
+          archive_file_name = File.join(@archive_directory, file_name)
+          assert File.exists?(archive_file_name), archive_file_name
         ensure
           File.delete(file_name) if file_name && File.exists?(file_name)
         end
@@ -64,24 +64,24 @@ class DirmonJobTest < Minitest::Test
     end
 
     context '#upload_default' do
-      should 'upload default case with no staging_path' do
+      should 'upload default case with no archive_directory' do
         job              = Jobs::TestJob.new
         file_name        = 'abc/myfile.txt'
-        staged_file_name = 'abc/_staging/myfile.txt'
-        @dirmon_job.stub(:stage_file, -> fn, tp { assert_equal [staged_file_name, 'abc/_staging'], [fn, tp] }) do
+        archived_file_name = 'abc/_archive/myfile.txt'
+        @dirmon_job.stub(:archive_file, -> fn, tp { assert_equal [archived_file_name, 'abc/_archive'], [fn, tp] }) do
           @dirmon_job.upload_default(job, file_name, nil)
         end
-        assert_equal File.absolute_path(staged_file_name), job.arguments.first[:full_file_name]
+        assert_equal File.absolute_path(archived_file_name), job.arguments.first[:full_file_name]
       end
 
-      should 'upload default case with staging_path' do
+      should 'upload default case with archive_directory' do
         job              = Jobs::TestJob.new
         file_name        = 'abc/myfile.txt'
-        staged_file_name = "#{@staging_path}/myfile.txt"
-        @dirmon_job.stub(:stage_file, -> fn, tp { assert_equal [staged_file_name, @staging_path], [fn, tp] }) do
-          @dirmon_job.upload_default(job, file_name, @staging_path)
+        archived_file_name = "#{@archive_directory}/myfile.txt"
+        @dirmon_job.stub(:archive_file, -> fn, tp { assert_equal [archived_file_name, @archive_directory], [fn, tp] }) do
+          @dirmon_job.upload_default(job, file_name, @archive_directory)
         end
-        assert_equal File.absolute_path(staged_file_name), job.arguments.first[:full_file_name]
+        assert_equal File.absolute_path(archived_file_name), job.arguments.first[:full_file_name]
       end
     end
 
@@ -92,8 +92,8 @@ class DirmonJobTest < Minitest::Test
           file_name
         end
         file_name        = 'abc/myfile.txt'
-        @dirmon_job.stub(:stage_file, -> fn, tp { assert_equal [file_name, @staging_path], [fn, tp] }) do
-          @dirmon_job.upload_file(job, file_name, @staging_path)
+        @dirmon_job.stub(:archive_file, -> fn, tp { assert_equal [file_name, @archive_directory], [fn, tp] }) do
+          @dirmon_job.upload_file(job, file_name, @archive_directory)
         end
       end
 
@@ -103,8 +103,8 @@ class DirmonJobTest < Minitest::Test
           file_name
         end
         file_name        = 'abc/myfile.txt'
-        @dirmon_job.stub(:stage_file, -> fn, tp { assert_equal [file_name, @staging_path], [fn, tp] }) do
-          @dirmon_job.upload_file(job, file_name, @staging_path)
+        @dirmon_job.stub(:archive_file, -> fn, tp { assert_equal [file_name, @archive_directory], [fn, tp] }) do
+          @dirmon_job.upload_file(job, file_name, @archive_directory)
         end
       end
     end
@@ -120,7 +120,7 @@ class DirmonJobTest < Minitest::Test
 
       should 'upload using #upload' do
         file_name = 'abc/myfile.txt'
-        job = @dirmon_job.stub(:upload_file, -> j, fn, sp { assert_equal [file_name, @staging_path], [fn, sp] }) do
+        job = @dirmon_job.stub(:upload_file, -> j, fn, sp { assert_equal [file_name, @archive_directory], [fn, sp] }) do
           @dirmon_job.start_job(@entry, file_name)
         end
         assert_equal @entry.job, job.class.name
@@ -223,12 +223,12 @@ class DirmonJobTest < Minitest::Test
         assert_equal 0, result.count
       end
 
-      should 'skip files in staging path' do
+      should 'skip files in archive directory' do
         previous_file_names = {}
         @paths['abc/*'].each { |file_name| previous_file_names[file_name] = 5}
         result = nil
-        # Add a file in the staging path
-        @paths['abc/*'] << File.join('abc', RocketJob::Jobs::DirmonJob::DEFAULT_STAGING_PATH, 'test.zip')
+        # Add a file in the archive directory
+        @paths['abc/*'] << File.join('abc', RocketJob::Jobs::DirmonJob::DEFAULT_ARCHIVE_DIR, 'test.zip')
         Dir.stub(:[], -> dir { @paths[dir] }) do
           result = @dirmon_job.stub(:check_file, -> e, fn, ps { 10 } ) do
             @dirmon_job.check_directories(previous_file_names)

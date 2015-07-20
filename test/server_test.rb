@@ -23,7 +23,7 @@ class ServerTest < Minitest::Test
 
     context '.config' do
       should 'support multiple databases' do
-        assert_equal 'test_rocket_job', RocketJob::Job.collection.db.name
+        assert_equal 'test_rocketjob', RocketJob::Job.collection.db.name
       end
     end
 

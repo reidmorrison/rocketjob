@@ -43,15 +43,18 @@ module RocketJob
     #   { priority: 45 }
     key :properties,    Hash, default: {}
 
-    # Staging path
-    # If supplied, the file will be moved to this path before the job is started
+    # Archive directory to move files to when processed to prevent processing the
+    # file again.
+    #
+    # If supplied, the file will be moved to this directory before the job is started
     # If the file was in a sub-directory, the corresponding sub-directory will
-    # be created in the staging path.
-    key :staging_path,  String
+    # be created in the archive directory, if the path being scanned for files
+    # is a relative path. (I.e. Does not start with '/') .
+    key :archive_directory,  String
 
     # Allow a monitoring path to be temporarily disabled
     key :enabled,       Boolean, default: true
 
-    validates_presence_of :path, :job, :arguments, :properties
+    validates_presence_of :path, :job
   end
 end
