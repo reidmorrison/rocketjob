@@ -21,16 +21,16 @@ module RocketJob
     end
 
     # By enabling inline_mode jobs will be called in-line
-    # No server processes will be created, nor threads created
+    # No worker processes will be created, nor threads created
     sync_cattr_accessor(:inline_mode) { false }
 
-    # The maximum number of worker threads to create on any one server
+    # The maximum number of worker threads to create on any one worker
     key :max_worker_threads,         Integer, default: 10
 
-    # Number of seconds between heartbeats from Rocket Job Server processes
+    # Number of seconds between heartbeats from Rocket Job Worker processes
     key :heartbeat_seconds,          Integer, default: 15
 
-    # Maximum number of seconds a Server will wait before checking for new jobs
+    # Maximum number of seconds a Worker will wait before checking for new jobs
     key :max_poll_seconds,           Integer, default: 5
 
     # Number of seconds between checking for:
@@ -44,21 +44,21 @@ module RocketJob
     #   Not all job types support pausing in the middle
     key :re_check_seconds,           Integer, default: 60
 
-    # Limit the number of workers per job class per server
+    # Limit the number of workers per job class per worker
     #    'class_name' / group => 100
     #key :limits, Hash
 
     # Replace the MongoMapper default mongo connection for holding jobs
     def self.mongo_connection=(connection)
       connection(connection)
-      Server.connection(connection)
+      Worker.connection(connection)
       Job.connection(connection)
       Config.connection(connection)
       DirmonEntry.connection(connection)
 
       db_name = connection.db.name
       set_database_name(db_name)
-      Server.set_database_name(db_name)
+      Worker.set_database_name(db_name)
       Job.set_database_name(db_name)
       Config.set_database_name(db_name)
       DirmonEntry.set_database_name(db_name)
@@ -68,7 +68,7 @@ module RocketJob
     # Allows the records and results to be stored in a separate Mongo database
     # from the Jobs themselves.
     #
-    # It is recommended to set the work_connection to a local Mongo Server that
+    # It is recommended to set the work_connection to a local Mongo Worker that
     # is not replicated to another data center to prevent flooding the network
     # with replication of data records and results.
     # The jobs themselves can/should be replicated across data centers so that

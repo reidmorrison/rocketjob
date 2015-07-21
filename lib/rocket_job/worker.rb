@@ -3,31 +3,31 @@ require 'socket'
 require 'sync_attr'
 require 'aasm'
 module RocketJob
-  # Server
+  # Worker
   #
-  # On startup a server instance will automatically register itself
+  # On startup a worker instance will automatically register itself
   # if not already present
   #
-  # Starting a server in the foreground:
+  # Starting a worker in the foreground:
   #   - Using a Rails runner:
   #     bin/rocketjob
   #
-  # Starting a server in the background:
+  # Starting a worker in the background:
   #   - Using a Rails runner:
   #     nohup bin/rocketjob --quiet 2>&1 1>output.log &
   #
-  # Stopping a server:
-  #   - Stop the server via the Web UI
+  # Stopping a worker:
+  #   - Stop the worker via the Web UI
   #   - Send a regular kill signal to make it shutdown once all active work is complete
   #       kill <pid>
   #   - Or, use the following Ruby code:
-  #     server = RocketJob::Server.where(name: 'server name').first
-  #     server.stop!
+  #     worker = RocketJob::Worker.where(name: 'worker name').first
+  #     worker.stop!
   #
   #   Sending the kill signal locally will result in starting the shutdown process
-  #   immediately. Via the UI or Ruby code the server can take up to 15 seconds
+  #   immediately. Via the UI or Ruby code the worker can take up to 15 seconds
   #   (the heartbeat interval) to start shutting down.
-  class Server
+  class Worker
     include MongoMapper::Document
     include AASM
     include SyncAttr
@@ -36,21 +36,21 @@ module RocketJob
     # Prevent data in MongoDB from re-defining the model behavior
     #self.static_keys = true
 
-    # Unique Name of this server instance
-    #   Defaults to the `hostname` but _must_ be overriden if mutiple Server instances
+    # Unique Name of this worker instance
+    #   Defaults to the `hostname` but _must_ be overriden if mutiple Worker instances
     #   are started on the same host
     # The unique name is used on re-start to re-queue any jobs that were being processed
-    # at the time the server or host unexpectedly terminated, if any
+    # at the time the worker or host unexpectedly terminated, if any
     key :name,               String, default: -> { "#{Socket.gethostname}:#{$$}" }
 
     # The maximum number of threads that this worker should use
     #   If set, it will override the default value in RocketJob::Config
     key :max_threads,        Integer, default: -> { Config.instance.max_worker_threads }
 
-    # When this server process was started
+    # When this worker process was started
     key :started_at,         Time
 
-    # The heartbeat information for this server
+    # The heartbeat information for this worker
     one :heartbeat,          class_name: 'RocketJob::Heartbeat'
 
     # Current state
@@ -89,20 +89,20 @@ module RocketJob
 
     attr_reader :thread_pool
 
-    # Requeue any jobs being worked by this server when it is destroyed
+    # Requeue any jobs being worked by this worker when it is destroyed
     before_destroy :requeue_jobs
 
-    # Run the server process
+    # Run the worker process
     # Attributes supplied are passed to #new
     def self.run(attrs={})
-      server = new(attrs)
-      server.build_heartbeat
-      server.save!
+      worker = new(attrs)
+      worker.build_heartbeat
+      worker.save!
       create_indexes
       register_signal_handlers
       raise "The RocketJob configuration is being applied after the system has been initialized" unless RocketJob::Job.database.name == RocketJob::SlicedJob.database.name
       logger.info "Using MongoDB Database: #{RocketJob::Job.database.name}"
-      server.run
+      worker.run
     end
 
     # Create indexes
@@ -112,40 +112,40 @@ module RocketJob
       Job.create_indexes
     end
 
-    # Destroy dead servers ( missed at least the last 4 heartbeats )
-    # Requeue jobs assigned to dead servers
-    # Destroy dead servers
-    def self.destroy_dead_servers
+    # Destroy dead workers ( missed at least the last 4 heartbeats )
+    # Requeue jobs assigned to dead workers
+    # Destroy dead workers
+    def self.destroy_dead_workers
       dead_seconds = Config.instance.heartbeat_seconds * 4
-      each do |server|
-        next if (Time.now - server.heartbeat.updated_at) < dead_seconds
-        logger.warn "Destroying server #{server.name}, and requeueing its jobs"
-        server.destroy
+      each do |worker|
+        next if (Time.now - worker.heartbeat.updated_at) < dead_seconds
+        logger.warn "Destroying worker #{worker.name}, and requeueing its jobs"
+        worker.destroy
       end
     end
 
-    # Stop all running, paused, or starting servers
+    # Stop all running, paused, or starting workers
     def self.stop_all
-      where(state: ['running', 'paused', 'starting']).each { |server| server.stop! }
+      where(state: ['running', 'paused', 'starting']).each { |worker| worker.stop! }
     end
 
-    # Pause all running servers
+    # Pause all running workers
     def self.pause_all
-      where(state: 'running').each { |server| server.pause! }
+      where(state: 'running').each { |worker| worker.pause! }
     end
 
-    # Resume all paused servers
+    # Resume all paused workers
     def self.resume_all
-      each { |server| server.resume! if server.paused? }
+      each { |worker| worker.resume! if worker.paused? }
     end
 
-    # Register a handler to perform cleanups etc. whenever a server is
+    # Register a handler to perform cleanups etc. whenever a worker is
     # explicitly destroyed
     def self.register_destroy_handler(&block)
       @@destroy_handlers << block
     end
 
-    # Returns [Boolean] whether the server is shutting down
+    # Returns [Boolean] whether the worker is shutting down
     def shutting_down?
       if self.class.shutdown
         stop! if running?
@@ -160,7 +160,7 @@ module RocketJob
       @thread_pool ||= []
     end
 
-    # Run this instance of the server
+    # Run this instance of the worker
     def run
       Thread.current.name = 'RocketJob main'
       build_heartbeat unless heartbeat
@@ -168,17 +168,17 @@ module RocketJob
       started
       adjust_thread_pool(true)
       save
-      logger.info "RocketJob Server started with #{max_threads} workers running"
+      logger.info "RocketJob Worker started with #{max_threads} workers running"
 
       count = 0
       loop do
-        # Update heartbeat so that monitoring tools know that this server is alive
+        # Update heartbeat so that monitoring tools know that this worker is alive
         set(
           'heartbeat.updated_at'      => Time.now,
           'heartbeat.current_threads' => thread_pool_count
         )
 
-        # Reload the server model every 10 heartbeats in case its config was changed
+        # Reload the worker model every 10 heartbeats in case its config was changed
         # TODO make 3 configurable
         if count >= 3
           reload
@@ -188,7 +188,7 @@ module RocketJob
           count += 1
         end
 
-        # Stop server if shutdown signal was raised
+        # Stop worker if shutdown signal was raised
         stop! if self.class.shutdown && !stopping?
 
         break if stopping?
@@ -204,9 +204,9 @@ module RocketJob
       thread_pool.each { |t| t.join }
       logger.info 'Shutdown'
     rescue Exception => exc
-      logger.error('RocketJob::Server is stopping due to an exception', exc)
+      logger.error('RocketJob::Worker is stopping due to an exception', exc)
     ensure
-      # Destroy this server instance
+      # Destroy this worker instance
       destroy
     end
 
@@ -258,7 +258,7 @@ module RocketJob
       end
     end
 
-    # Keep processing jobs until server stops running
+    # Keep processing jobs until worker stops running
     def worker(worker_id)
       Thread.current.name = "rocketjob #{worker_id}"
       logger.info 'Started'
@@ -271,7 +271,7 @@ module RocketJob
           sleep RocketJob::Config.instance.max_poll_seconds
         end
       end
-      logger.info "Stopping. Server state: #{state.inspect}"
+      logger.info "Stopping. Worker state: #{state.inspect}"
     rescue Exception => exc
       logger.fatal('Unhandled exception in job processing thread', exc)
     end
@@ -294,7 +294,7 @@ module RocketJob
       false
     end
 
-    # Requeue any jobs assigned to this server
+    # Requeue any jobs assigned to this worker
     def requeue_jobs
       stop! if running? || paused?
       @@destroy_handlers.each { |handler| handler.call(name) }

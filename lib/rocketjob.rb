@@ -12,7 +12,7 @@ module RocketJob
   autoload :Heartbeat,             'rocket_job/heartbeat'
   autoload :Job,                   'rocket_job/job'
   autoload :JobException,          'rocket_job/job_exception'
-  autoload :Server,                'rocket_job/server'
+  autoload :Worker,                'rocket_job/worker'
   module Concerns
     autoload :Worker,              'rocket_job/concerns/worker'
   end

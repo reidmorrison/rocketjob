@@ -2,13 +2,13 @@
 module RocketJob
   # Heartbeat
   #
-  # Information from the server as at it's last heartbeat
+  # Information from the worker as at it's last heartbeat
   class Heartbeat
     include MongoMapper::EmbeddedDocument
 
-    embedded_in :server
+    embedded_in :worker
 
-    # Time of the last heartbeat received from this server
+    # Time of the last heartbeat received from this worker
     key :updated_at,                 Time
 
     # Number of threads running as at the last heartbeat interval
@@ -21,9 +21,9 @@ module RocketJob
     # Process Information
     #
 
-    # Percentage utilization for the server process alone
+    # Percentage utilization for the worker process alone
     key :process_cpu,                Integer
-    # Kilo Bytes used by the server process (Virtual & Physical)
+    # Kilo Bytes used by the worker process (Virtual & Physical)
     key :process_mem_phys_kb,        Integer
     key :process_mem_virt_kb,        Integer
 

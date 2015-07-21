@@ -5,8 +5,8 @@ require_relative 'jobs/test_job'
 class JobTest < Minitest::Test
   context RocketJob::Job do
     setup do
-      @server = RocketJob::Server.new
-      @server.started
+      @worker = RocketJob::Worker.new
+      @worker.started
       @description = 'Hello World'
       @arguments   = [ 1 ]
       @job = Jobs::TestJob.new(
@@ -46,7 +46,7 @@ class JobTest < Minitest::Test
     context '#save!' do
       should 'save a blank job' do
         @job.save!
-        assert_nil   @job.server_name
+        assert_nil   @job.worker_name
         assert_nil   @job.completed_at
         assert       @job.created_at
         assert_equal @description, @job.description
@@ -66,8 +66,8 @@ class JobTest < Minitest::Test
       should 'return status for a queued job' do
         assert_equal true, @job.queued?
         h = @job.status
-        assert_equal :queued,       h[:state]
-        assert_equal @description,  h[:description]
+        assert_equal :queued,       h['state']
+        assert_equal @description,  h['description']
       end
 
       should 'return status for a failed job' do
@@ -79,17 +79,17 @@ class JobTest < Minitest::Test
         @job.fail!
         assert_equal true, @job.failed?
         h = @job.status
-        assert_equal :failed,       h[:state]
-        assert_equal @description,  h[:description]
-        assert_equal 'Test',        h[:exception][:class_name], h
-        assert_equal 'hello world', h[:exception][:message], h
+        assert_equal :failed,       h['state']
+        assert_equal @description,  h['description']
+        assert_equal 'Test',        h['exception']['class_name'], h
+        assert_equal 'hello world', h['exception']['message'], h
       end
     end
 
     context '#work' do
       should 'call default perform method' do
         @job.start!
-        assert_equal false, @job.work(@server)
+        assert_equal false, @job.work(@worker)
         assert_equal true,  @job.completed?, @job.state
         assert_equal 2,     Jobs::TestJob.result
       end
@@ -98,7 +98,7 @@ class JobTest < Minitest::Test
         @job.perform_method = :sum
         @job.arguments = [ 23, 45 ]
         @job.start!
-        assert_equal false, @job.work(@server)
+        assert_equal false, @job.work(@worker)
         assert_equal true, @job.completed?
         assert_equal 68,    Jobs::TestJob.result
       end
@@ -106,7 +106,7 @@ class JobTest < Minitest::Test
       should 'destroy on complete' do
         @job.destroy_on_complete = true
         @job.start!
-        assert_equal false, @job.work(@server)
+        assert_equal false, @job.work(@worker)
         assert_equal nil, RocketJob::Job.find_by_id(@job.id)
       end
 
@@ -118,7 +118,7 @@ class JobTest < Minitest::Test
         @job.start!
         logged = false
         Jobs::TestJob.logger.stub(:log_internal, -> level, index, message, payload, exception { logged = true if message.include?('some very noisy logging')}) do
-          assert_equal false, @job.work(@server), @job.inspect
+          assert_equal false, @job.work(@worker), @job.inspect
         end
         assert_equal false, logged
       end
@@ -133,7 +133,7 @@ class JobTest < Minitest::Test
         # Raise global log level to :info
         SemanticLogger.stub(:default_level_index, 3) do
           Jobs::TestJob.logger.stub(:log_internal, -> { logged = true }) do
-            assert_equal false, @job.work(@server)
+            assert_equal false, @job.work(@worker)
           end
         end
         assert_equal false, logged
@@ -144,7 +144,7 @@ class JobTest < Minitest::Test
         @job.perform_method = :event
         @job.arguments = [ named_parameters ]
         @job.start!
-        assert_equal false, @job.work(@server), @job.inspect
+        assert_equal false, @job.work(@worker), @job.inspect
         assert_equal true, @job.completed?
         assert_equal named_parameters.merge('before_event' => true, 'after_event' => true), @job.arguments.first
       end
@@ -157,25 +157,25 @@ class JobTest < Minitest::Test
       end
 
       should 'return nil when no jobs available' do
-        assert_equal nil, RocketJob::Job.next_job(@server.name)
+        assert_equal nil, RocketJob::Job.next_job(@worker.name)
       end
 
       should 'return the first job' do
         @job.save!
-        assert job = RocketJob::Job.next_job(@server.name), "Failed to find job"
+        assert job = RocketJob::Job.next_job(@worker.name), "Failed to find job"
         assert_equal @job.id, job.id
       end
 
       should 'Ignore future dated jobs' do
         @job.run_at = Time.now + 1.hour
         @job.save!
-        assert_equal nil, RocketJob::Job.next_job(@server.name)
+        assert_equal nil, RocketJob::Job.next_job(@worker.name)
       end
 
       should 'Process future dated jobs when time is now' do
         @job.run_at = Time.now
         @job.save!
-        assert job = RocketJob::Job.next_job(@server.name), "Failed to find future job"
+        assert job = RocketJob::Job.next_job(@worker.name), "Failed to find future job"
         assert_equal @job.id, job.id
       end
 
@@ -183,7 +183,7 @@ class JobTest < Minitest::Test
         count = RocketJob::Job.count
         @job.expires_at = Time.now - 100
         @job.save!
-        assert_equal nil, RocketJob::Job.next_job(@server.name)
+        assert_equal nil, RocketJob::Job.next_job(@worker.name)
         assert_equal count, RocketJob::Job.count
       end
 

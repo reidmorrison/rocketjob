@@ -29,10 +29,10 @@ module RocketJob
         # Create a job and process it immediately in-line by this thread
         def now(method, *args, &block)
           job = build(method, *args, &block)
-          server = Server.new(name: 'inline')
-          server.started
+          worker = RocketJob::Worker.new(name: 'inline')
+          worker.started
           job.start
-          while job.running? && !job.work(server)
+          while job.running? && !job.work(worker)
           end
           job
         end
@@ -86,7 +86,7 @@ module RocketJob
       # is set in the job itself.
       #
       # Thread-safe, can be called by multiple threads at the same time
-      def work(server)
+      def work(worker)
         raise 'Job must be started before calling #work' unless running?
         begin
           # before_perform
@@ -102,7 +102,7 @@ module RocketJob
           call_method(perform_method, arguments, event: :after, log_level: log_level)
           complete!
         rescue Exception => exc
-          set_exception(server.name, exc)
+          set_exception(worker.name, exc)
           raise exc if RocketJob::Config.inline_mode
         end
         false

@@ -15,7 +15,7 @@ module RocketJob
       parse(argv)
     end
 
-    # Run a RocketJob::Server from the command line
+    # Run a RocketJob::Worker from the command line
     def run
       SemanticLogger.add_appender(STDOUT,  &SemanticLogger::Appender::Base.colorized_formatter) unless quiet
       boot_rails if defined?(:Rails)
@@ -24,14 +24,14 @@ module RocketJob
       opts = {}
       opts[:name]             = name if name
       opts[:max_threads]      = threads if threads
-      Server.run(opts)
+      Worker.run(opts)
     end
 
     # Initialize the Rails environment
     def boot_rails
       require File.expand_path("#{directory}/config/environment.rb")
       if Rails.configuration.eager_load
-        RocketJob::Server.logger.benchmark_info('Eager loaded Rails and all Engines') do
+        RocketJob::Worker.logger.benchmark_info('Eager loaded Rails and all Engines') do
           Rails.application.eager_load!
           Rails::Engine.subclasses.each { |engine| engine.eager_load! }
         end
@@ -53,7 +53,7 @@ module RocketJob
     # Parse command line options placing results in the corresponding instance variables
     def parse(argv)
       parser = OptionParser.new do |o|
-        o.on('-n', '--name NAME', 'Unique Name of this server instance (Default: hostname:PID)') { |arg| @name = arg }
+        o.on('-n', '--name NAME', 'Unique Name of this worker instance (Default: hostname:PID)') { |arg| @name = arg }
         o.on('-t', '--threads COUNT', 'Number of worker threads to start') { |arg| @threads = arg.to_i }
         o.on('-q', '--quiet', 'Do not write to stdout, only to logfile. Necessary when running as a daemon') { @quiet = true }
         o.on('-d', '--dir DIR', 'Directory containing Rails app, if not current directory') { |arg| @directory = arg }

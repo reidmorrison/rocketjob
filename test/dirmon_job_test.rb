@@ -5,8 +5,8 @@ require_relative 'jobs/test_job'
 class DirmonJobTest < Minitest::Test
   context RocketJob::Jobs::DirmonJob do
     setup do
-      @server = RocketJob::Server.new
-      @server.started
+      @worker = RocketJob::Worker.new
+      @worker.started
       @dirmon_job   = RocketJob::Jobs::DirmonJob.new
       @archive_directory = '/tmp/archive_directory'
       @entry        = RocketJob::DirmonEntry.new(

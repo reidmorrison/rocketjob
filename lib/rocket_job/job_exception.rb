@@ -2,7 +2,7 @@
 module RocketJob
   # Heartbeat
   #
-  # Information from the server as at it's last heartbeat
+  # Information from the worker as at it's last heartbeat
   class JobException
     include MongoMapper::EmbeddedDocument
 
@@ -15,8 +15,8 @@ module RocketJob
     # Exception Backtrace [Array<String>]
     key :backtrace,               Array
 
-    # Name of the server on which this exception occurred
-    key :server_name,             String
+    # Name of the worker on which this exception occurred
+    key :worker_name,             String
 
     # The record within which this exception occurred
     key :record_number,           Integer

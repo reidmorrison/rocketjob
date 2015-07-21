@@ -80,7 +80,7 @@ This differs from the traditional approach of separate queues for jobs which
 quickly becomes cumbersome when there are for example over a hundred different
 types of jobs.
 
-The global priority based queue ensures that the servers are utilized to their
+The global priority based queue ensures that the workers are utilized to their
 capacity without requiring constant manual intervention.
 
 `rocketjob` is designed to handle hundreds of millions of concurrent jobs
