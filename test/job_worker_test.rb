@@ -40,7 +40,7 @@ class WorkerTest < Minitest::Test
           assert_equal true, @job.completed?
           assert_equal 2,    Jobs::TestJob.result
 
-          assert       @job.worker_name
+          assert_nil   @job.worker_name
           assert       @job.completed_at
           assert       @job.created_at
           assert_nil   @job.description
