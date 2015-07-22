@@ -234,6 +234,11 @@ module RocketJob
       end
     end
 
+    # Returns a human readable duration the job has taken
+    def duration
+      seconds_as_duration(seconds)
+    end
+
     # A job has expired if the expiry time has passed before it is started
     def expired?
       started_at.nil? && expires_at && (expires_at < Time.now)
@@ -241,7 +246,7 @@ module RocketJob
 
     # Returns [Hash] status of this job
     def as_json
-      attrs = serializable_hash(methods: :seconds)
+      attrs = serializable_hash(methods: [:seconds, :duration])
       attrs.delete('result') unless collect_output?
       case
       when running?
@@ -268,9 +273,7 @@ module RocketJob
 
     def status(time_zone='Eastern Time (US & Canada)')
       h = as_json
-      if seconds = h.delete('seconds')
-        h['duration'] = seconds_as_duration(seconds)
-      end
+      h.delete('seconds')
       h.delete('perform_method') if h['perform_method'] == :perform
       h.dup.each_pair do |k,v|
         case
@@ -317,11 +320,13 @@ module RocketJob
 
     def before_complete
       self.percent_complete = 100
-      self.completed_at = Time.now
+      self.completed_at     = Time.now
+      self.worker_name      = nil
     end
 
     def before_fail
       self.completed_at = Time.now
+      self.worker_name      = nil
     end
 
     def before_retry
@@ -330,6 +335,7 @@ module RocketJob
 
     def before_pause
       self.completed_at = Time.now
+      self.worker_name      = nil
     end
 
     def before_resume
@@ -338,13 +344,14 @@ module RocketJob
 
     def before_abort
       self.completed_at = Time.now
+      self.worker_name      = nil
     end
 
     # Returns a human readable duration from the supplied [Float] number of seconds
     def seconds_as_duration(seconds)
       time = Time.at(seconds)
       if seconds >= 1.day
-        "#{seconds / 1.day}d #{time.strftime('%-Hh %-Mm %-Ss')}"
+        "#{(seconds / 1.day).to_i}d #{time.strftime('%-Hh %-Mm %-Ss')}"
       elsif seconds >= 1.hour
         time.strftime('%-Hh %-Mm %-Ss')
       elsif seconds >= 1.minute
