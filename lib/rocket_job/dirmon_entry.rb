@@ -2,6 +2,10 @@ module RocketJob
   class DirmonEntry
     include MongoMapper::Document
 
+    # Name for this path entry used to identify this DirmonEntry
+    # in the user interface and is passed into the job when kicked off
+    key :name,         String
+
     # Wildcard path to search for files in
     #
     # Example:
