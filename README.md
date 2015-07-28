@@ -1,4 +1,4 @@
-# rocketjob[![Build Status](https://secure.travis-ci.org/rocketjob/rocketjob.png?branch=master)](http://travis-ci.org/rocketjob/rocketjob) ![](http://ruby-gem-downloads-badge.herokuapp.com/rocketjob?type=total)
+# rocketjob [![Gem Version](https://badge.fury.io/rb/rocketjob.svg)](http://badge.fury.io/rb/rocketjob) [![Build Status](https://secure.travis-ci.org/rocketjob/rocketjob.png?branch=master)](http://travis-ci.org/rocketjob/rocketjob) ![](http://ruby-gem-downloads-badge.herokuapp.com/rocketjob?type=total)
 
 High volume, priority based, background job processing solution for Ruby.
 
@@ -11,9 +11,8 @@ of records, as well as large jobs to walk though large databases.
 
 ## Documentation
 
-For documentation see: http://rocketjob.io/
-
-The documentation is a work in progress is actively being worked on.
+* [Guide](http://rocketjob.io/)
+* [API Reference](http://www.rubydoc.info/gems/rocketjob/)
 
 ## Versioning
 
