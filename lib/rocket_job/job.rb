@@ -215,6 +215,11 @@ module RocketJob
       where(state: 'paused').each { |job| job.resume! }
     end
 
+    # Returns the number of required arguments for this job
+    def self.argument_count(method=:perform)
+      instance_method(method).arity
+    end
+
     # Returns [true|false] whether to collect the results from running this batch
     def collect_output?
       collect_output == true

@@ -11,7 +11,7 @@ class DirmonJobTest < Minitest::Test
       @archive_directory = '/tmp/archive_directory'
       @entry        = RocketJob::DirmonEntry.new(
         path:         'abc/*',
-        job:          'Jobs::TestJob',
+        job_name:     'Jobs::TestJob',
         arguments:    [ { input: 'yes' } ],
         properties:   { priority: 23, perform_method: :event },
         archive_directory: @archive_directory
@@ -25,12 +25,6 @@ class DirmonJobTest < Minitest::Test
     teardown do
       @dirmon_job.destroy if @dirmon_job && !@dirmon_job.new_record?
       FileUtils.remove_dir(@archive_directory, true) if Dir.exist?(@archive_directory)
-    end
-
-    context '.config' do
-      should 'support multiple databases' do
-        assert_equal 'test_rocketjob', RocketJob::DirmonEntry.collection.db.name
-      end
     end
 
     context '#archive_file' do
@@ -123,7 +117,7 @@ class DirmonJobTest < Minitest::Test
         job = @dirmon_job.stub(:upload_file, -> j, fn, sp { assert_equal [file_name, @archive_directory], [fn, sp] }) do
           @dirmon_job.start_job(@entry, file_name)
         end
-        assert_equal @entry.job, job.class.name
+        assert_equal @entry.job_name, job.class.name
         assert_equal 23, job.priority
         assert_equal [ {:input=>"yes", "before_event"=>true, "event"=>true, "after_event"=>true} ], job.arguments
       end

@@ -96,7 +96,7 @@ module RocketJob
       def check_file(entry, file_name, previous_size)
         size = File.size(file_name)
         if previous_size && (previous_size == size)
-          logger.info("File stabilized: #{file_name}. Starting: #{entry.job}")
+          logger.info("File stabilized: #{file_name}. Starting: #{entry.job_name}")
           start_job(entry, file_name)
           nil
         else
@@ -111,8 +111,9 @@ module RocketJob
 
       # Starts the job for the supplied entry
       def start_job(entry, file_name)
-        entry.job.constantize.perform_later(*entry.arguments) do |job|
-          # Set properties, also allows :perform_method to be overridden
+        entry.job_class.perform_later(*entry.arguments) do |job|
+          job.perform_method = entry.perform_method
+          # Set properties
           entry.properties.each_pair { |k, v| job.send("#{k}=".to_sym, v) }
 
           upload_file(job, file_name, entry.archive_directory)

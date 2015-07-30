@@ -1,6 +1,6 @@
 # rocketjob [![Gem Version](https://badge.fury.io/rb/rocketjob.svg)](http://badge.fury.io/rb/rocketjob) [![Build Status](https://secure.travis-ci.org/rocketjob/rocketjob.png?branch=master)](http://travis-ci.org/rocketjob/rocketjob) ![](http://ruby-gem-downloads-badge.herokuapp.com/rocketjob?type=total)
 
-High volume, priority based, background job processing solution for Ruby.
+High volume, priority based, distributed, background job processing solution for Ruby.
 
 ## Status
 
