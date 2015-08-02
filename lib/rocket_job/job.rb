@@ -15,6 +15,7 @@ module RocketJob
     # User definable attributes
     #
     # The following attributes are set when the job is created
+    # @formatter:off
 
     # Description for this job instance
     key :description,             String
@@ -185,6 +186,7 @@ module RocketJob
         transitions from: :paused,  to: :aborted
       end
     end
+    # @formatter:on
 
     # Create indexes
     def self.create_indexes

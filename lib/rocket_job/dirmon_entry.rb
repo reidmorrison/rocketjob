@@ -2,6 +2,7 @@ module RocketJob
   class DirmonEntry
     include MongoMapper::Document
 
+    # @formatter:off
     # Name for this path entry used to identify this DirmonEntry
     # in the user interface
     key :name,               String
@@ -61,6 +62,7 @@ module RocketJob
 
     # Method to perform on the job, usually :perform
     key :perform_method,     Symbol, default: :perform
+    # @formatter:on
 
     # Returns the Job to be queued
     def job_class

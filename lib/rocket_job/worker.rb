@@ -36,6 +36,7 @@ module RocketJob
     # Prevent data in MongoDB from re-defining the model behavior
     #self.static_keys = true
 
+    # @formatter:off
     # Unique Name of this worker instance
     #   Defaults to the `hostname` but _must_ be overriden if mutiple Worker instances
     #   are started on the same host
@@ -86,6 +87,7 @@ module RocketJob
         transitions from: :starting, to: :stopping
       end
     end
+    # @formatter:on
 
     attr_reader :thread_pool
 

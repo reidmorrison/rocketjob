@@ -8,6 +8,7 @@ module RocketJob
 
     embedded_in :worker
 
+    # @formatter:off
     # Time of the last heartbeat received from this worker
     key :updated_at,                 Time
 
@@ -39,6 +40,8 @@ module RocketJob
 
     # If available
     key :load_average,               Float
+    # @formatter:on
+
   end
 end
 

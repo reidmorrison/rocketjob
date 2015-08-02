@@ -6,6 +6,7 @@ module RocketJob
   class JobException
     include MongoMapper::EmbeddedDocument
 
+    # @formatter:off
     # Name of the exception class
     key :class_name,              String
 
@@ -20,6 +21,8 @@ module RocketJob
 
     # The record within which this exception occurred
     key :record_number,           Integer
+
+    # @formatter:on
 
     # Returns [JobException] built from the supplied exception
     def self.from_exception(exc)

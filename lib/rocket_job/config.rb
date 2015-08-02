@@ -24,6 +24,7 @@ module RocketJob
     # No worker processes will be created, nor threads created
     sync_cattr_accessor(:inline_mode) { false }
 
+    # @formatter:off
     # The maximum number of worker threads to create on any one worker
     key :max_worker_threads,         Integer, default: 10
 
@@ -47,6 +48,7 @@ module RocketJob
     # Limit the number of workers per job class per worker
     #    'class_name' / group => 100
     #key :limits, Hash
+    # @formatter:on
 
     # Replace the MongoMapper default mongo connection for holding jobs
     def self.mongo_connection=(connection)
