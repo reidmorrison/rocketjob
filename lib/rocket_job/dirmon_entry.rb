@@ -81,7 +81,7 @@ module RocketJob
     validates_each :arguments do |record, attr, value|
       if klass = record.job_class
         count = klass.argument_count(record.perform_method)
-        record.errors.add(attr, "There must be #{count} argument(s)") if  value.size != count
+        record.errors.add(attr, "There must be #{count} argument(s)") if value.size != count
       end
     end
 

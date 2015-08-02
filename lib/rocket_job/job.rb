@@ -189,7 +189,7 @@ module RocketJob
     # Create indexes
     def self.create_indexes
       # Used by find_and_modify in .next_job
-      ensure_index({ state:1, run_at: 1, priority: 1, created_at: 1, sub_state: 1}, background: true)
+      ensure_index({ state: 1, run_at: 1, priority: 1, created_at: 1, sub_state: 1 }, background: true)
       # Remove outdated index if present
       drop_index("state_1_priority_1_created_at_1_sub_state_1") rescue nil
       # Used by Mission Control
@@ -280,7 +280,7 @@ module RocketJob
       h = as_json
       h.delete('seconds')
       h.delete('perform_method') if h['perform_method'] == :perform
-      h.dup.each_pair do |k,v|
+      h.dup.each_pair do |k, v|
         case
         when v.kind_of?(Time)
           h[k] = v.in_time_zone(time_zone).to_s
@@ -312,7 +312,7 @@ module RocketJob
     # After this model is read, convert any hashes in the arguments list to HashWithIndifferentAccess
     def load_from_database(*args)
       super
-      self.arguments = arguments.collect {|i| i.is_a?(BSON::OrderedHash) ? i.with_indifferent_access : i  } if arguments.present?
+      self.arguments = arguments.collect { |i| i.is_a?(BSON::OrderedHash) ? i.with_indifferent_access : i } if arguments.present?
     end
 
     ############################################################################
@@ -331,7 +331,7 @@ module RocketJob
 
     def before_fail
       self.completed_at = Time.now
-      self.worker_name      = nil
+      self.worker_name  = nil
     end
 
     def before_retry
@@ -340,7 +340,7 @@ module RocketJob
 
     def before_pause
       self.completed_at = Time.now
-      self.worker_name      = nil
+      self.worker_name  = nil
     end
 
     def before_resume
@@ -349,7 +349,7 @@ module RocketJob
 
     def before_abort
       self.completed_at = Time.now
-      self.worker_name      = nil
+      self.worker_name  = nil
     end
 
     # Returns a human readable duration from the supplied [Float] number of seconds
@@ -380,12 +380,12 @@ module RocketJob
     # Note:
     #   If a job is in queued state it will be started
     def self.next_job(worker_name, skip_job_ids = nil)
-      query = {
+      query        = {
         '$and' => [
           {
             '$or' => [
               { 'state' => 'queued' }, # Jobs
-              { 'state' => 'running', 'sub_state' => :processing }  # Slices
+              { 'state' => 'running', 'sub_state' => :processing } # Slices
             ]
           },
           {
@@ -399,10 +399,10 @@ module RocketJob
       query['_id'] = { '$nin' => skip_job_ids } if skip_job_ids && skip_job_ids.size > 0
 
       while doc = find_and_modify(
-          query:  query,
-          sort:   [['priority', 'asc'], ['created_at', 'asc']],
-          update: { '$set' => { 'worker_name' => worker_name, 'state' => 'running' } }
-        )
+        query:  query,
+        sort:   [['priority', 'asc'], ['created_at', 'asc']],
+        update: { '$set' => { 'worker_name' => worker_name, 'state' => 'running' } }
+      )
         job = load(doc)
         if job.running?
           return job
@@ -425,9 +425,9 @@ module RocketJob
 
     # Set exception information for this job
     def set_exception(worker_name, exc)
-      self.worker_name = nil
-      self.failure_count += 1
-      self.exception = JobException.from_exception(exc)
+      self.worker_name      = nil
+      self.failure_count    += 1
+      self.exception        = JobException.from_exception(exc)
       exception.worker_name = worker_name
       fail! unless failed?
       logger.error("Exception running #{self.class.name}##{perform_method}", exc)
@@ -455,9 +455,9 @@ module RocketJob
     #       Default: nil ( no change )
     #
     def call_method(method, arguments, options={})
-      options               = options.dup
-      event                 = options.delete(:event)
-      log_level             = options.delete(:log_level)
+      options   = options.dup
+      event     = options.delete(:event)
+      log_level = options.delete(:log_level)
       raise(ArgumentError, "Unknown #{self.class.name}#call_method options: #{options.inspect}") if options.size > 0
 
       the_method = event.nil? ? method : "#{event}_#{method}".to_sym

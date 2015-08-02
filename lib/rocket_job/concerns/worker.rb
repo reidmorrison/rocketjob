@@ -28,7 +28,7 @@ module RocketJob
 
         # Create a job and process it immediately in-line by this thread
         def now(method, *args, &block)
-          job = build(method, *args, &block)
+          job    = build(method, *args, &block)
           worker = RocketJob::Worker.new(name: 'inline')
           worker.started
           job.start
@@ -132,9 +132,9 @@ module RocketJob
       #       Default: nil ( no change )
       #
       def call_method(method, arguments, options={})
-        options               = options.dup
-        event                 = options.delete(:event)
-        log_level             = options.delete(:log_level)
+        options   = options.dup
+        event     = options.delete(:event)
+        log_level = options.delete(:log_level)
         raise(ArgumentError, "Unknown #{self.class.name}#call_method options: #{options.inspect}") if options.size > 0
 
         the_method = event.nil? ? method : "#{event}_#{method}".to_sym

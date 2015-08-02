@@ -211,7 +211,7 @@ module RocketJob
     end
 
     def thread_pool_count
-      thread_pool.count{ |i| i.alive? }
+      thread_pool.count { |i| i.alive? }
     end
 
     protected
@@ -279,7 +279,7 @@ module RocketJob
     # Process the next available job
     # Returns [Boolean] whether any job was actually processed
     def process_next_job
-      skip_job_ids  = []
+      skip_job_ids = []
       while job = Job.next_job(name, skip_job_ids)
         logger.tagged("Job #{job.id}") do
           if job.work(self)

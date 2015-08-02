@@ -49,7 +49,7 @@ module RocketJob
       # Returns false if the job is already running and doe not need to be started
       def self.start(&block)
         # Prevent multiple Dirmon Jobs from running at the same time
-        return false if where(state: [ :running, :queued ]).count > 0
+        return false if where(state: [:running, :queued]).count > 0
 
         perform_later({}, &block)
         true
@@ -80,7 +80,7 @@ module RocketJob
               next if File.directory?(file_name)
               next if file_name.include?(DEFAULT_ARCHIVE_DIR)
               # BSON Keys cannot contain periods
-              key = file_name.gsub('.', '_')
+              key           = file_name.gsub('.', '_')
               previous_size = previous_file_names[key]
               if size = check_file(entry, file_name, previous_size)
                 new_file_names[key] = size
@@ -140,8 +140,8 @@ module RocketJob
         # The first argument must be a hash
         job.arguments << {} if job.arguments.size == 0
         # If no archive directory is supplied, use DEFAULT_ARCHIVE_DIR under the same path as the file
-        archive_directory ||= File.join(File.dirname(file_name), DEFAULT_ARCHIVE_DIR)
-        file_name = File.join(archive_directory, File.basename(file_name))
+        archive_directory                    ||= File.join(File.dirname(file_name), DEFAULT_ARCHIVE_DIR)
+        file_name                            = File.join(archive_directory, File.basename(file_name))
         job.arguments.first[:full_file_name] = File.absolute_path(file_name)
         archive_file(file_name, archive_directory)
       end

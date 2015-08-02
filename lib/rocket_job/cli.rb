@@ -5,25 +5,24 @@ module RocketJob
     attr_reader :name, :threads, :environment, :pidfile, :directory, :quiet
 
     def initialize(argv)
-      @name             = nil
-      @threads          = nil
-
-      @quiet            = false
-      @environment      = ENV['RAILS_ENV'] || ENV['RACK_ENV'] || 'development'
-      @pidfile          = nil
-      @directory        = '.'
+      @name        = nil
+      @threads     = nil
+      @quiet       = false
+      @environment = ENV['RAILS_ENV'] || ENV['RACK_ENV'] || 'development'
+      @pidfile     = nil
+      @directory   = '.'
       parse(argv)
     end
 
     # Run a RocketJob::Worker from the command line
     def run
-      SemanticLogger.add_appender(STDOUT,  &SemanticLogger::Appender::Base.colorized_formatter) unless quiet
+      SemanticLogger.add_appender(STDOUT, &SemanticLogger::Appender::Base.colorized_formatter) unless quiet
       boot_rails if defined?(:Rails)
       write_pidfile
 
-      opts = {}
-      opts[:name]             = name if name
-      opts[:max_threads]      = threads if threads
+      opts               = {}
+      opts[:name]        = name if name
+      opts[:max_threads] = threads if threads
       Worker.run(opts)
     end
 
@@ -52,7 +51,7 @@ module RocketJob
 
     # Parse command line options placing results in the corresponding instance variables
     def parse(argv)
-      parser = OptionParser.new do |o|
+      parser        = OptionParser.new do |o|
         o.on('-n', '--name NAME', 'Unique Name of this worker instance (Default: hostname:PID)') { |arg| @name = arg }
         o.on('-t', '--threads COUNT', 'Number of worker threads to start') { |arg| @threads = arg.to_i }
         o.on('-q', '--quiet', 'Do not write to stdout, only to logfile. Necessary when running as a daemon') { @quiet = true }
