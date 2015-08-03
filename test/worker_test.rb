@@ -7,10 +7,11 @@ class WorkerTest < Minitest::Test
     setup do
       RocketJob::Config.instance.heartbeat_seconds = 0.1
       RocketJob::Config.instance.max_poll_seconds  = 0.1
-      @worker = RocketJob::Worker.new
+
+      @worker      = RocketJob::Worker.new
       @description = 'Hello World'
-      @arguments   = [ 1 ]
-      @job = Jobs::TestJob.new(
+      @arguments   = [1]
+      @job         = Jobs::TestJob.new(
         description:         @description,
         arguments:           @arguments,
         destroy_on_complete: false
@@ -29,7 +30,10 @@ class WorkerTest < Minitest::Test
 
     context '#run' do
       should 'run a worker' do
-        Thread.new { sleep 1; @worker.stop!}
+        Thread.new do
+          sleep 1
+          @worker.stop!
+        end
         @worker.run
         assert_equal :stopping, @worker.state, @worker.inspect
       end

@@ -72,16 +72,17 @@ module RocketJob
     validates_presence_of :path, :job_name
 
     validates_each :job_name do |record, attr, value|
-      exists = false
-      begin
-        exists = value.nil? ? false : value.constantize.ancestors.include?(RocketJob::Job)
-      rescue NameError => exc
-      end
+      exists =
+        begin
+          value.nil? ? false : value.constantize.ancestors.include?(RocketJob::Job)
+        rescue NameError
+          false
+        end
       record.errors.add(attr, 'job_name must be defined and must be derived from RocketJob::Job') unless exists
     end
 
     validates_each :arguments do |record, attr, value|
-      if klass = record.job_class
+      if (klass = record.job_class)
         count = klass.argument_count(record.perform_method)
         record.errors.add(attr, "There must be #{count} argument(s)") if value.size != count
       end
@@ -89,8 +90,8 @@ module RocketJob
 
     validates_each :properties do |record, attr, value|
       if record.job_name && (methods = record.job_class.instance_methods)
-        value.each_pair do |key, value|
-          record.errors.add(attr, "Unknown property: #{key.inspect} with value: #{value}") unless methods.include?("#{key}=".to_sym)
+        value.each_pair do |k, v|
+          record.errors.add(attr, "Unknown property: #{k.inspect} with value: #{v}") unless methods.include?("#{k}=".to_sym)
         end
       end
     end

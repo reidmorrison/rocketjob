@@ -18,7 +18,7 @@ class DirmonEntryTest < Minitest::Test
       should 'existance' do
         assert entry = RocketJob::DirmonEntry.new(job_name: 'Jobs::TestJob')
         assert_equal false, entry.valid?
-        assert_equal [ "can't be blank" ], entry.errors[:path], entry.errors.inspect
+        assert_equal ["can't be blank"], entry.errors[:path], entry.errors.inspect
       end
 
       should 'job_name' do
@@ -29,39 +29,39 @@ class DirmonEntryTest < Minitest::Test
 
       should 'arguments' do
         assert entry = RocketJob::DirmonEntry.new(
-          job_name: 'Jobs::TestJob',
-          path:     '/abc/**'
-        )
+            job_name: 'Jobs::TestJob',
+            path:     '/abc/**'
+          )
         assert_equal false, entry.valid?
         assert_equal ["There must be 1 argument(s)"], entry.errors[:arguments], entry.errors.inspect
       end
 
       should 'arguments with perform_method' do
         assert entry = RocketJob::DirmonEntry.new(
-          job_name:       'Jobs::TestJob',
-          path:           '/abc/**',
-          perform_method: :sum
-        )
+            job_name:       'Jobs::TestJob',
+            path:           '/abc/**',
+            perform_method: :sum
+          )
         assert_equal false, entry.valid?
         assert_equal ["There must be 2 argument(s)"], entry.errors[:arguments], entry.errors.inspect
       end
 
       should 'valid' do
         assert entry = RocketJob::DirmonEntry.new(
-          job_name:  'Jobs::TestJob',
-          path:      '/abc/**',
-          arguments: [1]
-        )
+            job_name:  'Jobs::TestJob',
+            path:      '/abc/**',
+            arguments: [1]
+          )
         assert entry.valid?, entry.errors.inspect
       end
 
       should 'valid with perform_method' do
         assert entry = RocketJob::DirmonEntry.new(
-          job_name:       'Jobs::TestJob',
-          path:           '/abc/**',
-          perform_method: :sum,
-          arguments:      [1,2]
-        )
+            job_name:       'Jobs::TestJob',
+            path:           '/abc/**',
+            perform_method: :sum,
+            arguments:      [1, 2]
+          )
         assert entry.valid?, entry.errors.inspect
       end
     end

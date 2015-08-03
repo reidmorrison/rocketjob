@@ -8,8 +8,8 @@ class JobTest < Minitest::Test
       @worker = RocketJob::Worker.new
       @worker.started
       @description = 'Hello World'
-      @arguments   = [ 1 ]
-      @job = Jobs::TestJob.new(
+      @arguments   = [1]
+      @job         = Jobs::TestJob.new(
         description:         @description,
         arguments:           @arguments,
         destroy_on_complete: false
@@ -30,7 +30,7 @@ class JobTest < Minitest::Test
       should 'handle hash' do
         @job = Jobs::TestJob.new(
           description:         @description,
-          arguments:           [ { key: 'value' } ],
+          arguments:           [{ key: 'value' }],
           destroy_on_complete: false
         )
 
@@ -46,18 +46,18 @@ class JobTest < Minitest::Test
     context '#save!' do
       should 'save a blank job' do
         @job.save!
-        assert_nil   @job.worker_name
-        assert_nil   @job.completed_at
-        assert       @job.created_at
+        assert_nil @job.worker_name
+        assert_nil @job.completed_at
+        assert @job.created_at
         assert_equal @description, @job.description
         assert_equal false, @job.destroy_on_complete
-        assert_nil   @job.expires_at
+        assert_nil @job.expires_at
         assert_equal @arguments, @job.arguments
         assert_equal 0, @job.percent_complete
         assert_equal 50, @job.priority
         assert_equal 0, @job.failure_count
-        assert_nil   @job.run_at
-        assert_nil   @job.started_at
+        assert_nil @job.run_at
+        assert_nil @job.started_at
         assert_equal :queued, @job.state
       end
     end
@@ -66,22 +66,22 @@ class JobTest < Minitest::Test
       should 'return status for a queued job' do
         assert_equal true, @job.queued?
         h = @job.status
-        assert_equal :queued,       h['state']
-        assert_equal @description,  h['description']
+        assert_equal :queued, h['state']
+        assert_equal @description, h['description']
       end
 
       should 'return status for a failed job' do
         @job.build_exception(
           class_name: 'Test',
-          message: 'hello world'
+          message:    'hello world'
         )
         @job.start!
         @job.fail!
         assert_equal true, @job.failed?
         h = @job.status
-        assert_equal :failed,       h['state']
-        assert_equal @description,  h['description']
-        assert_equal 'Test',        h['exception']['class_name'], h
+        assert_equal :failed, h['state']
+        assert_equal @description, h['description']
+        assert_equal 'Test', h['exception']['class_name'], h
         assert_equal 'hello world', h['exception']['message'], h
       end
     end
@@ -90,17 +90,17 @@ class JobTest < Minitest::Test
       should 'call default perform method' do
         @job.start!
         assert_equal false, @job.work(@worker)
-        assert_equal true,  @job.completed?, @job.state
-        assert_equal 2,     Jobs::TestJob.result
+        assert_equal true, @job.completed?, @job.state
+        assert_equal 2, Jobs::TestJob.result
       end
 
       should 'call specific method' do
         @job.perform_method = :sum
-        @job.arguments = [ 23, 45 ]
+        @job.arguments      = [23, 45]
         @job.start!
         assert_equal false, @job.work(@worker)
         assert_equal true, @job.completed?
-        assert_equal 68,    Jobs::TestJob.result
+        assert_equal 68, Jobs::TestJob.result
       end
 
       should 'destroy on complete' do
@@ -117,7 +117,7 @@ class JobTest < Minitest::Test
         @job.arguments           = []
         @job.start!
         logged = false
-        Jobs::TestJob.logger.stub(:log_internal, -> level, index, message, payload, exception { logged = true if message.include?('some very noisy logging')}) do
+        Jobs::TestJob.logger.stub(:log_internal, -> level, index, message, payload, exception { logged = true if message.include?('some very noisy logging') }) do
           assert_equal false, @job.work(@worker), @job.inspect
         end
         assert_equal false, logged
@@ -140,9 +140,9 @@ class JobTest < Minitest::Test
       end
 
       should 'call before and after' do
-        named_parameters = { 'counter' => 23 }
+        named_parameters    = { 'counter' => 23 }
         @job.perform_method = :event
-        @job.arguments = [ named_parameters ]
+        @job.arguments      = [named_parameters]
         @job.start!
         assert_equal false, @job.work(@worker), @job.inspect
         assert_equal true, @job.completed?
@@ -180,7 +180,7 @@ class JobTest < Minitest::Test
       end
 
       should 'Skip expired jobs' do
-        count = RocketJob::Job.count
+        count           = RocketJob::Job.count
         @job.expires_at = Time.now - 100
         @job.save!
         assert_equal nil, RocketJob::Job.next_job(@worker.name)

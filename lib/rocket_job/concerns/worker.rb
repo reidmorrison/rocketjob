@@ -74,7 +74,7 @@ module RocketJob
       end
 
       def rocket_job_csv_parser
-        # TODO Change into an instance variable once CSV handling has been re-worked
+        # TODO: Change into an instance variable once CSV handling has been re-worked
         RocketJob::Utility::CSVRow.new
       end
 
@@ -87,21 +87,22 @@ module RocketJob
       #
       # Thread-safe, can be called by multiple threads at the same time
       def work(worker)
-        raise 'Job must be started before calling #work' unless running?
+        fail(ArgumentError, 'Job must be started before calling #work') unless running?
         begin
           # before_perform
           call_method(perform_method, arguments, event: :before, log_level: log_level)
 
           # perform
-          call_method(perform_method, arguments, log_level: log_level)
+          ret = call_method(perform_method, arguments, log_level: log_level)
           if self.collect_output?
-            self.output = (result.is_a?(Hash) || result.is_a?(BSON::OrderedHash)) ? result : { result: result }
+            self.result = (ret.is_a?(Hash) || ret.is_a?(BSON::OrderedHash)) ? ret : { result: ret }
           end
 
           # after_perform
           call_method(perform_method, arguments, event: :after, log_level: log_level)
+
           complete!
-        rescue Exception => exc
+        rescue StandardError => exc
           set_exception(worker.name, exc)
           raise exc if RocketJob::Config.inline_mode
         end
@@ -131,23 +132,24 @@ module RocketJob
       #       Log level to apply to silence logging during the call
       #       Default: nil ( no change )
       #
-      def call_method(method, arguments, options={})
+      def call_method(method, arguments, options = {})
         options   = options.dup
         event     = options.delete(:event)
         log_level = options.delete(:log_level)
-        raise(ArgumentError, "Unknown #{self.class.name}#call_method options: #{options.inspect}") if options.size > 0
+        fail(ArgumentError, "Unknown #{self.class.name}#call_method options: #{options.inspect}") if options.size > 0
 
         the_method = event.nil? ? method : "#{event}_#{method}".to_sym
         if respond_to?(the_method)
           method_name = "#{self.class.name}##{the_method}"
           logger.info "Start #{method_name}"
-          logger.benchmark_info("Completed #{method_name}",
+          logger.benchmark_info(
+            "Completed #{method_name}",
             metric:             "rocketjob/#{self.class.name.underscore}/#{the_method}",
             log_exception:      :full,
             on_exception_level: :error,
             silence:            log_level
           ) do
-            self.send(the_method, *arguments)
+            send(the_method, *arguments)
           end
         end
       end

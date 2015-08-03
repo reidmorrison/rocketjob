@@ -7,17 +7,17 @@ class DirmonJobTest < Minitest::Test
     setup do
       @worker = RocketJob::Worker.new
       @worker.started
-      @dirmon_job   = RocketJob::Jobs::DirmonJob.new
+      @dirmon_job        = RocketJob::Jobs::DirmonJob.new
       @archive_directory = '/tmp/archive_directory'
-      @entry        = RocketJob::DirmonEntry.new(
-        path:         'abc/*',
-        job_name:     'Jobs::TestJob',
-        arguments:    [ { input: 'yes' } ],
-        properties:   { priority: 23, perform_method: :event },
+      @entry             = RocketJob::DirmonEntry.new(
+        path:              'abc/*',
+        job_name:          'Jobs::TestJob',
+        arguments:         [{ input: 'yes' }],
+        properties:        { priority: 23, perform_method: :event },
         archive_directory: @archive_directory
       )
-      @job = Jobs::TestJob.new
-      @paths = {
+      @job               = Jobs::TestJob.new
+      @paths             = {
         'abc/*' => %w(abc/file1 abc/file2)
       }
     end
@@ -30,7 +30,7 @@ class DirmonJobTest < Minitest::Test
     context '#archive_file' do
       should 'archive absolute path file' do
         begin
-          file = Tempfile.new('archive')
+          file      = Tempfile.new('archive')
           file_name = file.path
           File.open(file_name, 'w') { |file| file.write('Hello World') }
           assert File.exists?(file_name)
@@ -59,8 +59,8 @@ class DirmonJobTest < Minitest::Test
 
     context '#upload_default' do
       should 'upload default case with no archive_directory' do
-        job              = Jobs::TestJob.new
-        file_name        = 'abc/myfile.txt'
+        job                = Jobs::TestJob.new
+        file_name          = 'abc/myfile.txt'
         archived_file_name = 'abc/_archive/myfile.txt'
         @dirmon_job.stub(:archive_file, -> fn, tp { assert_equal [archived_file_name, 'abc/_archive'], [fn, tp] }) do
           @dirmon_job.upload_default(job, file_name, nil)
@@ -69,8 +69,8 @@ class DirmonJobTest < Minitest::Test
       end
 
       should 'upload default case with archive_directory' do
-        job              = Jobs::TestJob.new
-        file_name        = 'abc/myfile.txt'
+        job                = Jobs::TestJob.new
+        file_name          = 'abc/myfile.txt'
         archived_file_name = "#{@archive_directory}/myfile.txt"
         @dirmon_job.stub(:archive_file, -> fn, tp { assert_equal [archived_file_name, @archive_directory], [fn, tp] }) do
           @dirmon_job.upload_default(job, file_name, @archive_directory)
@@ -81,22 +81,22 @@ class DirmonJobTest < Minitest::Test
 
     context '#upload_file' do
       should 'upload using #file_store_upload' do
-        job              = Jobs::TestJob.new
+        job = Jobs::TestJob.new
         job.define_singleton_method(:file_store_upload) do |file_name|
           file_name
         end
-        file_name        = 'abc/myfile.txt'
+        file_name = 'abc/myfile.txt'
         @dirmon_job.stub(:archive_file, -> fn, tp { assert_equal [file_name, @archive_directory], [fn, tp] }) do
           @dirmon_job.upload_file(job, file_name, @archive_directory)
         end
       end
 
       should 'upload using #upload' do
-        job              = Jobs::TestJob.new
+        job = Jobs::TestJob.new
         job.define_singleton_method(:upload) do |file_name|
           file_name
         end
-        file_name        = 'abc/myfile.txt'
+        file_name = 'abc/myfile.txt'
         @dirmon_job.stub(:archive_file, -> fn, tp { assert_equal [file_name, @archive_directory], [fn, tp] }) do
           @dirmon_job.upload_file(job, file_name, @archive_directory)
         end
@@ -114,12 +114,12 @@ class DirmonJobTest < Minitest::Test
 
       should 'upload using #upload' do
         file_name = 'abc/myfile.txt'
-        job = @dirmon_job.stub(:upload_file, -> j, fn, sp { assert_equal [file_name, @archive_directory], [fn, sp] }) do
+        job       = @dirmon_job.stub(:upload_file, -> j, fn, sp { assert_equal [file_name, @archive_directory], [fn, sp] }) do
           @dirmon_job.start_job(@entry, file_name)
         end
         assert_equal @entry.job_name, job.class.name
         assert_equal 23, job.priority
-        assert_equal [ {:input=>"yes", "before_event"=>true, "event"=>true, "after_event"=>true} ], job.arguments
+        assert_equal [{ :input => "yes", "before_event" => true, "event" => true, "after_event" => true }], job.arguments
       end
     end
 
@@ -143,7 +143,7 @@ class DirmonJobTest < Minitest::Test
         File.open(file_name, 'w') { |file| file.write('*' * new_size) }
         assert_equal new_size, File.size(file_name)
         started = false
-        result = @dirmon_job.stub(:start_job, -> e,fn { started = true } ) do
+        result  = @dirmon_job.stub(:start_job, -> e, fn { started = true }) do
           @dirmon_job.check_file(@entry, file_name, previous_size)
         end
         assert_equal nil, result
@@ -153,7 +153,7 @@ class DirmonJobTest < Minitest::Test
       should 'check deleted file' do
         previous_size = 5
         file_name     = 'blah'
-        result = @dirmon_job.check_file(@entry, file_name, previous_size)
+        result        = @dirmon_job.check_file(@entry, file_name, previous_size)
         assert_equal nil, result
       end
     end
@@ -169,7 +169,7 @@ class DirmonJobTest < Minitest::Test
 
       should 'no files' do
         previous_file_names = {}
-        result = nil
+        result              = nil
         Dir.stub(:[], -> dir { [] }) do
           result = @dirmon_job.check_directories(previous_file_names)
         end
@@ -178,29 +178,29 @@ class DirmonJobTest < Minitest::Test
 
       should 'new files' do
         previous_file_names = {}
-        result = nil
+        result              = nil
         Dir.stub(:[], -> dir { @paths[dir] }) do
-          result = @dirmon_job.stub(:check_file, -> e, fn, ps { 5 } ) do
+          result = @dirmon_job.stub(:check_file, -> e, fn, ps { 5 }) do
             @dirmon_job.check_directories(previous_file_names)
           end
         end
         assert_equal result.count, @paths['abc/*'].count
-        result.each_pair do |k,v|
+        result.each_pair do |k, v|
           assert_equal 5, v
         end
       end
 
       should 'allow files to grow' do
         previous_file_names = {}
-        @paths['abc/*'].each { |file_name| previous_file_names[file_name] = 5}
+        @paths['abc/*'].each { |file_name| previous_file_names[file_name] = 5 }
         result = nil
         Dir.stub(:[], -> dir { @paths[dir] }) do
-          result = @dirmon_job.stub(:check_file, -> e, fn, ps { 10 } ) do
+          result = @dirmon_job.stub(:check_file, -> e, fn, ps { 10 }) do
             @dirmon_job.check_directories(previous_file_names)
           end
         end
         assert_equal result.count, @paths['abc/*'].count
-        result.each_pair do |k,v|
+        result.each_pair do |k, v|
           assert_equal 10, v
         end
       end
@@ -210,7 +210,7 @@ class DirmonJobTest < Minitest::Test
         @paths['abc/*'].each { |file_name| previous_file_names[file_name] = 10 }
         result = nil
         Dir.stub(:[], -> dir { @paths[dir] }) do
-          result = @dirmon_job.stub(:check_file, -> e, fn, ps { nil } ) do
+          result = @dirmon_job.stub(:check_file, -> e, fn, ps { nil }) do
             @dirmon_job.check_directories(previous_file_names)
           end
         end
@@ -219,17 +219,17 @@ class DirmonJobTest < Minitest::Test
 
       should 'skip files in archive directory' do
         previous_file_names = {}
-        @paths['abc/*'].each { |file_name| previous_file_names[file_name] = 5}
+        @paths['abc/*'].each { |file_name| previous_file_names[file_name] = 5 }
         result = nil
         # Add a file in the archive directory
         @paths['abc/*'] << File.join('abc', RocketJob::Jobs::DirmonJob::DEFAULT_ARCHIVE_DIR, 'test.zip')
         Dir.stub(:[], -> dir { @paths[dir] }) do
-          result = @dirmon_job.stub(:check_file, -> e, fn, ps { 10 } ) do
+          result = @dirmon_job.stub(:check_file, -> e, fn, ps { 10 }) do
             @dirmon_job.check_directories(previous_file_names)
           end
         end
         assert_equal result.count, @paths['abc/*'].count - 1
-        result.each_pair do |k,v|
+        result.each_pair do |k, v|
           assert_equal 10, v
         end
       end
@@ -238,7 +238,7 @@ class DirmonJobTest < Minitest::Test
 
     context '#perform' do
       should 'check directories and reschedule' do
-        dirmon_job       = nil
+        dirmon_job          = nil
         previous_file_names = {}
         @paths['abc/*'].each { |file_name| previous_file_names[file_name] = 5 }
         new_file_names = {}
@@ -247,7 +247,7 @@ class DirmonJobTest < Minitest::Test
         RocketJob::Jobs::DirmonJob.stub_any_instance(:check_directories, new_file_names) do
           # perform_now does not save the job, just runs it
           dirmon_job = RocketJob::Jobs::DirmonJob.perform_now(previous_file_names) do |job|
-            job.priority = 11
+            job.priority      = 11
             job.check_seconds = 30
           end
         end
@@ -271,7 +271,7 @@ class DirmonJobTest < Minitest::Test
         RocketJob::Jobs::DirmonJob.stub_any_instance(:check_directories, -> previous { raise RuntimeError.new("Oh no") }) do
           # perform_now does not save the job, just runs it
           dirmon_job = RocketJob::Jobs::DirmonJob.perform_now do |job|
-            job.priority = 11
+            job.priority      = 11
             job.check_seconds = 30
           end
         end

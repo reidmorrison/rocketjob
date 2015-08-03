@@ -193,7 +193,7 @@ module RocketJob
       # Used by find_and_modify in .next_job
       ensure_index({ state: 1, run_at: 1, priority: 1, created_at: 1, sub_state: 1 }, background: true)
       # Remove outdated index if present
-      drop_index("state_1_priority_1_created_at_1_sub_state_1") rescue nil
+      drop_index('state_1_priority_1_created_at_1_sub_state_1') rescue nil
       # Used by Mission Control
       ensure_index [[:created_at, 1]]
     end
@@ -209,16 +209,16 @@ module RocketJob
 
     # Pause all running jobs
     def self.pause_all
-      where(state: 'running').each { |job| job.pause! }
+      where(state: 'running').each(&:pause!)
     end
 
     # Resume all paused jobs
     def self.resume_all
-      where(state: 'paused').each { |job| job.resume! }
+      where(state: 'paused').each(&:resume!)
     end
 
     # Returns the number of required arguments for this job
-    def self.argument_count(method=:perform)
+    def self.argument_count(method = :perform)
       instance_method(method).arity
     end
 
@@ -278,43 +278,38 @@ module RocketJob
       end
     end
 
-    def status(time_zone='Eastern Time (US & Canada)')
+    def status(time_zone = 'Eastern Time (US & Canada)')
       h = as_json
       h.delete('seconds')
       h.delete('perform_method') if h['perform_method'] == :perform
       h.dup.each_pair do |k, v|
         case
-        when v.kind_of?(Time)
+        when v.is_a?(Time)
           h[k] = v.in_time_zone(time_zone).to_s
-        when v.kind_of?(BSON::ObjectId)
+        when v.is_a?(BSON::ObjectId)
           h[k] = v.to_s
         end
       end
       h
     end
 
-    # TODO Jobs are not currently automatically retried. Is there a need?
-    def seconds_to_delay(count)
-      # TODO Consider lowering the priority automatically after every retry?
-      # Same basic formula for calculating retry interval as delayed_job and Sidekiq
-      (count ** 4) + 15 + (rand(30)*(count+1))
-    end
-
     # Patch the way MongoMapper reloads a model
     # Only reload MongoMapper attributes, leaving other instance variables untouched
     def reload
-      if doc = collection.find_one(:_id => id)
+      if (doc = collection.find_one(_id: id))
         load_from_database(doc)
         self
       else
-        raise MongoMapper::DocumentNotFound, "Document match #{_id.inspect} does not exist in #{collection.name} collection"
+        fail(MongoMapper::DocumentNotFound, "Document match #{_id.inspect} does not exist in #{collection.name} collection")
       end
     end
 
     # After this model is read, convert any hashes in the arguments list to HashWithIndifferentAccess
     def load_from_database(*args)
       super
-      self.arguments = arguments.collect { |i| i.is_a?(BSON::OrderedHash) ? i.with_indifferent_access : i } if arguments.present?
+      if arguments.present?
+        self.arguments = arguments.collect { |i| i.is_a?(BSON::OrderedHash) ? i.with_indifferent_access : i }
+      end
     end
 
     ############################################################################
@@ -395,16 +390,16 @@ module RocketJob
               { run_at: { '$exists' => false } },
               { run_at: { '$lte' => Time.now } }
             ]
-          },
+          }
         ]
       }
       query['_id'] = { '$nin' => skip_job_ids } if skip_job_ids && skip_job_ids.size > 0
 
-      while doc = find_and_modify(
+      while (doc = find_and_modify(
         query:  query,
         sort:   [['priority', 'asc'], ['created_at', 'asc']],
         update: { '$set' => { 'worker_name' => worker_name, 'state' => 'running' } }
-      )
+      ))
         job = load(doc)
         if job.running?
           return job
@@ -456,23 +451,24 @@ module RocketJob
     #       Log level to apply to silence logging during the call
     #       Default: nil ( no change )
     #
-    def call_method(method, arguments, options={})
+    def call_method(method, arguments, options = {})
       options   = options.dup
       event     = options.delete(:event)
       log_level = options.delete(:log_level)
-      raise(ArgumentError, "Unknown #{self.class.name}#call_method options: #{options.inspect}") if options.size > 0
+      fail(ArgumentError, "Unknown #{self.class.name}#call_method options: #{options.inspect}") if options.size > 0
 
       the_method = event.nil? ? method : "#{event}_#{method}".to_sym
       if respond_to?(the_method)
         method_name = "#{self.class.name}##{the_method}"
         logger.info "Start #{method_name}"
-        logger.benchmark_info("Completed #{method_name}",
+        logger.benchmark_info(
+          "Completed #{method_name}",
           metric:             "rocketjob/#{self.class.name.underscore}/#{the_method}",
           log_exception:      :full,
           on_exception_level: :error,
           silence:            log_level
         ) do
-          self.send(the_method, *arguments)
+          send(the_method, *arguments)
         end
       end
     end

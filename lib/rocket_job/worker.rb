@@ -324,7 +324,7 @@ module RocketJob
           @@shutdown = true
           logger.warn "Shutdown signal (INT) received. Will shutdown as soon as active jobs/slices have completed."
         end
-      rescue Exception
+      rescue StandardError
         logger.warn "SIGTERM handler not installed. Not able to shutdown gracefully"
       end
     end

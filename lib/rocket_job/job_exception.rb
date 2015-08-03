@@ -26,7 +26,7 @@ module RocketJob
 
     # Returns [JobException] built from the supplied exception
     def self.from_exception(exc)
-      self.new(
+      new(
         class_name: exc.class.name,
         message:    exc.message,
         backtrace:  exc.backtrace || []
@@ -35,4 +35,3 @@ module RocketJob
 
   end
 end
-

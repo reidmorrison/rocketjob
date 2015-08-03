@@ -14,7 +14,7 @@ module RocketJob
     sync_cattr_reader(:instance) do
       begin
         first || create
-      rescue Exception => exc
+      rescue StandardError
         # In case another process has already created the first document
         first
       end

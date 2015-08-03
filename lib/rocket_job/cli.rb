@@ -32,7 +32,7 @@ module RocketJob
       if Rails.configuration.eager_load
         RocketJob::Worker.logger.benchmark_info('Eager loaded Rails and all Engines') do
           Rails.application.eager_load!
-          Rails::Engine.subclasses.each { |engine| engine.eager_load! }
+          Rails::Engine.subclasses.each(&:eager_load!)
         end
       end
     end
@@ -40,12 +40,12 @@ module RocketJob
     # Create a PID file if requested
     def write_pidfile
       return unless pidfile
-      pid = $$
+      pid = $PID
       File.open(pidfile, 'w') { |f| f.puts(pid) }
 
       # Remove pidfile on exit
       at_exit do
-        File.delete(pidfile) if pid == $$
+        File.delete(pidfile) if pid == $PID
       end
     end
 
