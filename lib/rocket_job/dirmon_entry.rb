@@ -66,7 +66,10 @@ module RocketJob
 
     # Returns the Job to be queued
     def job_class
-      job_name.nil? ? nil : job_name.constantize
+      return nil if job_name.nil?
+      job_name.constantize
+    rescue NameError
+      nil
     end
 
     validates_presence_of :path, :job_name
@@ -74,7 +77,7 @@ module RocketJob
     validates_each :job_name do |record, attr, value|
       exists =
         begin
-          value.nil? ? false : value.constantize.ancestors.include?(RocketJob::Job)
+          value.nil? ? false : record.job_class.ancestors.include?(RocketJob::Job)
         rescue NameError
           false
         end
@@ -89,7 +92,7 @@ module RocketJob
     end
 
     validates_each :properties do |record, attr, value|
-      if record.job_name && (methods = record.job_class.instance_methods)
+      if record.job_class && (methods = record.job_class.instance_methods)
         value.each_pair do |k, v|
           record.errors.add(attr, "Unknown property: #{k.inspect} with value: #{v}") unless methods.include?("#{k}=".to_sym)
         end

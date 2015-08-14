@@ -14,6 +14,29 @@ class DirmonEntryTest < Minitest::Test
       end
     end
 
+    context '#job_class' do
+      context 'with a nil job_name' do
+        should 'return nil' do
+          entry = RocketJob::DirmonEntry.new
+          assert_equal(nil, entry.job_class)
+        end
+      end
+
+      context 'with an unknown job_name' do
+        should 'return nil' do
+          entry = RocketJob::DirmonEntry.new(job_name: 'FakeJobThatDoesNotExistAnyWhereIPromise')
+          assert_equal(nil, entry.job_class)
+        end
+      end
+
+      context 'with a valid job_name' do
+        should 'return job class' do
+          entry = RocketJob::DirmonEntry.new(job_name: 'RocketJob::Job')
+          assert_equal(RocketJob::Job, entry.job_class)
+        end
+      end
+    end
+
     context '#validate' do
       should 'existance' do
         assert entry = RocketJob::DirmonEntry.new(job_name: 'Jobs::TestJob')
@@ -21,19 +44,32 @@ class DirmonEntryTest < Minitest::Test
         assert_equal ["can't be blank"], entry.errors[:path], entry.errors.inspect
       end
 
-      should 'job_name' do
-        assert entry = RocketJob::DirmonEntry.new(path: '/abc/**')
-        assert_equal false, entry.valid?
-        assert_equal ["can't be blank", "job_name must be defined and must be derived from RocketJob::Job"], entry.errors[:job_name], entry.errors.inspect
+      context 'job_name' do
+        should 'ensure presence' do
+          assert entry = RocketJob::DirmonEntry.new(path: '/abc/**')
+          assert_equal false, entry.valid?
+          assert_equal ["can't be blank", "job_name must be defined and must be derived from RocketJob::Job"], entry.errors[:job_name], entry.errors.inspect
+        end
       end
 
-      should 'arguments' do
-        assert entry = RocketJob::DirmonEntry.new(
-            job_name: 'Jobs::TestJob',
-            path:     '/abc/**'
-          )
-        assert_equal false, entry.valid?
-        assert_equal ["There must be 1 argument(s)"], entry.errors[:arguments], entry.errors.inspect
+      context 'arguments' do
+        should 'ensure correct number of arguments' do
+          assert entry = RocketJob::DirmonEntry.new(
+              job_name: 'Jobs::TestJob',
+              path:     '/abc/**'
+            )
+          assert_equal false, entry.valid?
+          assert_equal ["There must be 1 argument(s)"], entry.errors[:arguments], entry.errors.inspect
+        end
+
+        should 'return false if the job name is bad' do
+          assert entry = RocketJob::DirmonEntry.new(
+              job_name: 'Jobs::Tests::Names::Things',
+              path:     '/abc/**'
+            )
+          assert_equal false, entry.valid?
+          assert_equal [], entry.errors[:arguments], entry.errors.inspect
+        end
       end
 
       should 'arguments with perform_method' do
