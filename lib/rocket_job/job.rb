@@ -191,7 +191,7 @@ module RocketJob
     # Create indexes
     def self.create_indexes
       # Used by find_and_modify in .next_job
-      ensure_index({ state: 1, run_at: 1, priority: 1, created_at: 1, sub_state: 1 }, background: true)
+      ensure_index({state: 1, run_at: 1, priority: 1, created_at: 1, sub_state: 1}, background: true)
       # Remove outdated index if present
       drop_index('state_1_priority_1_created_at_1_sub_state_1') rescue nil
       # Used by Mission Control
@@ -201,8 +201,8 @@ module RocketJob
     # Requeue all jobs for the specified dead worker
     def self.requeue_dead_worker(worker_name)
       collection.update(
-        { 'worker_name' => worker_name, 'state' => :running },
-        { '$unset' => { 'worker_name' => true, 'started_at' => true }, '$set' => { 'state' => :queued } },
+        {'worker_name' => worker_name, 'state' => :running},
+        {'$unset' => {'worker_name' => true, 'started_at' => true}, '$set' => {'state' => :queued}},
         multi: true
       )
     end
@@ -243,7 +243,7 @@ module RocketJob
 
     # Returns a human readable duration the job has taken
     def duration
-      seconds_as_duration(seconds)
+      RocketJob.seconds_as_duration(seconds)
     end
 
     # A job has expired if the expiry time has passed before it is started
@@ -264,15 +264,15 @@ module RocketJob
         attrs.delete('completed_at')
         attrs.delete('result')
         # Ensure 'paused_at' appears first in the hash
-        { 'paused_at' => completed_at }.merge(attrs)
+        {'paused_at' => completed_at}.merge(attrs)
       when aborted?
         attrs.delete('completed_at')
         attrs.delete('result')
-        { 'aborted_at' => completed_at }.merge(attrs)
+        {'aborted_at' => completed_at}.merge(attrs)
       when failed?
         attrs.delete('completed_at')
         attrs.delete('result')
-        { 'failed_at' => completed_at }.merge(attrs)
+        {'failed_at' => completed_at}.merge(attrs)
       else
         attrs
       end
@@ -312,6 +312,22 @@ module RocketJob
       end
     end
 
+    # Set exception information for this job and fail it
+    def fail_with_exception!(worker_name, exc_or_message)
+      if exc_or_message.is_a?(Exception)
+        self.exception        = JobException.from_exception(exc_or_message)
+        exception.worker_name = worker_name
+      else
+        build_exception(
+          class_name:  'RocketJob::JobException',
+          message:     exc_or_message,
+          backtrace:   [],
+          worker_name: worker_name
+        )
+      end
+      fail!
+    end
+
     ############################################################################
     protected
 
@@ -327,8 +343,9 @@ module RocketJob
     end
 
     def before_fail
-      self.completed_at = Time.now
-      self.worker_name  = nil
+      self.completed_at  = Time.now
+      self.worker_name   = nil
+      self.failure_count += 1
     end
 
     def before_retry
@@ -349,20 +366,6 @@ module RocketJob
       self.worker_name  = nil
     end
 
-    # Returns a human readable duration from the supplied [Float] number of seconds
-    def seconds_as_duration(seconds)
-      time = Time.at(seconds)
-      if seconds >= 1.day
-        "#{(seconds / 1.day).to_i}d #{time.strftime('%-Hh %-Mm %-Ss')}"
-      elsif seconds >= 1.hour
-        time.strftime('%-Hh %-Mm %-Ss')
-      elsif seconds >= 1.minute
-        time.strftime('%-Mm %-Ss')
-      else
-        time.strftime('%-Ss')
-      end
-    end
-
     # Returns the next job to work on in priority based order
     # Returns nil if there are currently no queued jobs, or processing batch jobs
     #   with records that require processing
@@ -381,24 +384,24 @@ module RocketJob
         '$and' => [
           {
             '$or' => [
-              { 'state' => 'queued' }, # Jobs
-              { 'state' => 'running', 'sub_state' => :processing } # Slices
+              {'state' => 'queued'}, # Jobs
+              {'state' => 'running', 'sub_state' => :processing} # Slices
             ]
           },
           {
             '$or' => [
-              { run_at: { '$exists' => false } },
-              { run_at: { '$lte' => Time.now } }
+              {run_at: {'$exists' => false}},
+              {run_at: {'$lte' => Time.now}}
             ]
           }
         ]
       }
-      query['_id'] = { '$nin' => skip_job_ids } if skip_job_ids && skip_job_ids.size > 0
+      query['_id'] = {'$nin' => skip_job_ids} if skip_job_ids && skip_job_ids.size > 0
 
       while (doc = find_and_modify(
         query:  query,
         sort:   [['priority', 'asc'], ['created_at', 'asc']],
-        update: { '$set' => { 'worker_name' => worker_name, 'state' => 'running' } }
+        update: {'$set' => {'worker_name' => worker_name, 'state' => 'running'}}
       ))
         job = load(doc)
         if job.running?
@@ -419,16 +422,6 @@ module RocketJob
 
     ############################################################################
     private
-
-    # Set exception information for this job
-    def set_exception(worker_name, exc)
-      self.worker_name      = nil
-      self.failure_count    += 1
-      self.exception        = JobException.from_exception(exc)
-      exception.worker_name = worker_name
-      fail! unless failed?
-      logger.error("Exception running #{self.class.name}##{perform_method}", exc)
-    end
 
     # Calls a method on this job, if it is defined
     # Adds the event name to the method call if supplied

@@ -11,8 +11,8 @@ Gem::Specification.new do |s|
   s.authors     = ['Reid Morrison']
   s.email       = ['reidmo@gmail.com']
   s.homepage    = 'http://rocketjob.io'
-  s.summary     = 'Background job processing system for Ruby'
-  s.description = 'High volume, priority based, distributed, background job processing solution for Ruby'
+  s.summary     = 'Next generation background job processing system for Ruby, JRuby and Rubinius'
+  s.description = 'Next generation, high performance, priority based, distributed, background job processing solution'
   s.executables = ['rocketjob']
   s.files       = Dir['lib/**/*', 'bin/*', 'LICENSE.txt', 'Rakefile', 'README.md']
   s.test_files  = Dir['test/**/*']

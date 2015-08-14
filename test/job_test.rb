@@ -30,7 +30,7 @@ class JobTest < Minitest::Test
       should 'handle hash' do
         @job = Jobs::TestJob.new(
           description:         @description,
-          arguments:           [{ key: 'value' }],
+          arguments:           [{key: 'value'}],
           destroy_on_complete: false
         )
 
@@ -83,6 +83,36 @@ class JobTest < Minitest::Test
         assert_equal @description, h['description']
         assert_equal 'Test', h['exception']['class_name'], h
         assert_equal 'hello world', h['exception']['message'], h
+      end
+    end
+
+    context '#fail_with_exception!' do
+      should 'fail with message' do
+        @job.start!
+        @job.fail_with_exception!('myworker:2323', 'oh no')
+        assert_equal true, @job.failed?
+        h = @job.status
+        assert_equal :failed, h['state']
+        assert_equal @description, h['description']
+        assert_equal 'RocketJob::JobException', h['exception']['class_name'], h
+        assert_equal 'oh no', h['exception']['message'], h
+      end
+
+      should 'fail with exception' do
+        @job.start!
+        exception = nil
+        begin
+          blah
+        rescue Exception => exc
+          exception = exc
+        end
+        @job.fail_with_exception!('myworker:2323', exception)
+        assert_equal true, @job.failed?
+        h = @job.status
+        assert_equal :failed, h['state']
+        assert_equal @description, h['description']
+        assert_equal exception.class.name.to_s, h['exception']['class_name'], h
+        assert h['exception']['message'].include?('undefined local variable or method'), h
       end
     end
 
@@ -140,7 +170,7 @@ class JobTest < Minitest::Test
       end
 
       should 'call before and after' do
-        named_parameters    = { 'counter' => 23 }
+        named_parameters    = {'counter' => 23}
         @job.perform_method = :event
         @job.arguments      = [named_parameters]
         @job.start!
@@ -188,5 +218,6 @@ class JobTest < Minitest::Test
       end
 
     end
+
   end
 end

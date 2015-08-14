@@ -87,7 +87,7 @@ module RocketJob
       #
       # Thread-safe, can be called by multiple threads at the same time
       def work(worker)
-        fail(ArgumentError, 'Job must be started before calling #work') unless running?
+        Kernel.fail(ArgumentError, 'Job must be started before calling #work') unless running?
         begin
           # before_perform
           call_method(perform_method, arguments, event: :before, log_level: log_level)
@@ -95,7 +95,7 @@ module RocketJob
           # perform
           ret = call_method(perform_method, arguments, log_level: log_level)
           if self.collect_output?
-            self.result = (ret.is_a?(Hash) || ret.is_a?(BSON::OrderedHash)) ? ret : { result: ret }
+            self.result = (ret.is_a?(Hash) || ret.is_a?(BSON::OrderedHash)) ? ret : {result: ret}
           end
 
           # after_perform
@@ -103,7 +103,8 @@ module RocketJob
 
           complete!
         rescue StandardError => exc
-          set_exception(worker.name, exc)
+          fail_with_exception!(worker.name, exc) unless failed?
+          logger.error("Exception running #{self.class.name}##{perform_method}", exc)
           raise exc if RocketJob::Config.inline_mode
         end
         false
@@ -136,7 +137,7 @@ module RocketJob
         options   = options.dup
         event     = options.delete(:event)
         log_level = options.delete(:log_level)
-        fail(ArgumentError, "Unknown #{self.class.name}#call_method options: #{options.inspect}") if options.size > 0
+        Kernel.fail(ArgumentError, "Unknown #{self.class.name}#call_method options: #{options.inspect}") if options.size > 0
 
         the_method = event.nil? ? method : "#{event}_#{method}".to_sym
         if respond_to?(the_method)
