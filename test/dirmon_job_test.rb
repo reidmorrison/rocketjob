@@ -5,26 +5,24 @@ require_relative 'jobs/test_job'
 class DirmonJobTest < Minitest::Test
   context RocketJob::Jobs::DirmonJob do
     setup do
-      @worker = RocketJob::Worker.new
-      @worker.started
       @dirmon_job        = RocketJob::Jobs::DirmonJob.new
+      @directory         = '/tmp/directory'
       @archive_directory = '/tmp/archive_directory'
       @entry             = RocketJob::DirmonEntry.new(
-        pattern:           'abc/*',
+        pattern:           "#{@directory}/abc/*",
         job_class_name:    'Jobs::TestJob',
         arguments:         [{input: 'yes'}],
         properties:        {priority: 23, perform_method: :event},
         archive_directory: @archive_directory
       )
-      @job               = Jobs::TestJob.new
-      @patterns          = {
-        'abc/*' => %w(abc/file1 abc/file2)
-      }
+      FileUtils.makedirs("#{@directory}/abc")
+      FileUtils.makedirs(@archive_directory)
     end
 
     teardown do
       @dirmon_job.destroy if @dirmon_job && !@dirmon_job.new_record?
       FileUtils.remove_dir(@archive_directory, true) if Dir.exist?(@archive_directory)
+      FileUtils.remove_dir(@directory, true) if Dir.exist?(@directory)
     end
 
     context '#check_file' do
@@ -35,7 +33,9 @@ class DirmonJobTest < Minitest::Test
         file_name     = file.path
         File.open(file_name, 'w') { |file| file.write('*' * new_size) }
         assert_equal new_size, File.size(file_name)
-        result = @dirmon_job.check_file(@entry, file_name, previous_size)
+        result = @entry.stub(:later, nil) do
+          @dirmon_job.send(:check_file, @entry, file, previous_size)
+        end
         assert_equal new_size, result
       end
 
@@ -47,8 +47,8 @@ class DirmonJobTest < Minitest::Test
         File.open(file_name, 'w') { |file| file.write('*' * new_size) }
         assert_equal new_size, File.size(file_name)
         started = false
-        result  = @dirmon_job.stub(:start_job, -> e, fn { started = true }) do
-          @dirmon_job.check_file(@entry, file_name, previous_size)
+        result  = @entry.stub(:later, -> fn { started = true }) do
+          @dirmon_job.send(:check_file, @entry, file, previous_size)
         end
         assert_equal nil, result
         assert started
@@ -56,15 +56,16 @@ class DirmonJobTest < Minitest::Test
 
       should 'check deleted file' do
         previous_size = 5
-        file_name     = 'blah'
-        result        = @dirmon_job.check_file(@entry, file_name, previous_size)
+        file_name     = Pathname.new('blah')
+        result        = @dirmon_job.send(:check_file, @entry, file_name, previous_size)
         assert_equal nil, result
       end
     end
 
     context '#check_directories' do
       setup do
-        @entry.save!
+        RocketJob::DirmonEntry.destroy_all
+        @entry.enable!
       end
 
       teardown do
@@ -73,79 +74,75 @@ class DirmonJobTest < Minitest::Test
 
       should 'no files' do
         previous_file_names = {}
-        result              = nil
-        Dir.stub(:[], -> dir { [] }) do
-          result = @dirmon_job.check_directories(previous_file_names)
-        end
+        result              = @dirmon_job.send(:check_directories, previous_file_names)
         assert_equal 0, result.count
       end
 
-      should 'new files' do
+      should 'collect new files without enqueuing them' do
+        create_file("#{@directory}/abc/file1", 5)
+        create_file("#{@directory}/abc/file2", 10)
+
         previous_file_names = {}
-        result              = nil
-        Dir.stub(:[], -> dir { @patterns[dir] }) do
-          result = @dirmon_job.stub(:check_file, -> e, fn, ps { 5 }) do
-            @dirmon_job.check_directories(previous_file_names)
-          end
-        end
-        assert_equal result.count, @patterns['abc/*'].count
-        result.each_pair do |k, v|
-          assert_equal 5, v
-        end
+        result              = @dirmon_job.send(:check_directories, previous_file_names)
+        assert_equal 2, result.count, result.inspect
+        assert_equal 5, result.values.first, result.inspect
+        assert_equal 10, result.values.second, result.inspect
       end
 
       should 'allow files to grow' do
+        create_file("#{@directory}/abc/file1", 5)
+        create_file("#{@directory}/abc/file2", 10)
         previous_file_names = {}
-        @patterns['abc/*'].each { |file_name| previous_file_names[file_name] = 5 }
-        result = nil
-        Dir.stub(:[], -> dir { @patterns[dir] }) do
-          result = @dirmon_job.stub(:check_file, -> e, fn, ps { 10 }) do
-            @dirmon_job.check_directories(previous_file_names)
-          end
-        end
-        assert_equal result.count, @patterns['abc/*'].count
-        result.each_pair do |k, v|
-          assert_equal 10, v
-        end
+        @dirmon_job.send(:check_directories, previous_file_names)
+        create_file("#{@directory}/abc/file1", 10)
+        create_file("#{@directory}/abc/file2", 15)
+        result = @dirmon_job.send(:check_directories, previous_file_names)
+        assert_equal 2, result.count, result.inspect
+        assert_equal 10, result.values.first, result.inspect
+        assert_equal 15, result.values.second, result.inspect
       end
 
       should 'start all files' do
-        previous_file_names = {}
-        @patterns['abc/*'].each { |file_name| previous_file_names[file_name] = 10 }
-        result = nil
-        Dir.stub(:[], -> dir { @patterns[dir] }) do
-          result = @dirmon_job.stub(:check_file, -> e, fn, ps { nil }) do
-            @dirmon_job.check_directories(previous_file_names)
-          end
+        create_file("#{@directory}/abc/file1", 5)
+        create_file("#{@directory}/abc/file2", 10)
+        previous_file_names = @dirmon_job.send(:check_directories, {})
+
+        count  = 0
+        result = RocketJob::DirmonEntry.stub_any_instance(:later, -> path { count += 1 }) do
+          @dirmon_job.send(:check_directories, previous_file_names)
         end
-        assert_equal 0, result.count
+        assert 2, count
+        assert_equal 0, result.count, result.inspect
       end
 
       should 'skip files in archive directory' do
-        previous_file_names = {}
-        @patterns['abc/*'].each { |file_name| previous_file_names[file_name] = 5 }
-        result = nil
-        # Add a file in the archive directory
-        @patterns['abc/*'] << File.join('abc', RocketJob::Jobs::DirmonJob::DEFAULT_ARCHIVE_DIR, 'test.zip')
-        Dir.stub(:[], -> dir { @patterns[dir] }) do
-          result = @dirmon_job.stub(:check_file, -> e, fn, ps { 10 }) do
-            @dirmon_job.check_directories(previous_file_names)
-          end
-        end
-        assert_equal result.count, @patterns['abc/*'].count - 1
-        result.each_pair do |k, v|
-          assert_equal 10, v
-        end
+        @entry.archive_directory = nil
+        @entry.pattern = "#{@directory}/abc/**/*"
+
+        create_file("#{@directory}/abc/file1", 5)
+        create_file("#{@directory}/abc/file2", 10)
+        FileUtils.makedirs("#{@directory}/abc/#{@entry.archive_pathname}")
+        create_file("#{@directory}/abc/#{@entry.archive_pathname}/file3", 10)
+
+        result = @dirmon_job.send(:check_directories, {})
+
+        assert_equal 2, result.count, result.inspect
+        assert_equal 5, result.values.first, result.inspect
+        assert_equal 10, result.values.second, result.inspect
       end
     end
 
     context '#perform' do
       should 'check directories and reschedule' do
         dirmon_job          = nil
-        previous_file_names = {}
-        @patterns['abc/*'].each { |file_name| previous_file_names[file_name] = 5 }
-        new_file_names = {}
-        @patterns['abc/*'].each { |file_name| new_file_names[file_name] = 10 }
+        previous_file_names = {
+          "#{@directory}/abc/file1" => 5,
+          "#{@directory}/abc/file2" => 10,
+        }
+        new_file_names = {
+          "#{@directory}/abc/file1" => 10,
+          "#{@directory}/abc/file2" => 10,
+        }
         RocketJob::Jobs::DirmonJob.destroy_all
         RocketJob::Jobs::DirmonJob.stub_any_instance(:check_directories, new_file_names) do
           # perform_now does not save the job, just runs it
@@ -168,29 +165,32 @@ class DirmonJobTest < Minitest::Test
         new_dirmon_job.destroy
       end
 
-      should 'check directories and reschedule even on exception' do
-        dirmon_job = nil
-        RocketJob::Jobs::DirmonJob.destroy_all
-        RocketJob::Jobs::DirmonJob.stub_any_instance(:check_directories, -> previous { raise RuntimeError.new("Oh no") }) do
-          # perform_now does not save the job, just runs it
-          dirmon_job = RocketJob::Jobs::DirmonJob.perform_now do |job|
-            job.priority      = 11
-            job.check_seconds = 30
+        should 'check directories and reschedule even on exception' do
+          dirmon_job = nil
+          RocketJob::Jobs::DirmonJob.destroy_all
+          RocketJob::Jobs::DirmonJob.stub_any_instance(:check_directories, -> previous { raise RuntimeError.new("Oh no") }) do
+            # perform_now does not save the job, just runs it
+            dirmon_job = RocketJob::Jobs::DirmonJob.perform_now do |job|
+              job.priority      = 11
+              job.check_seconds = 30
+            end
           end
+          assert dirmon_job.failed?, dirmon_job.status.inspect
+
+          # It should have enqueued another instance to run in the future
+          assert_equal 2, RocketJob::Jobs::DirmonJob.count
+          assert new_dirmon_job = RocketJob::Jobs::DirmonJob.last
+          assert new_dirmon_job.run_at
+          assert_equal 11, new_dirmon_job.priority
+          assert_equal 30, new_dirmon_job.check_seconds
+          assert new_dirmon_job.queued?
+
+          new_dirmon_job.destroy
         end
-        assert dirmon_job.failed?, dirmon_job.status.inspect
-
-        # It should have enqueued another instance to run in the future
-        assert_equal 2, RocketJob::Jobs::DirmonJob.count
-        assert new_dirmon_job = RocketJob::Jobs::DirmonJob.last
-        assert new_dirmon_job.run_at
-        assert_equal 11, new_dirmon_job.priority
-        assert_equal 30, new_dirmon_job.check_seconds
-        assert new_dirmon_job.queued?
-
-        new_dirmon_job.destroy
-      end
     end
+  end
 
+  def create_file(file_name, size)
+    File.open(file_name, 'w') { |file| file.write('*' * size) }
   end
 end

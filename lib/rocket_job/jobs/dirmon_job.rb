@@ -47,7 +47,7 @@ module RocketJob
       # it is passed to the next run of this job along with the file size.
       # If the file size has not changed, the Job is kicked off.
       def perform(previous_file_names={})
-        check_directories(previous_file_names)
+        new_file_names = check_directories(previous_file_names)
       ensure
         # Run again in the future, even if this run fails with an exception
         self.class.perform_later(new_file_names || previous_file_names) do |job|
@@ -57,12 +57,14 @@ module RocketJob
         end
       end
 
+      protected
+
       # Checks the directories for new files, starting jobs if files have not changed
       # since the last run
       def check_directories(previous_file_names)
         new_file_names = {}
         DirmonEntry.where(state: :enabled).each do |entry|
-          entry.each_file do |pathname|
+          entry.each do |pathname|
             # BSON Keys cannot contain periods
             key           = pathname.to_s.gsub('.', '_')
             previous_size = previous_file_names[key]

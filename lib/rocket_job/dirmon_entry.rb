@@ -217,9 +217,9 @@ module RocketJob
     end
 
     # Passes each filename [Pathname] found that matches the pattern into the supplied block
-    def each_file(&block)
+    def each(&block)
       logger.tagged("DirmonEntry:#{id}") do
-        Pathname.glob(pattern) do |pathname|
+        Pathname.glob(pattern).each do |pathname|
           next if pathname.directory?
           pathname  = pathname.realpath
           file_name = pathname.to_s
