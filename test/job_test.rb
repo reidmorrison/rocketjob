@@ -14,10 +14,16 @@ class JobTest < Minitest::Test
         arguments:           @arguments,
         destroy_on_complete: false
       )
+      @job2        = Jobs::TestJob.new(
+        description:         "#{@description} 2",
+        arguments:           @arguments,
+        destroy_on_complete: false
+      )
     end
 
     teardown do
       @job.destroy if @job && !@job.new_record?
+      @job2.destroy if @job2 && !@job2.new_record?
     end
 
     context '.config' do
@@ -31,15 +37,19 @@ class JobTest < Minitest::Test
         @job = Jobs::TestJob.new(
           description:         @description,
           arguments:           [{key: 'value'}],
-          destroy_on_complete: false
+          destroy_on_complete: false,
+          worker_name:         'worker:123'
         )
 
         assert_equal 'value', @job.arguments.first[:key]
+        @job.worker_name = nil
         @job.save!
+        @job.worker_name = '123'
         @job.reload
         assert @job.arguments.first.is_a?(ActiveSupport::HashWithIndifferentAccess), @job.arguments.first.class.inspect
         assert_equal 'value', @job.arguments.first['key']
         assert_equal 'value', @job.arguments.first[:key]
+        assert_equal nil, @job.worker_name
       end
     end
 
@@ -71,25 +81,31 @@ class JobTest < Minitest::Test
       end
 
       should 'return status for a failed job' do
-        @job.build_exception(
-          class_name: 'Test',
-          message:    'hello world'
-        )
         @job.start!
-        @job.fail!
+        @job.fail!('worker:1234', 'oh no')
         assert_equal true, @job.failed?
         h = @job.status
         assert_equal :failed, h['state']
         assert_equal @description, h['description']
-        assert_equal 'Test', h['exception']['class_name'], h
-        assert_equal 'hello world', h['exception']['message'], h
+        assert_equal 'RocketJob::JobException', h['exception']['class_name'], h
+        assert_equal 'oh no', h['exception']['message'], h
+      end
+
+      should 'mark user as reason for failure when not supplied' do
+        @job.start!
+        @job.fail!
+        assert_equal true, @job.failed?
+        assert_equal @description, @job.description
+        assert_equal 'RocketJob::JobException', @job.exception.class_name
+        assert_equal 'Job failed through user action', @job.exception.message
+        assert_equal 'user', @job.exception.worker_name
       end
     end
 
     context '#fail_with_exception!' do
       should 'fail with message' do
         @job.start!
-        @job.fail_with_exception!('myworker:2323', 'oh no')
+        @job.fail!('myworker:2323', 'oh no')
         assert_equal true, @job.failed?
         h = @job.status
         assert_equal :failed, h['state']
@@ -106,7 +122,7 @@ class JobTest < Minitest::Test
         rescue Exception => exc
           exception = exc
         end
-        @job.fail_with_exception!('myworker:2323', exception)
+        @job.fail!('myworker:2323', exception)
         assert_equal true, @job.failed?
         h = @job.status
         assert_equal :failed, h['state']
@@ -192,7 +208,7 @@ class JobTest < Minitest::Test
 
       should 'return the first job' do
         @job.save!
-        assert job = RocketJob::Job.next_job(@worker.name), "Failed to find job"
+        assert job = RocketJob::Job.next_job(@worker.name), 'Failed to find job'
         assert_equal @job.id, job.id
       end
 
@@ -205,7 +221,7 @@ class JobTest < Minitest::Test
       should 'Process future dated jobs when time is now' do
         @job.run_at = Time.now
         @job.save!
-        assert job = RocketJob::Job.next_job(@worker.name), "Failed to find future job"
+        assert job = RocketJob::Job.next_job(@worker.name), 'Failed to find future job'
         assert_equal @job.id, job.id
       end
 
@@ -216,7 +232,78 @@ class JobTest < Minitest::Test
         assert_equal nil, RocketJob::Job.next_job(@worker.name)
         assert_equal count, RocketJob::Job.count
       end
+    end
 
+    context '#requeue!' do
+      should 'requeue jobs from dead workers' do
+        worker_name      = 'server:12345'
+        @job.worker_name = worker_name
+        @job.start!
+        assert @job.running?
+
+        @job.requeue!
+        @job.reload
+
+        assert @job.queued?
+        assert_equal nil, @job.worker_name
+      end
+    end
+
+    context '#requeue' do
+      should 'requeue jobs from dead workers' do
+        worker_name      = 'server:12345'
+        @job.worker_name = worker_name
+        @job.start!
+        assert @job.running?
+
+        @job.requeue
+        assert @job.queued?
+        assert_equal nil, @job.worker_name
+
+        @job.reload
+        assert @job.running?
+        assert_equal worker_name, @job.worker_name
+      end
+    end
+
+    context '.requeue_dead_worker' do
+      should 'requeue jobs from dead workers' do
+        worker_name      = 'server:12345'
+        @job.worker_name = worker_name
+        @job.start!
+        assert @job.running?
+
+        worker_name2      = 'server:76467'
+        @job2.worker_name = worker_name2
+        @job2.start!
+
+        RocketJob::Job.requeue_dead_worker(worker_name)
+        @job.reload
+
+        assert @job.queued?
+        assert_equal nil, @job.worker_name
+
+        @job2.reload
+        assert @job2.running?
+        assert_equal worker_name2, @job2.worker_name
+      end
+    end
+
+    context '#retry!' do
+      should 'retry failed jobs' do
+        worker_name      = 'server:12345'
+        @job.worker_name = worker_name
+        @job.start!
+        assert @job.running?
+        assert_equal worker_name, @job.worker_name
+
+        @job.fail!(worker_name, 'oh no')
+        assert @job.failed?
+
+        @job.retry!
+        assert @job.queued?
+        assert_equal nil, @job.worker_name
+      end
     end
 
   end

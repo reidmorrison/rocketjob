@@ -129,6 +129,7 @@ module RocketJob
     #                       -> :failed     -> :running
     #                                      -> :aborted
     #                       -> :aborted
+    #                       -> :queued (when a worker dies)
     #           -> :aborted
     aasm column: :state do
       # Job has been created and is queued for processing ( Initial state )
@@ -168,7 +169,7 @@ module RocketJob
       end
 
       event :retry, before: :before_retry do
-        transitions from: :failed, to: :running
+        transitions from: :failed, to: :queued
       end
 
       event :pause, before: :before_pause do
@@ -185,6 +186,10 @@ module RocketJob
         transitions from: :failed,  to: :aborted
         transitions from: :paused,  to: :aborted
       end
+
+      event :requeue, before: :before_requeue do
+        transitions from: :running, to: :queued
+      end
     end
     # @formatter:on
 
@@ -198,23 +203,19 @@ module RocketJob
       ensure_index [[:created_at, 1]]
     end
 
-    # Requeue all jobs for the specified dead worker
+    # Requeues all jobs that were running on worker that died
     def self.requeue_dead_worker(worker_name)
-      collection.update(
-        {'worker_name' => worker_name, 'state' => :running},
-        {'$unset' => {'worker_name' => true, 'started_at' => true}, '$set' => {'state' => :queued}},
-        multi: true
-      )
+      running.each { |job| job.requeue!(worker_name) }
     end
 
     # Pause all running jobs
     def self.pause_all
-      where(state: 'running').each(&:pause!)
+      running.each(&:pause!)
     end
 
     # Resume all paused jobs
     def self.resume_all
-      where(state: 'paused').each(&:resume!)
+      paused.each(&:resume!)
     end
 
     # Returns the number of required arguments for this job
@@ -297,10 +298,18 @@ module RocketJob
     # Only reload MongoMapper attributes, leaving other instance variables untouched
     def reload
       if (doc = collection.find_one(_id: id))
+        # Clear out keys that are not returned during the reload from MongoDB
+        (keys.keys - doc.keys).each { |key| send("#{key}=", nil) }
+        initialize_default_values
         load_from_database(doc)
         self
       else
-        fail(MongoMapper::DocumentNotFound, "Document match #{_id.inspect} does not exist in #{collection.name} collection")
+        if destroy_on_complete
+          self.state = :completed
+          before_complete
+        else
+          raise(MongoMapper::DocumentNotFound, "Document match #{_id.inspect} does not exist in #{collection.name} collection")
+        end
       end
     end
 
@@ -313,7 +322,7 @@ module RocketJob
     end
 
     # Set exception information for this job and fail it
-    def fail_with_exception!(worker_name, exc_or_message)
+    def fail!(worker_name='user', exc_or_message='Job failed through user action')
       if exc_or_message.is_a?(Exception)
         self.exception        = JobException.from_exception(exc_or_message)
         exception.worker_name = worker_name
@@ -325,7 +334,25 @@ module RocketJob
           worker_name: worker_name
         )
       end
-      fail!
+      # not available as #super
+      aasm.current_event = :fail!
+      aasm_fire_event(:fail, persist: true)
+    end
+
+    # Requeue this running job since the worker assigned to it has died
+    def requeue!(worker_name_=nil)
+      return false if worker_name_ && (worker_name != worker_name_)
+      # not available as #super
+      aasm.current_event = :requeue!
+      aasm_fire_event(:requeue, persist: true)
+    end
+
+    # Requeue this running job since the worker assigned to it has died
+    def requeue(worker_name_=nil)
+      return false if worker_name_ && (worker_name != worker_name_)
+      # not available as #super
+      aasm.current_event = :requeue
+      aasm_fire_event(:requeue, persist: false)
     end
 
     ############################################################################
@@ -364,6 +391,11 @@ module RocketJob
     def before_abort
       self.completed_at = Time.now
       self.worker_name  = nil
+    end
+
+    def before_requeue
+      self.started_at  = nil
+      self.worker_name = nil
     end
 
     # Returns the next job to work on in priority based order
@@ -448,7 +480,7 @@ module RocketJob
       options   = options.dup
       event     = options.delete(:event)
       log_level = options.delete(:log_level)
-      fail(ArgumentError, "Unknown #{self.class.name}#call_method options: #{options.inspect}") if options.size > 0
+      raise(ArgumentError, "Unknown #{self.class.name}#call_method options: #{options.inspect}") if options.size > 0
 
       the_method = event.nil? ? method : "#{event}_#{method}".to_sym
       if respond_to?(the_method)
