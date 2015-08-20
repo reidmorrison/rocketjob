@@ -102,7 +102,7 @@ module RocketJob
       worker.save!
       create_indexes
       register_signal_handlers
-      raise "The RocketJob configuration is being applied after the system has been initialized" unless RocketJob::Job.database.name == RocketJob::SlicedJob.database.name
+      raise 'The RocketJob configuration is being applied after the system has been initialized' unless RocketJob::Job.database.name == RocketJob::SlicedJob.database.name
       logger.info "Using MongoDB Database: #{RocketJob::Job.database.name}"
       worker.run
     end
@@ -114,37 +114,34 @@ module RocketJob
       Job.create_indexes
     end
 
-    # Destroy dead workers ( missed at least the last 4 heartbeats )
-    # Requeue jobs assigned to dead workers
-    # Destroy dead workers
-    def self.destroy_dead_workers
-      dead_seconds = Config.instance.heartbeat_seconds * 4
+    # Destroy's all instances of zombie workers and requeues any jobs still "running"
+    # on those workers
+    def self.destroy_zombies
       each do |worker|
-        next if (Time.now - worker.heartbeat.updated_at) < dead_seconds
-        logger.warn "Destroying worker #{worker.name}, and requeueing its jobs"
+        next unless zombie?
+        logger.warn "Destroying zombie worker #{worker.name}, and requeueing its jobs"
         worker.destroy
       end
     end
 
+    def self.destroy_dead_workers
+      warn 'RocketJob::Worker.destroy_dead_workers is deprecated, use RocketJob::Worker.destroy_zombies'
+      destroy_zombies
+    end
+
     # Stop all running, paused, or starting workers
     def self.stop_all
-      where(state: ['running', 'paused', 'starting']).each { |worker| worker.stop! }
+      where(state: [:running, :paused, :starting]).each(&:stop!)
     end
 
     # Pause all running workers
     def self.pause_all
-      where(state: 'running').each { |worker| worker.pause! }
+      running.each(&:pause!)
     end
 
     # Resume all paused workers
     def self.resume_all
-      each { |worker| worker.resume! if worker.paused? }
-    end
-
-    # Register a handler to perform cleanups etc. whenever a worker is
-    # explicitly destroyed
-    def self.register_destroy_handler(&block)
-      @@destroy_handlers << block
+      paused.each(&:resume!)
     end
 
     # Returns [Boolean] whether the worker is shutting down
@@ -164,7 +161,7 @@ module RocketJob
 
     # Run this instance of the worker
     def run
-      Thread.current.name = 'RocketJob main'
+      Thread.current.name = 'rocketjob main'
       build_heartbeat unless heartbeat
 
       started
@@ -214,6 +211,17 @@ module RocketJob
 
     def thread_pool_count
       thread_pool.count { |i| i.alive? }
+    end
+
+    # Returns [true|false] if this worker has missed at least the last 4 heartbeats
+    #
+    # Possible causes for a worker to miss its heartbeats:
+    # - The worker process has died
+    # - The worker process is "hanging"
+    # - The worker is no longer able to communicate with the MongoDB Server
+    def zombie?(missed = 4)
+      dead_seconds = Config.instance.heartbeat_seconds * missed
+      (Time.now - worker.heartbeat.updated_at) >= dead_seconds
     end
 
     protected
@@ -299,7 +307,7 @@ module RocketJob
     # Requeue any jobs assigned to this worker
     def requeue_jobs
       stop! if running? || paused?
-      @@destroy_handlers.each { |handler| handler.call(name) }
+      RocketJob::Job.requeue_dead_worker(name)
     end
 
     # Mutex protected shutdown indicator
@@ -313,35 +321,34 @@ module RocketJob
     #
     def self.register_signal_handlers
       begin
-        Signal.trap "SIGTERM" do
+        Signal.trap 'SIGTERM' do
           # Cannot use Mutex protected writer here since it is in a signal handler
           @@shutdown = true
-          logger.warn "Shutdown signal (SIGTERM) received. Will shutdown as soon as active jobs/slices have completed."
+          logger.warn 'Shutdown signal (SIGTERM) received. Will shutdown as soon as active jobs/slices have completed.'
         end
 
-        Signal.trap "INT" do
+        Signal.trap 'INT' do
           # Cannot use Mutex protected writer here since it is in a signal handler
           @@shutdown = true
-          logger.warn "Shutdown signal (INT) received. Will shutdown as soon as active jobs/slices have completed."
+          logger.warn 'Shutdown signal (INT) received. Will shutdown as soon as active jobs/slices have completed.'
         end
       rescue StandardError
-        logger.warn "SIGTERM handler not installed. Not able to shutdown gracefully"
+        logger.warn 'SIGTERM handler not installed. Not able to shutdown gracefully'
       end
     end
 
     # Patch the way MongoMapper reloads a model
     def reload
       if doc = collection.find_one(:_id => id)
+        # Clear out keys that are not returned during the reload from MongoDB
+        (keys.keys - doc.keys).each { |key| send("#{key}=", nil) }
+        initialize_default_values
         load_from_database(doc)
         self
       else
         raise MongoMapper::DocumentNotFound, "Document match #{_id.inspect} does not exist in #{collection.name} collection"
       end
     end
-
-    private
-
-    @@destroy_handlers = ThreadSafe::Array.new
 
   end
 end

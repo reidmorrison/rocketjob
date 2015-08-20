@@ -129,6 +129,7 @@ module RocketJob
     #                       -> :failed     -> :running
     #                                      -> :aborted
     #                       -> :aborted
+    #                       -> :queued (when a worker dies)
     #           -> :aborted
     aasm column: :state do
       # Job has been created and is queued for processing ( Initial state )
@@ -168,7 +169,7 @@ module RocketJob
       end
 
       event :retry, before: :before_retry do
-        transitions from: :failed, to: :running
+        transitions from: :failed, to: :queued
       end
 
       event :pause, before: :before_pause do
@@ -185,36 +186,36 @@ module RocketJob
         transitions from: :failed,  to: :aborted
         transitions from: :paused,  to: :aborted
       end
+
+      event :requeue, before: :before_requeue do
+        transitions from: :running, to: :queued
+      end
     end
     # @formatter:on
 
     # Create indexes
     def self.create_indexes
       # Used by find_and_modify in .next_job
-      ensure_index({ state: 1, run_at: 1, priority: 1, created_at: 1, sub_state: 1 }, background: true)
+      ensure_index({state: 1, run_at: 1, priority: 1, created_at: 1, sub_state: 1}, background: true)
       # Remove outdated index if present
       drop_index('state_1_priority_1_created_at_1_sub_state_1') rescue nil
       # Used by Mission Control
       ensure_index [[:created_at, 1]]
     end
 
-    # Requeue all jobs for the specified dead worker
+    # Requeues all jobs that were running on worker that died
     def self.requeue_dead_worker(worker_name)
-      collection.update(
-        { 'worker_name' => worker_name, 'state' => :running },
-        { '$unset' => { 'worker_name' => true, 'started_at' => true }, '$set' => { 'state' => :queued } },
-        multi: true
-      )
+      running.each { |job| job.requeue!(worker_name) }
     end
 
     # Pause all running jobs
     def self.pause_all
-      where(state: 'running').each(&:pause!)
+      running.each(&:pause!)
     end
 
     # Resume all paused jobs
     def self.resume_all
-      where(state: 'paused').each(&:resume!)
+      paused.each(&:resume!)
     end
 
     # Returns the number of required arguments for this job
@@ -243,7 +244,7 @@ module RocketJob
 
     # Returns a human readable duration the job has taken
     def duration
-      seconds_as_duration(seconds)
+      RocketJob.seconds_as_duration(seconds)
     end
 
     # A job has expired if the expiry time has passed before it is started
@@ -264,15 +265,15 @@ module RocketJob
         attrs.delete('completed_at')
         attrs.delete('result')
         # Ensure 'paused_at' appears first in the hash
-        { 'paused_at' => completed_at }.merge(attrs)
+        {'paused_at' => completed_at}.merge(attrs)
       when aborted?
         attrs.delete('completed_at')
         attrs.delete('result')
-        { 'aborted_at' => completed_at }.merge(attrs)
+        {'aborted_at' => completed_at}.merge(attrs)
       when failed?
         attrs.delete('completed_at')
         attrs.delete('result')
-        { 'failed_at' => completed_at }.merge(attrs)
+        {'failed_at' => completed_at}.merge(attrs)
       else
         attrs
       end
@@ -297,10 +298,18 @@ module RocketJob
     # Only reload MongoMapper attributes, leaving other instance variables untouched
     def reload
       if (doc = collection.find_one(_id: id))
+        # Clear out keys that are not returned during the reload from MongoDB
+        (keys.keys - doc.keys).each { |key| send("#{key}=", nil) }
+        initialize_default_values
         load_from_database(doc)
         self
       else
-        fail(MongoMapper::DocumentNotFound, "Document match #{_id.inspect} does not exist in #{collection.name} collection")
+        if destroy_on_complete
+          self.state = :completed
+          before_complete
+        else
+          raise(MongoMapper::DocumentNotFound, "Document match #{_id.inspect} does not exist in #{collection.name} collection")
+        end
       end
     end
 
@@ -310,6 +319,40 @@ module RocketJob
       if arguments.present?
         self.arguments = arguments.collect { |i| i.is_a?(BSON::OrderedHash) ? i.with_indifferent_access : i }
       end
+    end
+
+    # Set exception information for this job and fail it
+    def fail!(worker_name='user', exc_or_message='Job failed through user action')
+      if exc_or_message.is_a?(Exception)
+        self.exception        = JobException.from_exception(exc_or_message)
+        exception.worker_name = worker_name
+      else
+        build_exception(
+          class_name:  'RocketJob::JobException',
+          message:     exc_or_message,
+          backtrace:   [],
+          worker_name: worker_name
+        )
+      end
+      # not available as #super
+      aasm.current_event = :fail!
+      aasm_fire_event(:fail, persist: true)
+    end
+
+    # Requeue this running job since the worker assigned to it has died
+    def requeue!(worker_name_=nil)
+      return false if worker_name_ && (worker_name != worker_name_)
+      # not available as #super
+      aasm.current_event = :requeue!
+      aasm_fire_event(:requeue, persist: true)
+    end
+
+    # Requeue this running job since the worker assigned to it has died
+    def requeue(worker_name_=nil)
+      return false if worker_name_ && (worker_name != worker_name_)
+      # not available as #super
+      aasm.current_event = :requeue
+      aasm_fire_event(:requeue, persist: false)
     end
 
     ############################################################################
@@ -327,8 +370,9 @@ module RocketJob
     end
 
     def before_fail
-      self.completed_at = Time.now
-      self.worker_name  = nil
+      self.completed_at  = Time.now
+      self.worker_name   = nil
+      self.failure_count += 1
     end
 
     def before_retry
@@ -349,128 +393,9 @@ module RocketJob
       self.worker_name  = nil
     end
 
-    # Returns a human readable duration from the supplied [Float] number of seconds
-    def seconds_as_duration(seconds)
-      time = Time.at(seconds)
-      if seconds >= 1.day
-        "#{(seconds / 1.day).to_i}d #{time.strftime('%-Hh %-Mm %-Ss')}"
-      elsif seconds >= 1.hour
-        time.strftime('%-Hh %-Mm %-Ss')
-      elsif seconds >= 1.minute
-        time.strftime('%-Mm %-Ss')
-      else
-        time.strftime('%-Ss')
-      end
-    end
-
-    # Returns the next job to work on in priority based order
-    # Returns nil if there are currently no queued jobs, or processing batch jobs
-    #   with records that require processing
-    #
-    # Parameters
-    #   worker_name [String]
-    #     Name of the worker that will be processing this job
-    #
-    #   skip_job_ids [Array<BSON::ObjectId>]
-    #     Job ids to exclude when looking for the next job
-    #
-    # Note:
-    #   If a job is in queued state it will be started
-    def self.next_job(worker_name, skip_job_ids = nil)
-      query        = {
-        '$and' => [
-          {
-            '$or' => [
-              { 'state' => 'queued' }, # Jobs
-              { 'state' => 'running', 'sub_state' => :processing } # Slices
-            ]
-          },
-          {
-            '$or' => [
-              { run_at: { '$exists' => false } },
-              { run_at: { '$lte' => Time.now } }
-            ]
-          }
-        ]
-      }
-      query['_id'] = { '$nin' => skip_job_ids } if skip_job_ids && skip_job_ids.size > 0
-
-      while (doc = find_and_modify(
-        query:  query,
-        sort:   [['priority', 'asc'], ['created_at', 'asc']],
-        update: { '$set' => { 'worker_name' => worker_name, 'state' => 'running' } }
-      ))
-        job = load(doc)
-        if job.running?
-          return job
-        else
-          if job.expired?
-            job.destroy
-            logger.info "Destroyed expired job #{job.class.name}, id:#{job.id}"
-          else
-            # Also update in-memory state and run call-backs
-            job.start
-            job.set(started_at: job.started_at)
-            return job
-          end
-        end
-      end
-    end
-
-    ############################################################################
-    private
-
-    # Set exception information for this job
-    def set_exception(worker_name, exc)
-      self.worker_name      = nil
-      self.failure_count    += 1
-      self.exception        = JobException.from_exception(exc)
-      exception.worker_name = worker_name
-      fail! unless failed?
-      logger.error("Exception running #{self.class.name}##{perform_method}", exc)
-    end
-
-    # Calls a method on this job, if it is defined
-    # Adds the event name to the method call if supplied
-    #
-    # Returns [Object] the result of calling the method
-    #
-    # Parameters
-    #   method [Symbol]
-    #     The method to call on this job
-    #
-    #   arguments [Array]
-    #     Arguments to pass to the method call
-    #
-    #   Options:
-    #     event: [Symbol]
-    #       Any one of: :before, :after
-    #       Default: None, just calls the method itself
-    #
-    #     log_level: [Symbol]
-    #       Log level to apply to silence logging during the call
-    #       Default: nil ( no change )
-    #
-    def call_method(method, arguments, options = {})
-      options   = options.dup
-      event     = options.delete(:event)
-      log_level = options.delete(:log_level)
-      fail(ArgumentError, "Unknown #{self.class.name}#call_method options: #{options.inspect}") if options.size > 0
-
-      the_method = event.nil? ? method : "#{event}_#{method}".to_sym
-      if respond_to?(the_method)
-        method_name = "#{self.class.name}##{the_method}"
-        logger.info "Start #{method_name}"
-        logger.benchmark_info(
-          "Completed #{method_name}",
-          metric:             "rocketjob/#{self.class.name.underscore}/#{the_method}",
-          log_exception:      :full,
-          on_exception_level: :error,
-          silence:            log_level
-        ) do
-          send(the_method, *arguments)
-        end
-      end
+    def before_requeue
+      self.started_at  = nil
+      self.worker_name = nil
     end
 
   end

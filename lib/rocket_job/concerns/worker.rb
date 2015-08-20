@@ -7,9 +7,6 @@ module RocketJob
       def self.included(base)
         base.extend ClassMethods
         base.class_eval do
-          # While working on a slice, the current slice is available via this reader
-          attr_reader :rocket_job_slice
-
           @rocket_job_defaults = nil
         end
       end
@@ -71,11 +68,61 @@ module RocketJob
           @rocket_job_defaults = block
           self
         end
-      end
 
-      def rocket_job_csv_parser
-        # TODO: Change into an instance variable once CSV handling has been re-worked
-        RocketJob::Utility::CSVRow.new
+        # Returns the next job to work on in priority based order
+        # Returns nil if there are currently no queued jobs, or processing batch jobs
+        #   with records that require processing
+        #
+        # Parameters
+        #   worker_name [String]
+        #     Name of the worker that will be processing this job
+        #
+        #   skip_job_ids [Array<BSON::ObjectId>]
+        #     Job ids to exclude when looking for the next job
+        #
+        # Note:
+        #   If a job is in queued state it will be started
+        def next_job(worker_name, skip_job_ids = nil)
+          query        = {
+            '$and' => [
+              {
+                '$or' => [
+                  {'state' => 'queued'}, # Jobs
+                  {'state' => 'running', 'sub_state' => :processing} # Slices
+                ]
+              },
+              {
+                '$or' => [
+                  {run_at: {'$exists' => false}},
+                  {run_at: {'$lte' => Time.now}}
+                ]
+              }
+            ]
+          }
+          query['_id'] = {'$nin' => skip_job_ids} if skip_job_ids && skip_job_ids.size > 0
+
+          while (doc = find_and_modify(
+            query:  query,
+            sort:   [['priority', 'asc'], ['created_at', 'asc']],
+            update: {'$set' => {'worker_name' => worker_name, 'state' => 'running'}}
+          ))
+            job = load(doc)
+            if job.running?
+              return job
+            else
+              if job.expired?
+                job.destroy
+                logger.info "Destroyed expired job #{job.class.name}, id:#{job.id}"
+              else
+                # Also update in-memory state and run call-backs
+                job.start
+                job.set(started_at: job.started_at)
+                return job
+              end
+            end
+          end
+        end
+
       end
 
       # Works on this job
@@ -87,7 +134,7 @@ module RocketJob
       #
       # Thread-safe, can be called by multiple threads at the same time
       def work(worker)
-        fail(ArgumentError, 'Job must be started before calling #work') unless running?
+        raise(ArgumentError, 'Job must be started before calling #work') unless running?
         begin
           # before_perform
           call_method(perform_method, arguments, event: :before, log_level: log_level)
@@ -95,7 +142,7 @@ module RocketJob
           # perform
           ret = call_method(perform_method, arguments, log_level: log_level)
           if self.collect_output?
-            self.result = (ret.is_a?(Hash) || ret.is_a?(BSON::OrderedHash)) ? ret : { result: ret }
+            self.result = (ret.is_a?(Hash) || ret.is_a?(BSON::OrderedHash)) ? ret : {result: ret}
           end
 
           # after_perform
@@ -103,7 +150,8 @@ module RocketJob
 
           complete!
         rescue StandardError => exc
-          set_exception(worker.name, exc)
+          fail!(worker.name, exc) unless failed?
+          logger.error("Exception running #{self.class.name}##{perform_method}", exc)
           raise exc if RocketJob::Config.inline_mode
         end
         false
@@ -136,7 +184,7 @@ module RocketJob
         options   = options.dup
         event     = options.delete(:event)
         log_level = options.delete(:log_level)
-        fail(ArgumentError, "Unknown #{self.class.name}#call_method options: #{options.inspect}") if options.size > 0
+        raise(ArgumentError, "Unknown #{self.class.name}#call_method options: #{options.inspect}") if options.size > 0
 
         the_method = event.nil? ? method : "#{event}_#{method}".to_sym
         if respond_to?(the_method)
