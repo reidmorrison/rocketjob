@@ -7,9 +7,6 @@ module RocketJob
       def self.included(base)
         base.extend ClassMethods
         base.class_eval do
-          # While working on a slice, the current slice is available via this reader
-          attr_reader :rocket_job_slice
-
           @rocket_job_defaults = nil
         end
       end
@@ -71,11 +68,61 @@ module RocketJob
           @rocket_job_defaults = block
           self
         end
-      end
 
-      def rocket_job_csv_parser
-        # TODO: Change into an instance variable once CSV handling has been re-worked
-        RocketJob::Utility::CSVRow.new
+        # Returns the next job to work on in priority based order
+        # Returns nil if there are currently no queued jobs, or processing batch jobs
+        #   with records that require processing
+        #
+        # Parameters
+        #   worker_name [String]
+        #     Name of the worker that will be processing this job
+        #
+        #   skip_job_ids [Array<BSON::ObjectId>]
+        #     Job ids to exclude when looking for the next job
+        #
+        # Note:
+        #   If a job is in queued state it will be started
+        def next_job(worker_name, skip_job_ids = nil)
+          query        = {
+            '$and' => [
+              {
+                '$or' => [
+                  {'state' => 'queued'}, # Jobs
+                  {'state' => 'running', 'sub_state' => :processing} # Slices
+                ]
+              },
+              {
+                '$or' => [
+                  {run_at: {'$exists' => false}},
+                  {run_at: {'$lte' => Time.now}}
+                ]
+              }
+            ]
+          }
+          query['_id'] = {'$nin' => skip_job_ids} if skip_job_ids && skip_job_ids.size > 0
+
+          while (doc = find_and_modify(
+            query:  query,
+            sort:   [['priority', 'asc'], ['created_at', 'asc']],
+            update: {'$set' => {'worker_name' => worker_name, 'state' => 'running'}}
+          ))
+            job = load(doc)
+            if job.running?
+              return job
+            else
+              if job.expired?
+                job.destroy
+                logger.info "Destroyed expired job #{job.class.name}, id:#{job.id}"
+              else
+                # Also update in-memory state and run call-backs
+                job.start
+                job.set(started_at: job.started_at)
+                return job
+              end
+            end
+          end
+        end
+
       end
 
       # Works on this job
