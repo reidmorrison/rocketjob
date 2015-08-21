@@ -322,7 +322,7 @@ module RocketJob
     end
 
     # Set exception information for this job and fail it
-    def fail!(worker_name='user', exc_or_message='Job failed through user action')
+    def fail(worker_name='user', exc_or_message='Job failed through user action')
       if exc_or_message.is_a?(Exception)
         self.exception        = JobException.from_exception(exc_or_message)
         exception.worker_name = worker_name
@@ -335,8 +335,13 @@ module RocketJob
         )
       end
       # not available as #super
-      aasm.current_event = :fail!
-      aasm_fire_event(:fail, persist: true)
+      aasm.current_event = :fail
+      aasm_fire_event(:fail, persist: false)
+    end
+
+    def fail!(worker_name='user', exc_or_message='Job failed through user action')
+      self.fail(worker_name, exc_or_message)
+      save!
     end
 
     # Requeue this running job since the worker assigned to it has died
