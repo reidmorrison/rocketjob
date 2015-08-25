@@ -1,6 +1,7 @@
 require 'thread_safe'
 require 'pathname'
 require 'fileutils'
+require 'aasm'
 module RocketJob
   class DirmonEntry
     include MongoMapper::Document
