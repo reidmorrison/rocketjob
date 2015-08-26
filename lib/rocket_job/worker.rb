@@ -117,11 +117,14 @@ module RocketJob
     # Destroy's all instances of zombie workers and requeues any jobs still "running"
     # on those workers
     def self.destroy_zombies
+      count = 0
       each do |worker|
-        next unless zombie?
+        next unless worker.zombie?
         logger.warn "Destroying zombie worker #{worker.name}, and requeueing its jobs"
         worker.destroy
+        count += 1
       end
+      count
     end
 
     def self.destroy_dead_workers
@@ -221,7 +224,7 @@ module RocketJob
     # - The worker is no longer able to communicate with the MongoDB Server
     def zombie?(missed = 4)
       dead_seconds = Config.instance.heartbeat_seconds * missed
-      (Time.now - worker.heartbeat.updated_at) >= dead_seconds
+      (Time.now - heartbeat.updated_at) >= dead_seconds
     end
 
     protected

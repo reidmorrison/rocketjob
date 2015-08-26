@@ -20,6 +20,7 @@ class WorkerTest < Minitest::Test
 
     teardown do
       @job.destroy if @job && !@job.new_record?
+      @worker.destroy if @worker && !@worker.new_record?
     end
 
     context '.config' do
@@ -37,6 +38,57 @@ class WorkerTest < Minitest::Test
         @worker.run
         assert_equal :stopping, @worker.state, @worker.inspect
       end
+    end
+
+    context '#zombie?' do
+      setup do
+        RocketJob::Config.instance.heartbeat_seconds = 1
+      end
+
+      should 'when not a zombie' do
+        @worker.build_heartbeat(
+          updated_at:      2.seconds.ago,
+          current_threads: 3
+        )
+        assert_equal false, @worker.zombie?
+        assert_equal false, @worker.zombie?(4)
+        assert_equal true, @worker.zombie?(1)
+      end
+
+      should 'when a zombie' do
+        @worker.build_heartbeat(
+          updated_at:      1.hour.ago,
+          current_threads: 5
+        )
+        assert_equal true, @worker.zombie?
+      end
+    end
+
+    context '.destroy_zombies' do
+      setup do
+        RocketJob::Config.instance.heartbeat_seconds = 1
+      end
+
+      should 'when not a zombie' do
+        @worker.build_heartbeat(
+          updated_at:      2.seconds.ago,
+          current_threads: 3
+        )
+        @worker.save!
+        assert_equal 0, RocketJob::Worker.destroy_zombies
+        assert_equal true, RocketJob::Worker.where(id: @worker.id).exist?
+      end
+
+      should 'when a zombie' do
+        @worker.build_heartbeat(
+          updated_at:      10.seconds.ago,
+          current_threads: 3
+        )
+        @worker.save!
+        assert_equal 1, RocketJob::Worker.destroy_zombies
+        assert_equal false, RocketJob::Worker.where(id: @worker.id).exist?
+      end
+
     end
 
   end
