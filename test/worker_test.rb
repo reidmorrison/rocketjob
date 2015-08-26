@@ -50,6 +50,7 @@ class WorkerTest < Minitest::Test
           updated_at:      2.seconds.ago,
           current_threads: 3
         )
+        @worker.started!
         assert_equal false, @worker.zombie?
         assert_equal false, @worker.zombie?(4)
         assert_equal true, @worker.zombie?(1)
@@ -60,6 +61,7 @@ class WorkerTest < Minitest::Test
           updated_at:      1.hour.ago,
           current_threads: 5
         )
+        @worker.started!
         assert_equal true, @worker.zombie?
       end
     end
@@ -74,7 +76,7 @@ class WorkerTest < Minitest::Test
           updated_at:      2.seconds.ago,
           current_threads: 3
         )
-        @worker.save!
+        @worker.started!
         assert_equal 0, RocketJob::Worker.destroy_zombies
         assert_equal true, RocketJob::Worker.where(id: @worker.id).exist?
       end
@@ -84,7 +86,7 @@ class WorkerTest < Minitest::Test
           updated_at:      10.seconds.ago,
           current_threads: 3
         )
-        @worker.save!
+        @worker.started!
         assert_equal 1, RocketJob::Worker.destroy_zombies
         assert_equal false, RocketJob::Worker.where(id: @worker.id).exist?
       end

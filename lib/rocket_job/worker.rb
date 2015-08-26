@@ -223,6 +223,7 @@ module RocketJob
     # - The worker process is "hanging"
     # - The worker is no longer able to communicate with the MongoDB Server
     def zombie?(missed = 4)
+      return false unless running?
       dead_seconds = Config.instance.heartbeat_seconds * missed
       (Time.now - heartbeat.updated_at) >= dead_seconds
     end

@@ -106,6 +106,16 @@ class DirmonEntryTest < Minitest::Test
       end
 
       context 'arguments' do
+        should 'allow no arguments' do
+          assert entry = RocketJob::DirmonEntry.new(
+              job_class_name: 'Jobs::TestJob',
+              pattern:        '/abc/**',
+              perform_method: :result
+            )
+          assert_equal true, entry.valid?, entry.errors.inspect
+          assert_equal [], entry.errors[:arguments], entry.errors.inspect
+        end
+
         should 'ensure correct number of arguments' do
           assert entry = RocketJob::DirmonEntry.new(
               job_class_name: 'Jobs::TestJob',
