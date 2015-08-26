@@ -97,6 +97,16 @@ class DirmonEntryTest < Minitest::Test
         assert_equal ["can't be blank"], entry.errors[:pattern], entry.errors.inspect
       end
 
+      context 'perform_method' do
+        context 'with an invalid method' do
+          should 'add errors to the entry' do
+            entry = RocketJob::DirmonEntry.new(job_class_name: 'Jobs::TestJob', perform_method: :missing_perform_method)
+            assert_equal false, entry.valid?
+            assert_equal ['Method not implemented by Jobs::TestJob'], entry.errors[:perform_method], entry.errors.inspect
+          end
+        end
+      end
+
       context 'job_class_name' do
         should 'ensure presence' do
           assert entry = RocketJob::DirmonEntry.new(pattern: '/abc/**')
