@@ -129,7 +129,7 @@ module RocketJob
     validates_presence_of :pattern, :job_class_name, :perform_method
 
     validates_each :perform_method do |record, attr, value|
-      if (klass = record.job_class) && !klass.instance_method(value)
+      if (klass = record.job_class) && !klass.instance_methods.include?(value)
         record.errors.add(attr, "Method not implemented by #{record.job_class_name}")
       end
     end
@@ -145,7 +145,7 @@ module RocketJob
     end
 
     validates_each :arguments do |record, attr, value|
-      if (klass = record.job_class)
+      if (klass = record.job_class) && klass.instance_methods.include?(record.perform_method)
         count = klass.argument_count(record.perform_method)
         record.errors.add(attr, "There must be #{count} argument(s)") if value.size != count
       end
