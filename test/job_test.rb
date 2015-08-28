@@ -3,8 +3,8 @@ require_relative 'jobs/test_job'
 
 # Unit Test for RocketJob::Job
 class JobTest < Minitest::Test
-  context RocketJob::Job do
-    setup do
+  describe RocketJob::Job do
+    before do
       @worker = RocketJob::Worker.new
       @worker.started
       @description = 'Hello World'
@@ -21,19 +21,19 @@ class JobTest < Minitest::Test
       )
     end
 
-    teardown do
+    after do
       @job.destroy if @job && !@job.new_record?
       @job2.destroy if @job2 && !@job2.new_record?
     end
 
-    context '.config' do
-      should 'support multiple databases' do
+    describe '.config' do
+      it 'support multiple databases' do
         assert_equal 'test_rocketjob', RocketJob::Job.collection.db.name
       end
     end
 
-    context '#reload' do
-      should 'handle hash' do
+    describe '#reload' do
+      it 'handle hash' do
         @job = Jobs::TestJob.new(
           description:         @description,
           arguments:           [{key: 'value'}],
@@ -53,8 +53,8 @@ class JobTest < Minitest::Test
       end
     end
 
-    context '#save!' do
-      should 'save a blank job' do
+    describe '#save!' do
+      it 'save a blank job' do
         @job.save!
         assert_nil @job.worker_name
         assert_nil @job.completed_at
@@ -72,15 +72,15 @@ class JobTest < Minitest::Test
       end
     end
 
-    context '#status' do
-      should 'return status for a queued job' do
+    describe '#status' do
+      it 'return status for a queued job' do
         assert_equal true, @job.queued?
         h = @job.status
         assert_equal :queued, h['state']
         assert_equal @description, h['description']
       end
 
-      should 'return status for a failed job' do
+      it 'return status for a failed job' do
         @job.start!
         @job.fail!('worker:1234', 'oh no')
         assert_equal true, @job.failed?
@@ -91,7 +91,7 @@ class JobTest < Minitest::Test
         assert_equal 'oh no', h['exception']['message'], h
       end
 
-      should 'mark user as reason for failure when not supplied' do
+      it 'mark user as reason for failure when not supplied' do
         @job.start!
         @job.fail!
         assert_equal true, @job.failed?
@@ -102,8 +102,8 @@ class JobTest < Minitest::Test
       end
     end
 
-    context '#fail_with_exception!' do
-      should 'fail with message' do
+    describe '#fail_with_exception!' do
+      it 'fail with message' do
         @job.start!
         @job.fail!('myworker:2323', 'oh no')
         assert_equal true, @job.failed?
@@ -114,7 +114,7 @@ class JobTest < Minitest::Test
         assert_equal 'oh no', h['exception']['message'], h
       end
 
-      should 'fail with exception' do
+      it 'fail with exception' do
         @job.start!
         exception = nil
         begin
@@ -132,15 +132,15 @@ class JobTest < Minitest::Test
       end
     end
 
-    context '#work' do
-      should 'call default perform method' do
+    describe '#work' do
+      it 'call default perform method' do
         @job.start!
         assert_equal false, @job.work(@worker)
         assert_equal true, @job.completed?, @job.state
         assert_equal 2, Jobs::TestJob.result
       end
 
-      should 'call specific method' do
+      it 'call specific method' do
         @job.perform_method = :sum
         @job.arguments      = [23, 45]
         @job.start!
@@ -149,14 +149,14 @@ class JobTest < Minitest::Test
         assert_equal 68, Jobs::TestJob.result
       end
 
-      should 'destroy on complete' do
+      it 'destroy on complete' do
         @job.destroy_on_complete = true
         @job.start!
         assert_equal false, @job.work(@worker)
         assert_equal nil, RocketJob::Job.find_by_id(@job.id)
       end
 
-      should 'silence logging when log_level is set' do
+      it 'silence logging when log_level is set' do
         @job.destroy_on_complete = true
         @job.log_level           = :warn
         @job.perform_method      = :noisy_logger
@@ -169,7 +169,7 @@ class JobTest < Minitest::Test
         assert_equal false, logged
       end
 
-      should 'raise logging when log_level is set' do
+      it 'raise logging when log_level is set' do
         @job.destroy_on_complete = true
         @job.log_level           = :trace
         @job.perform_method      = :debug_logging
@@ -185,7 +185,7 @@ class JobTest < Minitest::Test
         assert_equal false, logged
       end
 
-      should 'call before and after' do
+      it 'call before and after' do
         named_parameters    = {'counter' => 23}
         @job.perform_method = :event
         @job.arguments      = [named_parameters]
@@ -197,35 +197,35 @@ class JobTest < Minitest::Test
 
     end
 
-    context '.next_job' do
-      setup do
+    describe '.next_job' do
+      before do
         RocketJob::Job.destroy_all
       end
 
-      should 'return nil when no jobs available' do
+      it 'return nil when no jobs available' do
         assert_equal nil, RocketJob::Job.next_job(@worker.name)
       end
 
-      should 'return the first job' do
+      it 'return the first job' do
         @job.save!
         assert job = RocketJob::Job.next_job(@worker.name), 'Failed to find job'
         assert_equal @job.id, job.id
       end
 
-      should 'Ignore future dated jobs' do
+      it 'Ignore future dated jobs' do
         @job.run_at = Time.now + 1.hour
         @job.save!
         assert_equal nil, RocketJob::Job.next_job(@worker.name)
       end
 
-      should 'Process future dated jobs when time is now' do
+      it 'Process future dated jobs when time is now' do
         @job.run_at = Time.now
         @job.save!
         assert job = RocketJob::Job.next_job(@worker.name), 'Failed to find future job'
         assert_equal @job.id, job.id
       end
 
-      should 'Skip expired jobs' do
+      it 'Skip expired jobs' do
         count           = RocketJob::Job.count
         @job.expires_at = Time.now - 100
         @job.save!
@@ -234,8 +234,8 @@ class JobTest < Minitest::Test
       end
     end
 
-    context '#requeue!' do
-      should 'requeue jobs from dead workers' do
+    describe '#requeue!' do
+      it 'requeue jobs from dead workers' do
         worker_name      = 'server:12345'
         @job.worker_name = worker_name
         @job.start!
@@ -249,8 +249,8 @@ class JobTest < Minitest::Test
       end
     end
 
-    context '#requeue' do
-      should 'requeue jobs from dead workers' do
+    describe '#requeue' do
+      it 'requeue jobs from dead workers' do
         worker_name      = 'server:12345'
         @job.worker_name = worker_name
         @job.start!
@@ -266,8 +266,8 @@ class JobTest < Minitest::Test
       end
     end
 
-    context '.requeue_dead_worker' do
-      should 'requeue jobs from dead workers' do
+    describe '.requeue_dead_worker' do
+      it 'requeue jobs from dead workers' do
         worker_name      = 'server:12345'
         @job.worker_name = worker_name
         @job.start!
@@ -289,8 +289,8 @@ class JobTest < Minitest::Test
       end
     end
 
-    context '#retry!' do
-      should 'retry failed jobs' do
+    describe '#retry!' do
+      it 'retry failed jobs' do
         worker_name      = 'server:12345'
         @job.worker_name = worker_name
         @job.start!
@@ -299,10 +299,12 @@ class JobTest < Minitest::Test
 
         @job.fail!(worker_name, 'oh no')
         assert @job.failed?
+        assert_equal 'oh no', @job.exception.message
 
         @job.retry!
         assert @job.queued?
         assert_equal nil, @job.worker_name
+        assert_equal nil, @job.exception
       end
     end
 

@@ -382,6 +382,7 @@ module RocketJob
 
     def before_retry
       self.completed_at = nil
+      self.exception = nil
     end
 
     def before_pause

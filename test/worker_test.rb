@@ -3,8 +3,8 @@ require_relative 'jobs/test_job'
 
 # Unit Test for RocketJob::Worker
 class WorkerTest < Minitest::Test
-  context RocketJob::Worker do
-    setup do
+  describe RocketJob::Worker do
+    before do
       RocketJob::Config.instance.heartbeat_seconds = 0.1
       RocketJob::Config.instance.max_poll_seconds  = 0.1
 
@@ -18,19 +18,19 @@ class WorkerTest < Minitest::Test
       )
     end
 
-    teardown do
+    after do
       @job.destroy if @job && !@job.new_record?
       @worker.destroy if @worker && !@worker.new_record?
     end
 
-    context '.config' do
-      should 'support multiple databases' do
+    describe '.config' do
+      it 'support multiple databases' do
         assert_equal 'test_rocketjob', RocketJob::Job.collection.db.name
       end
     end
 
-    context '#run' do
-      should 'run a worker' do
+    describe '#run' do
+      it 'run a worker' do
         Thread.new do
           sleep 1
           @worker.stop!
@@ -40,12 +40,12 @@ class WorkerTest < Minitest::Test
       end
     end
 
-    context '#zombie?' do
-      setup do
+    describe '#zombie?' do
+      before do
         RocketJob::Config.instance.heartbeat_seconds = 1
       end
 
-      should 'when not a zombie' do
+      it 'when not a zombie' do
         @worker.build_heartbeat(
           updated_at:      2.seconds.ago,
           current_threads: 3
@@ -56,7 +56,7 @@ class WorkerTest < Minitest::Test
         assert_equal true, @worker.zombie?(1)
       end
 
-      should 'when a zombie' do
+      it 'when a zombie' do
         @worker.build_heartbeat(
           updated_at:      1.hour.ago,
           current_threads: 5
@@ -66,12 +66,12 @@ class WorkerTest < Minitest::Test
       end
     end
 
-    context '.destroy_zombies' do
-      setup do
+    describe '.destroy_zombies' do
+      before do
         RocketJob::Config.instance.heartbeat_seconds = 1
       end
 
-      should 'when not a zombie' do
+      it 'when not a zombie' do
         @worker.build_heartbeat(
           updated_at:      2.seconds.ago,
           current_threads: 3
@@ -81,7 +81,7 @@ class WorkerTest < Minitest::Test
         assert_equal true, RocketJob::Worker.where(id: @worker.id).exist?
       end
 
-      should 'when a zombie' do
+      it 'when a zombie' do
         @worker.build_heartbeat(
           updated_at:      10.seconds.ago,
           current_threads: 3

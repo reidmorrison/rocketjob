@@ -3,22 +3,22 @@ require_relative 'jobs/test_job'
 
 # Unit Test for RocketJob::Job
 class WorkerTest < Minitest::Test
-  context RocketJob::Job do
+  describe RocketJob::Job do
     [true, false].each do |inline_mode|
-      setup do
+      before do
         RocketJob::Config.inline_mode = inline_mode
 
         @worker = RocketJob::Worker.new
         @worker.started
       end
 
-      teardown do
+      after do
         @job.destroy if @job && !@job.new_record?
         RocketJob::Config.inline_mode = false
       end
 
-      context '.perform_later' do
-        should "process single request (inline_mode=#{inline_mode})" do
+      describe '.perform_later' do
+        it "process single request (inline_mode=#{inline_mode})" do
           @job = Jobs::TestJob.perform_later(1) do |job|
             job.destroy_on_complete = false
           end
@@ -55,8 +55,8 @@ class WorkerTest < Minitest::Test
         end
       end
 
-      context '.later' do
-        should "process non default method (inline_mode=#{inline_mode})" do
+      describe '.later' do
+        it "process non default method (inline_mode=#{inline_mode})" do
           @job = Jobs::TestJob.later(:sum, 23, 45)
           @job.start
           assert_equal false, @job.work(@worker), @job.exception.inspect
@@ -65,16 +65,16 @@ class WorkerTest < Minitest::Test
         end
       end
 
-      context '.perform_now' do
-        should "process perform (inline_mode=#{inline_mode})" do
+      describe '.perform_now' do
+        it "process perform (inline_mode=#{inline_mode})" do
           @job = Jobs::TestJob.perform_now(5)
           assert_equal true, @job.completed?
           assert_equal 6, Jobs::TestJob.result
         end
       end
 
-      context '.now' do
-        should "process non default method (inline_mode=#{inline_mode})" do
+      describe '.now' do
+        it "process non default method (inline_mode=#{inline_mode})" do
           @job = Jobs::TestJob.now(:sum, 23, 45)
           assert_equal true, @job.completed?, @job.inspect
           assert_equal 68, Jobs::TestJob.result

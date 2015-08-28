@@ -3,8 +3,8 @@ require_relative 'jobs/test_job'
 
 # Unit Test for RocketJob::Job
 class DirmonJobTest < Minitest::Test
-  context RocketJob::Jobs::DirmonJob do
-    setup do
+  describe RocketJob::Jobs::DirmonJob do
+    before do
       @dirmon_job        = RocketJob::Jobs::DirmonJob.new
       @directory         = '/tmp/directory'
       @archive_directory = '/tmp/archive_directory'
@@ -19,14 +19,14 @@ class DirmonJobTest < Minitest::Test
       FileUtils.makedirs(@archive_directory)
     end
 
-    teardown do
+    after do
       @dirmon_job.destroy if @dirmon_job && !@dirmon_job.new_record?
       FileUtils.remove_dir(@archive_directory, true) if Dir.exist?(@archive_directory)
       FileUtils.remove_dir(@directory, true) if Dir.exist?(@directory)
     end
 
-    context '#check_file' do
-      should 'check growing file' do
+    describe '#check_file' do
+      it 'check growing file' do
         previous_size = 5
         new_size      = 10
         file          = Tempfile.new('check_file')
@@ -39,7 +39,7 @@ class DirmonJobTest < Minitest::Test
         assert_equal new_size, result
       end
 
-      should 'check completed file' do
+      it 'check completed file' do
         previous_size = 10
         new_size      = 10
         file          = Tempfile.new('check_file')
@@ -54,7 +54,7 @@ class DirmonJobTest < Minitest::Test
         assert started
       end
 
-      should 'check deleted file' do
+      it 'check deleted file' do
         previous_size = 5
         file_name     = Pathname.new('blah')
         result        = @dirmon_job.send(:check_file, @entry, file_name, previous_size)
@@ -62,23 +62,23 @@ class DirmonJobTest < Minitest::Test
       end
     end
 
-    context '#check_directories' do
-      setup do
+    describe '#check_directories' do
+      before do
         RocketJob::DirmonEntry.destroy_all
         @entry.enable!
       end
 
-      teardown do
+      after do
         @entry.destroy if @entry
       end
 
-      should 'no files' do
+      it 'no files' do
         previous_file_names = {}
         result              = @dirmon_job.send(:check_directories, previous_file_names)
         assert_equal 0, result.count
       end
 
-      should 'collect new files without enqueuing them' do
+      it 'collect new files without enqueuing them' do
         create_file("#{@directory}/abc/file1", 5)
         create_file("#{@directory}/abc/file2", 10)
 
@@ -89,7 +89,7 @@ class DirmonJobTest < Minitest::Test
         assert_equal 10, result.values.second, result.inspect
       end
 
-      should 'allow files to grow' do
+      it 'allow files to grow' do
         create_file("#{@directory}/abc/file1", 5)
         create_file("#{@directory}/abc/file2", 10)
         previous_file_names = {}
@@ -102,7 +102,7 @@ class DirmonJobTest < Minitest::Test
         assert_equal 15, result.values.second, result.inspect
       end
 
-      should 'start all files' do
+      it 'start all files' do
         create_file("#{@directory}/abc/file1", 5)
         create_file("#{@directory}/abc/file2", 10)
         previous_file_names = @dirmon_job.send(:check_directories, {})
@@ -115,7 +115,7 @@ class DirmonJobTest < Minitest::Test
         assert_equal 0, result.count, result.inspect
       end
 
-      should 'skip files in archive directory' do
+      it 'skip files in archive directory' do
         @entry.archive_directory = nil
         @entry.pattern = "#{@directory}/abc/**/*"
 
@@ -132,8 +132,8 @@ class DirmonJobTest < Minitest::Test
       end
     end
 
-    context '#perform' do
-      should 'check directories and reschedule' do
+    describe '#perform' do
+      it 'check directories and reschedule' do
         dirmon_job          = nil
         previous_file_names = {
           "#{@directory}/abc/file1" => 5,
@@ -153,7 +153,7 @@ class DirmonJobTest < Minitest::Test
         end
         assert dirmon_job.completed?, dirmon_job.status.inspect
 
-        # It should have enqueued another instance to run in the future
+        # It it have enqueued another instance to run in the future
         assert_equal 1, RocketJob::Jobs::DirmonJob.count
         assert new_dirmon_job = RocketJob::Jobs::DirmonJob.last
         assert_equal false, dirmon_job.id == new_dirmon_job.id
@@ -165,7 +165,7 @@ class DirmonJobTest < Minitest::Test
         new_dirmon_job.destroy
       end
 
-        should 'check directories and reschedule even on exception' do
+        it 'check directories and reschedule even on exception' do
           dirmon_job = nil
           RocketJob::Jobs::DirmonJob.destroy_all
           RocketJob::Jobs::DirmonJob.stub_any_instance(:check_directories, -> previous { raise RuntimeError.new("Oh no") }) do
@@ -177,7 +177,7 @@ class DirmonJobTest < Minitest::Test
           end
           assert dirmon_job.failed?, dirmon_job.status.inspect
 
-          # It should have enqueued another instance to run in the future
+          # It it have enqueued another instance to run in the future
           assert_equal 2, RocketJob::Jobs::DirmonJob.count
           assert new_dirmon_job = RocketJob::Jobs::DirmonJob.last
           assert new_dirmon_job.run_at
@@ -188,9 +188,9 @@ class DirmonJobTest < Minitest::Test
           new_dirmon_job.destroy
         end
     end
-  end
 
-  def create_file(file_name, size)
-    File.open(file_name, 'w') { |file| file.write('*' * size) }
+    def create_file(file_name, size)
+      File.open(file_name, 'w') { |file| file.write('*' * size) }
+    end
   end
 end
