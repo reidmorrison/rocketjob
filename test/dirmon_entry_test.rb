@@ -29,6 +29,8 @@ class DirmonEntryTest < Minitest::Test
         it 'return job class' do
           entry = RocketJob::DirmonEntry.new(job_class_name: 'RocketJob::Job')
           assert_equal(RocketJob::Job, entry.job_class)
+          assert_equal 0, entry.arguments.size
+          assert_equal 0, entry.properties.size
         end
       end
     end

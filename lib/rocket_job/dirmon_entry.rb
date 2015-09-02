@@ -51,13 +51,13 @@ module RocketJob
     #   Regular Expression
     #
     # Note: Date is not supported, convert it to a UTC time
-    key :arguments,          Array, default: []
+    key :arguments,          Array
 
     # Any job properties to set
     #
     # Example, override the default job priority:
     #   { priority: 45 }
-    key :properties,         Hash, default: {}
+    key :properties,         Hash
 
     # Archive directory to move files to when processed to prevent processing the
     # file again.

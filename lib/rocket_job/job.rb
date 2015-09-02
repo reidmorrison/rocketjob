@@ -65,7 +65,7 @@ module RocketJob
     #   Regular Expression
     #
     # Note: Date is not supported, convert it to a UTC time
-    key :arguments,               Array,    default: []
+    key :arguments,               Array
 
     # Whether to store the results from this job
     key :collect_output,          Boolean, default: false

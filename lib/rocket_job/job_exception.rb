@@ -14,7 +14,7 @@ module RocketJob
     key :message,                 String
 
     # Exception Backtrace [Array<String>]
-    key :backtrace,               Array, default: []
+    key :backtrace,               Array
 
     # Name of the worker on which this exception occurred
     key :worker_name,             String
