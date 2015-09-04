@@ -26,6 +26,12 @@ module RocketJob
         # Create a job and process it immediately in-line by this thread
         def now(method, *args, &block)
           job    = build(method, *args, &block)
+          # Call validations
+          if job.respond_to?(:validate!)
+            job.validate!
+          elsif job.invalid?
+            raise(MongoMapper::DocumentNotValid, "Validation failed: #{job.errors.messages.join(', ')}")
+          end
           worker = RocketJob::Worker.new(name: 'inline')
           worker.started
           job.start
