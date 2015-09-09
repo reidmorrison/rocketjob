@@ -223,6 +223,12 @@ module RocketJob
       instance_method(method).arity
     end
 
+    # Override parent defaults
+    def self.rocket_job(&block)
+      @rocket_job_defaults = block
+      self
+    end
+
     # Returns [true|false] whether to collect the results from running this batch
     def collect_output?
       collect_output == true
@@ -313,14 +319,6 @@ module RocketJob
       end
     end
 
-    # After this model is read, convert any hashes in the arguments list to HashWithIndifferentAccess
-    def load_from_database(*args)
-      super
-      if arguments.present?
-        self.arguments = arguments.collect { |i| i.is_a?(BSON::OrderedHash) ? i.with_indifferent_access : i }
-      end
-    end
-
     # Set exception information for this job and fail it
     def fail(worker_name='user', exc_or_message='Job failed through user action')
       if exc_or_message.is_a?(Exception)
@@ -360,7 +358,6 @@ module RocketJob
       aasm_fire_event(:requeue, persist: false)
     end
 
-    ############################################################################
     protected
 
     # Before events that can be overridden by child classes
@@ -382,7 +379,7 @@ module RocketJob
 
     def before_retry
       self.completed_at = nil
-      self.exception = nil
+      self.exception    = nil
     end
 
     def before_pause
@@ -402,6 +399,27 @@ module RocketJob
     def before_requeue
       self.started_at  = nil
       self.worker_name = nil
+    end
+
+    private
+
+    # After this model is loaded, convert any hashes in the arguments list to HashWithIndifferentAccess
+    def load_from_database(*args)
+      super
+      if arguments.present?
+        self.arguments = arguments.collect { |i| i.is_a?(BSON::OrderedHash) ? i.with_indifferent_access : i }
+      end
+    end
+
+    def self.apply_defaults(job)
+      @rocket_job_defaults.call(job) if @rocket_job_defaults
+    end
+
+    # Apply RocketJob defaults after initializing default values
+    # but before setting attributes
+    def initialize_default_values(except = {})
+      super
+      self.class.apply_defaults(self)
     end
 
   end

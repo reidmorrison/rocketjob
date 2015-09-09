@@ -6,9 +6,6 @@ module RocketJob
     module Worker
       def self.included(base)
         base.extend ClassMethods
-        base.class_eval do
-          @rocket_job_defaults = nil
-        end
       end
 
       module ClassMethods
@@ -25,7 +22,7 @@ module RocketJob
 
         # Create a job and process it immediately in-line by this thread
         def now(method, *args, &block)
-          job    = build(method, *args, &block)
+          job = build(method, *args, &block)
           # Call validations
           if job.respond_to?(:validate!)
             job.validate!
@@ -49,7 +46,6 @@ module RocketJob
         #    discarded, call #cleanup! to clear out any partially uploaded data
         def build(method, *args, &block)
           job = new(arguments: args, perform_method: method.to_sym)
-          @rocket_job_defaults.call(job) if @rocket_job_defaults
           block.call(job) if block
           job
         end
@@ -67,12 +63,6 @@ module RocketJob
         # Method to be performed now
         def perform_now(*args, &block)
           now(:perform, *args, &block)
-        end
-
-        # Define job defaults
-        def rocket_job(&block)
-          @rocket_job_defaults = block
-          self
         end
 
         # Returns the next job to work on in priority based order

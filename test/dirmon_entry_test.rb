@@ -245,9 +245,9 @@ class DirmonEntryTest < Minitest::Test
 
       describe '#later' do
         it 'enqueue job' do
-          @entry.arguments = [{}]
+          @entry.arguments      = [{}]
           @entry.perform_method = :event
-          job = @entry.later(@pathname)
+          job                   = @entry.later(@pathname)
           assert_equal File.join(@archive_directory, "#{job.id}_#{File.basename(@file_name)}"), job.arguments.first[:full_file_name]
           assert job.queued?
         end

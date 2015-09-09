@@ -117,7 +117,7 @@ class DirmonJobTest < Minitest::Test
 
       it 'skip files in archive directory' do
         @entry.archive_directory = nil
-        @entry.pattern = "#{@directory}/abc/**/*"
+        @entry.pattern           = "#{@directory}/abc/**/*"
 
         create_file("#{@directory}/abc/file1", 5)
         create_file("#{@directory}/abc/file2", 10)
@@ -139,7 +139,7 @@ class DirmonJobTest < Minitest::Test
           "#{@directory}/abc/file1" => 5,
           "#{@directory}/abc/file2" => 10,
         }
-        new_file_names = {
+        new_file_names      = {
           "#{@directory}/abc/file1" => 10,
           "#{@directory}/abc/file2" => 10,
         }
@@ -165,28 +165,28 @@ class DirmonJobTest < Minitest::Test
         new_dirmon_job.destroy
       end
 
-        it 'check directories and reschedule even on exception' do
-          dirmon_job = nil
-          RocketJob::Jobs::DirmonJob.destroy_all
-          RocketJob::Jobs::DirmonJob.stub_any_instance(:check_directories, -> previous { raise RuntimeError.new("Oh no") }) do
-            # perform_now does not save the job, just runs it
-            dirmon_job = RocketJob::Jobs::DirmonJob.perform_now do |job|
-              job.priority      = 11
-              job.check_seconds = 30
-            end
+      it 'check directories and reschedule even on exception' do
+        dirmon_job = nil
+        RocketJob::Jobs::DirmonJob.destroy_all
+        RocketJob::Jobs::DirmonJob.stub_any_instance(:check_directories, -> previous { raise RuntimeError.new("Oh no") }) do
+          # perform_now does not save the job, just runs it
+          dirmon_job = RocketJob::Jobs::DirmonJob.perform_now do |job|
+            job.priority      = 11
+            job.check_seconds = 30
           end
-          assert dirmon_job.failed?, dirmon_job.status.inspect
-
-          # It it have enqueued another instance to run in the future
-          assert_equal 2, RocketJob::Jobs::DirmonJob.count
-          assert new_dirmon_job = RocketJob::Jobs::DirmonJob.last
-          assert new_dirmon_job.run_at
-          assert_equal 11, new_dirmon_job.priority
-          assert_equal 30, new_dirmon_job.check_seconds
-          assert new_dirmon_job.queued?
-
-          new_dirmon_job.destroy
         end
+        assert dirmon_job.failed?, dirmon_job.status.inspect
+
+        # It it have enqueued another instance to run in the future
+        assert_equal 2, RocketJob::Jobs::DirmonJob.count
+        assert new_dirmon_job = RocketJob::Jobs::DirmonJob.last
+        assert new_dirmon_job.run_at
+        assert_equal 11, new_dirmon_job.priority
+        assert_equal 30, new_dirmon_job.check_seconds
+        assert new_dirmon_job.queued?
+
+        new_dirmon_job.destroy
+      end
     end
 
     def create_file(file_name, size)

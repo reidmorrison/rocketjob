@@ -29,7 +29,7 @@ class WorkerTest < Minitest::Test
           assert_equal false, @job.destroy_on_complete
           assert_nil @job.expires_at
           assert_equal 0, @job.percent_complete
-          assert_equal 50, @job.priority
+          assert_equal 51, @job.priority
           assert_equal 0, @job.failure_count
           assert_nil @job.run_at
           assert_nil @job.started_at
@@ -48,7 +48,7 @@ class WorkerTest < Minitest::Test
           assert_equal false, @job.destroy_on_complete
           assert_nil @job.expires_at
           assert_equal 100, @job.percent_complete
-          assert_equal 50, @job.priority
+          assert_equal 51, @job.priority
           assert_equal 0, @job.failure_count
           assert_nil @job.run_at
           assert @job.started_at

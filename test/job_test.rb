@@ -17,7 +17,8 @@ class JobTest < Minitest::Test
       @job2        = Jobs::TestJob.new(
         description:         "#{@description} 2",
         arguments:           @arguments,
-        destroy_on_complete: false
+        destroy_on_complete: false,
+        priority:            52
       )
     end
 
@@ -64,7 +65,7 @@ class JobTest < Minitest::Test
         assert_nil @job.expires_at
         assert_equal @arguments, @job.arguments
         assert_equal 0, @job.percent_complete
-        assert_equal 50, @job.priority
+        assert_equal 51, @job.priority
         assert_equal 0, @job.failure_count
         assert_nil @job.run_at
         assert_nil @job.started_at
@@ -268,6 +269,7 @@ class JobTest < Minitest::Test
 
     describe '.requeue_dead_worker' do
       it 'requeue jobs from dead workers' do
+        assert_equal 52, @job2.priority
         worker_name      = 'server:12345'
         @job.worker_name = worker_name
         @job.start!

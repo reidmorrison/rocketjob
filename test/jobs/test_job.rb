@@ -1,6 +1,10 @@
 require 'rocketjob'
 module Jobs
   class TestJob < RocketJob::Job
+    rocket_job do |job|
+      job.priority = 51
+    end
+
     @@result = nil
 
     # For holding test results
