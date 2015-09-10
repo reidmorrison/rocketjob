@@ -1,8 +1,10 @@
 require 'optparse'
+require 'yaml'
 module RocketJob
   # Command Line Interface parser for RocketJob
   class CLI
-    attr_reader :name, :threads, :environment, :pidfile, :directory, :quiet
+    include SemanticLogger::Loggable
+    attr_reader :name, :threads, :environment, :pidfile, :directory, :quiet, :log_level
 
     def initialize(argv)
       @name        = nil
@@ -11,13 +13,24 @@ module RocketJob
       @environment = ENV['RAILS_ENV'] || ENV['RACK_ENV'] || 'development'
       @pidfile     = nil
       @directory   = '.'
+      @log_level   = nil
       parse(argv)
     end
 
     # Run a RocketJob::Worker from the command line
     def run
       SemanticLogger.add_appender(STDOUT, &SemanticLogger::Appender::Base.colorized_formatter) unless quiet
-      boot_rails if defined?(:Rails)
+      SemanticLogger.default_level = log_level.to_sym if log_level
+      if defined?(Rails)
+        logger.info 'Booting Rails'
+        boot_rails
+        self.class.load_config(Rails.env)
+      else
+        logger.info 'Rails not detected. Running standalone.'
+        self.class.load_config(environment)
+        self.class.eager_load_jobs
+      end
+
       write_pidfile
 
       opts               = {}
@@ -49,6 +62,30 @@ module RocketJob
       end
     end
 
+    # Configure MongoMapper if it has not already been configured
+    def self.load_config(environment='development', file_name=nil)
+      return false if MongoMapper.config
+
+      config_file = file_name ? Pathname.new(file_name) : Pathname.pwd.join('config/mongo.yml')
+      if config_file.file?
+        config = YAML.load(ERB.new(config_file.read).result)
+        log    = SemanticLogger::DebugAsTraceLogger.new('Mongo')
+        MongoMapper.setup(config, environment, logger: log)
+        true
+      else
+        raise(ArgumentError, "Mongo Configuration file: #{config_file.to_s} not found")
+      end
+    end
+
+    # Eager load files in jobs folder
+    def self.eager_load_jobs(path = 'jobs')
+      Pathname.glob("#{path}/**/*.rb").each do |path|
+        next if path.directory?
+        logger.debug "Loading #{path.to_s}"
+        load path.expand_path.to_s
+      end
+    end
+
     # Parse command line options placing results in the corresponding instance variables
     def parse(argv)
       parser        = OptionParser.new do |o|
@@ -57,6 +94,7 @@ module RocketJob
         o.on('-q', '--quiet', 'Do not write to stdout, only to logfile. Necessary when running as a daemon') { @quiet = true }
         o.on('-d', '--dir DIR', 'Directory containing Rails app, if not current directory') { |arg| @directory = arg }
         o.on('-e', '--environment ENVIRONMENT', 'The environment to run the app on (Default: RAILS_ENV || RACK_ENV || development)') { |arg| @environment = arg }
+        o.on('-l', '--log_level trace|debug|info|warn|error|fatal', 'The log level to use') { |arg| @log_level = arg }
         o.on('--pidfile PATH', 'Use PATH as a pidfile') { |arg| @pidfile = arg }
         o.on('-v', '--version', 'Print the version information') do
           puts "Rocket Job v#{RocketJob::VERSION}"
