@@ -4,13 +4,13 @@ module RocketJob
   # Command Line Interface parser for RocketJob
   class CLI
     include SemanticLogger::Loggable
-    attr_reader :name, :threads, :environment, :pidfile, :directory, :quiet, :log_level
+    attr_accessor :name, :threads, :environment, :pidfile, :directory, :quiet, :log_level
 
     def initialize(argv)
       @name        = nil
       @threads     = nil
       @quiet       = false
-      @environment = ENV['RAILS_ENV'] || ENV['RACK_ENV'] || 'development'
+      @environment = nil
       @pidfile     = nil
       @directory   = '.'
       @log_level   = nil
@@ -19,18 +19,9 @@ module RocketJob
 
     # Run a RocketJob::Worker from the command line
     def run
-      SemanticLogger.add_appender(STDOUT, &SemanticLogger::Appender::Base.colorized_formatter) unless quiet
-      SemanticLogger.default_level = log_level.to_sym if log_level
-      if defined?(Rails)
-        logger.info 'Booting Rails'
-        boot_rails
-        self.class.load_config(Rails.env)
-      else
-        logger.info 'Rails not detected. Running standalone.'
-        self.class.load_config(environment)
-        self.class.eager_load_jobs
-      end
-
+      setup_environment
+      setup_logger
+      boot_standalone unless boot_rails
       write_pidfile
 
       opts               = {}
@@ -40,14 +31,28 @@ module RocketJob
     end
 
     # Initialize the Rails environment
+    # Returns [true|false] whether Rails is present
     def boot_rails
-      require File.expand_path("#{directory}/config/environment.rb")
+      boot_file = Pathname.new(directory).join('config/environment.rb').expand_path
+      return false unless boot_file.file?
+
+      logger.info 'Booting Rails'
+      require boot_file.to_s
       if Rails.configuration.eager_load
         RocketJob::Worker.logger.benchmark_info('Eager loaded Rails and all Engines') do
           Rails.application.eager_load!
           Rails::Engine.subclasses.each(&:eager_load!)
         end
       end
+
+      self.class.load_config(Rails.env)
+      true
+    end
+
+    def boot_standalone
+      logger.info 'Rails not detected. Running standalone.'
+      self.class.load_config(environment)
+      self.class.eager_load_jobs
     end
 
     # Create a PID file if requested
@@ -60,6 +65,20 @@ module RocketJob
       at_exit do
         File.delete(pidfile) if pid == $PID
       end
+    end
+
+    def setup_environment
+      # Override Env vars when environment is supplied
+      if environment
+        ENV['RACK_ENV'] = ENV['RAILS_ENV'] = environment
+      else
+        self.environment = ENV['RAILS_ENV'] || ENV['RACK_ENV'] || 'development'
+      end
+    end
+
+    def setup_logger
+      SemanticLogger.add_appender(STDOUT, &SemanticLogger::Appender::Base.colorized_formatter) unless quiet
+      SemanticLogger.default_level = log_level.to_sym if log_level
     end
 
     # Configure MongoMapper if it has not already been configured
