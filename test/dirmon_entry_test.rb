@@ -180,20 +180,23 @@ class DirmonEntryTest < Minitest::Test
     describe 'with valid entry' do
       before do
         @archive_directory = '/tmp/archive_directory'
-        @entry             = RocketJob::DirmonEntry.new(
+        @archive_path      = Pathname.new(@archive_directory)
+        @archive_path.mkpath
+        @archive_path = @archive_path.realdirpath
+        @entry        = RocketJob::DirmonEntry.new(
           pattern:           'abc/*',
           job_class_name:    'Jobs::TestJob',
           arguments:         [{input: 'yes'}],
           properties:        {priority: 23, perform_method: :event},
           archive_directory: @archive_directory
         )
-        @job               = Jobs::TestJob.new
-        @file              = Tempfile.new('archive')
-        @file_name         = @file.path
-        @pathname          = Pathname.new(@file_name)
+        @job          = Jobs::TestJob.new
+        @file         = Tempfile.new('archive')
+        @file_name    = @file.path
+        @pathname     = Pathname.new(@file_name)
         File.open(@file_name, 'w') { |file| file.write('Hello World') }
         assert File.exists?(@file_name)
-        @archive_file_name = File.join(@archive_directory, "#{@job.id}_#{File.basename(@file_name)}")
+        @archive_real_name = @archive_path.join("#{@job.id}_#{File.basename(@file_name)}").to_s
       end
 
       after do
@@ -202,26 +205,26 @@ class DirmonEntryTest < Minitest::Test
 
       describe '#archive_pathname' do
         it 'with archive directory' do
-          assert_equal @archive_directory.to_s, @entry.archive_pathname.to_s
+          assert_equal File.dirname(@archive_real_name), @entry.archive_pathname.to_s
         end
 
         it 'without archive directory' do
           @entry.archive_directory = nil
-          assert_equal '_archive', @entry.archive_pathname.to_s
+          assert @entry.archive_pathname.to_s.end_with?('_archive')
         end
       end
 
       describe '#archive_file' do
         it 'archive file' do
-          assert_equal @archive_file_name, @entry.send(:archive_file, @job, Pathname.new(@file_name))
-          assert File.exists?(@archive_file_name), @archive_file_name
+          assert_equal @archive_real_name, @entry.send(:archive_file, @job, Pathname.new(@file_name))
+          assert File.exists?(@archive_real_name)
         end
       end
 
       describe '#upload_default' do
         it 'upload' do
           @entry.send(:upload_default, @job, @pathname)
-          assert_equal File.absolute_path(@archive_file_name), @job.arguments.first[:full_file_name], @job.arguments
+          assert_equal @archive_real_name, @job.arguments.first[:full_file_name], @job.arguments
         end
       end
 
@@ -248,7 +251,7 @@ class DirmonEntryTest < Minitest::Test
           @entry.arguments      = [{}]
           @entry.perform_method = :event
           job                   = @entry.later(@pathname)
-          assert_equal File.join(@archive_directory, "#{job.id}_#{File.basename(@file_name)}"), job.arguments.first[:full_file_name]
+          assert_equal Pathname.new(@archive_directory).join("#{job.id}_#{File.basename(@file_name)}").realdirpath.to_s, job.arguments.first[:full_file_name]
           assert job.queued?
         end
       end

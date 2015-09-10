@@ -213,8 +213,17 @@ module RocketJob
     @@default_archive_directory = '_archive'.freeze
 
     # Returns [Pathname] the archive_directory if set, otherwise the default_archive_directory
+    # Creates the archive directory if one is set
     def archive_pathname
-      Pathname.new(archive_directory || self.class.default_archive_directory)
+      @archive_pathname ||= begin
+        if archive_directory
+          path = Pathname.new(archive_directory)
+          path.mkpath unless path.exist?
+          path.realpath
+        else
+          Pathname.new(self.class.default_archive_directory).realdirpath
+        end
+      end
     end
 
     # Passes each filename [Pathname] found that matches the pattern into the supplied block
@@ -226,7 +235,7 @@ module RocketJob
           file_name = pathname.to_s
 
           # Skip archive directories
-          next if file_name.start_with?(archive_pathname.realpath.to_s)
+          next if file_name.start_with?(archive_pathname.to_s)
 
           # Security check?
           if (@@whitelist_paths.size > 0) && @@whitelist_paths.none? { |whitepath| file_name.start_with?(whitepath) }
