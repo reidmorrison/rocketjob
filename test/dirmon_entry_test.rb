@@ -63,7 +63,7 @@ class DirmonEntryTest < Minitest::Test
 
     describe '#fail_with_exception!' do
       before do
-        @dirmon_entry = RocketJob::DirmonEntry.new(job_class_name: 'Jobs::TestJob', pattern: '/abc/**', arguments: [1])
+        @dirmon_entry = RocketJob::DirmonEntry.new(job_class_name: 'Jobs::TestJob', pattern: 'test/files/**', arguments: [1])
         @dirmon_entry.enable!
       end
       after do
@@ -111,7 +111,7 @@ class DirmonEntryTest < Minitest::Test
 
       describe 'job_class_name' do
         it 'ensure presence' do
-          assert entry = RocketJob::DirmonEntry.new(pattern: '/abc/**')
+          assert entry = RocketJob::DirmonEntry.new(pattern: 'test/files/**')
           assert_equal false, entry.valid?
           assert_equal ["can't be blank", 'job_class_name must be defined and must be derived from RocketJob::Job'], entry.errors[:job_class_name], entry.errors.inspect
         end
@@ -121,7 +121,7 @@ class DirmonEntryTest < Minitest::Test
         it 'allow no arguments' do
           assert entry = RocketJob::DirmonEntry.new(
               job_class_name: 'Jobs::TestJob',
-              pattern:        '/abc/**',
+              pattern:        'test/files/**',
               perform_method: :result
             )
           assert_equal true, entry.valid?, entry.errors.inspect
@@ -131,7 +131,7 @@ class DirmonEntryTest < Minitest::Test
         it 'ensure correct number of arguments' do
           assert entry = RocketJob::DirmonEntry.new(
               job_class_name: 'Jobs::TestJob',
-              pattern:        '/abc/**'
+              pattern:        'test/files/**'
             )
           assert_equal false, entry.valid?
           assert_equal ['There must be 1 argument(s)'], entry.errors[:arguments], entry.errors.inspect
@@ -140,7 +140,7 @@ class DirmonEntryTest < Minitest::Test
         it 'return false if the job name is bad' do
           assert entry = RocketJob::DirmonEntry.new(
               job_class_name: 'Jobs::Tests::Names::Things',
-              pattern:        '/abc/**'
+              pattern:        'test/files/**'
             )
           assert_equal false, entry.valid?
           assert_equal [], entry.errors[:arguments], entry.errors.inspect
@@ -150,7 +150,7 @@ class DirmonEntryTest < Minitest::Test
       it 'arguments with perform_method' do
         assert entry = RocketJob::DirmonEntry.new(
             job_class_name: 'Jobs::TestJob',
-            pattern:        '/abc/**',
+            pattern:        'test/files/**',
             perform_method: :sum
           )
         assert_equal false, entry.valid?
@@ -160,7 +160,7 @@ class DirmonEntryTest < Minitest::Test
       it 'valid' do
         assert entry = RocketJob::DirmonEntry.new(
             job_class_name: 'Jobs::TestJob',
-            pattern:        '/abc/**',
+            pattern:        'test/files/**',
             arguments:      [1]
           )
         assert entry.valid?, entry.errors.inspect
@@ -169,7 +169,7 @@ class DirmonEntryTest < Minitest::Test
       it 'valid with perform_method' do
         assert entry = RocketJob::DirmonEntry.new(
             job_class_name: 'Jobs::TestJob',
-            pattern:        '/abc/**',
+            pattern:        'test/files/**',
             perform_method: :sum,
             arguments:      [1, 2]
           )
@@ -184,7 +184,7 @@ class DirmonEntryTest < Minitest::Test
         @archive_path.mkpath
         @archive_path = @archive_path.realdirpath
         @entry        = RocketJob::DirmonEntry.new(
-          pattern:           'abc/*',
+          pattern:           'test/files/**/*',
           job_class_name:    'Jobs::TestJob',
           arguments:         [{input: 'yes'}],
           properties:        {priority: 23, perform_method: :event},
@@ -205,12 +205,12 @@ class DirmonEntryTest < Minitest::Test
 
       describe '#archive_pathname' do
         it 'with archive directory' do
-          assert_equal File.dirname(@archive_real_name), @entry.archive_pathname.to_s
+          assert_equal File.dirname(@archive_real_name), @entry.archive_pathname(@pathname).to_s
         end
 
         it 'without archive directory' do
           @entry.archive_directory = nil
-          assert @entry.archive_pathname.to_s.end_with?('_archive')
+          assert @entry.archive_pathname(@pathname).to_s.end_with?('_archive')
         end
       end
 
@@ -253,6 +253,63 @@ class DirmonEntryTest < Minitest::Test
           job                   = @entry.later(@pathname)
           assert_equal Pathname.new(@archive_directory).join("#{job.id}_#{File.basename(@file_name)}").realdirpath.to_s, job.arguments.first[:full_file_name]
           assert job.queued?
+        end
+      end
+
+      describe '#each' do
+        it 'without archive path' do
+          @entry.archive_directory = nil
+          files                    = []
+          @entry.each do |file_name|
+            files << file_name
+          end
+          assert_equal nil, @entry.archive_directory
+          assert_equal 1, files.count
+          assert_equal Pathname.new('test/files/text.txt').realpath, files.first
+        end
+
+        it 'with archive path' do
+          files = []
+          @entry.each do |file_name|
+            files << file_name
+          end
+          assert_equal 1, files.count
+          assert_equal Pathname.new('test/files/text.txt').realpath, files.first
+        end
+
+        it 'with case-insensitive pattern' do
+          @entry.pattern = 'test/files/**/*.TxT'
+          files          = []
+          @entry.each do |file_name|
+            files << file_name
+          end
+          assert_equal 1, files.count
+          assert_equal Pathname.new('test/files/text.txt').realpath, files.first
+        end
+
+        it 'reads paths inside of the whitelist' do
+          @entry.archive_directory = nil
+          files                    = []
+          @entry.stub(:whitelist_paths, [Pathname.new('test/files').realpath.to_s]) do
+            @entry.each do |file_name|
+              files << file_name
+            end
+          end
+          assert_equal nil, @entry.archive_directory
+          assert_equal 1, files.count
+          assert_equal Pathname.new('test/files/text.txt').realpath, files.first
+        end
+
+        it 'skips paths outside of the whitelist' do
+          @entry.archive_directory = nil
+          files                    = []
+          @entry.stub(:whitelist_paths, [Pathname.new('test/config').realpath.to_s]) do
+            @entry.each do |file_name|
+              files << file_name
+            end
+          end
+          assert_equal nil, @entry.archive_directory
+          assert_equal 0, files.count
         end
       end
     end

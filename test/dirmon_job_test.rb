@@ -118,11 +118,12 @@ class DirmonJobTest < Minitest::Test
       it 'skip files in archive directory' do
         @entry.archive_directory = nil
         @entry.pattern           = "#{@directory}/abc/**/*"
+        file_pathname            = Pathname.new("#{@directory}/abc/file1")
 
-        create_file("#{@directory}/abc/file1", 5)
+        create_file(file_pathname.to_s, 5)
         create_file("#{@directory}/abc/file2", 10)
-        FileUtils.makedirs("#{@directory}/abc/#{@entry.archive_pathname}")
-        create_file("#{@directory}/abc/#{@entry.archive_pathname}/file3", 10)
+        FileUtils.makedirs(@entry.archive_pathname(file_pathname))
+        create_file("#{@entry.archive_pathname(file_pathname)}/file3", 10)
 
         result = @dirmon_job.send(:check_directories, {})
 

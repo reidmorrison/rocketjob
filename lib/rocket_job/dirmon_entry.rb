@@ -214,15 +214,13 @@ module RocketJob
 
     # Returns [Pathname] the archive_directory if set, otherwise the default_archive_directory
     # Creates the archive directory if one is set
-    def archive_pathname
-      @archive_pathname ||= begin
-        if archive_directory
-          path = Pathname.new(archive_directory)
-          path.mkpath unless path.exist?
-          path.realpath
-        else
-          Pathname.new(self.class.default_archive_directory).realdirpath
-        end
+    def archive_pathname(file_pathname)
+      if archive_directory
+        path = Pathname.new(archive_directory)
+        path.mkpath unless path.exist?
+        path.realpath
+      else
+        file_pathname.dirname.join(self.class.default_archive_directory).realdirpath
       end
     end
 
@@ -236,17 +234,17 @@ module RocketJob
           file_name = pathname.to_s
 
           # Skip archive directories
-          next if file_name.start_with?(archive_pathname.to_s)
+          next if file_name.include?(self.class.default_archive_directory)
 
           # Security check?
-          if (@@whitelist_paths.size > 0) && @@whitelist_paths.none? { |whitepath| file_name.start_with?(whitepath) }
-            logger.warn "Ignoring file: #{file_name} since it is not in any of the whitelisted paths: #{whitelist_paths.join(', ')}"
+          if (whitelist_paths.size > 0) && whitelist_paths.none? { |whitepath| file_name.start_with?(whitepath) }
+            logger.error "Skipping file: #{file_name} since it is not in any of the whitelisted paths: #{whitelist_paths.join(', ')}"
             next
           end
 
           # File must be writable so it can be removed after processing
           unless pathname.writable?
-            logger.warn "Ignoring file: #{file_name} since it is not writable by the current user. Must be able to delete/move the file after queueing the job"
+            logger.error "Skipping file: #{file_name} since it is not writable by the current user. Must be able to delete/move the file after queueing the job"
             next
           end
           block.call(pathname)
@@ -293,6 +291,11 @@ module RocketJob
 
     protected
 
+    # Instance method to return whitelist paths
+    def whitelist_paths
+      @@whitelist_paths
+    end
+
     # Upload the file to the job
     def upload_file(job, pathname)
       if job.respond_to?(:file_store_upload)
@@ -326,7 +329,7 @@ module RocketJob
     # Note:
     # - Works across partitions when the file and the archive are on different partitions
     def archive_file(job, pathname)
-      target_path = archive_pathname
+      target_path = archive_pathname(pathname)
       target_path.mkpath
       target_file_name = target_path.join("#{job.id}_#{pathname.basename}")
       # In case the file is being moved across partitions
