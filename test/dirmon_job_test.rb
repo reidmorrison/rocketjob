@@ -73,8 +73,7 @@ class DirmonJobTest < Minitest::Test
       end
 
       it 'no files' do
-        previous_file_names = {}
-        result              = @dirmon_job.send(:check_directories, previous_file_names)
+        result = @dirmon_job.send(:check_directories)
         assert_equal 0, result.count
       end
 
@@ -82,37 +81,40 @@ class DirmonJobTest < Minitest::Test
         create_file("#{@directory}/abc/file1", 5)
         create_file("#{@directory}/abc/file2", 10)
 
-        previous_file_names = {}
-        result              = @dirmon_job.send(:check_directories, previous_file_names)
-        assert_equal 2, result.count, result.inspect
-        assert_equal 5, result.values.first, result.inspect
-        assert_equal 10, result.values.second, result.inspect
+        result = @dirmon_job.send(:check_directories)
+        assert_equal 2, result.count, result
+        assert_equal 5, result.values.first, result
+        assert_equal 10, result.values.second, result
       end
 
       it 'allow files to grow' do
         create_file("#{@directory}/abc/file1", 5)
         create_file("#{@directory}/abc/file2", 10)
-        previous_file_names = {}
-        @dirmon_job.send(:check_directories, previous_file_names)
+        @dirmon_job.send(:check_directories)
         create_file("#{@directory}/abc/file1", 10)
         create_file("#{@directory}/abc/file2", 15)
-        result = @dirmon_job.send(:check_directories, previous_file_names)
-        assert_equal 2, result.count, result.inspect
-        assert_equal 10, result.values.first, result.inspect
-        assert_equal 15, result.values.second, result.inspect
+        result = @dirmon_job.send(:check_directories)
+        assert_equal 2, result.count, result
+        assert_equal 10, result.values.first, result
+        assert_equal 15, result.values.second, result
       end
 
       it 'start all files' do
         create_file("#{@directory}/abc/file1", 5)
         create_file("#{@directory}/abc/file2", 10)
-        previous_file_names = @dirmon_job.send(:check_directories, {})
+        files = @dirmon_job.send(:check_directories)
+        assert_equal 2, files.count, files
+        assert_equal 2, @dirmon_job.previous_file_names.count, files
+
+        # files = @dirmon_job.send(:check_directories)
+        # assert_equal 0, files.count, files
 
         count  = 0
         result = RocketJob::DirmonEntry.stub_any_instance(:later, -> path { count += 1 }) do
-          @dirmon_job.send(:check_directories, previous_file_names)
+          @dirmon_job.send(:check_directories)
         end
+        assert_equal 0, result.count, result
         assert 2, count
-        assert_equal 0, result.count, result.inspect
       end
 
       it 'skip files in archive directory' do
@@ -125,11 +127,11 @@ class DirmonJobTest < Minitest::Test
         FileUtils.makedirs(@entry.archive_pathname(file_pathname))
         create_file("#{@entry.archive_pathname(file_pathname)}/file3", 10)
 
-        result = @dirmon_job.send(:check_directories, {})
+        result = @dirmon_job.send(:check_directories)
 
-        assert_equal 2, result.count, result.inspect
-        assert_equal 5, result.values.first, result.inspect
-        assert_equal 10, result.values.second, result.inspect
+        assert_equal 2, result.count, result
+        assert_equal 5, result.values.first, result
+        assert_equal 10, result.values.second, result
       end
     end
 
@@ -147,10 +149,12 @@ class DirmonJobTest < Minitest::Test
         RocketJob::Jobs::DirmonJob.destroy_all
         RocketJob::Jobs::DirmonJob.stub_any_instance(:check_directories, new_file_names) do
           # perform_now does not save the job, just runs it
-          dirmon_job = RocketJob::Jobs::DirmonJob.perform_now(previous_file_names) do |job|
-            job.priority      = 11
-            job.check_seconds = 30
-          end
+          dirmon_job = RocketJob::Jobs::DirmonJob.new(
+            previous_file_names: previous_file_names,
+            priority:            11,
+            check_seconds:       30
+          )
+          dirmon_job.work_now
         end
         assert dirmon_job.completed?, dirmon_job.status.inspect
 
@@ -171,14 +175,15 @@ class DirmonJobTest < Minitest::Test
         RocketJob::Jobs::DirmonJob.destroy_all
         RocketJob::Jobs::DirmonJob.stub_any_instance(:check_directories, -> previous { raise RuntimeError.new("Oh no") }) do
           # perform_now does not save the job, just runs it
-          dirmon_job = RocketJob::Jobs::DirmonJob.perform_now do |job|
-            job.priority      = 11
-            job.check_seconds = 30
-          end
+          dirmon_job = RocketJob::Jobs::DirmonJob.create!(
+            priority:      11,
+            check_seconds: 30
+          )
+          dirmon_job.work_now
         end
         assert dirmon_job.failed?, dirmon_job.status.inspect
 
-        # It it have enqueued another instance to run in the future
+        # Must have enqueued another instance to run in the future
         assert_equal 2, RocketJob::Jobs::DirmonJob.count
         assert new_dirmon_job = RocketJob::Jobs::DirmonJob.last
         assert new_dirmon_job.run_at

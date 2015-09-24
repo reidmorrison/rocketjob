@@ -154,7 +154,8 @@ class JobTest < Minitest::Test
         @job.destroy_on_complete = true
         @job.start!
         assert_equal false, @job.work(@worker)
-        assert_equal nil, RocketJob::Job.find_by_id(@job.id)
+        assert @job.completed?, @job.state
+        assert_equal 0, RocketJob::Job.where(id: @job.id).count
       end
 
       it 'silence logging when log_level is set' do
@@ -254,8 +255,9 @@ class JobTest < Minitest::Test
       it 'requeue jobs from dead workers' do
         worker_name      = 'server:12345'
         @job.worker_name = worker_name
+        assert @job.valid?, @job.errors.messages
         @job.start!
-        assert @job.running?
+        assert @job.running?, @job.state
 
         @job.requeue
         assert @job.queued?
@@ -273,7 +275,7 @@ class JobTest < Minitest::Test
         worker_name      = 'server:12345'
         @job.worker_name = worker_name
         @job.start!
-        assert @job.running?
+        assert @job.running?, @job.state
 
         worker_name2      = 'server:76467'
         @job2.worker_name = worker_name2

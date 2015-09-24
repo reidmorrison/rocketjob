@@ -1,18 +1,16 @@
 # encoding: UTF-8
-require 'sync_attr'
 module RocketJob
   # Centralized Configuration for Rocket Jobs
   class Config
     include MongoMapper::Document
-    include SyncAttr
 
     # Prevent data in MongoDB from re-defining the model behavior
     #self.static_keys = true
 
     # Returns the single instance of the Rocket Job Configuration for this site
     # in a thread-safe way
-    sync_cattr_reader(:instance) do
-      begin
+    def self.instance
+      @@instance ||= begin
         first || create
       rescue StandardError
         # In case another process has already created the first document
@@ -22,7 +20,7 @@ module RocketJob
 
     # By enabling inline_mode jobs will be called in-line
     # No worker processes will be created, nor threads created
-    sync_cattr_accessor(:inline_mode) { false }
+    cattr_accessor(:inline_mode) { false }
 
     # @formatter:off
     # The maximum number of worker threads to create on any one worker

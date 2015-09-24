@@ -41,27 +41,29 @@ module RocketJob
 
       # Number of seconds between directory scans. Default 5 mins
       key :check_seconds, Float, default: 300.0
+      key :previous_file_names, Hash # Hash[file_name, size]
 
       # Iterate over each Dirmon entry looking for new files
       # If a new file is found, it is not processed immediately, instead
       # it is passed to the next run of this job along with the file size.
       # If the file size has not changed, the Job is kicked off.
-      def perform(previous_file_names={})
-        new_file_names = check_directories(previous_file_names)
+      def perform
+        check_directories
       ensure
         # Run again in the future, even if this run fails with an exception
-        self.class.perform_later(new_file_names || previous_file_names) do |job|
-          job.priority      = priority
-          job.check_seconds = check_seconds
-          job.run_at        = Time.now + check_seconds
-        end
+        self.class.create!(
+          previous_file_names: previous_file_names,
+          priority:            priority,
+          check_seconds:       check_seconds,
+          run_at:              Time.now + check_seconds
+        )
       end
 
       protected
 
       # Checks the directories for new files, starting jobs if files have not changed
       # since the last run
-      def check_directories(previous_file_names)
+      def check_directories
         new_file_names = {}
         DirmonEntry.where(state: :enabled).each do |entry|
           entry.each do |pathname|
@@ -73,7 +75,7 @@ module RocketJob
             end
           end
         end
-        new_file_names
+        self.previous_file_names = new_file_names
       end
 
       # Checks if a file should result in starting a job

@@ -1,6 +1,5 @@
 # encoding: UTF-8
 require 'socket'
-require 'sync_attr'
 require 'aasm'
 module RocketJob
   # Worker
@@ -30,7 +29,6 @@ module RocketJob
   class Worker
     include MongoMapper::Document
     include AASM
-    include SyncAttr
     include SemanticLogger::Loggable
 
     # Prevent data in MongoDB from re-defining the model behavior
@@ -164,7 +162,7 @@ module RocketJob
       @thread_pool ||= []
     end
 
-    # Run this instance of the worker
+    # Management Thread
     def run
       Thread.current.name = 'rocketjob main'
       build_heartbeat unless heartbeat
@@ -182,7 +180,7 @@ module RocketJob
           'heartbeat.current_threads' => thread_pool_count
         )
 
-        # Reload the worker model every 10 heartbeats in case its config was changed
+        # Reload the worker model every few heartbeats in case its config was changed
         # TODO make 3 configurable
         if count >= 3
           reload
@@ -316,10 +314,12 @@ module RocketJob
       RocketJob::Job.requeue_dead_worker(name)
     end
 
-    # Mutex protected shutdown indicator
-    sync_cattr_accessor :shutdown do
-      false
+    # Shutdown indicator
+    def self.shutdown
+      @@shutdown
     end
+
+    @@shutdown = false
 
     # Register handlers for the various signals
     # Term:

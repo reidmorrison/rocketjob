@@ -120,6 +120,20 @@ module RocketJob
 
     validates_presence_of :state, :failure_count, :created_at, :perform_method
     validates :priority, inclusion: 1..100
+    validates :log_level, inclusion: SemanticLogger::LEVELS + [nil]
+
+    # User definable properties in Dirmon Entry
+    def self.rocket_job_properties
+      @rocket_job_properties ||= (self == RocketJob::Job ? [] : superclass.rocket_job_properties)
+    end
+
+    # Add to user definable properties in Dirmon Entry
+    def self.public_rocket_job_properties(*properties)
+      rocket_job_properties.concat(properties).uniq!
+    end
+
+    # User definable properties in Dirmon Entry
+    public_rocket_job_properties :description, :priority, :perform_method, :log_level, :arguments
 
     # State Machine events and transitions
     #

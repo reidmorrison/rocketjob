@@ -11,8 +11,8 @@ Gem::Specification.new do |s|
   s.authors     = ['Reid Morrison']
   s.email       = ['reidmo@gmail.com']
   s.homepage    = 'http://rocketjob.io'
-  s.summary     = 'Next generation background job processing system for Ruby, JRuby and Rubinius'
-  s.description = 'Next generation, high performance, priority based, distributed, background job processing solution'
+  s.summary     = 'Enterprise Batch Processing System for Ruby, JRuby, and Rubinius'
+  s.description = 'Enterprise Batch Processing System focused on performance, scalability, reliability, and visibility of every job in the system.'
   s.executables = ['rocketjob']
   s.files       = Dir['lib/**/*', 'bin/*', 'LICENSE.txt', 'Rakefile', 'README.md']
   s.test_files  = Dir['test/**/*']
@@ -24,5 +24,4 @@ Gem::Specification.new do |s|
   s.add_dependency 'mongo', '~> 1.11'
   s.add_dependency 'mongo_mapper', '~> 0.13'
   s.add_dependency 'symmetric-encryption', '~> 3.0'
-  s.add_dependency 'sync_attr', '~> 2.0'
 end

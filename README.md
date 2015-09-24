@@ -1,6 +1,10 @@
 # rocketjob [![Gem Version](https://badge.fury.io/rb/rocketjob.svg)](http://badge.fury.io/rb/rocketjob) [![Build Status](https://secure.travis-ci.org/rocketjob/rocketjob.png?branch=master)](http://travis-ci.org/rocketjob/rocketjob) ![](http://ruby-gem-downloads-badge.herokuapp.com/rocketjob?type=total)
 
-High volume, priority based, distributed, background job processing solution for Ruby.
+Enterprise Batch Processing System focused on performance, scalability, reliability, and visibility of every job in the system.
+
+Outgrown existing solutions? Or, start small and scale up later.
+
+Works with or without Rails.
 
 ## Status
 

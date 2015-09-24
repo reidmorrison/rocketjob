@@ -8,7 +8,13 @@ require 'rocketjob'
 require 'awesome_print'
 require 'symmetric-encryption'
 
-Minitest::Reporters.use! Minitest::Reporters::SpecReporter.new
+if ENV['DETAILED_TESTS'].present?
+  # See every test and how long it took
+  MiniTest::Reporters.use! MiniTest::Reporters::SpecReporter.new
+else
+  # Only show failed tests
+  MiniTest::Reporters.use! MiniTest::Reporters::ProgressReporter.new
+end
 
 SemanticLogger.add_appender('test.log', &SemanticLogger::Appender::Base.colorized_formatter)
 SemanticLogger.default_level = :debug
