@@ -3,6 +3,16 @@ require_relative 'jobs/test_job'
 
 # Unit Test for RocketJob::Job
 class DirmonEntryTest < Minitest::Test
+  class WithFullFileNameJob < RocketJob::Job
+    # Dirmon will store the filename in this property when starting the job
+    key :full_file_name, String
+
+    def perform
+      # Do something with the file name stored in :full_file_name
+    end
+  end
+
+
   describe RocketJob::DirmonEntry do
     describe '.config' do
       it 'support multiple databases' do
@@ -186,11 +196,17 @@ class DirmonEntryTest < Minitest::Test
         @entry        = RocketJob::DirmonEntry.new(
           pattern:           'test/files/**/*',
           job_class_name:    'Jobs::TestJob',
-          arguments:         [{input: 'yes'}],
+          arguments:         [{}],
           properties:        {priority: 23, perform_method: :event},
           archive_directory: @archive_directory
         )
-        @job          = Jobs::TestJob.new
+        @job          = Jobs::TestJob.new(
+          @entry.properties.merge(
+            arguments:      @entry.arguments,
+            properties:     @entry.properties,
+            perform_method: @entry.perform_method
+          )
+        )
         @file         = Tempfile.new('archive')
         @file_name    = @file.path
         @pathname     = Pathname.new(@file_name)
@@ -222,9 +238,29 @@ class DirmonEntryTest < Minitest::Test
       end
 
       describe '#upload_default' do
-        it 'upload' do
+        it 'sets full_file_name in Hash argument' do
           @entry.send(:upload_default, @job, @pathname)
           assert_equal @archive_real_name, @job.arguments.first[:full_file_name], @job.arguments
+        end
+
+        it 'sets full_file_name property' do
+          @entry = RocketJob::DirmonEntry.new(
+            pattern:           'test/files/**/*',
+            job_class_name:    'DirmonEntryTest::WithFullFileNameJob',
+            archive_directory: @archive_directory
+          )
+          assert @entry.valid?, @entry.errors.messages
+          job = @entry.job_class.new
+          @entry.send(:upload_default, job, @pathname)
+          archive_real_name = @archive_path.join("#{job.id}_#{File.basename(@file_name)}").to_s
+          assert_equal archive_real_name, job.full_file_name, job.arguments
+        end
+
+        it 'handles non hash argument and missing property' do
+          @job.arguments = [1]
+          assert_raises ArgumentError do
+            @entry.send(:upload_default, @job, @pathname)
+          end
         end
       end
 

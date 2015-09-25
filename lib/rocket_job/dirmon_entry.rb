@@ -280,13 +280,16 @@ module RocketJob
 
     # Queues the job for the supplied pathname
     def later(pathname)
-      job_class.perform_later(*arguments) do |job|
-        job.perform_method = perform_method
-        # Set properties
-        properties.each_pair { |k, v| job.send("#{k}=".to_sym, v) }
-
-        upload_file(job, pathname)
-      end
+      job = job_class.new(
+        properties.merge(
+          arguments:      arguments,
+          properties:     properties,
+          perform_method: perform_method
+        )
+      )
+      upload_file(job, pathname)
+      job.save!
+      job
     end
 
     protected
@@ -315,9 +318,14 @@ module RocketJob
 
     # Archives the file for a job where there was no #file_store_upload or #upload method
     def upload_default(job, pathname)
-      # The first argument must be a hash
-      job.arguments << {} if job.arguments.size == 0
-      job.arguments.first[:full_file_name] = archive_file(job, pathname)
+      full_file_name = archive_file(job, pathname)
+      if job.respond_to?(:full_file_name=)
+        job.full_file_name = full_file_name
+      elsif job.arguments.first.is_a?(Hash)
+        job.arguments.first[:full_file_name] = full_file_name
+      else
+        raise(ArgumentError, "#{job_class_name} must either have attribute 'full_file_name' or the first argument must be a Hash")
+      end
     end
 
     # Move the file to the archive directory
