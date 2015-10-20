@@ -1,4 +1,5 @@
-# rocketjob [![Gem Version](https://badge.fury.io/rb/rocketjob.svg)](http://badge.fury.io/rb/rocketjob) [![Build Status](https://secure.travis-ci.org/rocketjob/rocketjob.png?branch=master)](http://travis-ci.org/rocketjob/rocketjob) ![](http://ruby-gem-downloads-badge.herokuapp.com/rocketjob?type=total)
+# rocketjob
+![](https://img.shields.io/gem/v/rocketjob.svg) ![](https://img.shields.io/travis/rocketjob/rocketjob.svg) ![](https://img.shields.io/gem/dt/rocketjob.svg) ![](https://img.shields.io/badge/status-production%20ready-blue.svg)
 
 Enterprise Batch Processing System focused on performance, scalability, reliability, and visibility of every job in the system.
 
@@ -24,7 +25,7 @@ This project uses [Semantic Versioning](http://semver.org/).
 
 ## Author
 
-[Reid Morrison](https://github.com/reidmorrison) :: @reidmorrison
+[Reid Morrison](https://github.com/reidmorrison)
 
 ## Contributors
 

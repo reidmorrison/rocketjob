@@ -7,6 +7,7 @@ module RocketJob
     include AASM
     include SemanticLogger::Loggable
     include Concerns::Worker
+    include Concerns::Callbacks
 
     # Prevent data in MongoDB from re-defining the model behavior
     #self.static_keys = true
@@ -165,47 +166,60 @@ module RocketJob
       # Job was aborted and cannot be resumed ( End state )
       state :aborted
 
-      event :start, before: :before_start do
+      event :start  do
         transitions from: :queued, to: :running
       end
 
-      event :complete, before: :before_complete do
+      event :complete do
         after do
           destroy if destroy_on_complete
         end
         transitions from: :running, to: :completed
       end
 
-      event :fail, before: :before_fail do
+      event :fail do
         transitions from: :queued,  to: :failed
         transitions from: :running, to: :failed
         transitions from: :paused,  to: :failed
       end
 
-      event :retry, before: :before_retry do
+      event :retry do
         transitions from: :failed, to: :queued
       end
 
-      event :pause, before: :before_pause do
+      event :pause do
         transitions from: :running, to: :paused
       end
 
-      event :resume, before: :before_resume do
+      event :resume do
         transitions from: :paused, to: :running
       end
 
-      event :abort, before: :before_abort do
+      event :abort do
         transitions from: :running, to: :aborted
         transitions from: :queued,  to: :aborted
         transitions from: :failed,  to: :aborted
         transitions from: :paused,  to: :aborted
       end
 
-      event :requeue, before: :before_requeue do
-        transitions from: :running, to: :queued
+      event :requeue do
+        transitions from: :running, to: :queued,
+          if: -> _worker_name { worker_name == _worker_name },
+          after: :clear_started_at
       end
     end
     # @formatter:on
+
+    # Define a before and after callback method for each event
+    define_event_callbacks(*aasm.state_machine.events.keys)
+
+    before_start :set_started_at
+    before_complete :set_completed_at, :mark_complete
+    before_fail :set_completed_at, :increment_failure_count, :set_exception
+    before_pause :set_completed_at
+    before_abort :set_completed_at
+    before_retry :clear_exception
+    before_resume :clear_completed_at
 
     # Create indexes
     def self.create_indexes
@@ -219,7 +233,7 @@ module RocketJob
 
     # Requeues all jobs that were running on worker that died
     def self.requeue_dead_worker(worker_name)
-      running.each { |job| job.requeue!(worker_name) }
+      running.each { |job| job.requeue!(worker_name) if job.may_requeue?(worker_name) }
     end
 
     # Pause all running jobs
@@ -326,15 +340,15 @@ module RocketJob
       else
         if destroy_on_complete
           self.state = :completed
-          before_complete
+          set_completed_at
+          mark_complete
         else
           raise(MongoMapper::DocumentNotFound, "Document match #{_id.inspect} does not exist in #{collection.name} collection")
         end
       end
     end
 
-    # Set exception information for this job and fail it
-    def fail(worker_name='user', exc_or_message='Job failed through user action')
+    def set_exception(worker_name='', exc_or_message='')
       if exc_or_message.is_a?(Exception)
         self.exception        = JobException.from_exception(exc_or_message)
         exception.worker_name = worker_name
@@ -346,73 +360,49 @@ module RocketJob
           worker_name: worker_name
         )
       end
-      # not available as #super
-      aasm.current_event = :fail
-      aasm_fire_event(:fail, persist: false)
-    end
-
-    def fail!(worker_name='user', exc_or_message='Job failed through user action')
-      self.fail(worker_name, exc_or_message)
-      save!
-    end
-
-    # Requeue this running job since the worker assigned to it has died
-    def requeue!(worker_name_=nil)
-      return false if worker_name_ && (worker_name != worker_name_)
-      # not available as #super
-      aasm.current_event = :requeue!
-      aasm_fire_event(:requeue, persist: true)
-    end
-
-    # Requeue this running job since the worker assigned to it has died
-    def requeue(worker_name_=nil)
-      return false if worker_name_ && (worker_name != worker_name_)
-      # not available as #super
-      aasm.current_event = :requeue
-      aasm_fire_event(:requeue, persist: false)
     end
 
     protected
 
-    # Before events that can be overridden by child classes
-    def before_start
+    def set_started_at
       self.started_at = Time.now
     end
 
-    def before_complete
+    def mark_complete
       self.percent_complete = 100
-      self.completed_at     = Time.now
-      self.worker_name      = nil
     end
 
-    def before_fail
-      self.completed_at  = Time.now
-      self.worker_name   = nil
+    def increment_failure_count
       self.failure_count += 1
     end
 
-    def before_retry
+    def clear_exception
       self.completed_at = nil
       self.exception    = nil
+      self.worker_name  = nil
     end
 
-    def before_pause
+    def set_completed_at
       self.completed_at = Time.now
       self.worker_name  = nil
     end
 
-    def before_resume
+    def clear_completed_at
       self.completed_at = nil
     end
 
-    def before_abort
-      self.completed_at = Time.now
-      self.worker_name  = nil
-    end
-
-    def before_requeue
+    def clear_started_at
       self.started_at  = nil
       self.worker_name = nil
+    end
+
+    # DEPRECATED. Backward compatibility only. To be removed in V2.0
+    aasm.state_machine.events.keys.each do |event_name|
+      add_event_callback(event_name, :before, "before_#{event_name}".to_sym)
+
+      module_eval <<-RUBY, __FILE__, __LINE__ + 1
+        def before_#{event_name}; end
+      RUBY
     end
 
     private

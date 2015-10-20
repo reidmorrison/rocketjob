@@ -15,6 +15,7 @@ module RocketJob
   autoload :JobException,   'rocket_job/job_exception'
   autoload :Worker,         'rocket_job/worker'
   module Concerns
+    autoload :Callbacks,    'rocket_job/concerns/callbacks'
     autoload :Worker,       'rocket_job/concerns/worker'
     autoload :Singleton,    'rocket_job/concerns/singleton'
   end

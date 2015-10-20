@@ -217,7 +217,11 @@ module RocketJob
     def archive_pathname(file_pathname)
       if archive_directory
         path = Pathname.new(archive_directory)
-        path.mkpath unless path.exist?
+        begin
+          path.mkpath unless path.exist?
+        rescue Errno::ENOENT => exc
+          raise(Errno::ENOENT, "DirmonJob failed to create archive directory: #{path}, #{exc.message}")
+        end
         path.realpath
       else
         file_pathname.dirname.join(self.class.default_archive_directory).realdirpath
@@ -283,7 +287,6 @@ module RocketJob
       job = job_class.new(
         properties.merge(
           arguments:      arguments,
-          properties:     properties,
           perform_method: perform_method
         )
       )

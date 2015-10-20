@@ -57,8 +57,9 @@ class DirmonJobTest < Minitest::Test
       it 'check deleted file' do
         previous_size = 5
         file_name     = Pathname.new('blah')
-        result        = @dirmon_job.send(:check_file, @entry, file_name, previous_size)
-        assert_equal nil, result
+        assert_raises Errno::ENOENT do
+          @dirmon_job.send(:check_file, @entry, file_name, previous_size)
+        end
       end
     end
 
@@ -158,7 +159,7 @@ class DirmonJobTest < Minitest::Test
         end
         assert dirmon_job.completed?, dirmon_job.status.inspect
 
-        # It it have enqueued another instance to run in the future
+        # Must have enqueued another instance to run in the future
         assert_equal 1, RocketJob::Jobs::DirmonJob.count
         assert new_dirmon_job = RocketJob::Jobs::DirmonJob.last
         assert_equal false, dirmon_job.id == new_dirmon_job.id
@@ -173,7 +174,7 @@ class DirmonJobTest < Minitest::Test
       it 'check directories and reschedule even on exception' do
         dirmon_job = nil
         RocketJob::Jobs::DirmonJob.destroy_all
-        RocketJob::Jobs::DirmonJob.stub_any_instance(:check_directories, -> previous { raise RuntimeError.new("Oh no") }) do
+        RocketJob::Jobs::DirmonJob.stub_any_instance(:check_directories, -> { raise RuntimeError.new('Oh no') }) do
           # perform_now does not save the job, just runs it
           dirmon_job = RocketJob::Jobs::DirmonJob.create!(
             priority:      11,
@@ -182,9 +183,11 @@ class DirmonJobTest < Minitest::Test
           dirmon_job.work_now
         end
         assert dirmon_job.failed?, dirmon_job.status.inspect
+        assert_equal 'RuntimeError', dirmon_job.exception.class_name, dirmon_job.exception.attributes
+        assert_equal 'Oh no', dirmon_job.exception.message, dirmon_job.exception.attributes
 
         # Must have enqueued another instance to run in the future
-        assert_equal 2, RocketJob::Jobs::DirmonJob.count
+        assert_equal 2, RocketJob::Jobs::DirmonJob.count, RocketJob::Jobs::DirmonJob.to_a
         assert new_dirmon_job = RocketJob::Jobs::DirmonJob.last
         assert new_dirmon_job.run_at
         assert_equal 11, new_dirmon_job.priority

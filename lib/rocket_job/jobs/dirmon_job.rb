@@ -26,11 +26,14 @@ module RocketJob
     # if no archive_directory was specified in the DirmonEntry.
     #
     # To start Dirmon for the first time
+    #   RocketJob::Jobs::DirmonJob.create!
     #
+    # If another DirmonJob instance is already queued or running, then the create
+    # above will fail with:
+    #   MongoMapper::DocumentNotValid: Validation failed: State Another instance of this job is already queued or running
     #
-    # Note:
-    #   Use `DirmonJob.start` to prevent creating multiple Dirmon jobs, otherwise
-    #   it will result in multiple jobs being started
+    # Or to start DirmonJob and ignore errors if already running
+    #   RocketJob::Jobs::DirmonJob.create
     class DirmonJob < RocketJob::Job
       # Only allow one DirmonJob instance to be running at a time
       include RocketJob::Concerns::Singleton
@@ -49,14 +52,6 @@ module RocketJob
       # If the file size has not changed, the Job is kicked off.
       def perform
         check_directories
-      ensure
-        # Run again in the future, even if this run fails with an exception
-        self.class.create!(
-          previous_file_names: previous_file_names,
-          priority:            priority,
-          check_seconds:       check_seconds,
-          run_at:              Time.now + check_seconds
-        )
       end
 
       protected
@@ -91,9 +86,6 @@ module RocketJob
           # Keep for the next run
           size
         end
-      rescue Errno::ENOENT => exc
-        # File may have been deleted since the scan was performed
-        nil
       end
 
     end

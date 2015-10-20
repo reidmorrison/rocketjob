@@ -98,8 +98,8 @@ class JobTest < Minitest::Test
         assert_equal true, @job.failed?
         assert_equal @description, @job.description
         assert_equal 'RocketJob::JobException', @job.exception.class_name
-        assert_equal 'Job failed through user action', @job.exception.message
-        assert_equal 'user', @job.exception.worker_name
+        assert_equal '', @job.exception.message
+        assert_equal '', @job.exception.worker_name
       end
     end
 
@@ -243,7 +243,7 @@ class JobTest < Minitest::Test
         @job.start!
         assert @job.running?
 
-        @job.requeue!
+        @job.requeue!(worker_name)
         @job.reload
 
         assert @job.queued?
@@ -259,7 +259,7 @@ class JobTest < Minitest::Test
         @job.start!
         assert @job.running?, @job.state
 
-        @job.requeue
+        @job.requeue(worker_name)
         assert @job.queued?
         assert_equal nil, @job.worker_name
 
@@ -280,6 +280,9 @@ class JobTest < Minitest::Test
         worker_name2      = 'server:76467'
         @job2.worker_name = worker_name2
         @job2.start!
+        assert_equal true, @job2.valid?
+        assert @job2.running?, @job2.state
+        @job2.save!
 
         RocketJob::Job.requeue_dead_worker(worker_name)
         @job.reload
@@ -287,8 +290,10 @@ class JobTest < Minitest::Test
         assert @job.queued?
         assert_equal nil, @job.worker_name
 
+        assert_equal worker_name2, @job2.worker_name
         @job2.reload
-        assert @job2.running?
+        assert_equal worker_name2, @job2.worker_name
+        assert @job2.running?, @job2.state
         assert_equal worker_name2, @job2.worker_name
       end
     end
