@@ -71,7 +71,7 @@ class DirmonEntryTest < Minitest::Test
       end
     end
 
-    describe '#fail_with_exception!' do
+    describe '#fail!' do
       before do
         @dirmon_entry = RocketJob::DirmonEntry.new(job_class_name: 'Jobs::TestJob', pattern: 'test/files/**', arguments: [1])
         @dirmon_entry.enable!
@@ -81,7 +81,7 @@ class DirmonEntryTest < Minitest::Test
       end
 
       it 'fail with message' do
-        @dirmon_entry.fail_with_exception!('myworker:2323', 'oh no')
+        @dirmon_entry.fail!('myworker:2323', 'oh no')
         assert_equal true, @dirmon_entry.failed?
         assert_equal 'RocketJob::DirmonEntryException', @dirmon_entry.exception.class_name
         assert_equal 'oh no', @dirmon_entry.exception.message
@@ -94,7 +94,7 @@ class DirmonEntryTest < Minitest::Test
         rescue Exception => exc
           exception = exc
         end
-        @dirmon_entry.fail_with_exception!('myworker:2323', exception)
+        @dirmon_entry.fail!('myworker:2323', exception)
 
         assert_equal true, @dirmon_entry.failed?
         assert_equal exception.class.name.to_s, @dirmon_entry.exception.class_name

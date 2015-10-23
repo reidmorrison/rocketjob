@@ -120,7 +120,7 @@ module RocketJob
         transitions from: :failed,  to: :disabled
       end
 
-      event :fail do
+      event :fail, before: :set_exception do
         transitions from: :enabled, to: :failed
       end
     end
@@ -257,7 +257,7 @@ module RocketJob
     end
 
     # Set exception information for this DirmonEntry and fail it
-    def fail_with_exception!(worker_name, exc_or_message)
+    def set_exception(worker_name, exc_or_message)
       if exc_or_message.is_a?(Exception)
         self.exception        = JobException.from_exception(exc_or_message)
         exception.worker_name = worker_name
@@ -269,7 +269,6 @@ module RocketJob
           worker_name: worker_name
         )
       end
-      fail!
     end
 
     @@whitelist_paths = ThreadSafe::Array.new

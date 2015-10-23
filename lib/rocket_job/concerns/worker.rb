@@ -1,16 +1,15 @@
 # encoding: UTF-8
+require 'active_support/concern'
 
 # Worker behavior for a job
 module RocketJob
   module Concerns
     module Worker
-      def self.included(base)
-        base.extend ClassMethods
-      end
+      extend ActiveSupport::Concern
 
-      module ClassMethods
+      included do
         # Returns [Job] after queue-ing it for processing
-        def later(method, *args, &block)
+        def self.later(method, *args, &block)
           if RocketJob::Config.inline_mode
             now(method, *args, &block)
           else
@@ -21,7 +20,7 @@ module RocketJob
         end
 
         # Create a job and process it immediately in-line by this thread
-        def now(method, *args, &block)
+        def self.now(method, *args, &block)
           build(method, *args, &block).work_now
         end
 
@@ -32,24 +31,24 @@ module RocketJob
         #    queued for processing.
         #  - If data is uploaded into the job instance before saving, and is then
         #    discarded, call #cleanup! to clear out any partially uploaded data
-        def build(method, *args, &block)
+        def self.build(method, *args, &block)
           job = new(arguments: args, perform_method: method.to_sym)
           block.call(job) if block
           job
         end
 
         # Method to be performed later
-        def perform_later(*args, &block)
+        def self.perform_later(*args, &block)
           later(:perform, *args, &block)
         end
 
         # Method to be performed later
-        def perform_build(*args, &block)
+        def self.perform_build(*args, &block)
           build(:perform, *args, &block)
         end
 
         # Method to be performed now
-        def perform_now(*args, &block)
+        def self.perform_now(*args, &block)
           now(:perform, *args, &block)
         end
 
@@ -66,7 +65,7 @@ module RocketJob
         #
         # Note:
         #   If a job is in queued state it will be started
-        def next_job(worker_name, skip_job_ids = nil)
+        def self.next_job(worker_name, skip_job_ids = nil)
           query        = {
             '$and' => [
               {
@@ -117,39 +116,52 @@ module RocketJob
       # is set in the job itself.
       #
       # Thread-safe, can be called by multiple threads at the same time
-      def work(worker)
+      def work(worker, raise_exceptions = RocketJob::Config.inline_mode)
         raise(ArgumentError, 'Job must be started before calling #work') unless running?
         begin
-          # before_perform
-          call_method(perform_method, arguments, event: :before, log_level: log_level)
-          # Allow before perform to explicitly fail this job
+          # New callbacks mechanism
+          callbacks = self.class.rocketjob_callbacks[perform_method]
+
+          # Call before callbacks
+          rocketjob_call_callbacks("before_#{perform_method}".to_sym, callbacks.try!(:before_list))
+
+          # Allow before callbacks to explicitly fail this job
           return unless running?
 
-          # perform
-          ret = call_method(perform_method, arguments, log_level: log_level)
+          # Call perform and around block(s) if defined
+          ret =
+            if callbacks && (callbacks.around_list.size > 0)
+              callbacks.exec_around_callbacks(target, *arguments) { call_block(perform_method) }
+            else
+              call_block(perform_method)
+            end
           if self.collect_output?
             self.result = (ret.is_a?(Hash) || ret.is_a?(BSON::OrderedHash)) ? ret : {result: ret}
           end
 
-          # Only run after perform if perform did not explicitly fail the job
+          # Only run after perform(s) if perform did not explicitly fail the job
           return unless running?
 
-          # after_perform
-          call_method(perform_method, arguments, event: :after, log_level: log_level)
+          # Call after callbacks
+          rocketjob_call_callbacks("after_#{perform_method}".to_sym, callbacks.try!(:after_list))
+
+          # Only complete if after callbacks did not fail
+          return unless running?
 
           new_record? ? complete : complete!
         rescue StandardError => exc
           fail(worker.name, exc) if may_fail?
           logger.error("Exception running #{self.class.name}##{perform_method}", exc)
           save! unless new_record?
-          raise exc if RocketJob::Config.inline_mode
+          raise exc if raise_exceptions
         end
         false
       end
 
       # Validates and runs the work on this job now in the current thread
       # Returns this job once it has finished running
-      def work_now
+      # Exceptions will flow though aside from updating the exception in the job itself
+      def work_now(raise_exceptions = true)
         # Call validations
         if respond_to?(:validate!)
           validate!
@@ -159,7 +171,7 @@ module RocketJob
         worker = RocketJob::Worker.new(name: 'inline')
         worker.started
         start if may_start?
-        while running? && !work(worker)
+        while running? && !work(worker, raise_exceptions)
         end
         self
       end
@@ -171,40 +183,36 @@ module RocketJob
       #
       # Returns [Object] the result of calling the method
       #
-      # Parameters
-      #   method [Symbol]
-      #     The method to call on this job
-      #
-      #   arguments [Array]
-      #     Arguments to pass to the method call
-      #
-      #   Options:
-      #     event: [Symbol]
-      #       Any one of: :before, :after
-      #       Default: None, just calls the method itself
-      #
-      #     log_level: [Symbol]
-      #       Log level to apply to silence logging during the call
-      #       Default: nil ( no change )
-      #
-      def call_method(method, arguments, options = {})
-        options   = options.dup
-        event     = options.delete(:event)
-        log_level = options.delete(:log_level)
-        raise(ArgumentError, "Unknown #{self.class.name}#call_method options: #{options.inspect}") if options.size > 0
+      def call_block(the_method, &block)
+        method_name = "#{self.class.name}##{the_method}"
+        logger.info "Start #{method_name}"
+        logger.benchmark_info(
+          "Completed #{method_name}",
+          metric:             "rocketjob/#{self.class.name.underscore}/#{the_method}",
+          log_exception:      :full,
+          on_exception_level: :error,
+          silence:            log_level
+        ) do
+          block ? instance_exec(*arguments, &block) : send(the_method, *arguments)
+        end
+      end
 
-        the_method = event.nil? ? method : "#{event}_#{method}".to_sym
-        if respond_to?(the_method)
-          method_name = "#{self.class.name}##{the_method}"
-          logger.info "Start #{method_name}"
-          logger.benchmark_info(
-            "Completed #{method_name}",
-            metric:             "rocketjob/#{self.class.name.underscore}/#{the_method}",
-            log_exception:      :full,
-            on_exception_level: :error,
-            silence:            log_level
-          ) do
-            send(the_method, *arguments)
+      # Calls the callbacks for this job
+
+      # Parameters
+      #   event: [Symbol]
+      #     Any one of: :before, :after
+      #     Default: nil, just calls the method itself
+      def rocketjob_call_callbacks(the_method, callbacks = nil)
+        # DEPRECATED before_perform technique
+        call_block(the_method) if respond_to?(the_method)
+
+        if callbacks
+          callbacks.each do |block|
+            # Allow callback to explicitly fail this job
+            return unless running?
+
+            call_block(the_method, &block)
           end
         end
       end

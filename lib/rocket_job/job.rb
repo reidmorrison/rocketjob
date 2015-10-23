@@ -3,11 +3,12 @@ require 'aasm'
 module RocketJob
   # The base job from which all jobs are created
   class Job
-    include MongoMapper::Document
-    include AASM
     include SemanticLogger::Loggable
-    include Concerns::Worker
+    include MongoMapper::Document
+    include Concerns::EventCallbacks
     include Concerns::Callbacks
+    include Concerns::StateMachine
+    include Concerns::Worker
 
     # Prevent data in MongoDB from re-defining the model behavior
     #self.static_keys = true
@@ -136,91 +137,6 @@ module RocketJob
     # User definable properties in Dirmon Entry
     public_rocket_job_properties :description, :priority, :perform_method, :log_level, :arguments
 
-    # State Machine events and transitions
-    #
-    #   :queued -> :running -> :completed
-    #                       -> :paused     -> :running
-    #                                      -> :aborted
-    #                       -> :failed     -> :running
-    #                                      -> :aborted
-    #                       -> :aborted
-    #                       -> :queued (when a worker dies)
-    #           -> :aborted
-    aasm column: :state do
-      # Job has been created and is queued for processing ( Initial state )
-      state :queued, initial: true
-
-      # Job is running
-      state :running
-
-      # Job has completed processing ( End state )
-      state :completed
-
-      # Job is temporarily paused and no further processing will be completed
-      # until this job has been resumed
-      state :paused
-
-      # Job failed to process and needs to be manually re-tried or aborted
-      state :failed
-
-      # Job was aborted and cannot be resumed ( End state )
-      state :aborted
-
-      event :start  do
-        transitions from: :queued, to: :running
-      end
-
-      event :complete do
-        after do
-          destroy if destroy_on_complete
-        end
-        transitions from: :running, to: :completed
-      end
-
-      event :fail do
-        transitions from: :queued,  to: :failed
-        transitions from: :running, to: :failed
-        transitions from: :paused,  to: :failed
-      end
-
-      event :retry do
-        transitions from: :failed, to: :queued
-      end
-
-      event :pause do
-        transitions from: :running, to: :paused
-      end
-
-      event :resume do
-        transitions from: :paused, to: :running
-      end
-
-      event :abort do
-        transitions from: :running, to: :aborted
-        transitions from: :queued,  to: :aborted
-        transitions from: :failed,  to: :aborted
-        transitions from: :paused,  to: :aborted
-      end
-
-      event :requeue do
-        transitions from: :running, to: :queued,
-          if: -> _worker_name { worker_name == _worker_name },
-          after: :clear_started_at
-      end
-    end
-    # @formatter:on
-
-    # Define a before and after callback method for each event
-    define_event_callbacks(*aasm.state_machine.events.keys)
-
-    before_start :set_started_at
-    before_complete :set_completed_at, :mark_complete
-    before_fail :set_completed_at, :increment_failure_count, :set_exception
-    before_pause :set_completed_at
-    before_abort :set_completed_at
-    before_retry :clear_exception
-    before_resume :clear_completed_at
-
     # Create indexes
     def self.create_indexes
       # Used by find_and_modify in .next_job
@@ -313,6 +229,7 @@ module RocketJob
       end
     end
 
+    # Returns [Hash] the status of this job
     def status(time_zone = 'Eastern Time (US & Canada)')
       h = as_json
       h.delete('seconds')
@@ -326,6 +243,22 @@ module RocketJob
         end
       end
       h
+    end
+
+    # Sets the exception child object for this job based on the
+    # supplied Exception instance or message
+    def set_exception(worker_name='', exc_or_message='')
+      if exc_or_message.is_a?(Exception)
+        self.exception        = JobException.from_exception(exc_or_message)
+        exception.worker_name = worker_name
+      else
+        build_exception(
+          class_name:  'RocketJob::JobException',
+          message:     exc_or_message,
+          backtrace:   [],
+          worker_name: worker_name
+        )
+      end
     end
 
     # Patch the way MongoMapper reloads a model
@@ -348,61 +281,26 @@ module RocketJob
       end
     end
 
-    def set_exception(worker_name='', exc_or_message='')
-      if exc_or_message.is_a?(Exception)
-        self.exception        = JobException.from_exception(exc_or_message)
-        exception.worker_name = worker_name
-      else
-        build_exception(
-          class_name:  'RocketJob::JobException',
-          message:     exc_or_message,
-          backtrace:   [],
-          worker_name: worker_name
-        )
+    # Patch AASM so that save! is called instead of save
+    # So that validations are run before job.requeue! is completed
+    # Otherwise it just fails silently
+    def aasm_write_state(state, name=:default)
+      attr_name = self.class.aasm(name).attribute_name
+      old_value = read_attribute(attr_name)
+      write_attribute(attr_name, state)
+
+      begin
+        if aasm_skipping_validations(name)
+          saved = save(validate: false)
+          write_attribute(attr_name, old_value) unless saved
+          saved
+        else
+          save!
+        end
+      rescue Exception => exc
+        write_attribute(attr_name, old_value)
+        raise(exc)
       end
-    end
-
-    protected
-
-    def set_started_at
-      self.started_at = Time.now
-    end
-
-    def mark_complete
-      self.percent_complete = 100
-    end
-
-    def increment_failure_count
-      self.failure_count += 1
-    end
-
-    def clear_exception
-      self.completed_at = nil
-      self.exception    = nil
-      self.worker_name  = nil
-    end
-
-    def set_completed_at
-      self.completed_at = Time.now
-      self.worker_name  = nil
-    end
-
-    def clear_completed_at
-      self.completed_at = nil
-    end
-
-    def clear_started_at
-      self.started_at  = nil
-      self.worker_name = nil
-    end
-
-    # DEPRECATED. Backward compatibility only. To be removed in V2.0
-    aasm.state_machine.events.keys.each do |event_name|
-      add_event_callback(event_name, :before, "before_#{event_name}".to_sym)
-
-      module_eval <<-RUBY, __FILE__, __LINE__ + 1
-        def before_#{event_name}; end
-      RUBY
     end
 
     private

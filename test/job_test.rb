@@ -12,6 +12,7 @@ class JobTest < Minitest::Test
       @job         = Jobs::TestJob.new(
         description:         @description,
         arguments:           @arguments,
+        collect_output:      true,
         destroy_on_complete: false
       )
       @job2        = Jobs::TestJob.new(
@@ -103,7 +104,7 @@ class JobTest < Minitest::Test
       end
     end
 
-    describe '#fail_with_exception!' do
+    describe '#fail!' do
       it 'fail with message' do
         @job.start!
         @job.fail!('myworker:2323', 'oh no')
@@ -187,13 +188,26 @@ class JobTest < Minitest::Test
         assert_equal false, logged
       end
 
-      it 'call before and after' do
+      it 'calls callbacks' do
         named_parameters    = {'counter' => 23}
         @job.perform_method = :event
         @job.arguments      = [named_parameters]
         @job.start!
         assert_equal false, @job.work(@worker), @job.inspect
-        assert_equal true, @job.completed?
+        assert_equal true, @job.completed?, @job.attributes
+        assert_equal 27, @job.priority
+        assert_equal({'result' => 3645}, @job.result)
+        assert_equal({'counter' => 23, 'before_event' => 2, 'after_event' => 2}, @job.arguments.first)
+      end
+
+      it 'calls deprecated callbacks' do
+        named_parameters    = {'counter' => 23}
+        @job.perform_method = :old_event
+        @job.arguments      = [named_parameters]
+        @job.start!
+        assert_equal false, @job.work(@worker), @job.inspect
+        assert_equal true, @job.completed?, @job.attributes
+        assert_equal({"result" => 4589}, @job.result)
         assert_equal named_parameters.merge('before_event' => true, 'after_event' => true), @job.arguments.first
       end
 

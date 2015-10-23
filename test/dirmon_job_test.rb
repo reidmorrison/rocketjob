@@ -180,7 +180,7 @@ class DirmonJobTest < Minitest::Test
             priority:      11,
             check_seconds: 30
           )
-          dirmon_job.work_now
+          dirmon_job.work_now(false)
         end
         assert dirmon_job.failed?, dirmon_job.status.inspect
         assert_equal 'RuntimeError', dirmon_job.exception.class_name, dirmon_job.exception.attributes
