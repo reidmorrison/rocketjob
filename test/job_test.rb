@@ -197,7 +197,7 @@ class JobTest < Minitest::Test
         assert_equal true, @job.completed?, @job.attributes
         assert_equal 27, @job.priority
         assert_equal({'result' => 3645}, @job.result)
-        assert_equal({'counter' => 23, 'before_event' => 2, 'after_event' => 2}, @job.arguments.first)
+        assert_equal({'counter' => 23, 'before_event' => 3, 'after_event' => 3}, @job.arguments.first)
       end
 
       it 'calls deprecated callbacks' do

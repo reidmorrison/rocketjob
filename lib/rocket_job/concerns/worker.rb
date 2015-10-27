@@ -119,35 +119,11 @@ module RocketJob
       def work(worker, raise_exceptions = RocketJob::Config.inline_mode)
         raise(ArgumentError, 'Job must be started before calling #work') unless running?
         begin
-          # New callbacks mechanism
-          callbacks = self.class.rocketjob_callbacks[perform_method]
-
-          # Call before callbacks
-          rocketjob_call_callbacks("before_#{perform_method}".to_sym, callbacks.try!(:before_list))
-
-          # Allow before callbacks to explicitly fail this job
-          return unless running?
-
-          # Call perform and around block(s) if defined
-          ret =
-            if callbacks && (callbacks.around_list.size > 0)
-              callbacks.exec_around_callbacks(target, *arguments) { call_block(perform_method) }
-            else
-              call_block(perform_method)
-            end
-          if self.collect_output?
-            self.result = (ret.is_a?(Hash) || ret.is_a?(BSON::OrderedHash)) ? ret : {result: ret}
+          if self.class.callbacks_defined?(perform_method)
+            run_callbacks(perform_method) { rocketjob_perform }
+          else
+            rocketjob_perform
           end
-
-          # Only run after perform(s) if perform did not explicitly fail the job
-          return unless running?
-
-          # Call after callbacks
-          rocketjob_call_callbacks("after_#{perform_method}".to_sym, callbacks.try!(:after_list))
-
-          # Only complete if after callbacks did not fail
-          return unless running?
-
           new_record? ? complete : complete!
         rescue StandardError => exc
           fail(worker.name, exc) if may_fail?
@@ -178,12 +154,28 @@ module RocketJob
 
       protected
 
+      def rocketjob_perform
+        # Call old style before callbacks
+        before_method = "before_#{perform_method}".to_sym
+        rocketjob_log_call(before_method) if respond_to?(before_method)
+
+        # Call perform and around block(s) if defined
+        ret = rocketjob_log_call(perform_method)
+        if self.collect_output?
+          self.result = (ret.is_a?(Hash) || ret.is_a?(BSON::OrderedHash)) ? ret : {result: ret}
+        end
+
+        # Call old-style after callbacks
+        after_method = "after_#{perform_method}".to_sym
+        rocketjob_log_call(after_method) if respond_to?(after_method)
+      end
+
       # Calls a method on this job, if it is defined
       # Adds the event name to the method call if supplied
       #
       # Returns [Object] the result of calling the method
       #
-      def call_block(the_method, &block)
+      def rocketjob_log_call(the_method)
         method_name = "#{self.class.name}##{the_method}"
         logger.info "Start #{method_name}"
         logger.benchmark_info(
@@ -193,27 +185,7 @@ module RocketJob
           on_exception_level: :error,
           silence:            log_level
         ) do
-          block ? instance_exec(*arguments, &block) : send(the_method, *arguments)
-        end
-      end
-
-      # Calls the callbacks for this job
-
-      # Parameters
-      #   event: [Symbol]
-      #     Any one of: :before, :after
-      #     Default: nil, just calls the method itself
-      def rocketjob_call_callbacks(the_method, callbacks = nil)
-        # DEPRECATED before_perform technique
-        call_block(the_method) if respond_to?(the_method)
-
-        if callbacks
-          callbacks.each do |block|
-            # Allow callback to explicitly fail this job
-            return unless running?
-
-            call_block(the_method, &block)
-          end
+          send(the_method, *arguments)
         end
       end
 

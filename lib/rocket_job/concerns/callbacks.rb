@@ -5,33 +5,33 @@ module RocketJob
   module Concerns
     # Define before and after callbacks
     #
-    # class Job < RocketJob::Job
-    #   before_perform do |job|
-    #     puts "BEFORE PERFORM1"
+    # class MyJob < RocketJob::Job
+    #   before_perform do
+    #     puts "BEFORE 1"
     #   end
     #
-    #   before_perform do |job|
-    #     puts "BEFORE PERFORM2"
+    #   around_perform do |job, block|
+    #     puts "AROUND 1 BEFORE"
+    #     block.call
+    #     puts "AROUND 1 AFTER"
     #   end
     #
-    #   around_perform do |job, &block|
-    #     puts "AROUND BEFORE PERFORM1"
-    #     block.call(job)
-    #     puts "AROUND AFTER PERFORM1"
+    #   before_perform do
+    #     puts "BEFORE 2"
     #   end
     #
-    #   around_perform do |job, &block|
-    #     puts "AROUND BEFORE PERFORM2"
-    #     block.call(job)
-    #     puts "AROUND AFTER PERFORM2"
+    #   after_perform do
+    #     puts "AFTER 1"
     #   end
     #
-    #   after_perform do |job|
-    #     puts "AFTER PERFORM"
+    #   around_perform do |job, block|
+    #     puts "AROUND 2 BEFORE"
+    #     block.call
+    #     puts "AROUND 2 AFTER"
     #   end
     #
-    #   after_perform do |job|
-    #     puts "AFTER PERFORM2"
+    #   after_perform do
+    #     puts "AFTER 2"
     #   end
     #
     #   def perform
@@ -40,65 +40,62 @@ module RocketJob
     #   end
     # end
     #
-    # job = Job.new
-    # job.work_now
+    # MyJob.new.work_now
     #
     # Output from the example above
     #
-    #   BEFORE PERFORM2
-    #   BEFORE PERFORM1
-    #   AROUND BEFORE PERFORM2
-    #   AROUND BEFORE PERFORM1
-    #   PERFORM
-    #   AROUND AFTER PERFORM1
-    #   AROUND AFTER PERFORM2
-    #   AFTER PERFORM
-    #   AFTER PERFORM2
+    #  BEFORE 1
+    #  AROUND 1 BEFORE
+    #  BEFORE 2
+    #  AROUND 2 BEFORE
+    #  PERFORM
+    #  AFTER 2
+    #  AROUND 2 AFTER
+    #  AFTER 1
+    #  AROUND 1 AFTER
     module Callbacks
       extend ActiveSupport::Concern
+      include ActiveSupport::Callbacks
 
       included do
         @rocketjob_callbacks = ThreadSafe::Hash.new
 
-        def self.inherited(subclass)
-          super
-          subclass.instance_variable_set(:@rocketjob_callbacks, @rocketjob_callbacks.dup)
+        define_callbacks :perform
+
+        def self.before_perform(*filters, &blk)
+          set_callback(:perform, :before, *filters, &blk)
         end
 
-        def self.before(perform_method, &block)
-          rocketjob_callbacks_get(perform_method).before(&block)
+        def self.after_perform(*filters, &blk)
+          set_callback(:perform, :after, *filters, &blk)
         end
 
-        def self.before_perform(&block)
-          rocketjob_callbacks_get(:perform).before(&block)
+        def self.around_perform(*filters, &blk)
+          set_callback(:perform, :around, *filters, &blk)
         end
 
-        def self.after(perform_method, &block)
-          rocketjob_callbacks_get(perform_method).after(&block)
+        def self.before(method_name, *filters, &blk)
+          define_callbacks(method_name) unless callbacks_defined?(method_name)
+          set_callback(method_name, :before, *filters, &blk)
         end
 
-        def self.after_perform(&block)
-          rocketjob_callbacks_get(:perform).after(&block)
+        def self.after(method_name, *filters, &blk)
+          define_callbacks(method_name) unless callbacks_defined?(method_name)
+          set_callback(method_name, :after, *filters, &blk)
         end
 
-        def self.around(perform_method, &block)
-          rocketjob_callbacks_get(perform_method).around(&block)
-        end
-
-        def self.around_perform(&block)
-          rocketjob_callbacks_get(:perform).around(&block)
-        end
-
-        def self.rocketjob_callbacks
-          @rocketjob_callbacks
+        def self.around(method_name, *filters, &blk)
+          define_callbacks(method_name) unless callbacks_defined?(method_name)
+          set_callback(method_name, :around, *filters, &blk)
         end
 
         protected
 
-        # Add a new callback
-        def self.rocketjob_callbacks_get(perform_method = :perform)
-          (@rocketjob_callbacks[perform_method] ||= ::RocketJob::Callbacks.new { |*args| send(perform_method, *args) })
+        # Returns [true|false] whether callbacks are defined for the supplied perform method
+        def self.callbacks_defined?(method_name)
+          respond_to?("_#{method_name}_callbacks".to_sym)
         end
+
       end
 
     end

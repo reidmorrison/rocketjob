@@ -8,7 +8,6 @@ require 'rocket_job/version'
 # @formatter:off
 module RocketJob
   autoload :CLI,              'rocket_job/cli'
-  autoload :Callbacks,        'rocket_job/callbacks'
   autoload :Config,           'rocket_job/config'
   autoload :DirmonEntry,      'rocket_job/dirmon_entry'
   autoload :Heartbeat,        'rocket_job/heartbeat'
