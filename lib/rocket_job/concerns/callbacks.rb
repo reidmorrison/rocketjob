@@ -40,7 +40,7 @@ module RocketJob
     #   end
     # end
     #
-    # MyJob.new.work_now
+    # MyJob.new.perform_now
     #
     # Output from the example above
     #
@@ -72,28 +72,6 @@ module RocketJob
 
         def self.around_perform(*filters, &blk)
           set_callback(:perform, :around, *filters, &blk)
-        end
-
-        def self.before(method_name, *filters, &blk)
-          define_callbacks(method_name) unless callbacks_defined?(method_name)
-          set_callback(method_name, :before, *filters, &blk)
-        end
-
-        def self.after(method_name, *filters, &blk)
-          define_callbacks(method_name) unless callbacks_defined?(method_name)
-          set_callback(method_name, :after, *filters, &blk)
-        end
-
-        def self.around(method_name, *filters, &blk)
-          define_callbacks(method_name) unless callbacks_defined?(method_name)
-          set_callback(method_name, :around, *filters, &blk)
-        end
-
-        protected
-
-        # Returns [true|false] whether callbacks are defined for the supplied perform method
-        def self.callbacks_defined?(method_name)
-          respond_to?("_#{method_name}_callbacks".to_sym)
         end
 
       end

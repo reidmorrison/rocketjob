@@ -45,9 +45,6 @@ module Jobs
       arguments.first['before_event'] += 1
     end
 
-    # TODO: around callbacks are not working yet because the last block is being
-    # run in the scope of the class and not the job instance
-
     around(:event) do |job, block|
       # After all the before callbacks
       job.arguments.first['before_event'] += 1

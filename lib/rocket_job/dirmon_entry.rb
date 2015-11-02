@@ -67,9 +67,6 @@ module RocketJob
     # be created in the archive directory.
     key :archive_directory,  String
 
-    # Method to perform on the job, usually :perform
-    key :perform_method,     Symbol, default: :perform
-
     # If this DirmonEntry is in the failed state, exception contains the cause
     one :exception,          class_name: 'RocketJob::JobException'
 
@@ -126,13 +123,7 @@ module RocketJob
     end
 
     # @formatter:on
-    validates_presence_of :pattern, :job_class_name, :perform_method
-
-    validates_each :perform_method do |record, attr, value|
-      if (klass = record.job_class) && !klass.instance_methods.include?(value)
-        record.errors.add(attr, "Method not implemented by #{record.job_class_name}")
-      end
-    end
+    validates_presence_of :pattern, :job_class_name
 
     validates_each :job_class_name do |record, attr, value|
       exists =
@@ -145,8 +136,8 @@ module RocketJob
     end
 
     validates_each :arguments do |record, attr, value|
-      if (klass = record.job_class) && klass.instance_methods.include?(record.perform_method)
-        count = klass.argument_count(record.perform_method)
+      if klass = record.job_class
+        count = klass.argument_count
         record.errors.add(attr, "There must be #{count} argument(s)") if value.size != count
       end
     end
@@ -283,12 +274,7 @@ module RocketJob
 
     # Queues the job for the supplied pathname
     def later(pathname)
-      job = job_class.new(
-        properties.merge(
-          arguments:      arguments,
-          perform_method: perform_method
-        )
-      )
+      job = job_class.new(properties.merge(arguments: arguments))
       upload_file(job, pathname)
       job.save!
       job

@@ -93,14 +93,27 @@ module RocketJob
         before_abort :set_completed_at
         before_retry :clear_exception
         before_resume :clear_completed_at
+      end
 
-        # DEPRECATED. Backward compatibility only. To be removed in V2.0
-        aasm.state_machine.events.keys.each do |event_name|
-          add_event_callback(event_name, :before, "before_#{event_name}".to_sym)
+      # Patch AASM so that save! is called instead of save
+      # So that validations are run before job.requeue! is completed
+      # Otherwise it just fails silently
+      def aasm_write_state(state, name=:default)
+        attr_name = self.class.aasm(name).attribute_name
+        old_value = read_attribute(attr_name)
+        write_attribute(attr_name, state)
 
-          module_eval <<-RUBY, __FILE__, __LINE__ + 1
-            def before_#{event_name}; end
-          RUBY
+        begin
+          if aasm_skipping_validations(name)
+            saved = save(validate: false)
+            write_attribute(attr_name, old_value) unless saved
+            saved
+          else
+            save!
+          end
+        rescue Exception => exc
+          write_attribute(attr_name, old_value)
+          raise(exc)
         end
       end
 
