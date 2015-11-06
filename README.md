@@ -19,6 +19,11 @@ of records, as well as large jobs to walk though large databases.
 * [Guide](http://rocketjob.io/)
 * [API Reference](http://www.rubydoc.info/gems/rocketjob/)
 
+## Support
+
+* Questions? Join the chat room on Gitter for [rocketjob support](https://gitter.im/rocketjob/support)
+* [Report bugs](https://github.com/rocketjob/rocketjob/issues)
+
 ## Versioning
 
 This project uses [Semantic Versioning](http://semver.org/).
