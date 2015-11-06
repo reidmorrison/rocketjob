@@ -1,5 +1,5 @@
 # rocketjob
-[![Gem Version](https://img.shields.io/gem/v/rocketjob.svg)](https://rubygems.org/gems/rocketjob) [![Build Status](https://travis-ci.org/rocketjob/rocketjob.svg?branch=master)](https://travis-ci.org/rocketjob/rocketjob) [![Downloads](https://img.shields.io/gem/dt/rocketjob.svg)](https://rubygems.org/gems/rocketjob) [![License](https://img.shields.io/badge/license-GPL%203.0%2FCommercial-blue.svg)](http://opensource.org/licenses/GPL-3.0) ![](https://img.shields.io/badge/status-Production%20Ready-blue.svg) [![Gitter chat](https://img.shields.io/badge/IRC%20(gitter)-Support-brightgreen.svg)](https://gitter.im/rocketjob/support)
+[![Gem Version](https://img.shields.io/gem/v/rocketjob.svg)](https://rubygems.org/gems/rocketjob) [![Build Status](https://travis-ci.org/rocketjob/rocketjob.svg?branch=master)](https://travis-ci.org/rocketjob/rocketjob) [![Downloads](https://img.shields.io/gem/dt/rocketjob.svg)](https://rubygems.org/gems/rocketjob) ![](https://img.shields.io/badge/status-Production%20Ready-blue.svg) [![Gitter chat](https://img.shields.io/badge/IRC%20(gitter)-Support-brightgreen.svg)](https://gitter.im/rocketjob/support)
 
 Enterprise Batch Processing System focused on performance, scalability, reliability, and visibility of every job in the system.
 
