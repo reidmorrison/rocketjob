@@ -1,5 +1,7 @@
 require_relative 'test_helper'
-require_relative 'jobs/test_job'
+require_relative 'jobs/quiet_job'
+require_relative 'jobs/sum_job'
+require_relative 'jobs/hash_job'
 
 # Unit Test for RocketJob::Job
 class DirmonEntryTest < Minitest::Test
@@ -73,7 +75,7 @@ class DirmonEntryTest < Minitest::Test
 
     describe '#fail!' do
       before do
-        @dirmon_entry = RocketJob::DirmonEntry.new(job_class_name: 'Jobs::TestJob', pattern: 'test/files/**', arguments: [1])
+        @dirmon_entry = RocketJob::DirmonEntry.new(job_class_name: 'Jobs::QuietJob', pattern: 'test/files/**', arguments: [1])
         @dirmon_entry.enable!
       end
       after do
@@ -104,7 +106,7 @@ class DirmonEntryTest < Minitest::Test
 
     describe '#validate' do
       it 'existance' do
-        assert entry = RocketJob::DirmonEntry.new(job_class_name: 'Jobs::TestJob')
+        assert entry = RocketJob::DirmonEntry.new(job_class_name: 'Jobs::QuietJob')
         assert_equal false, entry.valid?
         assert_equal ["can't be blank"], entry.errors[:pattern], entry.errors.inspect
       end
@@ -120,9 +122,8 @@ class DirmonEntryTest < Minitest::Test
       describe 'arguments' do
         it 'allow no arguments' do
           assert entry = RocketJob::DirmonEntry.new(
-              job_class_name: 'Jobs::TestJob',
-              pattern:        'test/files/**',
-              perform_method: :result
+              job_class_name: 'Jobs::QuietJob',
+              pattern:        'test/files/**'
             )
           assert_equal true, entry.valid?, entry.errors.inspect
           assert_equal [], entry.errors[:arguments], entry.errors.inspect
@@ -130,7 +131,7 @@ class DirmonEntryTest < Minitest::Test
 
         it 'ensure correct number of arguments' do
           assert entry = RocketJob::DirmonEntry.new(
-              job_class_name: 'Jobs::TestJob',
+              job_class_name: 'Jobs::QuietJob',
               pattern:        'test/files/**'
             )
           assert_equal false, entry.valid?
@@ -147,11 +148,10 @@ class DirmonEntryTest < Minitest::Test
         end
       end
 
-      it 'arguments with perform_method' do
+      it 'invalid without 2 arguments' do
         assert entry = RocketJob::DirmonEntry.new(
-            job_class_name: 'Jobs::TestJob',
-            pattern:        'test/files/**',
-            perform_method: :sum
+            job_class_name: 'Jobs::SumJob',
+            pattern:        'test/files/**'
           )
         assert_equal false, entry.valid?
         assert_equal ['There must be 2 argument(s)'], entry.errors[:arguments], entry.errors.inspect
@@ -159,18 +159,16 @@ class DirmonEntryTest < Minitest::Test
 
       it 'valid' do
         assert entry = RocketJob::DirmonEntry.new(
-            job_class_name: 'Jobs::TestJob',
-            pattern:        'test/files/**',
-            arguments:      [1]
+            job_class_name: 'Jobs::QuietJob',
+            pattern:        'test/files/**'
           )
         assert entry.valid?, entry.errors.inspect
       end
 
-      it 'valid with perform_method' do
+      it 'valid with 2 arguments' do
         assert entry = RocketJob::DirmonEntry.new(
-            job_class_name: 'Jobs::TestJob',
+            job_class_name: 'Jobs::SumJob',
             pattern:        'test/files/**',
-            perform_method: :sum,
             arguments:      [1, 2]
           )
         assert entry.valid?, entry.errors.inspect
@@ -185,16 +183,15 @@ class DirmonEntryTest < Minitest::Test
         @archive_path = @archive_path.realdirpath
         @entry        = RocketJob::DirmonEntry.new(
           pattern:           'test/files/**/*',
-          job_class_name:    'Jobs::TestJob',
+          job_class_name:    'Jobs::HashJob',
           arguments:         [{}],
-          properties:        {priority: 23, perform_method: :event},
+          properties:        {priority: 23},
           archive_directory: @archive_directory
         )
-        @job          = Jobs::TestJob.new(
+        @job          = Jobs::QuietJob.new(
           @entry.properties.merge(
             arguments:      @entry.arguments,
-            properties:     @entry.properties,
-            perform_method: @entry.perform_method
+            properties:     @entry.properties
           )
         )
         @file         = Tempfile.new('archive')
@@ -275,7 +272,6 @@ class DirmonEntryTest < Minitest::Test
       describe '#later' do
         it 'enqueue job' do
           @entry.arguments      = [{}]
-          @entry.perform_method = :event
           job                   = @entry.later(@pathname)
           assert_equal Pathname.new(@archive_directory).join("#{job.id}_#{File.basename(@file_name)}").realdirpath.to_s, job.arguments.first[:full_file_name]
           assert job.queued?

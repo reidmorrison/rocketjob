@@ -30,13 +30,13 @@ module RocketJob
   def self.seconds_as_duration(seconds)
     time = Time.at(seconds)
     if seconds >= 1.day
-      "#{(seconds / 1.day).to_i}d #{time.strftime('%-Hh %-Mm %-Ss')}"
+      "#{(seconds / 1.day).to_i}d #{time.strftime('%-Hh %-Mm')}"
     elsif seconds >= 1.hour
-      time.strftime('%-Hh %-Mm %-Ss')
+      time.strftime('%-Hh %-Mm')
     elsif seconds >= 1.minute
       time.strftime('%-Mm %-Ss')
     else
-      time.strftime('%-Ss')
+      time.strftime('%-Ss %Lms')
     end
   end
 end

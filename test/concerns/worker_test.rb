@@ -3,7 +3,88 @@ require_relative 'jobs/test_job'
 
 # Unit Test for RocketJob::Job
 class WorkerTest < Minitest::Test
-  describe RocketJob::Job do
+  describe RocketJob::Concerns::Worker do
+    describe '.next_job' do
+      before do
+        RocketJob::Job.destroy_all
+        @quiet_job = Jobs::QuietJob.new(
+          description: @description,
+          worker_name: 'worker:123'
+        )
+      end
+
+      after do
+        @quiet_job.destroy if @quiet_job && !@quiet_job.new_record?
+      end
+
+      it 'return nil when no jobs available' do
+        assert_equal nil, RocketJob::Job.next_job(@worker.name)
+      end
+
+      it 'return the first job' do
+        @job.save!
+        assert job = RocketJob::Job.next_job(@worker.name), 'Failed to find job'
+        assert_equal @job.id, job.id
+      end
+
+      it 'Ignore future dated jobs' do
+        @job.run_at = Time.now + 1.hour
+        @job.save!
+        assert_equal nil, RocketJob::Job.next_job(@worker.name)
+      end
+
+      it 'Process future dated jobs when time is now' do
+        @job.run_at = Time.now
+        @job.save!
+        assert job = RocketJob::Job.next_job(@worker.name), 'Failed to find future job'
+        assert_equal @job.id, job.id
+      end
+
+      it 'Skip expired jobs' do
+        count           = RocketJob::Job.count
+        @job.expires_at = Time.now - 100
+        @job.save!
+        assert_equal nil, RocketJob::Job.next_job(@worker.name)
+        assert_equal count, RocketJob::Job.count
+      end
+    end
+
+    describe '#work' do
+      it 'call perform method' do
+        assert_equal false, @sum_job.perform_now
+        assert_equal true, @sum_job.completed?, @job.state
+        assert_equal 15, Jobs::SumJob.result
+        assert_equak 15, @sum_job.output
+      end
+
+      it 'silence logging when log_level is set' do
+        @noisy_job.destroy_on_complete = true
+        @noisy_job.log_level           = :warn
+        @noisy_job.arguments           = []
+        @noisy_job.start!
+        logged = false
+        Jobs::TestJob.logger.stub(:log_internal, -> level, index, message, payload, exception { logged = true if message.include?('some very noisy logging') }) do
+          assert_equal false, @noisy_job.work(@worker), @noisy_job.inspect
+        end
+        assert_equal false, logged
+      end
+
+      it 'raise logging when log_level is set' do
+        @quiet_job.destroy_on_complete = true
+        @quiet_job.log_level           = :trace
+        @quiet_job.arguments           = []
+        @quiet_job.start!
+        logged = false
+        # Raise global log level to :info
+        SemanticLogger.stub(:default_level_index, 3) do
+          Jobs::TestJob.logger.stub(:log_internal, -> { logged = true }) do
+            assert_equal false, @quiet_job.work(@worker)
+          end
+        end
+        assert_equal false, logged
+      end
+    end
+
     [true, false].each do |inline_mode|
       before do
         RocketJob::Config.inline_mode = inline_mode

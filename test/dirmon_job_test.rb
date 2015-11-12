@@ -10,9 +10,9 @@ class DirmonJobTest < Minitest::Test
       @archive_directory = '/tmp/archive_directory'
       @entry             = RocketJob::DirmonEntry.new(
         pattern:           "#{@directory}/abc/*",
-        job_class_name:    'Jobs::TestJob',
+        job_class_name:    'Jobs::EventJob',
         arguments:         [{input: 'yes'}],
-        properties:        {priority: 23, perform_method: :event},
+        properties:        {priority: 23},
         archive_directory: @archive_directory
       )
       FileUtils.makedirs("#{@directory}/abc")
