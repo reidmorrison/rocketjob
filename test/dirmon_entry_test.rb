@@ -2,6 +2,12 @@ require_relative 'test_helper'
 
 # Unit Test for RocketJob::Job
 class DirmonEntryTest < Minitest::Test
+
+  class OneArgumentJob < RocketJob::Job
+    def perform(arg)
+    end
+  end
+
   class WithFullFileNameJob < RocketJob::Job
     # Dirmon will store the filename in this property when starting the job
     key :full_file_name, String
@@ -68,15 +74,15 @@ class DirmonEntryTest < Minitest::Test
       end
 
       it 'convert relative path to an absolute one' do
-        path = Pathname('test/jobs').realpath.to_s
-        assert_equal path, RocketJob::DirmonEntry.add_whitelist_path('test/jobs')
+        path = Pathname('test/files').realpath.to_s
+        assert_equal path, RocketJob::DirmonEntry.add_whitelist_path('test/files')
         assert_equal [path], RocketJob::DirmonEntry.whitelist_paths
       end
 
       it 'prevent duplicates' do
-        path = Pathname('test/jobs').realpath.to_s
-        assert_equal path, RocketJob::DirmonEntry.add_whitelist_path('test/jobs')
-        assert_equal path, RocketJob::DirmonEntry.add_whitelist_path('test/jobs')
+        path = Pathname('test/files').realpath.to_s
+        assert_equal path, RocketJob::DirmonEntry.add_whitelist_path('test/files')
+        assert_equal path, RocketJob::DirmonEntry.add_whitelist_path('test/files')
         assert_equal path, RocketJob::DirmonEntry.add_whitelist_path(path)
         assert_equal [path], RocketJob::DirmonEntry.whitelist_paths
       end
@@ -84,9 +90,11 @@ class DirmonEntryTest < Minitest::Test
 
     describe '#fail!' do
       before do
-        @dirmon_entry = RocketJob::DirmonEntry.new(job_class_name: 'Jobs::QuietJob', pattern: 'test/files/**', arguments: [1])
+        @dirmon_entry = RocketJob::DirmonEntry.new(job_class_name: 'DirmonEntryTest::OneArgumentJob', pattern: 'test/files/**', arguments: [1])
         @dirmon_entry.enable!
+        assert @dirmon_entry.valid?, @dirmon_entry.errors.messages.ai
       end
+
       after do
         @dirmon_entry.destroy if @dirmon_entry && @dirmon_entry.new_record?
       end
@@ -115,92 +123,84 @@ class DirmonEntryTest < Minitest::Test
 
     describe '#validate' do
       it 'existance' do
-        assert entry = RocketJob::DirmonEntry.new(job_class_name: 'Jobs::QuietJob')
+        assert entry = RocketJob::DirmonEntry.new(job_class_name: 'DirmonEntryTest::OneArgumentJob')
         assert_equal false, entry.valid?
-        assert_equal ["can't be blank"], entry.errors[:pattern], entry.errors.inspect
+        assert_equal ["can't be blank"], entry.errors[:pattern], entry.errors.messages.ai
       end
 
       describe 'job_class_name' do
         it 'ensure presence' do
           assert entry = RocketJob::DirmonEntry.new(pattern: 'test/files/**')
           assert_equal false, entry.valid?
-          assert_equal ["can't be blank", 'job_class_name must be defined and must be derived from RocketJob::Job'], entry.errors[:job_class_name], entry.errors.inspect
+          assert_equal ["can't be blank", 'job_class_name must be defined and must be derived from RocketJob::Job'], entry.errors[:job_class_name], entry.errors.messages.ai
         end
       end
 
       describe 'arguments' do
         it 'allow no arguments' do
           assert entry = RocketJob::DirmonEntry.new(
-              job_class_name: 'Jobs::QuietJob',
-              pattern:        'test/files/**'
-            )
-          assert_equal true, entry.valid?, entry.errors.inspect
-          assert_equal [], entry.errors[:arguments], entry.errors.inspect
+            job_class_name: 'DirmonEntryTest::WithFullFileNameJob',
+            pattern:        'test/files/**'
+          )
+          assert entry.valid?, entry.errors.messages.ai
         end
 
         it 'ensure correct number of arguments' do
           assert entry = RocketJob::DirmonEntry.new(
-              job_class_name: 'Jobs::QuietJob',
-              pattern:        'test/files/**'
-            )
-          assert_equal false, entry.valid?
-          assert_equal ['There must be 1 argument(s)'], entry.errors[:arguments], entry.errors.inspect
+            job_class_name: 'DirmonEntryTest::OneArgumentJob',
+            pattern:        'test/files/**'
+          )
+          refute entry.valid?
+          assert_equal ['There must be 1 argument(s)'], entry.errors[:arguments], entry.errors.messages.ai
         end
 
-        it 'return false if the job name is bad' do
+        it 'fail if the job name is bad' do
           assert entry = RocketJob::DirmonEntry.new(
-              job_class_name: 'Jobs::Tests::Names::Things',
-              pattern:        'test/files/**'
-            )
-          assert_equal false, entry.valid?
-          assert_equal [], entry.errors[:arguments], entry.errors.inspect
+            job_class_name: 'Jobs::Tests::Names::Things',
+            pattern:        'test/files/**'
+          )
+          refute entry.valid?
+          assert_equal [], entry.errors[:arguments], entry.errors.messages.ai
         end
       end
 
       it 'invalid without 2 arguments' do
         assert entry = RocketJob::DirmonEntry.new(
-            job_class_name: 'SumJob',
-            pattern:        'test/files/**'
-          )
-        assert_equal false, entry.valid?
-        assert_equal ['There must be 2 argument(s)'], entry.errors[:arguments], entry.errors.inspect
-      end
-
-      it 'valid' do
-        assert entry = RocketJob::DirmonEntry.new(
-            job_class_name: 'Jobs::QuietJob',
-            pattern:        'test/files/**'
-          )
-        assert entry.valid?, entry.errors.inspect
+          job_class_name: 'DirmonEntryTest::SumJob',
+          pattern:        'test/files/**'
+        )
+        refute entry.valid?
+        assert_equal ['There must be 2 argument(s)'], entry.errors[:arguments], entry.errors.messages.ai
       end
 
       it 'valid with 2 arguments' do
         assert entry = RocketJob::DirmonEntry.new(
-            job_class_name: 'SumJob',
-            pattern:        'test/files/**',
-            arguments:      [1, 2]
-          )
-        assert entry.valid?, entry.errors.inspect
+          job_class_name: 'DirmonEntryTest::SumJob',
+          pattern:        'test/files/**',
+          arguments:      [1, 2]
+        )
+        assert entry.valid?, entry.errors.messages.ai
       end
     end
 
     describe 'with valid entry' do
       before do
+        RocketJob::Jobs::DirmonJob.delete_all
         @archive_directory = '/tmp/archive_directory'
         @archive_path      = Pathname.new(@archive_directory)
         @archive_path.mkpath
         @archive_path = @archive_path.realdirpath
         @entry        = RocketJob::DirmonEntry.new(
           pattern:           'test/files/**/*',
-          job_class_name:    'DirmonJob',
+          job_class_name:    'RocketJob::Jobs::DirmonJob',
           arguments:         [{}],
           properties:        {priority: 23},
           archive_directory: @archive_directory
         )
-        @job          = Jobs::QuietJob.new(
+        @job          = DirmonEntryTest::OneArgumentJob.new(
           @entry.properties.merge(
-            arguments:      @entry.arguments,
-            properties:     @entry.properties
+            arguments:  @entry.arguments,
+            properties: @entry.properties
           )
         )
         @file         = Tempfile.new('archive')
@@ -213,6 +213,7 @@ class DirmonEntryTest < Minitest::Test
 
       after do
         @file.delete if @file
+        RocketJob::Jobs::DirmonJob.delete_all
       end
 
       describe '#archive_pathname' do
@@ -279,11 +280,19 @@ class DirmonEntryTest < Minitest::Test
       end
 
       describe '#later' do
-        it 'enqueue job' do
-          @entry.arguments      = [{}]
-          job                   = @entry.later(@pathname)
+        it 'enqueues job' do
+          @entry.arguments = [{}]
+          job              = @entry.later(@pathname)
           assert_equal Pathname.new(@archive_directory).join("#{job.id}_#{File.basename(@file_name)}").realdirpath.to_s, job.arguments.first[:full_file_name]
           assert job.queued?
+        end
+
+        it 'fails with bad job class name' do
+          @entry.arguments      = [{}]
+          @entry.job_class_name = 'Blah'
+          assert_raises ArgumentError do
+            @entry.later(@pathname)
+          end
         end
       end
 

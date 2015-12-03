@@ -109,13 +109,27 @@ module RocketJob
     # Parse command line options placing results in the corresponding instance variables
     def parse(argv)
       parser        = OptionParser.new do |o|
-        o.on('-n', '--name NAME', 'Unique Name of this worker instance (Default: hostname:PID)') { |arg| @name = arg }
-        o.on('-t', '--threads COUNT', 'Number of worker threads to start') { |arg| @threads = arg.to_i }
-        o.on('-q', '--quiet', 'Do not write to stdout, only to logfile. Necessary when running as a daemon') { @quiet = true }
-        o.on('-d', '--dir DIR', 'Directory containing Rails app, if not current directory') { |arg| @directory = arg }
-        o.on('-e', '--environment ENVIRONMENT', 'The environment to run the app on (Default: RAILS_ENV || RACK_ENV || development)') { |arg| @environment = arg }
-        o.on('-l', '--log_level trace|debug|info|warn|error|fatal', 'The log level to use') { |arg| @log_level = arg }
-        o.on('--pidfile PATH', 'Use PATH as a pidfile') { |arg| @pidfile = arg }
+        o.on('-n', '--name NAME', 'Unique Name of this worker instance (Default: hostname:PID)') do |arg|
+          @name = arg
+        end
+        o.on('-t', '--threads COUNT', 'Number of worker threads to start') do |arg|
+          @threads = arg.to_i
+        end
+        o.on('-q', '--quiet', 'Do not write to stdout, only to logfile. Necessary when running as a daemon') do
+          @quiet = true
+        end
+        o.on('-d', '--dir DIR', 'Directory containing Rails app, if not current directory') do |arg|
+          @directory = arg
+        end
+        o.on('-e', '--environment ENVIRONMENT', 'The environment to run the app on (Default: RAILS_ENV || RACK_ENV || development)') do |arg|
+          @environment = arg
+        end
+        o.on('-l', '--log_level trace|debug|info|warn|error|fatal', 'The log level to use') do |arg|
+          @log_level = arg
+        end
+        o.on('--pidfile PATH', 'Use PATH as a pidfile') do |arg|
+          @pidfile = arg
+        end
         o.on('-v', '--version', 'Print the version information') do
           puts "Rocket Job v#{RocketJob::VERSION}"
           exit 1

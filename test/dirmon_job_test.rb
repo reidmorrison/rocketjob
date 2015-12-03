@@ -2,7 +2,7 @@ require_relative 'test_helper'
 
 # Unit Test for RocketJob::Job
 class DirmonJobTest < Minitest::Test
-  class DirmonJob < RocketJob::Job
+  class DirmonTestJob < RocketJob::Job
     def perform(hash)
       3645
     end
@@ -10,12 +10,13 @@ class DirmonJobTest < Minitest::Test
 
   describe RocketJob::Jobs::DirmonJob do
     before do
+      RocketJob::Jobs::DirmonJob.delete_all
       @dirmon_job        = RocketJob::Jobs::DirmonJob.new
       @directory         = '/tmp/directory'
       @archive_directory = '/tmp/archive_directory'
       @entry             = RocketJob::DirmonEntry.new(
         pattern:           "#{@directory}/abc/*",
-        job_class_name:    'DirmonJob',
+        job_class_name:    'DirmonJobTest::DirmonTestJob',
         arguments:         [{input: 'yes'}],
         properties:        {priority: 23},
         archive_directory: @archive_directory
@@ -25,7 +26,7 @@ class DirmonJobTest < Minitest::Test
     end
 
     after do
-      @dirmon_job.destroy if @dirmon_job && !@dirmon_job.new_record?
+      @dirmon_job.delete if @dirmon_job && !@dirmon_job.new_record?
       FileUtils.remove_dir(@archive_directory, true) if Dir.exist?(@archive_directory)
       FileUtils.remove_dir(@directory, true) if Dir.exist?(@directory)
     end
@@ -160,7 +161,7 @@ class DirmonJobTest < Minitest::Test
             priority:            11,
             check_seconds:       30
           )
-          dirmon_job.work_now
+          dirmon_job.perform_now
         end
         assert dirmon_job.completed?, dirmon_job.status.inspect
 
@@ -185,7 +186,7 @@ class DirmonJobTest < Minitest::Test
             priority:      11,
             check_seconds: 30
           )
-          dirmon_job.work_now(false)
+          dirmon_job.perform_now(false)
         end
         assert dirmon_job.failed?, dirmon_job.status.inspect
         assert_equal 'RuntimeError', dirmon_job.exception.class_name, dirmon_job.exception.attributes

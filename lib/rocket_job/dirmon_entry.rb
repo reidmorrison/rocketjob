@@ -1,11 +1,10 @@
 require 'concurrent'
 require 'pathname'
 require 'fileutils'
-require 'aasm'
 module RocketJob
   class DirmonEntry
-    include MongoMapper::Document
-    include AASM
+    include Concerns::Document
+    include Concerns::StateMachine
 
     # @formatter:off
     # User defined name used to identify this DirmonEntry in Mission Control
@@ -82,7 +81,7 @@ module RocketJob
     # Read-only attributes
     #
 
-    # Current state, as set by AASM
+    # Current state, as set by the state machine. Do not modify directly.
     key :state,              Symbol, default: :pending
 
     # State Machine events and transitions
@@ -274,10 +273,14 @@ module RocketJob
 
     # Queues the job for the supplied pathname
     def later(pathname)
-      job = job_class.new(properties.merge(arguments: arguments))
-      upload_file(job, pathname)
-      job.save!
-      job
+      if klass = job_class
+        job = klass.new(properties.merge(arguments: arguments))
+        upload_file(job, pathname)
+        job.save!
+        job
+      else
+        raise(ArgumentError, "Cannot instantiate a class for: #{job_class_name.inspect}")
+      end
     end
 
     protected

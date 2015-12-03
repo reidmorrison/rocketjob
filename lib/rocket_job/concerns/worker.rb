@@ -31,6 +31,7 @@ module RocketJob
           job = new(arguments: args)
           block.call(job) if block
           job.perform_now
+          job
         end
 
         # Returns the next job to work on in priority based order
@@ -112,7 +113,7 @@ module RocketJob
         worker.started
         start if may_start?
         work(worker, raise_exceptions) if running?
-        self
+        result
       end
 
       def perform(*)

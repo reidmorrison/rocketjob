@@ -73,7 +73,7 @@ module RocketJob
             # BSON Keys cannot contain periods
             key           = pathname.to_s.gsub('.', '_')
             previous_size = previous_file_names[key]
-            if (size = check_file(entry, pathname, previous_size))
+            if size = check_file(entry, pathname, previous_size)
               new_file_names[key] = size
             end
           end

@@ -1,13 +1,14 @@
 # encoding: UTF-8
-require 'aasm'
 module RocketJob
   # The base job from which all jobs are created
   class Job
+    include Concerns::Document
     include Concerns::Persistence
     include Concerns::EventCallbacks
     include Concerns::Callbacks
     include Concerns::Logger
     include Concerns::StateMachine
+    include Concerns::JobStateMachine
     include Concerns::Worker
     include Concerns::Defaults
 

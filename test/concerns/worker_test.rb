@@ -16,15 +16,35 @@ class WorkerTest < Minitest::Test
     end
   end
 
+  class SumJob < RocketJob::Job
+    rocket_job do |job|
+      job.destroy_on_complete = false
+      job.collect_output      = true
+      job.priority            = 51
+    end
+
+    def self.result
+      @@result
+    end
+
+    def perform(first, second)
+      @@result = first + second
+    end
+  end
+
   describe RocketJob::Concerns::Worker do
+    before do
+      RocketJob::Job.destroy_all
+    end
+
+    after do
+      @job.destroy if @job && !@job.new_record?
+    end
+
     describe '.next_job' do
       before do
-        RocketJob::Job.destroy_all
-        @quiet_job = QuietJob.new
-      end
-
-      after do
-        @quiet_job.destroy if @quiet_job && !@quiet_job.new_record?
+        @job = QuietJob.new
+        @worker = RocketJob::Worker.new(name: 'worker:123')
       end
 
       it 'return nil when no jobs available' do
@@ -61,115 +81,88 @@ class WorkerTest < Minitest::Test
 
     describe '#work' do
       it 'call perform method' do
-        assert_equal false, @sum_job.perform_now
-        assert_equal true, @sum_job.completed?, @job.state
-        assert_equal 15, Jobs::SumJob.result
-        assert_equak 15, @sum_job.output
+        @job = SumJob.new(arguments: [10, 5])
+        assert_equal 15, @job.perform_now['result']
+        assert @job.completed?, @job.attributes.ai
+        assert_equal 15, @job.result['result']
       end
 
       it 'silence logging when log_level is set' do
-        @noisy_job.destroy_on_complete = true
-        @noisy_job.log_level           = :warn
-        @noisy_job.arguments           = []
-        @noisy_job.start!
+        @job                     = NoisyJob.new
+        @job.log_level           = :warn
         logged = false
-        Jobs::TestJob.logger.stub(:log_internal, -> level, index, message, payload, exception { logged = true if message.include?('some very noisy logging') }) do
-          assert_equal false, @noisy_job.work(@worker), @noisy_job.inspect
+        @job.logger.stub(:log_internal, -> level, index, message, payload, exception { logged = true if message.include?('some very noisy logging') }) do
+          @job.perform_now
         end
         assert_equal false, logged
       end
 
       it 'raise logging when log_level is set' do
-        @quiet_job.destroy_on_complete = true
-        @quiet_job.log_level           = :trace
-        @quiet_job.arguments           = []
-        @quiet_job.start!
+        @job                     = QuietJob.new
+        @job.log_level           = :trace
         logged = false
         # Raise global log level to :info
         SemanticLogger.stub(:default_level_index, 3) do
-          Jobs::TestJob.logger.stub(:log_internal, -> { logged = true }) do
-            assert_equal false, @quiet_job.work(@worker)
+          @job.logger.stub(:log_internal, -> { logged = true }) do
+            @job.perform_now
           end
         end
         assert_equal false, logged
       end
     end
 
-    [true, false].each do |inline_mode|
-      before do
-        RocketJob::Config.inline_mode = inline_mode
-
-        @worker = RocketJob::Worker.new
-        @worker.started
-      end
-
-      after do
-        @job.destroy if @job && !@job.new_record?
-        RocketJob::Config.inline_mode = false
-      end
-
-      describe '.perform_later' do
-        it "process single request (inline_mode=#{inline_mode})" do
-          @job = Jobs::TestJob.perform_later(1) do |job|
-            job.destroy_on_complete = false
-          end
-          assert_nil @job.worker_name
-          assert_nil @job.completed_at
-          assert @job.created_at
-          assert_equal false, @job.destroy_on_complete
-          assert_nil @job.expires_at
-          assert_equal 0, @job.percent_complete
-          assert_equal 51, @job.priority
-          assert_equal 0, @job.failure_count
-          assert_nil @job.run_at
-          assert_nil @job.started_at
-          assert_equal :queued, @job.state
-
-          @job.worker_name = 'me'
-          @job.start
-          assert_equal false, @job.work(@worker), @job.exception.inspect
-          assert_equal true, @job.completed?
-          assert_equal 2, Jobs::TestJob.result
-
-          assert_nil @job.worker_name
-          assert @job.completed_at
-          assert @job.created_at
-          assert_equal false, @job.destroy_on_complete
-          assert_nil @job.expires_at
-          assert_equal 100, @job.percent_complete
-          assert_equal 51, @job.priority
-          assert_equal 0, @job.failure_count
-          assert_nil @job.run_at
-          assert @job.started_at
+    describe '.perform_later' do
+      it 'queues the job for processing' do
+        RocketJob::Config.stub(:inline_mode, false) do
+          @job = SumJob.perform_later(1, 23)
         end
+        assert @job.queued?
+
+        # Manually run the job
+        @job.perform_now
+        assert @job.completed?, @job.attributes.ai
+        assert_equal 24, @job.result['result']
+
+        assert_nil @job.worker_name
+        assert @job.completed_at
+        assert @job.created_at
+        assert_equal false, @job.destroy_on_complete
+        assert_nil @job.expires_at
+        assert_equal 100, @job.percent_complete
+        assert_equal 51, @job.priority
+        assert_equal 0, @job.failure_count
+        assert_nil @job.run_at
+        assert @job.started_at
       end
 
-      describe '.later' do
-        it "process non default method (inline_mode=#{inline_mode})" do
-          @job = Jobs::TestJob.later(:sum, 23, 45)
-          @job.start
-          assert_equal false, @job.work(@worker), @job.exception.inspect
-          assert_equal true, @job.completed?
-          assert_equal 68, Jobs::TestJob.result
+      it 'runs the job immediately when inline_mode = true' do
+        RocketJob::Config.stub(:inline_mode, true) do
+          @job = SumJob.perform_later(1, 23)
         end
-      end
 
-      describe '.perform_now' do
-        it "process perform (inline_mode=#{inline_mode})" do
-          @job = Jobs::TestJob.perform_now(5)
-          assert_equal true, @job.completed?
-          assert_equal 6, Jobs::TestJob.result
-        end
-      end
+        assert @job.completed?, @job.attributes.ai
+        assert_equal 24, @job.result['result']
 
-      describe '.now' do
-        it "process non default method (inline_mode=#{inline_mode})" do
-          @job = Jobs::TestJob.now(:sum, 23, 45)
-          assert_equal true, @job.completed?, @job.inspect
-          assert_equal 68, Jobs::TestJob.result
-        end
+        assert_nil @job.worker_name
+        assert @job.completed_at
+        assert @job.created_at
+        assert_equal false, @job.destroy_on_complete
+        assert_nil @job.expires_at
+        assert_equal 100, @job.percent_complete
+        assert_equal 51, @job.priority
+        assert_equal 0, @job.failure_count
+        assert_nil @job.run_at
+        assert @job.started_at
       end
-
     end
+
+    describe '.perform_now' do
+      it 'run the job immediately' do
+        @job = SumJob.perform_now(1,5)
+        assert_equal true, @job.completed?
+        assert_equal 6, @job.result['result']
+      end
+    end
+
   end
 end

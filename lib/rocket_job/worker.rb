@@ -1,6 +1,5 @@
 # encoding: UTF-8
 require 'socket'
-require 'aasm'
 module RocketJob
   # Worker
   #
@@ -27,8 +26,8 @@ module RocketJob
   #   immediately. Via the UI or Ruby code the worker can take up to 15 seconds
   #   (the heartbeat interval) to start shutting down.
   class Worker
-    include MongoMapper::Document
-    include AASM
+    include Concerns::Document
+    include Concerns::StateMachine
     include SemanticLogger::Loggable
 
     # Prevent data in MongoDB from re-defining the model behavior
@@ -343,19 +342,6 @@ module RocketJob
         end
       rescue StandardError
         logger.warn 'SIGTERM handler not installed. Not able to shutdown gracefully'
-      end
-    end
-
-    # Patch the way MongoMapper reloads a model
-    def reload
-      if doc = collection.find_one(:_id => id)
-        # Clear out keys that are not returned during the reload from MongoDB
-        (keys.keys - doc.keys).each { |key| send("#{key}=", nil) }
-        initialize_default_values
-        load_from_database(doc)
-        self
-      else
-        raise MongoMapper::DocumentNotFound, "Document match #{_id.inspect} does not exist in #{collection.name} collection"
       end
     end
 

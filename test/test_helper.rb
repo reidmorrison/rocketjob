@@ -7,6 +7,9 @@ require 'minitest/stub_any_instance'
 require 'rocketjob'
 require 'awesome_print'
 require 'symmetric-encryption'
+require 'mongo'
+require 'mongo_ha'
+require 'mongo_mapper'
 
 if ENV['DETAILED_TESTS'].present?
   # See every test and how long it took

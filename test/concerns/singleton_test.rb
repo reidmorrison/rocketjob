@@ -76,7 +76,7 @@ class SingletonTest < Minitest::Test
         @job.start!
         job2 = SingletonJob.new
         assert_equal false, job2.valid?
-        assert_equal ['Another instance of this job is already queued or running'], job2.errors.messages[:state]
+        assert_equal ['Another instance of SingletonTest::SingletonJob is already queued or running'], job2.errors.messages[:state]
       end
     end
 
