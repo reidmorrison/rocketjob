@@ -37,6 +37,8 @@ module RocketJob
     class DirmonJob < RocketJob::Job
       # Only allow one DirmonJob instance to be running at a time
       include RocketJob::Concerns::Singleton
+      # Start a new job when this one completes, fails, or aborts
+      include RocketJob::Concerns::Restart
 
       rocket_job do |job|
         job.priority = 40
@@ -52,6 +54,12 @@ module RocketJob
       # If the file size has not changed, the Job is kicked off.
       def perform
         check_directories
+      end
+
+      # Set a new run_at when a new instance of this job is created
+      def initialize_copy(orig)
+        super
+        self.run_at = Time.now + check_seconds
       end
 
       protected

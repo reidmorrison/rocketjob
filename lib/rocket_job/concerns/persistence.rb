@@ -4,7 +4,7 @@ require 'active_support/concern'
 module RocketJob
   module Concerns
     # Prevent more than one instance of this job class from running at a time
-    module Logger
+    module Persistence
       extend ActiveSupport::Concern
       include MongoMapper::Document
 
@@ -171,7 +171,7 @@ module RocketJob
           end
         end
 
-        # Add after_initialize callbacks
+        # Add after_initialize & after_find callbacks
         define_model_callbacks :initialize, :find, :only => [:after]
       end
 

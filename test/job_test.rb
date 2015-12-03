@@ -1,5 +1,4 @@
 require_relative 'test_helper'
-require_relative 'jobs/test_job'
 
 # Unit Test for RocketJob::Job
 class JobTest < Minitest::Test

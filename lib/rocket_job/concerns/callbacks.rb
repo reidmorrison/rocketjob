@@ -58,8 +58,6 @@ module RocketJob
       include ActiveSupport::Callbacks
 
       included do
-        @rocketjob_callbacks = ThreadSafe::Hash.new
-
         define_callbacks :perform
 
         def self.before_perform(*filters, &blk)

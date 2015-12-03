@@ -16,10 +16,14 @@ module RocketJob
   autoload :Worker,           'rocket_job/worker'
   module Concerns
     autoload :Callbacks,      'rocket_job/concerns/callbacks'
+    autoload :Defaults,       'rocket_job/concerns/defaults'
     autoload :EventCallbacks, 'rocket_job/concerns/event_callbacks'
-    autoload :Worker,         'rocket_job/concerns/worker'
+    autoload :Logger,         'rocket_job/concerns/logger'
+    autoload :Persistence,    'rocket_job/concerns/persistence'
+    autoload :Restart,        'rocket_job/concerns/restart'
     autoload :Singleton,      'rocket_job/concerns/singleton'
     autoload :StateMachine,   'rocket_job/concerns/state_machine'
+    autoload :Worker,         'rocket_job/concerns/worker'
   end
   module Jobs
     autoload :DirmonJob,      'rocket_job/jobs/dirmon_job'

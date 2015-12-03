@@ -6,15 +6,20 @@ module RocketJob
     # Prevent more than one instance of this job class from running at a time
     module Logger
       extend ActiveSupport::Concern
-      include SemanticLogger::Loggable
 
       included do
+        include SemanticLogger::Loggable
+
+        around_perform :rocketjob_around_logger
+
+        private
+
         # Add logging around the perform call
         #   - metric allows duration to be forwarded to statsd, etc.
         #   - log_exception logs entire exception if raised
         #   - on_exception_level changes log level from info to error on exception
         #   - silence noisy jobs by raising log level
-        around_perform do |job, block|
+        def rocketjob_around_logger(&block)
           logger.info('Start #perform')
           logger.benchmark_info(
             'Completed #perform',
@@ -25,8 +30,8 @@ module RocketJob
             &block
           )
         end
-      end
 
+      end
     end
   end
 end

@@ -26,7 +26,6 @@ module RocketJob
       extend ActiveSupport::Concern
 
       included do
-
         # Adds a :before or :after callback to an event
         #  add_event_callback(:start, :before, :my_method)
         def self.add_event_callback(event_name, action, *methods, &block)
@@ -35,7 +34,8 @@ module RocketJob
 
           if event = aasm.state_machine.events[event_name]
             values = Array(event.options[action])
-            values << (block ? block : methods)
+            code = block ? block : methods
+            action == :before ? values.push(code) : values.unshift(code)
             event.options[action] = values.flatten.uniq
           else
             raise(ArgumentError, "Unknown event: #{event_name.inspect}")

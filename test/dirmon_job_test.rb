@@ -1,8 +1,13 @@
 require_relative 'test_helper'
-require_relative 'jobs/test_job'
 
 # Unit Test for RocketJob::Job
 class DirmonJobTest < Minitest::Test
+  class DirmonJob < RocketJob::Job
+    def perform(hash)
+      3645
+    end
+  end
+
   describe RocketJob::Jobs::DirmonJob do
     before do
       @dirmon_job        = RocketJob::Jobs::DirmonJob.new
@@ -10,7 +15,7 @@ class DirmonJobTest < Minitest::Test
       @archive_directory = '/tmp/archive_directory'
       @entry             = RocketJob::DirmonEntry.new(
         pattern:           "#{@directory}/abc/*",
-        job_class_name:    'Jobs::EventJob',
+        job_class_name:    'DirmonJob',
         arguments:         [{input: 'yes'}],
         properties:        {priority: 23},
         archive_directory: @archive_directory

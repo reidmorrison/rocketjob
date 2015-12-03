@@ -4,17 +4,12 @@ module RocketJob
   # The base job from which all jobs are created
   class Job
     include Concerns::Persistence
-    include Concerns::Logger
     include Concerns::EventCallbacks
     include Concerns::Callbacks
+    include Concerns::Logger
     include Concerns::StateMachine
     include Concerns::Worker
-
-    # Override parent defaults
-    def self.rocket_job(&block)
-      @rocket_job_defaults = block
-      self
-    end
+    include Concerns::Defaults
 
     # User definable properties in Dirmon Entry
     def self.rocket_job_properties
@@ -134,13 +129,6 @@ module RocketJob
           worker_name: worker_name
         )
       end
-    end
-
-    protected
-
-    # Apply defaults after creating the model but before applying values
-    def rocket_job_set_defaults
-      @rocket_job_defaults.call(job) if @rocket_job_defaults
     end
 
   end

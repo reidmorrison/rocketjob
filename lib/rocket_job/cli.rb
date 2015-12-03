@@ -19,6 +19,7 @@ module RocketJob
 
     # Run a RocketJob::Worker from the command line
     def run
+      Thread.current.name = 'rocketjob main'
       setup_environment
       setup_logger
       boot_standalone unless boot_rails

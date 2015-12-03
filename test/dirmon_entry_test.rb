@@ -1,7 +1,4 @@
 require_relative 'test_helper'
-require_relative 'jobs/quiet_job'
-require_relative 'jobs/sum_job'
-require_relative 'jobs/hash_job'
 
 # Unit Test for RocketJob::Job
 class DirmonEntryTest < Minitest::Test
@@ -14,6 +11,18 @@ class DirmonEntryTest < Minitest::Test
     end
   end
 
+  class SumJob < RocketJob::Job
+    @@result = nil
+
+    # For temp test data
+    def self.result
+      @@result
+    end
+
+    def perform(a, b)
+      @@result = a + b
+    end
+  end
 
   describe RocketJob::DirmonEntry do
     describe '.config' do
@@ -150,7 +159,7 @@ class DirmonEntryTest < Minitest::Test
 
       it 'invalid without 2 arguments' do
         assert entry = RocketJob::DirmonEntry.new(
-            job_class_name: 'Jobs::SumJob',
+            job_class_name: 'SumJob',
             pattern:        'test/files/**'
           )
         assert_equal false, entry.valid?
@@ -167,7 +176,7 @@ class DirmonEntryTest < Minitest::Test
 
       it 'valid with 2 arguments' do
         assert entry = RocketJob::DirmonEntry.new(
-            job_class_name: 'Jobs::SumJob',
+            job_class_name: 'SumJob',
             pattern:        'test/files/**',
             arguments:      [1, 2]
           )
@@ -183,7 +192,7 @@ class DirmonEntryTest < Minitest::Test
         @archive_path = @archive_path.realdirpath
         @entry        = RocketJob::DirmonEntry.new(
           pattern:           'test/files/**/*',
-          job_class_name:    'Jobs::HashJob',
+          job_class_name:    'DirmonJob',
           arguments:         [{}],
           properties:        {priority: 23},
           archive_directory: @archive_directory

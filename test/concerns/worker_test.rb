@@ -1,16 +1,26 @@
-require_relative 'test_helper'
-require_relative 'jobs/test_job'
+require_relative '../test_helper'
 
 # Unit Test for RocketJob::Job
 class WorkerTest < Minitest::Test
+  class QuietJob < RocketJob::Job
+    # Test increasing log level for debugging purposes
+    def perform
+      logger.trace 'enable tracing level for just the job instance'
+    end
+  end
+
+  class NoisyJob < RocketJob::Job
+    # Test silencing noisy logging
+    def perform
+      logger.info 'some very noisy logging'
+    end
+  end
+
   describe RocketJob::Concerns::Worker do
     describe '.next_job' do
       before do
         RocketJob::Job.destroy_all
-        @quiet_job = Jobs::QuietJob.new(
-          description: @description,
-          worker_name: 'worker:123'
-        )
+        @quiet_job = QuietJob.new
       end
 
       after do
@@ -106,7 +116,6 @@ class WorkerTest < Minitest::Test
           assert_nil @job.worker_name
           assert_nil @job.completed_at
           assert @job.created_at
-          assert_nil @job.description
           assert_equal false, @job.destroy_on_complete
           assert_nil @job.expires_at
           assert_equal 0, @job.percent_complete
@@ -125,7 +134,6 @@ class WorkerTest < Minitest::Test
           assert_nil @job.worker_name
           assert @job.completed_at
           assert @job.created_at
-          assert_nil @job.description
           assert_equal false, @job.destroy_on_complete
           assert_nil @job.expires_at
           assert_equal 100, @job.percent_complete

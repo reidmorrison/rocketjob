@@ -1,4 +1,4 @@
-require 'thread_safe'
+require 'concurrent'
 require 'pathname'
 require 'fileutils'
 require 'aasm'
@@ -262,7 +262,7 @@ module RocketJob
       end
     end
 
-    @@whitelist_paths = ThreadSafe::Array.new
+    @@whitelist_paths = Concurrent::Array.new
 
     # Returns the Job to be queued
     def job_class

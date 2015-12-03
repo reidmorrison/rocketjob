@@ -73,12 +73,15 @@ module RocketJob
           self.started_at = Time.now
         end
       end
+
       event :pause do
         transitions from: :running, to: :paused
       end
+
       event :resume do
         transitions from: :paused, to: :running
       end
+
       event :stop do
         transitions from: :running,  to: :stopping
         transitions from: :paused,   to: :stopping
@@ -274,7 +277,7 @@ module RocketJob
 
     # Keep processing jobs until worker stops running
     def worker(worker_id)
-      Thread.current.name = "rocketjob #{worker_id}"
+      Thread.current.name = 'rocketjob %03i' % worker_id
       logger.info 'Started'
       while !shutting_down?
         if process_next_job
