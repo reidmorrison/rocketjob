@@ -64,27 +64,32 @@ class JobStateMachineTest < Minitest::Test
       it 'fail with message' do
         @job.start!
         @job.fail!('myworker:2323', 'oh no')
-        assert_equal true, @job.failed?
-        h = @job.status
-        assert_equal :failed, h['state']
-        assert_equal 'RocketJob::JobException', h['exception']['class_name'], h
-        assert_equal 'oh no', h['exception']['message'], h
+        assert @job.failed?
+        assert exc = @job.exception
+        assert_equal 'RocketJob::JobException', exc.class_name
+        assert_equal 'oh no', exc.message
+      end
+
+      it 'fail with no arguments' do
+        @job.start!
+        @job.fail!
+        assert @job.failed?
+        assert exc = @job.exception
+        assert_equal 'RocketJob::JobException', exc.class_name
+        assert_equal nil, exc.message
+        assert_equal nil, exc.worker_name
+        assert_equal [], exc.backtrace
       end
 
       it 'fail with exception' do
         @job.start!
-        exception = nil
-        begin
-          blah
-        rescue Exception => exc
-          exception = exc
-        end
+        exception = RuntimeError.new('Oh no')
         @job.fail!('myworker:2323', exception)
-        assert_equal true, @job.failed?
-        h = @job.status
-        assert_equal :failed, h['state']
-        assert_equal exception.class.name.to_s, h['exception']['class_name'], h
-        assert h['exception']['message'].include?('undefined local variable or method'), h
+        assert @job.failed?
+        assert exc = @job.exception
+        assert_equal exception.class.name, exc.class_name
+        assert_equal exception.message, exc.message
+        assert_equal [], exc.backtrace
       end
     end
 

@@ -94,7 +94,23 @@ module RocketJob
         before_resume :clear_completed_at
       end
 
-      protected
+      private
+
+      # Sets the exception child object for this job based on the
+      # supplied Exception instance or message
+      def set_exception(worker_name = nil, exc_or_message = nil)
+        if exc_or_message.is_a?(Exception)
+          self.exception        = JobException.from_exception(exc_or_message)
+          exception.worker_name = worker_name
+        else
+          build_exception(
+            class_name:  'RocketJob::JobException',
+            message:     exc_or_message,
+            backtrace:   [],
+            worker_name: worker_name
+          )
+        end
+      end
 
       def set_started_at
         self.started_at = Time.now

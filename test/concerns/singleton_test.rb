@@ -16,6 +16,10 @@ class SingletonTest < Minitest::Test
   end
 
   describe RocketJob::Concerns::Singleton do
+    before do
+      SingletonJob.delete_all
+    end
+
     after do
       @job.destroy if @job && !@job.new_record?
     end
@@ -77,6 +81,15 @@ class SingletonTest < Minitest::Test
         job2 = SingletonJob.new
         assert_equal false, job2.valid?
         assert_equal ['Another instance of SingletonTest::SingletonJob is already queued or running'], job2.errors.messages[:state]
+      end
+
+      it 'passes if another job is active, but this job is not' do
+        @job = SingletonJob.new
+        @job.start!
+        job2 = SingletonJob.new
+        job2.abort
+        assert job2.valid?
+        job2.save!
       end
     end
 

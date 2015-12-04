@@ -69,9 +69,9 @@ module RocketJob
       RocketJob.seconds_as_duration(seconds)
     end
 
-    # A job has expired if the expiry time has passed before it is started
+    # Returns [true|false] whether the job has expired
     def expired?
-      started_at.nil? && expires_at && (expires_at < Time.now)
+      expires_at && (expires_at < Time.now)
     end
 
     # Returns [Hash] status of this job
@@ -114,22 +114,6 @@ module RocketJob
         end
       end
       h
-    end
-
-    # Sets the exception child object for this job based on the
-    # supplied Exception instance or message
-    def set_exception(worker_name='', exc_or_message='')
-      if exc_or_message.is_a?(Exception)
-        self.exception        = JobException.from_exception(exc_or_message)
-        exception.worker_name = worker_name
-      else
-        build_exception(
-          class_name:  'RocketJob::JobException',
-          message:     exc_or_message,
-          backtrace:   [],
-          worker_name: worker_name
-        )
-      end
     end
 
   end

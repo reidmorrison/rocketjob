@@ -283,7 +283,7 @@ module RocketJob
       end
     end
 
-    protected
+    private
 
     # Instance method to return whitelist paths
     def whitelist_paths

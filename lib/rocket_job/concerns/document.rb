@@ -14,6 +14,9 @@ module RocketJob
       included do
         # Add after_initialize & after_find callbacks
         define_model_callbacks :initialize, :find, :only => [:after]
+
+        # Prevent data in MongoDB from re-defining the model behavior
+        #self.static_keys = true
       end
 
       # Patch the way MongoMapper reloads a model

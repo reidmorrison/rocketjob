@@ -72,7 +72,7 @@ module RocketJob
       # is set in the job itself.
       #
       # Thread-safe, can be called by multiple threads at the same time
-      def work(worker, raise_exceptions = RocketJob::Config.inline_mode)
+      def work(worker, raise_exceptions = !RocketJob::Config.inline_mode)
         raise(ArgumentError, 'Job must be started before calling #work') unless running?
         begin
           run_callbacks :perform do
@@ -83,7 +83,7 @@ module RocketJob
             end
           end
           new_record? ? complete : complete!
-        rescue StandardError => exc
+        rescue Exception => exc
           fail(worker.name, exc) if may_fail?
           save! unless new_record?
           raise(exc) if raise_exceptions
@@ -102,7 +102,7 @@ module RocketJob
       # * after_create
       #
       # Exceptions are _not_ suppressed and should be handled by the caller.
-      def perform_now(raise_exceptions = true)
+      def perform_now
         # Call validations
         if respond_to?(:validate!)
           validate!
@@ -112,7 +112,7 @@ module RocketJob
         worker = RocketJob::Worker.new(name: 'inline')
         worker.started
         start if may_start?
-        work(worker, raise_exceptions) if running?
+        work(worker) if running?
         result
       end
 

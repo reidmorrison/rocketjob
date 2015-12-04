@@ -230,7 +230,7 @@ module RocketJob
       (Time.now - heartbeat.updated_at) >= dead_seconds
     end
 
-    protected
+    private
 
     def next_worker_id
       @worker_id ||= 0

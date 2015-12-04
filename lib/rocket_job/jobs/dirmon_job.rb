@@ -48,6 +48,8 @@ module RocketJob
       key :check_seconds, Float, default: 300.0
       key :previous_file_names, Hash # Hash[file_name, size]
 
+      after_initialize :set_run_at
+
       # Iterate over each Dirmon entry looking for new files
       # If a new file is found, it is not processed immediately, instead
       # it is passed to the next run of this job along with the file size.
@@ -56,13 +58,12 @@ module RocketJob
         check_directories
       end
 
-      # Set a new run_at when a new instance of this job is created
-      def initialize_copy(orig)
-        super
+      private
+
+      # Set a run_at when a new instance of this job is created
+      def set_run_at
         self.run_at = Time.now + check_seconds
       end
-
-      protected
 
       # Checks the directories for new files, starting jobs if files have not changed
       # since the last run

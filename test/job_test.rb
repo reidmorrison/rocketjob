@@ -38,16 +38,6 @@ class JobTest < Minitest::Test
         assert_equal 'RocketJob::JobException', h['exception']['class_name'], h
         assert_equal 'oh no', h['exception']['message'], h
       end
-
-      it 'mark user as reason for failure when not supplied' do
-        @job.start!
-        @job.fail!
-        assert_equal true, @job.failed?
-        assert_equal @description, @job.description
-        assert_equal 'RocketJob::JobException', @job.exception.class_name
-        assert_equal '', @job.exception.message
-        assert_equal '', @job.exception.worker_name
-      end
     end
 
     describe '.requeue_dead_worker' do

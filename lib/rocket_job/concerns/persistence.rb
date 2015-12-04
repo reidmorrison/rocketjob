@@ -8,9 +8,6 @@ module RocketJob
       extend ActiveSupport::Concern
 
       included do
-        # Prevent data in MongoDB from re-defining the model behavior
-        #self.static_keys = true
-
         #
         # User definable attributes
         #

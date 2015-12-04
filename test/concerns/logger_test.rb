@@ -11,6 +11,10 @@ module Concerns
     end
 
     describe RocketJob::Concerns::Logger do
+      before do
+        LoggerJob.delete_all
+      end
+
       after do
         @job.destroy if @job && !@job.new_record?
         SemanticLogger.flush
