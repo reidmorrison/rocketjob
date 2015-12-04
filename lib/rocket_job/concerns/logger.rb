@@ -8,8 +8,6 @@ module RocketJob
       extend ActiveSupport::Concern
 
       included do
-        include SemanticLogger::Loggable
-
         around_perform :rocketjob_around_logger
 
         private

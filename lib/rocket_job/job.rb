@@ -2,6 +2,7 @@
 module RocketJob
   # The base job from which all jobs are created
   class Job
+    include SemanticLogger::Loggable
     include Concerns::Document
     include Concerns::Persistence
     include Concerns::EventCallbacks
