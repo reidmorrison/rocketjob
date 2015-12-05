@@ -22,4 +22,4 @@ notifications:
 
 # Switch to RVM Head
 before_install:
-  - 'rvm get head && rvm reload'
+  - 'rvm get head && rvm reload && rvm use --install $TRAVIS_RUBY_VERSION'
