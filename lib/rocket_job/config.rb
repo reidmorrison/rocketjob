@@ -2,7 +2,7 @@
 module RocketJob
   # Centralized Configuration for Rocket Jobs
   class Config
-    include MongoMapper::Document
+    include Concerns::Document
 
     # Prevent data in MongoDB from re-defining the model behavior
     #self.static_keys = true
@@ -18,7 +18,8 @@ module RocketJob
       end
     end
 
-    # By enabling inline_mode jobs will be called in-line
+    # Useful for Testing, not recommended elsewhere
+    # By enabling inline_mode jobs will be called in-line using perform_now
     # No worker processes will be created, nor threads created
     cattr_accessor(:inline_mode) { false }
 
@@ -43,9 +44,6 @@ module RocketJob
     #   Not all job types support pausing in the middle
     key :re_check_seconds,           Integer, default: 60
 
-    # Limit the number of workers per job class per worker
-    #    'class_name' / group => 100
-    #key :limits, Hash
     # @formatter:on
 
     # Replace the MongoMapper default mongo connection for holding jobs

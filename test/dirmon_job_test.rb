@@ -1,18 +1,24 @@
 require_relative 'test_helper'
-require_relative 'jobs/test_job'
 
 # Unit Test for RocketJob::Job
 class DirmonJobTest < Minitest::Test
+  class DirmonTestJob < RocketJob::Job
+    def perform(hash)
+      3645
+    end
+  end
+
   describe RocketJob::Jobs::DirmonJob do
     before do
+      RocketJob::Jobs::DirmonJob.delete_all
       @dirmon_job        = RocketJob::Jobs::DirmonJob.new
       @directory         = '/tmp/directory'
       @archive_directory = '/tmp/archive_directory'
       @entry             = RocketJob::DirmonEntry.new(
         pattern:           "#{@directory}/abc/*",
-        job_class_name:    'Jobs::TestJob',
+        job_class_name:    'DirmonJobTest::DirmonTestJob',
         arguments:         [{input: 'yes'}],
-        properties:        {priority: 23, perform_method: :event},
+        properties:        {priority: 23},
         archive_directory: @archive_directory
       )
       FileUtils.makedirs("#{@directory}/abc")
@@ -20,7 +26,7 @@ class DirmonJobTest < Minitest::Test
     end
 
     after do
-      @dirmon_job.destroy if @dirmon_job && !@dirmon_job.new_record?
+      @dirmon_job.delete if @dirmon_job && !@dirmon_job.new_record?
       FileUtils.remove_dir(@archive_directory, true) if Dir.exist?(@archive_directory)
       FileUtils.remove_dir(@directory, true) if Dir.exist?(@directory)
     end
@@ -57,8 +63,9 @@ class DirmonJobTest < Minitest::Test
       it 'check deleted file' do
         previous_size = 5
         file_name     = Pathname.new('blah')
-        result        = @dirmon_job.send(:check_file, @entry, file_name, previous_size)
-        assert_equal nil, result
+        assert_raises Errno::ENOENT do
+          @dirmon_job.send(:check_file, @entry, file_name, previous_size)
+        end
       end
     end
 
@@ -146,7 +153,6 @@ class DirmonJobTest < Minitest::Test
           "#{@directory}/abc/file1" => 10,
           "#{@directory}/abc/file2" => 10,
         }
-        RocketJob::Jobs::DirmonJob.destroy_all
         RocketJob::Jobs::DirmonJob.stub_any_instance(:check_directories, new_file_names) do
           # perform_now does not save the job, just runs it
           dirmon_job = RocketJob::Jobs::DirmonJob.new(
@@ -154,14 +160,14 @@ class DirmonJobTest < Minitest::Test
             priority:            11,
             check_seconds:       30
           )
-          dirmon_job.work_now
+          dirmon_job.perform_now
         end
         assert dirmon_job.completed?, dirmon_job.status.inspect
 
-        # It it have enqueued another instance to run in the future
+        # Must have enqueued another instance to run in the future
         assert_equal 1, RocketJob::Jobs::DirmonJob.count
         assert new_dirmon_job = RocketJob::Jobs::DirmonJob.last
-        assert_equal false, dirmon_job.id == new_dirmon_job.id
+        refute_equal dirmon_job.id.to_s, new_dirmon_job.id.to_s
         assert new_dirmon_job.run_at
         assert_equal 11, new_dirmon_job.priority
         assert_equal 30, new_dirmon_job.check_seconds
@@ -171,20 +177,24 @@ class DirmonJobTest < Minitest::Test
       end
 
       it 'check directories and reschedule even on exception' do
-        dirmon_job = nil
         RocketJob::Jobs::DirmonJob.destroy_all
-        RocketJob::Jobs::DirmonJob.stub_any_instance(:check_directories, -> previous { raise RuntimeError.new("Oh no") }) do
-          # perform_now does not save the job, just runs it
-          dirmon_job = RocketJob::Jobs::DirmonJob.create!(
-            priority:      11,
-            check_seconds: 30
-          )
-          dirmon_job.work_now
+        # perform_now does not save the job, just runs it
+        dirmon_job = RocketJob::Jobs::DirmonJob.create!(
+          priority:            11,
+          check_seconds:       30,
+          destroy_on_complete: false
+        )
+        RocketJob::Jobs::DirmonJob.stub_any_instance(:check_directories, -> { raise RuntimeError.new('Oh no') }) do
+          assert_raises RuntimeError do
+            dirmon_job.perform_now
+          end
         end
-        assert dirmon_job.failed?, dirmon_job.status.inspect
+        assert dirmon_job.aborted?, dirmon_job.status.ai
+        assert_equal 'RuntimeError', dirmon_job.exception.class_name, dirmon_job.exception.attributes
+        assert_equal 'Oh no', dirmon_job.exception.message, dirmon_job.exception.attributes
 
         # Must have enqueued another instance to run in the future
-        assert_equal 2, RocketJob::Jobs::DirmonJob.count
+        assert_equal 2, RocketJob::Jobs::DirmonJob.count, RocketJob::Jobs::DirmonJob.to_a
         assert new_dirmon_job = RocketJob::Jobs::DirmonJob.last
         assert new_dirmon_job.run_at
         assert_equal 11, new_dirmon_job.priority

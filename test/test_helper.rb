@@ -7,14 +7,11 @@ require 'minitest/stub_any_instance'
 require 'rocketjob'
 require 'awesome_print'
 require 'symmetric-encryption'
+require 'mongo'
+require 'mongo_ha'
+require 'mongo_mapper'
 
-if ENV['DETAILED_TESTS'].present?
-  # See every test and how long it took
-  MiniTest::Reporters.use! MiniTest::Reporters::SpecReporter.new
-else
-  # Only show failed tests
-  MiniTest::Reporters.use! MiniTest::Reporters::ProgressReporter.new
-end
+MiniTest::Reporters.use! MiniTest::Reporters::SpecReporter.new
 
 SemanticLogger.add_appender('test.log', &SemanticLogger::Appender::Base.colorized_formatter)
 SemanticLogger.default_level = :debug

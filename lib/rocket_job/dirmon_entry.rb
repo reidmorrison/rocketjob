@@ -1,11 +1,10 @@
-require 'thread_safe'
+require 'concurrent'
 require 'pathname'
 require 'fileutils'
-require 'aasm'
 module RocketJob
   class DirmonEntry
-    include MongoMapper::Document
-    include AASM
+    include Concerns::Document
+    include Concerns::StateMachine
 
     # @formatter:off
     # User defined name used to identify this DirmonEntry in Mission Control
@@ -67,9 +66,6 @@ module RocketJob
     # be created in the archive directory.
     key :archive_directory,  String
 
-    # Method to perform on the job, usually :perform
-    key :perform_method,     Symbol, default: :perform
-
     # If this DirmonEntry is in the failed state, exception contains the cause
     one :exception,          class_name: 'RocketJob::JobException'
 
@@ -85,7 +81,7 @@ module RocketJob
     # Read-only attributes
     #
 
-    # Current state, as set by AASM
+    # Current state, as set by the state machine. Do not modify directly.
     key :state,              Symbol, default: :pending
 
     # State Machine events and transitions
@@ -120,19 +116,13 @@ module RocketJob
         transitions from: :failed,  to: :disabled
       end
 
-      event :fail do
+      event :fail, before: :set_exception do
         transitions from: :enabled, to: :failed
       end
     end
 
     # @formatter:on
-    validates_presence_of :pattern, :job_class_name, :perform_method
-
-    validates_each :perform_method do |record, attr, value|
-      if (klass = record.job_class) && !klass.instance_methods.include?(value)
-        record.errors.add(attr, "Method not implemented by #{record.job_class_name}")
-      end
-    end
+    validates_presence_of :pattern, :job_class_name
 
     validates_each :job_class_name do |record, attr, value|
       exists =
@@ -145,8 +135,8 @@ module RocketJob
     end
 
     validates_each :arguments do |record, attr, value|
-      if (klass = record.job_class) && klass.instance_methods.include?(record.perform_method)
-        count = klass.argument_count(record.perform_method)
+      if klass = record.job_class
+        count = klass.argument_count
         record.errors.add(attr, "There must be #{count} argument(s)") if value.size != count
       end
     end
@@ -217,7 +207,11 @@ module RocketJob
     def archive_pathname(file_pathname)
       if archive_directory
         path = Pathname.new(archive_directory)
-        path.mkpath unless path.exist?
+        begin
+          path.mkpath unless path.exist?
+        rescue Errno::ENOENT => exc
+          raise(Errno::ENOENT, "DirmonJob failed to create archive directory: #{path}, #{exc.message}")
+        end
         path.realpath
       else
         file_pathname.dirname.join(self.class.default_archive_directory).realdirpath
@@ -253,7 +247,7 @@ module RocketJob
     end
 
     # Set exception information for this DirmonEntry and fail it
-    def fail_with_exception!(worker_name, exc_or_message)
+    def set_exception(worker_name, exc_or_message)
       if exc_or_message.is_a?(Exception)
         self.exception        = JobException.from_exception(exc_or_message)
         exception.worker_name = worker_name
@@ -265,10 +259,9 @@ module RocketJob
           worker_name: worker_name
         )
       end
-      fail!
     end
 
-    @@whitelist_paths = ThreadSafe::Array.new
+    @@whitelist_paths = Concurrent::Array.new
 
     # Returns the Job to be queued
     def job_class
@@ -280,19 +273,17 @@ module RocketJob
 
     # Queues the job for the supplied pathname
     def later(pathname)
-      job = job_class.new(
-        properties.merge(
-          arguments:      arguments,
-          properties:     properties,
-          perform_method: perform_method
-        )
-      )
-      upload_file(job, pathname)
-      job.save!
-      job
+      if klass = job_class
+        job = klass.new(properties.merge(arguments: arguments))
+        upload_file(job, pathname)
+        job.save!
+        job
+      else
+        raise(ArgumentError, "Cannot instantiate a class for: #{job_class_name.inspect}")
+      end
     end
 
-    protected
+    private
 
     # Instance method to return whitelist paths
     def whitelist_paths

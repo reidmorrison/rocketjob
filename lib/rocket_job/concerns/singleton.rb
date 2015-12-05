@@ -1,33 +1,26 @@
 # encoding: UTF-8
 require 'active_support/concern'
 
-# Worker behavior for a job
 module RocketJob
   module Concerns
+    # Prevent more than one instance of this job class from running at a time
     module Singleton
       extend ActiveSupport::Concern
 
       included do
-        # Start the single instance of this job
-        #
-        # Returns true if the job was started
-        # Returns false if the job is already running and doe not need to be started
-        def self.start(*args, &block)
-          # Prevent multiple Jobs of the same class from running at the same time
-          return false if where(state: [:running, :queued]).count > 0
-
-          perform_later(*args, &block)
-          true
+        # Validation prevents a new job from being saved while one is already running
+        validates_each :state do |record, attr, value|
+          if (record.running? || record.queued? || record.paused?) && record.singleton_job_active?
+            record.errors.add(attr, "Another instance of #{record.class.name} is already queued or running")
+          end
         end
 
-        # TODO Make :perform_later, :perform_now, :perform, :now protected/private
-        #      class << self
-        #        # Ensure that only one instance of the job is running.
-        #        protected :perform_later, :perform_now, :perform, :now
-        #      end
-        #self.send(:protected, :perform_later)
-
+        # Returns [true|false] whether another instance of this job is already active
+        def singleton_job_active?
+          self.class.where(state: [:running, :queued], _id: {'$ne' => id}).exists?
+        end
       end
+
     end
   end
 end

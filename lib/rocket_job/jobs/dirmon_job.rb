@@ -26,14 +26,19 @@ module RocketJob
     # if no archive_directory was specified in the DirmonEntry.
     #
     # To start Dirmon for the first time
+    #   RocketJob::Jobs::DirmonJob.create!
     #
+    # If another DirmonJob instance is already queued or running, then the create
+    # above will fail with:
+    #   MongoMapper::DocumentNotValid: Validation failed: State Another instance of this job is already queued or running
     #
-    # Note:
-    #   Use `DirmonJob.start` to prevent creating multiple Dirmon jobs, otherwise
-    #   it will result in multiple jobs being started
+    # Or to start DirmonJob and ignore errors if already running
+    #   RocketJob::Jobs::DirmonJob.create
     class DirmonJob < RocketJob::Job
       # Only allow one DirmonJob instance to be running at a time
       include RocketJob::Concerns::Singleton
+      # Start a new job when this one completes, fails, or aborts
+      include RocketJob::Concerns::Restart
 
       rocket_job do |job|
         job.priority = 40
@@ -43,23 +48,22 @@ module RocketJob
       key :check_seconds, Float, default: 300.0
       key :previous_file_names, Hash # Hash[file_name, size]
 
+      after_initialize :set_run_at
+
       # Iterate over each Dirmon entry looking for new files
       # If a new file is found, it is not processed immediately, instead
       # it is passed to the next run of this job along with the file size.
       # If the file size has not changed, the Job is kicked off.
       def perform
         check_directories
-      ensure
-        # Run again in the future, even if this run fails with an exception
-        self.class.create!(
-          previous_file_names: previous_file_names,
-          priority:            priority,
-          check_seconds:       check_seconds,
-          run_at:              Time.now + check_seconds
-        )
       end
 
-      protected
+      private
+
+      # Set a run_at when a new instance of this job is created
+      def set_run_at
+        self.run_at = Time.now + check_seconds
+      end
 
       # Checks the directories for new files, starting jobs if files have not changed
       # since the last run
@@ -70,7 +74,7 @@ module RocketJob
             # BSON Keys cannot contain periods
             key           = pathname.to_s.gsub('.', '_')
             previous_size = previous_file_names[key]
-            if (size = check_file(entry, pathname, previous_size))
+            if size = check_file(entry, pathname, previous_size)
               new_file_names[key] = size
             end
           end
@@ -91,9 +95,6 @@ module RocketJob
           # Keep for the next run
           size
         end
-      rescue Errno::ENOENT => exc
-        # File may have been deleted since the scan was performed
-        nil
       end
 
     end
