@@ -1,6 +1,7 @@
 # encoding: UTF-8
 require 'active_support/concern'
 require 'aasm'
+require 'rocket_job/extensions/aasm'
 
 module RocketJob
   module Concerns
