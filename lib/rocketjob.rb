@@ -14,6 +14,7 @@ module RocketJob
 
   module Concerns
     autoload :Callbacks,       'rocket_job/concerns/callbacks'
+    autoload :Cron,            'rocket_job/concerns/cron'
     autoload :Defaults,        'rocket_job/concerns/defaults'
     autoload :Document,        'rocket_job/concerns/document'
     autoload :EventCallbacks,  'rocket_job/concerns/event_callbacks'
@@ -43,5 +44,16 @@ module RocketJob
     else
       time.strftime('%-Ss %Lms')
     end
+  end
+end
+
+# Autoload Rufus Scheduler Cron Line parsing code only.
+#
+# Be sure to require 'rufus-scheduler' if it is being used for
+# any other scheduling tasks.
+module Rufus
+  class Scheduler
+    autoload  :CronLine, 'rufus/scheduler/cronline'
+    autoload  :ZoTime, 'rufus/scheduler/zotime'
   end
 end

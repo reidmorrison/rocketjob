@@ -1,4 +1,4 @@
-# rocketjob
+# Rocket Job
 [![Gem Version](https://img.shields.io/gem/v/rocketjob.svg)](https://rubygems.org/gems/rocketjob) [![Build Status](https://travis-ci.org/rocketjob/rocketjob.svg?branch=master)](https://travis-ci.org/rocketjob/rocketjob) [![Downloads](https://img.shields.io/gem/dt/rocketjob.svg)](https://rubygems.org/gems/rocketjob) ![](https://img.shields.io/badge/status-Production%20Ready-blue.svg) [![Gitter chat](https://img.shields.io/badge/IRC%20(gitter)-Support-brightgreen.svg)](https://gitter.im/rocketjob/support)
 
 Enterprise Batch Processing System focused on performance, scalability, reliability, and visibility of every job in the system.
@@ -23,6 +23,16 @@ of records, as well as large jobs to walk though large databases.
 
 * Questions? Join the chat room on Gitter for [rocketjob support](https://gitter.im/rocketjob/support)
 * [Report bugs](https://github.com/rocketjob/rocketjob/issues)
+
+## Dependencies
+
+* [MongoDB](https://www.mongodb.org)
+    * Persists job information.
+    * Version 2.7 or greater.
+* [Semantic Logger](https://rocketjob.github.io/semantic_logger)
+    * Highly concurrent scalable logging.
+* [Rufus Scheduler](https://github.com/jmettraux/rufus-scheduler/blob/master/lib/rufus/scheduler/cronline.rb)
+    * Only used for parsing the cron line for scheduled jobs.
 
 ## Versioning
 
