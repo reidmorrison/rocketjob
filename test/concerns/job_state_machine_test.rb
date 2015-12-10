@@ -53,8 +53,7 @@ class JobStateMachineTest < Minitest::Test
     describe '#after_complete' do
       it 'destroy on complete' do
         @job.destroy_on_complete = true
-        @job.start!
-        assert_equal false, @job.work(@worker)
+        @job.perform_now
         assert @job.completed?, @job.state
         assert_equal 0, RocketJob::Job.where(id: @job.id).count
       end

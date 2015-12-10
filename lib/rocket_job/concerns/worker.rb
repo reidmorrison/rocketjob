@@ -51,13 +51,15 @@ module RocketJob
           while (job = rocket_job_retrieve(worker_name, skip_job_ids))
             case
             when job.running?
+              # Batch Job
               return job
             when job.expired?
-              job.destroy
+              job.fail_on_exception!(worker_name) { job.destroy }
               logger.info "Destroyed expired job #{job.class.name}, id:#{job.id}"
             else
-              job.start
-              return job
+              job.worker_name = worker_name
+              job.fail_on_exception!(worker_name) { job.start }
+              return job if job.running?
             end
           end
         end
@@ -74,7 +76,7 @@ module RocketJob
       # Thread-safe, can be called by multiple threads at the same time
       def work(worker, raise_exceptions = !RocketJob::Config.inline_mode)
         raise(ArgumentError, 'Job must be started before calling #work') unless running?
-        begin
+        fail_on_exception!(worker.name, raise_exceptions) do
           run_callbacks :perform do
             ret = perform(*arguments)
             if collect_output?
@@ -83,10 +85,6 @@ module RocketJob
             end
           end
           new_record? ? complete : complete!
-        rescue Exception => exc
-          fail(worker.name, exc) if may_fail?
-          save! unless new_record?
-          raise(exc) if raise_exceptions
         end
         false
       end
@@ -112,7 +110,8 @@ module RocketJob
         worker = RocketJob::Worker.new(name: 'inline')
         worker.started
         start if may_start?
-        work(worker) if running?
+        # Raise exceptions
+        work(worker, true) if running?
         result
       end
 
@@ -120,6 +119,30 @@ module RocketJob
         fail NotImplementedError
       end
 
+      # Fail this job in the event of an exception.
+      #
+      # The job is automatically saved only if an exception is raised in the supplied block.
+      #
+      # worker_name: [String]
+      #   Name of the worker on which the exception has occurred
+      #
+      # raise_exceptions: [true|false]
+      #   Re-raise the exception after updating the job
+      #   Default: !RocketJob::Config.inline_mode
+      def fail_on_exception!(worker_name, raise_exceptions = !RocketJob::Config.inline_mode)
+        yield
+      rescue Exception => exc
+        if failed? || !may_fail?
+          self.exception        = JobException.from_exception(exc)
+          exception.worker_name = worker_name
+        else
+          fail(worker_name, exc)
+        end
+        save! unless new_record?
+        raise exc if raise_exceptions
+      end
+
     end
   end
 end
+

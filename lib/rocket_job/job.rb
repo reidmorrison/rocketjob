@@ -4,6 +4,7 @@ module RocketJob
   class Job
     include SemanticLogger::Loggable
     include Concerns::Document
+    include Concerns::Model
     include Concerns::Persistence
     include Concerns::EventCallbacks
     include Concerns::Callbacks

@@ -20,6 +20,7 @@ module RocketJob
     autoload :EventCallbacks,  'rocket_job/concerns/event_callbacks'
     autoload :JobStateMachine, 'rocket_job/concerns/job_state_machine'
     autoload :Logger,          'rocket_job/concerns/logger'
+    autoload :Model,           'rocket_job/concerns/model'
     autoload :Persistence,     'rocket_job/concerns/persistence'
     autoload :Restart,         'rocket_job/concerns/restart'
     autoload :Singleton,       'rocket_job/concerns/singleton'

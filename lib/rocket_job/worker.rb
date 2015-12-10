@@ -1,5 +1,6 @@
 # encoding: UTF-8
 require 'socket'
+require 'concurrent'
 module RocketJob
   # Worker
   #
@@ -29,9 +30,6 @@ module RocketJob
     include Concerns::Document
     include Concerns::StateMachine
     include SemanticLogger::Loggable
-
-    # Prevent data in MongoDB from re-defining the model behavior
-    #self.static_keys = true
 
     # @formatter:off
     # Unique Name of this worker instance
@@ -89,24 +87,23 @@ module RocketJob
     end
     # @formatter:on
 
-    attr_reader :thread_pool
-
     # Requeue any jobs being worked by this worker when it is destroyed
     before_destroy :requeue_jobs
 
     # Run the worker process
     # Attributes supplied are passed to #new
     def self.run(attrs={})
-      worker = new(attrs)
+      Thread.current.name = 'rocketjob main'
+      worker              = new(attrs)
       worker.build_heartbeat
       worker.save!
       create_indexes
       register_signal_handlers
-      if defined?(RocketJobPro) && (RocketJob::Job.database.name != RocketJob::SlicedJob.database.name)
+      if defined?(RocketJobPro) && (RocketJob::Job.database.name != RocketJob::Jobs::PerformanceJob.database.name)
         raise 'The RocketJob configuration is being applied after the system has been initialized'
       end
       logger.info "Using MongoDB Database: #{RocketJob::Job.database.name}"
-      worker.run
+      worker.send(:run)
     end
 
     # Create indexes
@@ -129,11 +126,6 @@ module RocketJob
       count
     end
 
-    def self.destroy_dead_workers
-      warn 'RocketJob::Worker.destroy_dead_workers is deprecated, use RocketJob::Worker.destroy_zombies'
-      destroy_zombies
-    end
-
     # Stop all running, paused, or starting workers
     def self.stop_all
       where(state: [:running, :paused, :starting]).each(&:stop!)
@@ -151,71 +143,12 @@ module RocketJob
 
     # Returns [Boolean] whether the worker is shutting down
     def shutting_down?
-      if self.class.shutdown
+      if self.class.shutdown?
         stop! if running?
         true
       else
         !running?
       end
-    end
-
-    # Returns [Array<Thread>] threads in the thread_pool
-    def thread_pool
-      @thread_pool ||= []
-    end
-
-    # Management Thread
-    def run
-      Thread.current.name = 'rocketjob main'
-      build_heartbeat unless heartbeat
-
-      started
-      adjust_thread_pool(true)
-      save
-      logger.info "RocketJob Worker started with #{max_threads} workers running"
-
-      count = 0
-      loop do
-        # Update heartbeat so that monitoring tools know that this worker is alive
-        set(
-          'heartbeat.updated_at'      => Time.now,
-          'heartbeat.current_threads' => thread_pool_count
-        )
-
-        # Reload the worker model every few heartbeats in case its config was changed
-        # TODO make 3 configurable
-        if count >= 3
-          reload
-          adjust_thread_pool
-          count = 0
-        else
-          count += 1
-        end
-
-        # Stop worker if shutdown signal was raised
-        stop! if self.class.shutdown && !stopping?
-
-        break if stopping?
-
-        sleep Config.instance.heartbeat_seconds
-      end
-      logger.info 'Waiting for worker threads to stop'
-      # TODO Put a timeout on join.
-      # Log Thread dump for active threads
-      # Compare thread dumps for any changes, force down if no change?
-      # reload, if model missing: Send Shutdown exception to each thread
-      #           5 more seconds then exit
-      thread_pool.each { |t| t.join }
-      logger.info 'Shutdown'
-    rescue Exception => exc
-      logger.error('RocketJob::Worker is stopping due to an exception', exc)
-    ensure
-      # Destroy this worker instance
-      destroy
-    end
-
-    def thread_pool_count
-      thread_pool.count { |i| i.alive? }
     end
 
     # Returns [true|false] if this worker has missed at least the last 4 heartbeats
@@ -230,7 +163,97 @@ module RocketJob
       (Time.now - heartbeat.updated_at) >= dead_seconds
     end
 
+    # On MRI the 'concurrent-ruby-ext' gem may not be loaded
+    if defined?(Concurrent::JavaAtomicBoolean) || defined?(Concurrent::CAtomicBoolean)
+      # Returns [true|false] whether the shutdown indicator has been set for this worker process
+      def self.shutdown?
+        @@shutdown.value
+      end
+
+      # Set shutdown indicator for this worker process
+      def self.shutdown!
+        @@shutdown.make_true
+      end
+
+      @@shutdown = Concurrent::AtomicBoolean.new(false)
+    else
+      # Returns [true|false] whether the shutdown indicator has been set for this worker process
+      def self.shutdown?
+        @@shutdown
+      end
+
+      # Set shutdown indicator for this worker process
+      def self.shutdown!
+        @@shutdown = true
+      end
+
+      @@shutdown = false
+    end
+
     private
+
+    attr_reader :worker_threads
+
+
+    # Returns [Array<Thread>] collection of created worker threads
+    def worker_threads
+      @worker_threads ||= []
+    end
+
+    # Management Thread
+    def run
+      build_heartbeat unless heartbeat
+
+      started
+      adjust_worker_threads(true)
+      save
+      logger.info "RocketJob Worker started with #{max_threads} workers running"
+
+      count = 0
+      loop do
+        # Update heartbeat so that monitoring tools know that this worker is alive
+        # TODO: Switch to find_and_modify so that model is also reloaded every 15s
+        set(
+          'heartbeat.updated_at'      => Time.now,
+          'heartbeat.current_threads' => worker_count
+        )
+
+        # Reload the worker model every few heartbeats in case its config was changed
+        # TODO make 3 configurable
+        if count >= 3
+          reload
+          adjust_worker_threads
+          count = 0
+        else
+          count += 1
+        end
+
+        # Stop worker if shutdown indicator was set
+        stop! if self.class.shutdown? && may_stop?
+
+        break if stopping?
+
+        sleep Config.instance.heartbeat_seconds
+      end
+      logger.info 'Waiting for worker threads to stop'
+      # TODO Put a timeout on join.
+      # Log Thread dump for active threads
+      # Compare thread dumps for any changes, force down if no change?
+      # reload, if model missing: Send Shutdown exception to each thread
+      #           5 more seconds then exit
+      worker_threads.each { |t| t.join }
+      logger.info 'Shutdown'
+    rescue Exception => exc
+      logger.error('RocketJob::Worker is stopping due to an exception', exc)
+    ensure
+      # Destroy this worker instance
+      destroy
+    end
+
+    # Returns [Fixnum] number of workers (threads) that are alive
+    def worker_count
+      worker_threads.count { |i| i.alive? }
+    end
 
     def next_worker_id
       @worker_id ||= 0
@@ -246,12 +269,12 @@ module RocketJob
     #       that not all workers poll at the same time
     #       The worker also respond faster than max_poll_seconds when a new
     #       job is added.
-    def adjust_thread_pool(stagger_threads=false)
-      count = thread_pool_count
+    def adjust_worker_threads(stagger_threads=false)
+      count = worker_count
       # Cleanup threads that have stopped
-      if count != thread_pool.count
-        logger.info "Cleaning up #{thread_pool.count - count} threads that went away"
-        thread_pool.delete_if { |t| !t.alive? }
+      if count != worker_threads.count
+        logger.info "Cleaning up #{worker_threads.count - count} threads that went away"
+        worker_threads.delete_if { |t| !t.alive? }
       end
 
       return if shutting_down?
@@ -262,7 +285,7 @@ module RocketJob
         logger.info "Starting #{thread_count} threads"
         thread_count.times.each do
           # Start worker thread
-          thread_pool << Thread.new(next_worker_id) do |id|
+          worker_threads << Thread.new(next_worker_id) do |id|
             begin
               sleep (Config.instance.max_poll_seconds.to_f / max_threads) * (id - 1) if stagger_threads
               worker(id)
@@ -280,10 +303,11 @@ module RocketJob
       logger.info 'Started'
       while !shutting_down?
         if process_next_job
-          # Keeps workers staggered across the poll interval so that not
-          # all workers poll at the same time
+          # Keeps workers staggered across the poll interval so that
+          # all workers don't poll at the same time
           sleep rand(RocketJob::Config.instance.max_poll_seconds * 1000) / 1000
         else
+          break if shutting_down?
           sleep RocketJob::Config.instance.max_poll_seconds
         end
       end
@@ -299,7 +323,7 @@ module RocketJob
       while job = Job.next_job(name, skip_job_ids)
         logger.tagged("Job #{job.id}") do
           if job.work(self)
-            return true if shutting_down?
+            return false if shutting_down?
             # Need to skip the specified job due to throttling or no work available
             skip_job_ids << job.id
           else
@@ -310,19 +334,6 @@ module RocketJob
       false
     end
 
-    # Requeue any jobs assigned to this worker
-    def requeue_jobs
-      stop! if running? || paused?
-      RocketJob::Job.requeue_dead_worker(name)
-    end
-
-    # Shutdown indicator
-    def self.shutdown
-      @@shutdown
-    end
-
-    @@shutdown = false
-
     # Register handlers for the various signals
     # Term:
     #   Perform clean shutdown
@@ -330,19 +341,23 @@ module RocketJob
     def self.register_signal_handlers
       begin
         Signal.trap 'SIGTERM' do
-          # Cannot use Mutex protected writer here since it is in a signal handler
-          @@shutdown = true
+          shutdown!
           logger.warn 'Shutdown signal (SIGTERM) received. Will shutdown as soon as active jobs/slices have completed.'
         end
 
         Signal.trap 'INT' do
-          # Cannot use Mutex protected writer here since it is in a signal handler
-          @@shutdown = true
+          shutdown!
           logger.warn 'Shutdown signal (INT) received. Will shutdown as soon as active jobs/slices have completed.'
         end
       rescue StandardError
         logger.warn 'SIGTERM handler not installed. Not able to shutdown gracefully'
       end
+    end
+
+    # Requeue any jobs assigned to this worker when it is destroyed
+    def requeue_jobs
+      stop! if may_stop?
+      RocketJob::Job.requeue_dead_worker(name)
     end
 
   end

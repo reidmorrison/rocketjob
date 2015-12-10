@@ -5,6 +5,18 @@ module RocketJob
   module Concerns
     # Define before and after callbacks
     #
+    # Before callbacks are called in the order they are defined.
+    # After callbacks are called in the _reverse_ order to which they were defined.
+    #
+    # Example:
+    #    before_1
+    #    before_2
+    #    perform
+    #    after_2
+    #    after_1
+    #
+    # Example including around callbacks:
+    #
     # class MyJob < RocketJob::Job
     #   before_perform do
     #     puts "BEFORE 1"

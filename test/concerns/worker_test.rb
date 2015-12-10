@@ -23,12 +23,8 @@ class WorkerTest < Minitest::Test
       job.priority            = 51
     end
 
-    def self.result
-      @@result
-    end
-
     def perform(first, second)
-      @@result = first + second
+      first + second
     end
   end
 
@@ -80,7 +76,7 @@ class WorkerTest < Minitest::Test
     end
 
     describe '#work' do
-      it 'call perform method' do
+      it 'calls perform method' do
         @job = SumJob.new(arguments: [10, 5])
         assert_equal 15, @job.perform_now['result']
         assert @job.completed?, @job.attributes.ai

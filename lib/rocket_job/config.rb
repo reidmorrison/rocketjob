@@ -4,9 +4,6 @@ module RocketJob
   class Config
     include Concerns::Document
 
-    # Prevent data in MongoDB from re-defining the model behavior
-    #self.static_keys = true
-
     # Returns the single instance of the Rocket Job Configuration for this site
     # in a thread-safe way
     def self.instance
