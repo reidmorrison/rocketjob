@@ -1,11 +1,7 @@
 #!/usr/bin/env ruby
 
-require 'rocketjob'
-# Load Rocket Job Pro if available
-begin
-  require 'rocketjob_pro'
-rescue LoadError
-end
+require 'semantic_logger'
+require 'rocket_job/cli'
 
 # Start a rocketjob server instance from the command line
 begin

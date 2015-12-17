@@ -1,6 +1,7 @@
 # encoding: UTF-8
 require 'semantic_logger'
 require 'rocket_job/extensions/mongo'
+require 'rocket_job/extensions/rufus_scheduler'
 require 'mongo_ha'
 require 'mongo_mapper'
 require 'rocket_job/version'
@@ -58,15 +59,4 @@ module RocketJob
     end
   end
 
-end
-
-# Autoload Rufus Scheduler Cron Line parsing code only.
-#
-# Be sure to require 'rufus-scheduler' if it is being used for
-# any other scheduling tasks.
-module Rufus
-  class Scheduler
-    autoload :CronLine, 'rufus/scheduler/cronline'
-    autoload :ZoTime, 'rufus/scheduler/zotime'
-  end
 end

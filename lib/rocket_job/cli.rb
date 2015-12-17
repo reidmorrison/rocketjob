@@ -1,6 +1,6 @@
 require 'optparse'
 require 'yaml'
-require 'mongo_mapper'
+require 'semantic_logger'
 module RocketJob
   # Command Line Interface parser for RocketJob
   class CLI
@@ -43,15 +43,16 @@ module RocketJob
     # Initialize the Rails environment
     # Returns [true|false] whether Rails is present
     def boot_rails
+      logger.info "Loading Rails environment: #{environment}"
+
+      boot_file = Pathname.new(directory).join('config/environment.rb').expand_path
+      require(boot_file.to_s)
+
       begin
         require 'rails_semantic_logger'
       rescue LoadError
         raise "Add the following line to your Gemfile when running rails:\n gem 'rails_semantic_logger'"
       end
-      logger.info "Loading Rails environment: #{environment}"
-
-      boot_file = Pathname.new(directory).join('config/environment.rb').expand_path
-      require(boot_file.to_s)
 
       # Override Rails log level if command line option was supplied
       SemanticLogger.default_level = log_level.to_sym if log_level
@@ -66,6 +67,24 @@ module RocketJob
 
     # In a standalone environment, explicitly load config files
     def boot_standalone
+      # Try to load bundler if present
+      begin
+        require 'bundler/setup'
+        Bundler.require(environment)
+      rescue LoadError
+      end
+
+      require 'rocketjob'
+      begin
+        require 'rocketjob_pro'
+      rescue LoadError
+      end
+
+      # Log to file except when booting rails, when it will add the log file path
+      path = log_file ? Pathname.new(log_file) : Pathname.pwd.join("log/#{environment}.log")
+      path.dirname.mkpath
+      SemanticLogger.add_appender(path.to_s, &SemanticLogger::Appender::Base.colorized_formatter)
+
       logger.info "Rails not detected. Running standalone: #{environment}"
       RocketJob::Config.load!(environment)
       self.class.eager_load_jobs
@@ -94,13 +113,6 @@ module RocketJob
 
     def setup_logger
       SemanticLogger.add_appender(STDOUT, &SemanticLogger::Appender::Base.colorized_formatter) unless quiet
-
-      # Log to file except when booting rails, when it will add the log file path
-      unless rails?
-        path = log_file ? Pathname.new(log_file) : Pathname.pwd.join("log/#{environment}.log")
-        path.dirname.mkpath
-        SemanticLogger.add_appender(path.to_s, &SemanticLogger::Appender::Base.colorized_formatter)
-      end
       SemanticLogger.default_level = log_level.to_sym if log_level
 
       # Enable SemanticLogger signal handling for this process
