@@ -46,6 +46,21 @@ module RocketJob
           end
         end
       end
+
+      private
+
+      def update_attributes_and_reload(attrs)
+        if doc = self.class.find_and_modify(query: {:_id => id}, update: {'$set' => attrs})
+          # Clear out keys that are not returned during the reload from MongoDB
+          (keys.keys - doc.keys).each { |key| send("#{key}=", nil) }
+          initialize_default_values
+          load_from_database(doc)
+          self
+        else
+          raise MongoMapper::DocumentNotFound, "Document match #{_id.inspect} does not exist in #{collection.name} collection"
+        end
+      end
+
     end
   end
 end

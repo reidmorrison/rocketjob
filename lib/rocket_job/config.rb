@@ -59,22 +59,25 @@ module RocketJob
       DirmonEntry.set_database_name(db_name)
     end
 
-    # Use a separate Mongo connection for the Records and Results
-    # Allows the records and results to be stored in a separate Mongo database
-    # from the Jobs themselves.
-    #
-    # It is recommended to set the work_connection to a local Mongo Worker that
-    # is not replicated to another data center to prevent flooding the network
-    # with replication of data records and results.
-    # The jobs themselves can/should be replicated across data centers so that
-    # they are never lost.
-    def self.mongo_work_connection=(connection)
-      @@mongo_work_connection = connection
-    end
+    # Configure MongoMapper
+    def self.load!(environment='development', file_name=nil, encryption_file_name=nil)
+      config_file = file_name ? Pathname.new(file_name) : Pathname.pwd.join('config/mongo.yml')
+      if config_file.file?
+        logger.debug "Reading MongoDB configuration from: #{config_file}"
+        config = YAML.load(ERB.new(config_file.read).result)
+        MongoMapper.setup(config, environment)
+      else
+        raise(ArgumentError, "Mongo Configuration file: #{config_file.to_s} not found")
+      end
 
-    # Returns the Mongo connection for the Records and Results
-    def self.mongo_work_connection
-      @@mongo_work_connection || connection
+      # Load Encryption configuration file if present
+      if defined?(SymmetricEncryption)
+        config_file = encryption_file_name ? Pathname.new(encryption_file_name) : Pathname.pwd.join('config/symmetric-encryption.yml')
+        if config_file.file?
+          logger.debug "Reading SymmetricEncryption configuration from: #{config_file}"
+          SymmetricEncryption.load!(config_file.to_s, environment)
+        end
+      end
     end
 
   end

@@ -84,7 +84,12 @@ module RocketJob
               self.result = (ret.is_a?(Hash) || ret.is_a?(BSON::OrderedHash)) ? ret : {result: ret}
             end
           end
-          new_record? ? complete : complete!
+          complete
+          if destroy_on_complete
+            destroy
+          elsif !new_record?
+            save!
+          end
         end
         false
       end
@@ -116,7 +121,7 @@ module RocketJob
       end
 
       def perform(*)
-        fail NotImplementedError
+        raise NotImplementedError
       end
 
       # Fail this job in the event of an exception.

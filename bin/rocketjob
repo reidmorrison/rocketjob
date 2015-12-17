@@ -1,5 +1,11 @@
 #!/usr/bin/env ruby
+
 require 'rocketjob'
+# Load Rocket Job Pro if available
+begin
+  require 'rocketjob_pro'
+rescue LoadError
+end
 
 # Start a rocketjob server instance from the command line
 begin

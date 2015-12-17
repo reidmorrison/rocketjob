@@ -1,10 +1,11 @@
 require 'optparse'
 require 'yaml'
+require 'mongo_mapper'
 module RocketJob
   # Command Line Interface parser for RocketJob
   class CLI
     include SemanticLogger::Loggable
-    attr_accessor :name, :threads, :environment, :pidfile, :directory, :quiet, :log_level
+    attr_accessor :name, :threads, :environment, :pidfile, :directory, :quiet, :log_level, :log_file
 
     def initialize(argv)
       @name        = nil
@@ -14,6 +15,7 @@ module RocketJob
       @pidfile     = nil
       @directory   = '.'
       @log_level   = nil
+      @log_file    = nil
       parse(argv)
     end
 
@@ -22,7 +24,7 @@ module RocketJob
       Thread.current.name = 'rocketjob main'
       setup_environment
       setup_logger
-      boot_standalone unless boot_rails
+      rails? ? boot_rails : boot_standalone
       write_pidfile
 
       opts               = {}
@@ -31,28 +33,41 @@ module RocketJob
       Worker.run(opts)
     end
 
+    def rails?
+      @rails ||= begin
+        boot_file = Pathname.new(directory).join('config/environment.rb').expand_path
+        boot_file.file?
+      end
+    end
+
     # Initialize the Rails environment
     # Returns [true|false] whether Rails is present
     def boot_rails
-      boot_file = Pathname.new(directory).join('config/environment.rb').expand_path
-      return false unless boot_file.file?
+      begin
+        require 'rails_semantic_logger'
+      rescue LoadError
+        raise "Add the following line to your Gemfile when running rails:\n gem 'rails_semantic_logger'"
+      end
+      logger.info "Loading Rails environment: #{environment}"
 
-      logger.info 'Booting Rails'
-      require boot_file.to_s
+      boot_file = Pathname.new(directory).join('config/environment.rb').expand_path
+      require(boot_file.to_s)
+
+      # Override Rails log level if command line option was supplied
+      SemanticLogger.default_level = log_level.to_sym if log_level
+
       if Rails.configuration.eager_load
         RocketJob::Worker.logger.benchmark_info('Eager loaded Rails and all Engines') do
           Rails.application.eager_load!
           Rails::Engine.subclasses.each(&:eager_load!)
         end
       end
-
-      self.class.load_config(Rails.env)
-      true
     end
 
+    # In a standalone environment, explicitly load config files
     def boot_standalone
-      logger.info 'Rails not detected. Running standalone.'
-      self.class.load_config(environment)
+      logger.info "Rails not detected. Running standalone: #{environment}"
+      RocketJob::Config.load!(environment)
       self.class.eager_load_jobs
     end
 
@@ -79,22 +94,17 @@ module RocketJob
 
     def setup_logger
       SemanticLogger.add_appender(STDOUT, &SemanticLogger::Appender::Base.colorized_formatter) unless quiet
-      SemanticLogger.default_level = log_level.to_sym if log_level
-    end
 
-    # Configure MongoMapper if it has not already been configured
-    def self.load_config(environment='development', file_name=nil)
-      return false if MongoMapper.config
-
-      config_file = file_name ? Pathname.new(file_name) : Pathname.pwd.join('config/mongo.yml')
-      if config_file.file?
-        config = YAML.load(ERB.new(config_file.read).result)
-        log    = SemanticLogger::DebugAsTraceLogger.new('Mongo')
-        MongoMapper.setup(config, environment, logger: log)
-        true
-      else
-        raise(ArgumentError, "Mongo Configuration file: #{config_file.to_s} not found")
+      # Log to file except when booting rails, when it will add the log file path
+      unless rails?
+        path = log_file ? Pathname.new(log_file) : Pathname.pwd.join("log/#{environment}.log")
+        path.dirname.mkpath
+        SemanticLogger.add_appender(path.to_s, &SemanticLogger::Appender::Base.colorized_formatter)
       end
+      SemanticLogger.default_level = log_level.to_sym if log_level
+
+      # Enable SemanticLogger signal handling for this process
+      SemanticLogger.add_signal_handler
     end
 
     # Eager load files in jobs folder
@@ -126,6 +136,9 @@ module RocketJob
         end
         o.on('-l', '--log_level trace|debug|info|warn|error|fatal', 'The log level to use') do |arg|
           @log_level = arg
+        end
+        o.on('-f', '--log_file FILE_NAME', 'The log file to write to. Default: log/<environment>.log') do |arg|
+          @log_file = arg
         end
         o.on('--pidfile PATH', 'Use PATH as a pidfile') do |arg|
           @pidfile = arg

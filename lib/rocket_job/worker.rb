@@ -90,20 +90,31 @@ module RocketJob
     # Requeue any jobs being worked by this worker when it is destroyed
     before_destroy :requeue_jobs
 
+    after_initialize :build_heartbeat
+
     # Run the worker process
     # Attributes supplied are passed to #new
     def self.run(attrs={})
       Thread.current.name = 'rocketjob main'
-      worker              = new(attrs)
-      worker.build_heartbeat
-      worker.save!
       create_indexes
       register_signal_handlers
       if defined?(RocketJobPro) && (RocketJob::Job.database.name != RocketJob::Jobs::PerformanceJob.database.name)
         raise 'The RocketJob configuration is being applied after the system has been initialized'
       end
-      logger.info "Using MongoDB Database: #{RocketJob::Job.database.name}"
-      worker.send(:run)
+
+      worker = create!(attrs)
+      if worker.max_threads == 0
+        # Does not start any additional threads and runs the worker in the current thread.
+        # No heartbeats are performed. So this worker will appear as a zombie in RJMC.
+        # Designed for profiling purposes where a single thread is much simpler to profile.
+        worker.started!
+        worker.send(:worker, 0)
+      else
+        worker.send(:run)
+      end
+
+    ensure
+      worker.destroy if worker
     end
 
     # Create indexes
@@ -143,12 +154,7 @@ module RocketJob
 
     # Returns [Boolean] whether the worker is shutting down
     def shutting_down?
-      if self.class.shutdown?
-        stop! if running?
-        true
-      else
-        !running?
-      end
+      self.class.shutdown? || !running?
     end
 
     # Returns [true|false] if this worker has missed at least the last 4 heartbeats
@@ -194,7 +200,6 @@ module RocketJob
 
     attr_reader :worker_threads
 
-
     # Returns [Array<Thread>] collection of created worker threads
     def worker_threads
       @worker_threads ||= []
@@ -202,38 +207,25 @@ module RocketJob
 
     # Management Thread
     def run
-      build_heartbeat unless heartbeat
-
-      started
+      logger.info "Using MongoDB Database: #{RocketJob::Job.database.name}"
       adjust_worker_threads(true)
-      save
+      started!
       logger.info "RocketJob Worker started with #{max_threads} workers running"
 
       count = 0
-      loop do
-        # Update heartbeat so that monitoring tools know that this worker is alive
-        # TODO: Switch to find_and_modify so that model is also reloaded every 15s
-        set(
+      while running? || paused?
+        sleep Config.instance.heartbeat_seconds
+
+        update_attributes_and_reload(
           'heartbeat.updated_at'      => Time.now,
           'heartbeat.current_threads' => worker_count
         )
 
-        # Reload the worker model every few heartbeats in case its config was changed
-        # TODO make 3 configurable
-        if count >= 3
-          reload
-          adjust_worker_threads
-          count = 0
-        else
-          count += 1
-        end
+        # In case number of threads has been modified
+        adjust_worker_threads
 
         # Stop worker if shutdown indicator was set
         stop! if self.class.shutdown? && may_stop?
-
-        break if stopping?
-
-        sleep Config.instance.heartbeat_seconds
       end
       logger.info 'Waiting for worker threads to stop'
       # TODO Put a timeout on join.
@@ -245,9 +237,6 @@ module RocketJob
       logger.info 'Shutdown'
     rescue Exception => exc
       logger.error('RocketJob::Worker is stopping due to an exception', exc)
-    ensure
-      # Destroy this worker instance
-      destroy
     end
 
     # Returns [Fixnum] number of workers (threads) that are alive
@@ -302,7 +291,7 @@ module RocketJob
       Thread.current.name = 'rocketjob %03i' % worker_id
       logger.info 'Started'
       while !shutting_down?
-        if process_next_job
+        if process_available_jobs
           # Keeps workers staggered across the poll interval so that
           # all workers don't poll at the same time
           sleep rand(RocketJob::Config.instance.max_poll_seconds * 1000) / 1000
@@ -318,20 +307,20 @@ module RocketJob
 
     # Process the next available job
     # Returns [Boolean] whether any job was actually processed
-    def process_next_job
+    def process_available_jobs
       skip_job_ids = []
-      while job = Job.next_job(name, skip_job_ids)
+      processed    = false
+      while (job = Job.next_job(name, skip_job_ids)) && !shutting_down?
         logger.tagged("Job #{job.id}") do
           if job.work(self)
-            return false if shutting_down?
             # Need to skip the specified job due to throttling or no work available
             skip_job_ids << job.id
           else
-            return true
+            processed = true
           end
         end
       end
-      false
+      processed
     end
 
     # Register handlers for the various signals
@@ -342,12 +331,16 @@ module RocketJob
       begin
         Signal.trap 'SIGTERM' do
           shutdown!
-          logger.warn 'Shutdown signal (SIGTERM) received. Will shutdown as soon as active jobs/slices have completed.'
+          message = 'Shutdown signal (SIGTERM) received. Will shutdown as soon as active jobs/slices have completed.'
+          # Logging uses a mutex to access Queue on MRI/CRuby
+          defined?(JRuby) ? logger.warn(message) : puts(message)
         end
 
         Signal.trap 'INT' do
           shutdown!
-          logger.warn 'Shutdown signal (INT) received. Will shutdown as soon as active jobs/slices have completed.'
+          message = 'Shutdown signal (INT) received. Will shutdown as soon as active jobs/slices have completed.'
+          # Logging uses a mutex to access Queue on MRI/CRuby
+          defined?(JRuby) ? logger.warn(message) : puts(message)
         end
       rescue StandardError
         logger.warn 'SIGTERM handler not installed. Not able to shutdown gracefully'
@@ -356,7 +349,6 @@ module RocketJob
 
     # Requeue any jobs assigned to this worker when it is destroyed
     def requeue_jobs
-      stop! if may_stop?
       RocketJob::Job.requeue_dead_worker(name)
     end
 

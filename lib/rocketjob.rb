@@ -1,5 +1,8 @@
 # encoding: UTF-8
 require 'semantic_logger'
+require 'rocket_job/extensions/mongo'
+require 'mongo_ha'
+require 'mongo_mapper'
 require 'rocket_job/version'
 
 # @formatter:off
@@ -30,22 +33,31 @@ module RocketJob
 
   module Jobs
     autoload :DirmonJob,       'rocket_job/jobs/dirmon_job'
+    autoload :SimpleJob,       'rocket_job/jobs/simple_job'
   end
 
   # @formatter:on
   # Returns a human readable duration from the supplied [Float] number of seconds
   def self.seconds_as_duration(seconds)
-    time = Time.at(seconds)
-    if seconds >= 1.day
-      "#{(seconds / 1.day).to_i}d #{time.strftime('%-Hh %-Mm')}"
-    elsif seconds >= 1.hour
-      time.strftime('%-Hh %-Mm')
-    elsif seconds >= 1.minute
-      time.strftime('%-Mm %-Ss')
+    return nil unless seconds
+    if seconds >= 86400.0 # 1 day
+      "#{(seconds / 86400).to_i}d #{Time.at(seconds).strftime('%-Hh %-Mm')}"
+    elsif seconds >= 3600.0 # 1 hour
+      Time.at(seconds).strftime('%-Hh %-Mm')
+    elsif seconds >= 60.0 # 1 minute
+      Time.at(seconds).strftime('%-Mm %-Ss')
+    elsif seconds >= 1.0 # 1 second
+      Time.at(seconds).strftime('%-Ss %Lms')
     else
-      time.strftime('%-Ss %Lms')
+      duration = seconds * 1000
+      if defined? JRuby
+        "#{duration.to_i}ms"
+      else
+        duration < 10.0 ? "#{'%.3f' % duration}ms" : "#{'%.1f' % duration}ms"
+      end
     end
   end
+
 end
 
 # Autoload Rufus Scheduler Cron Line parsing code only.
@@ -54,7 +66,7 @@ end
 # any other scheduling tasks.
 module Rufus
   class Scheduler
-    autoload  :CronLine, 'rufus/scheduler/cronline'
-    autoload  :ZoTime, 'rufus/scheduler/zotime'
+    autoload :CronLine, 'rufus/scheduler/cronline'
+    autoload :ZoTime, 'rufus/scheduler/zotime'
   end
 end

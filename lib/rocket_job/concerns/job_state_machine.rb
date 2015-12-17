@@ -43,9 +43,6 @@ module RocketJob
           end
 
           event :complete do
-            after do
-              destroy if destroy_on_complete
-            end
             transitions from: :running, to: :completed
           end
 
