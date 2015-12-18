@@ -311,7 +311,7 @@ module RocketJob
       skip_job_ids = []
       processed    = false
       while (job = Job.next_job(name, skip_job_ids)) && !shutting_down?
-        logger.tagged("Job #{job.id}") do
+        logger.fast_tag("Job #{job.id}") do
           if job.work(self)
             # Need to skip the specified job due to throttling or no work available
             skip_job_ids << job.id

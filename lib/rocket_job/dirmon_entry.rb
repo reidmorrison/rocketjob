@@ -220,7 +220,7 @@ module RocketJob
 
     # Passes each filename [Pathname] found that matches the pattern into the supplied block
     def each(&block)
-      logger.tagged("DirmonEntry:#{id}") do
+      logger.fast_tag("DirmonEntry:#{id}") do
         # Case insensitive filename matching
         Pathname.glob(pattern, File::FNM_CASEFOLD).each do |pathname|
           next if pathname.directory?
