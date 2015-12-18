@@ -208,8 +208,8 @@ module RocketJob
     # Management Thread
     def run
       logger.info "Using MongoDB Database: #{RocketJob::Job.database.name}"
-      adjust_worker_threads(true)
       started!
+      adjust_worker_threads(true)
       logger.info "RocketJob Worker started with #{max_threads} workers running"
 
       count = 0

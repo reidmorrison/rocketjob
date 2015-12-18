@@ -64,6 +64,8 @@ module RocketJob
           end
         end
 
+        # Turn off embedded callbacks. Slow and not used for Jobs
+        embedded_callbacks_off
       end
 
       # Works on this job
