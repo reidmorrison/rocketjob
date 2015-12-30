@@ -48,7 +48,7 @@ module RocketJob
     elsif seconds >= 60.0 # 1 minute
       Time.at(seconds).strftime('%-Mm %-Ss')
     elsif seconds >= 1.0 # 1 second
-      Time.at(seconds).strftime('%-Ss %Lms')
+      "#{'%.3f' % seconds}s"
     else
       duration = seconds * 1000
       if defined? JRuby

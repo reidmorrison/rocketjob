@@ -73,6 +73,7 @@ module RocketJob
             set_completed_at
             mark_complete
           end
+          self
         end
       end
 
