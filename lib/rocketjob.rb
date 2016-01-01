@@ -1,7 +1,6 @@
 # encoding: UTF-8
 require 'semantic_logger'
 require 'rocket_job/extensions/mongo'
-require 'rocket_job/extensions/rufus_scheduler'
 require 'mongo_ha'
 require 'mongo_mapper'
 require 'rocket_job/version'

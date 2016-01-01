@@ -31,8 +31,6 @@ of records, as well as large jobs to walk though large databases.
     * Version 2.7 or greater.
 * [Semantic Logger](https://rocketjob.github.io/semantic_logger)
     * Highly concurrent scalable logging.
-* [Rufus Scheduler](https://github.com/jmettraux/rufus-scheduler/blob/master/lib/rufus/scheduler/cronline.rb)
-    * Only used for parsing the cron line for scheduled jobs.
 
 ## Versioning
 

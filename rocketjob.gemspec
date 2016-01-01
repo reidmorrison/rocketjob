@@ -25,5 +25,4 @@ Gem::Specification.new do |s|
   s.add_dependency 'mongo_mapper', '~> 0.13'
   s.add_dependency 'symmetric-encryption', '~> 3.0'
   s.add_dependency 'concurrent-ruby', '~> 1.0'
-  s.add_dependency 'rufus-scheduler', '~> 3.0'
 end
