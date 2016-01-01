@@ -71,8 +71,8 @@ module RocketJob
           rescue MongoMapper::DocumentNotFound
             unless completed?
               self.state = :completed
-              set_completed_at
-              mark_complete
+              rocket_job_set_completed_at
+              rocket_job_mark_complete
             end
             self
           end

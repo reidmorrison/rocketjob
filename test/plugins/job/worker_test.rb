@@ -75,7 +75,7 @@ class WorkerTest < Minitest::Test
       end
     end
 
-    describe '#work' do
+    describe '#perform_now' do
       it 'calls perform method' do
         @job = SumJob.new(arguments: [10, 5])
         assert_equal 15, @job.perform_now['result']

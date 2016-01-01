@@ -14,8 +14,8 @@ module RocketJob
           #   :queued -> :running -> :completed
           #                       -> :paused     -> :running
           #                                      -> :aborted
-          #                       -> :failed     -> :running
-          #                                      -> :aborted
+          #                       -> :failed     -> :aborted
+          #                                      -> :queued
           #                       -> :aborted
           #                       -> :queued (when a worker dies)
           #           -> :aborted
@@ -75,7 +75,7 @@ module RocketJob
             event :requeue do
               transitions from: :running, to: :queued,
                 if:             -> _worker_name { worker_name == _worker_name },
-                after:          :clear_started_at
+                after:          :rocket_job_clear_started_at
             end
           end
           # @formatter:on
@@ -83,20 +83,21 @@ module RocketJob
           # Define a before and after callback method for each event
           state_machine_define_event_callbacks(*aasm.state_machine.events.keys)
 
-          before_start :set_started_at
-          before_complete :set_completed_at, :mark_complete
-          before_fail :set_completed_at, :increment_failure_count, :set_exception
-          before_pause :set_completed_at
-          before_abort :set_completed_at
-          before_retry :clear_exception
-          before_resume :clear_completed_at
+          before_start :rocket_job_set_started_at
+          before_complete :rocket_job_set_completed_at, :rocket_job_mark_complete
+          before_fail :rocket_job_set_completed_at, :rocket_job_increment_failure_count, :rocket_job_set_exception
+          before_pause :rocket_job_set_completed_at
+          before_abort :rocket_job_set_completed_at
+          before_retry :rocket_job_clear_exception
+          before_resume :rocket_job_clear_completed_at
+          after_complete :rocket_job_destroy_on_complete
         end
 
         private
 
         # Sets the exception child object for this job based on the
         # supplied Exception instance or message
-        def set_exception(worker_name = nil, exc_or_message = nil)
+        def rocket_job_set_exception(worker_name = nil, exc_or_message = nil)
           if exc_or_message.is_a?(Exception)
             self.exception        = JobException.from_exception(exc_or_message)
             exception.worker_name = worker_name
@@ -110,36 +111,40 @@ module RocketJob
           end
         end
 
-        def set_started_at
+        def rocket_job_set_started_at
           self.started_at = Time.now
         end
 
-        def mark_complete
+        def rocket_job_mark_complete
           self.percent_complete = 100
         end
 
-        def increment_failure_count
+        def rocket_job_increment_failure_count
           self.failure_count += 1
         end
 
-        def clear_exception
+        def rocket_job_clear_exception
           self.completed_at = nil
           self.exception    = nil
           self.worker_name  = nil
         end
 
-        def set_completed_at
+        def rocket_job_set_completed_at
           self.completed_at = Time.now
           self.worker_name  = nil
         end
 
-        def clear_completed_at
+        def rocket_job_clear_completed_at
           self.completed_at = nil
         end
 
-        def clear_started_at
+        def rocket_job_clear_started_at
           self.started_at  = nil
           self.worker_name = nil
+        end
+
+        def rocket_job_destroy_on_complete
+          destroy if destroy_on_complete && !new_record?
         end
       end
 

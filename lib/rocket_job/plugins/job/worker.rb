@@ -55,11 +55,11 @@ module RocketJob
                 # Batch Job
                 return job
               when job.expired?
-                job.fail_on_exception!(worker_name) { job.destroy }
+                job.rocket_job_fail_on_exception!(worker_name) { job.destroy }
                 logger.info "Destroyed expired job #{job.class.name}, id:#{job.id}"
               else
                 job.worker_name = worker_name
-                job.fail_on_exception!(worker_name) { job.start }
+                job.rocket_job_fail_on_exception!(worker_name) { job.start }
                 return job if job.running?
               end
             end
@@ -67,34 +67,6 @@ module RocketJob
 
           # Turn off embedded callbacks. Slow and not used for Jobs
           embedded_callbacks_off
-        end
-
-        # Works on this job
-        #
-        # Returns [true|false] whether this job should be excluded from the next lookup
-        #
-        # If an exception is thrown the job is marked as failed and the exception
-        # is set in the job itself.
-        #
-        # Thread-safe, can be called by multiple threads at the same time
-        def work(worker, raise_exceptions = !RocketJob::Config.inline_mode)
-          raise(ArgumentError, 'Job must be started before calling #work') unless running?
-          fail_on_exception!(worker.name, raise_exceptions) do
-            run_callbacks :perform do
-              ret = perform(*arguments)
-              if collect_output?
-                # Result must be a Hash, if not put it in a Hash
-                self.result = (ret.is_a?(Hash) || ret.is_a?(BSON::OrderedHash)) ? ret : {result: ret}
-              end
-            end
-            complete
-            if destroy_on_complete
-              destroy
-            elsif !new_record?
-              save!
-            end
-          end
-          false
         end
 
         # Runs the job now in the current thread.
@@ -119,7 +91,7 @@ module RocketJob
           worker.started
           start if may_start?
           # Raise exceptions
-          work(worker, true) if running?
+          rocket_job_work(worker, true) if running?
           result
         end
 
@@ -137,7 +109,7 @@ module RocketJob
         # raise_exceptions: [true|false]
         #   Re-raise the exception after updating the job
         #   Default: !RocketJob::Config.inline_mode
-        def fail_on_exception!(worker_name, raise_exceptions = !RocketJob::Config.inline_mode)
+        def rocket_job_fail_on_exception!(worker_name, raise_exceptions = !RocketJob::Config.inline_mode)
           yield
         rescue Exception => exc
           if failed? || !may_fail?
@@ -148,6 +120,39 @@ module RocketJob
           end
           save! unless new_record?
           raise exc if raise_exceptions
+        end
+
+        private
+
+        # Works on this job
+        #
+        # Returns [true|false] whether this job should be excluded from the next lookup
+        #
+        # If an exception is thrown the job is marked as failed and the exception
+        # is set in the job itself.
+        #
+        # Thread-safe, can be called by multiple threads at the same time
+        def rocket_job_work(worker, raise_exceptions = !RocketJob::Config.inline_mode)
+          raise(ArgumentError, 'Job must be started before calling #rocket_job_work') unless running?
+          rocket_job_fail_on_exception!(worker.name, raise_exceptions) do
+            run_callbacks :perform do
+              # Allow callbacks to fail, or abort the job
+              if running?
+                ret = perform(*arguments)
+                if collect_output?
+                  # Result must be a Hash, if not put it in a Hash
+                  self.result = (ret.is_a?(Hash) || ret.is_a?(BSON::OrderedHash)) ? ret : {result: ret}
+                end
+              end
+            end
+            complete
+            if destroy_on_complete
+              destroy
+            elsif !new_record?
+              save!
+            end
+          end
+          false
         end
 
       end
