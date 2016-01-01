@@ -2,7 +2,7 @@
 module RocketJob
   # Centralized Configuration for Rocket Jobs
   class Config
-    include Concerns::Document
+    include Plugins::Document
 
     # Returns the single instance of the Rocket Job Configuration for this site
     # in a thread-safe way

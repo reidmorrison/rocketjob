@@ -1,4 +1,4 @@
-require_relative '../test_helper'
+require_relative '../../test_helper'
 
 # Unit Test for RocketJob::Job
 class WorkerTest < Minitest::Test
@@ -28,7 +28,7 @@ class WorkerTest < Minitest::Test
     end
   end
 
-  describe RocketJob::Concerns::Worker do
+  describe RocketJob::Plugins::Job::Worker do
     before do
       RocketJob::Job.destroy_all
     end
@@ -37,32 +37,32 @@ class WorkerTest < Minitest::Test
       @job.destroy if @job && !@job.new_record?
     end
 
-    describe '.next_job' do
+    describe '.rocket_job_next_job' do
       before do
         @job = QuietJob.new
         @worker = RocketJob::Worker.new(name: 'worker:123')
       end
 
       it 'return nil when no jobs available' do
-        assert_equal nil, RocketJob::Job.next_job(@worker.name)
+        assert_equal nil, RocketJob::Job.rocket_job_next_job(@worker.name)
       end
 
       it 'return the first job' do
         @job.save!
-        assert job = RocketJob::Job.next_job(@worker.name), 'Failed to find job'
+        assert job = RocketJob::Job.rocket_job_next_job(@worker.name), 'Failed to find job'
         assert_equal @job.id, job.id
       end
 
       it 'Ignore future dated jobs' do
         @job.run_at = Time.now + 1.hour
         @job.save!
-        assert_equal nil, RocketJob::Job.next_job(@worker.name)
+        assert_equal nil, RocketJob::Job.rocket_job_next_job(@worker.name)
       end
 
       it 'Process future dated jobs when time is now' do
         @job.run_at = Time.now
         @job.save!
-        assert job = RocketJob::Job.next_job(@worker.name), 'Failed to find future job'
+        assert job = RocketJob::Job.rocket_job_next_job(@worker.name), 'Failed to find future job'
         assert_equal @job.id, job.id
       end
 
@@ -70,7 +70,7 @@ class WorkerTest < Minitest::Test
         count           = RocketJob::Job.count
         @job.expires_at = Time.now - 100
         @job.save!
-        assert_equal nil, RocketJob::Job.next_job(@worker.name)
+        assert_equal nil, RocketJob::Job.rocket_job_next_job(@worker.name)
         assert_equal count, RocketJob::Job.count
       end
     end

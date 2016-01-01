@@ -4,8 +4,8 @@ require_relative '../test_helper'
 class StateMachineTest < Minitest::Test
 
   class Test
-    include RocketJob::Concerns::Document
-    include RocketJob::Concerns::StateMachine
+    include RocketJob::Plugins::Document
+    include RocketJob::Plugins::StateMachine
 
     key :name
     key :state
@@ -21,7 +21,7 @@ class StateMachineTest < Minitest::Test
     end
   end
 
-  describe RocketJob::Concerns::Persistence do
+  describe RocketJob::Plugins::StateMachine do
     before do
       @doc = Test.new
     end

@@ -1,17 +1,17 @@
 require_relative '../test_helper'
 
 # Unit Test for RocketJob::Job
-module Concerns
+module Plugins
   class RestartTest < Minitest::Test
     class RestartableJob < RocketJob::Job
-      include RocketJob::Concerns::Restart
+      include RocketJob::Plugins::Restart
 
       def perform
         'DONE'
       end
     end
 
-    describe RocketJob::Concerns::Restart do
+    describe RocketJob::Plugins::Restart do
       before do
         # destroy_all could create new instances
         RestartableJob.delete_all
@@ -215,7 +215,7 @@ module Concerns
 
           # Copy across all attributes, except
           @job.attributes.each_pair do |key, value|
-            next if RocketJob::Concerns::Restart::RESTART_EXCLUDES.include?(key)
+            next if RocketJob::Plugins::Restart::RESTART_EXCLUDES.include?(key)
             assert_equal value, job2[key], "Attributes are supposed to be copied across. For #{key}"
           end
 

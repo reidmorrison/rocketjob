@@ -3,8 +3,8 @@ require 'pathname'
 require 'fileutils'
 module RocketJob
   class DirmonEntry
-    include Concerns::Document
-    include Concerns::StateMachine
+    include Plugins::Document
+    include Plugins::StateMachine
 
     # @formatter:off
     # User defined name used to identify this DirmonEntry in Mission Control
@@ -136,7 +136,7 @@ module RocketJob
 
     validates_each :arguments do |record, attr, value|
       if klass = record.job_class
-        count = klass.argument_count
+        count = klass.rocket_job_argument_count
         record.errors.add(attr, "There must be #{count} argument(s)") if value.size != count
       end
     end

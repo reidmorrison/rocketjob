@@ -4,7 +4,7 @@ require_relative '../test_helper'
 class SingletonTest < Minitest::Test
 
   class SingletonJob < RocketJob::Job
-    include RocketJob::Concerns::Singleton
+    include RocketJob::Plugins::Singleton
 
     rocket_job do |job|
       job.priority    = 53
@@ -15,7 +15,7 @@ class SingletonTest < Minitest::Test
     end
   end
 
-  describe RocketJob::Concerns::Singleton do
+  describe RocketJob::Plugins::Singleton do
     before do
       SingletonJob.delete_all
     end
@@ -24,36 +24,36 @@ class SingletonTest < Minitest::Test
       @job.destroy if @job && !@job.new_record?
     end
 
-    describe '#singleton_job_active?' do
+    describe '#rocket_job_singleton_active?' do
       it 'returns false if no jobs of this class are active' do
         @job = SingletonJob.new
-        assert_equal false, @job.singleton_job_active?
+        assert_equal false, @job.rocket_job_singleton_active?
       end
 
       it 'excludes self when queued from check' do
         @job = SingletonJob.create
         assert @job.queued?
-        assert_equal false, @job.singleton_job_active?
+        assert_equal false, @job.rocket_job_singleton_active?
       end
 
       it 'excludes self when started from check' do
         @job = SingletonJob.new
         @job.start!
         assert @job.running?
-        assert_equal false, @job.singleton_job_active?
+        assert_equal false, @job.rocket_job_singleton_active?
       end
 
       it 'returns true when other jobs of this class are queued' do
         @job = SingletonJob.create!
         job2 = SingletonJob.new
-        assert_equal true, job2.singleton_job_active?
+        assert_equal true, job2.rocket_job_singleton_active?
       end
 
       it 'returns true when other jobs of this class are running' do
         @job = SingletonJob.new
         @job.start!
         job2 = SingletonJob.new
-        assert_equal true, job2.singleton_job_active?
+        assert_equal true, job2.rocket_job_singleton_active?
       end
 
       it 'returns false when other jobs of this class are not active' do
@@ -62,7 +62,7 @@ class SingletonTest < Minitest::Test
         @job.save!
         assert @job.completed?
         job2 = SingletonJob.new
-        assert_equal false, job2.singleton_job_active?
+        assert_equal false, job2.rocket_job_singleton_active?
       end
     end
 

@@ -1,7 +1,7 @@
 require_relative '../test_helper'
 
 # Unit Test for RocketJob::Job
-class EventCallbacksTest < Minitest::Test
+class StateMachineEventCallbacksTest < Minitest::Test
   # This job adds each event callback as they run into an array
   # [:start, :complete, :fail, :retry, :pause, :resume, :abort, :requeue]
   class PositivePathJob < RocketJob::Job
@@ -80,7 +80,7 @@ class EventCallbacksTest < Minitest::Test
     end
   end
 
-  describe RocketJob::Concerns::Callbacks do
+  describe RocketJob::Plugins::StateMachine do
     after do
       @job.destroy if @job && !@job.new_record?
     end

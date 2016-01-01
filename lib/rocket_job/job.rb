@@ -3,16 +3,15 @@ module RocketJob
   # The base job from which all jobs are created
   class Job
     include SemanticLogger::Loggable
-    include Concerns::Document
-    include Concerns::Model
-    include Concerns::Persistence
-    include Concerns::EventCallbacks
-    include Concerns::Callbacks
-    include Concerns::Logger
-    include Concerns::StateMachine
-    include Concerns::JobStateMachine
-    include Concerns::Worker
-    include Concerns::Defaults
+    include Plugins::Document
+    include Plugins::Job::Model
+    include Plugins::Job::Persistence
+    include Plugins::Job::Callbacks
+    include Plugins::Job::Logger
+    include Plugins::StateMachine
+    include Plugins::Job::StateMachine
+    include Plugins::Job::Worker
+    include Plugins::Job::Defaults
 
     # User definable properties in Dirmon Entry
     def self.rocket_job_properties
@@ -43,7 +42,7 @@ module RocketJob
     end
 
     # Returns the number of required arguments for this job
-    def self.argument_count
+    def self.rocket_job_argument_count
       instance_method(:perform).arity
     end
 

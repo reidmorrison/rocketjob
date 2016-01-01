@@ -27,8 +27,8 @@ module RocketJob
   #   immediately. Via the UI or Ruby code the worker can take up to 15 seconds
   #   (the heartbeat interval) to start shutting down.
   class Worker
-    include Concerns::Document
-    include Concerns::StateMachine
+    include Plugins::Document
+    include Plugins::StateMachine
     include SemanticLogger::Loggable
 
     # @formatter:off
@@ -310,7 +310,7 @@ module RocketJob
     def process_available_jobs
       skip_job_ids = []
       processed    = false
-      while (job = Job.next_job(name, skip_job_ids)) && !shutting_down?
+      while (job = Job.rocket_job_next_job(name, skip_job_ids)) && !shutting_down?
         logger.fast_tag("Job #{job.id}") do
           if job.work(self)
             # Need to skip the specified job due to throttling or no work available

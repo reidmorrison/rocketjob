@@ -1,4 +1,4 @@
-require_relative '../test_helper'
+require_relative '../../test_helper'
 
 # Unit Test for RocketJob::Job
 class PersistenceTest < Minitest::Test
@@ -13,7 +13,7 @@ class PersistenceTest < Minitest::Test
     end
   end
 
-  describe RocketJob::Concerns::Persistence do
+  describe RocketJob::Plugins::Job::Persistence do
     before do
       @description = 'Hello World'
       @arguments   = [{key: 'value'}]

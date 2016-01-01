@@ -1,4 +1,4 @@
-require_relative '../test_helper'
+require_relative '../../test_helper'
 
 # Unit Test for RocketJob::Job
 class CallbacksTest < Minitest::Test
@@ -110,7 +110,7 @@ class CallbacksTest < Minitest::Test
 
   end
 
-  describe RocketJob::Concerns::Callbacks do
+  describe RocketJob::Plugins::Job::Callbacks do
     after do
       @job.destroy if @job && !@job.new_record?
     end

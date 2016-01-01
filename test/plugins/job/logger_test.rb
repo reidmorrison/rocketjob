@@ -1,7 +1,7 @@
-require_relative '../test_helper'
+require_relative '../../test_helper'
 
 # Unit Test for RocketJob::Job
-module Concerns
+module Plugins
   class LoggerTest < Minitest::Test
 
     class LoggerJob < RocketJob::Job
@@ -10,7 +10,7 @@ module Concerns
       end
     end
 
-    describe RocketJob::Concerns::Logger do
+    describe RocketJob::Plugins::Job::Logger do
       before do
         LoggerJob.delete_all
       end
@@ -38,7 +38,7 @@ module Concerns
           @job.logger.stub(:info, -> description { info_called = true if description == 'Start #perform' }) do
             @job.perform_now
           end
-          assert info_called, "In Concerns::Logger.around_perform logger.info('Start #perform') not called"
+          assert info_called, "In Plugins::Job::Logger.around_perform logger.info('Start #perform') not called"
         end
 
         it 'adds completed logging' do
@@ -47,7 +47,7 @@ module Concerns
           @job.logger.stub(:benchmark_info, -> description, *args { benchmark_called = true if description == 'Completed #perform' }) do
             @job.perform_now
           end
-          assert benchmark_called, "In Concerns::Logger.around_perform logger.benchmark_info('Completed #perform') not called"
+          assert benchmark_called, "In Plugins::Job::Logger.around_perform logger.benchmark_info('Completed #perform') not called"
         end
       end
 

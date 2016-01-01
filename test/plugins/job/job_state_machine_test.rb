@@ -1,4 +1,4 @@
-require_relative '../test_helper'
+require_relative '../../test_helper'
 
 # Unit Test for RocketJob::Job
 class JobStateMachineTest < Minitest::Test
@@ -8,7 +8,7 @@ class JobStateMachineTest < Minitest::Test
     end
   end
 
-  describe RocketJob::Concerns::StateMachine do
+  describe RocketJob::Plugins::Job::StateMachine do
     before do
       @job = StateMachineJob.new
     end

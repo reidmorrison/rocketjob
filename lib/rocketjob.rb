@@ -16,20 +16,20 @@ module RocketJob
   autoload :JobException,      'rocket_job/job_exception'
   autoload :Worker,            'rocket_job/worker'
 
-  module Concerns
-    autoload :Callbacks,       'rocket_job/concerns/callbacks'
-    autoload :Cron,            'rocket_job/concerns/cron'
-    autoload :Defaults,        'rocket_job/concerns/defaults'
-    autoload :Document,        'rocket_job/concerns/document'
-    autoload :EventCallbacks,  'rocket_job/concerns/event_callbacks'
-    autoload :JobStateMachine, 'rocket_job/concerns/job_state_machine'
-    autoload :Logger,          'rocket_job/concerns/logger'
-    autoload :Model,           'rocket_job/concerns/model'
-    autoload :Persistence,     'rocket_job/concerns/persistence'
-    autoload :Restart,         'rocket_job/concerns/restart'
-    autoload :Singleton,       'rocket_job/concerns/singleton'
-    autoload :StateMachine,    'rocket_job/concerns/state_machine'
-    autoload :Worker,          'rocket_job/concerns/worker'
+  module Plugins
+    module Job
+      autoload :Callbacks,     'rocket_job/plugins/job/callbacks'
+      autoload :Defaults,      'rocket_job/plugins/job/defaults'
+      autoload :StateMachine,  'rocket_job/plugins/job/state_machine'
+      autoload :Logger,        'rocket_job/plugins/job/logger'
+      autoload :Model,         'rocket_job/plugins/job/model'
+      autoload :Persistence,   'rocket_job/plugins/job/persistence'
+      autoload :Worker,        'rocket_job/plugins/job/worker'
+    end
+    autoload :Document,        'rocket_job/plugins/document'
+    autoload :Restart,         'rocket_job/plugins/restart'
+    autoload :Singleton,       'rocket_job/plugins/singleton'
+    autoload :StateMachine,    'rocket_job/plugins/state_machine'
   end
 
   module Jobs

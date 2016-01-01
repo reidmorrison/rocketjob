@@ -36,9 +36,9 @@ module RocketJob
     #   RocketJob::Jobs::DirmonJob.create
     class DirmonJob < RocketJob::Job
       # Only allow one DirmonJob instance to be running at a time
-      include RocketJob::Concerns::Singleton
+      include RocketJob::Plugins::Singleton
       # Start a new job when this one completes, fails, or aborts
-      include RocketJob::Concerns::Restart
+      include RocketJob::Plugins::Restart
 
       rocket_job do |job|
         job.priority = 40

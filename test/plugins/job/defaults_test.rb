@@ -1,4 +1,4 @@
-require_relative '../test_helper'
+require_relative '../../test_helper'
 
 # Unit Test for RocketJob::Job
 class DefaultsTest < Minitest::Test
@@ -22,7 +22,7 @@ class DefaultsTest < Minitest::Test
     end
   end
 
-  describe RocketJob::Concerns::Defaults do
+  describe RocketJob::Plugins::Job::Defaults do
     after do
       @job.destroy if @job && !@job.new_record?
     end

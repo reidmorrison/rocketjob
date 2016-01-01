@@ -2,10 +2,10 @@
 require 'active_support/concern'
 
 module RocketJob
-  module Concerns
+  module Plugins
     # Automatically starts a new instance of this job anytime it fails, aborts, or completes
     # Failed jobs are aborted so that they cannot be restarted
-    # Include RocketJob::Concerns::Singleton to prevent multiple copies of a job from running at
+    # Include RocketJob::Plugins::Singleton to prevent multiple copies of a job from running at
     # the same time
     #
     # Note:

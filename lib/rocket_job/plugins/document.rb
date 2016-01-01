@@ -5,7 +5,7 @@ require 'mongo_ha'
 require 'mongo_mapper'
 
 module RocketJob
-  module Concerns
+  module Plugins
     # Prevent more than one instance of this job class from running at a time
     module Document
       extend ActiveSupport::Concern
