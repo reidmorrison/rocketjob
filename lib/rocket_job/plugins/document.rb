@@ -17,6 +17,9 @@ module RocketJob
 
         # Prevent data in MongoDB from re-defining the model behavior
         #self.static_keys = true
+
+        # Turn off embedded callbacks. Slow and not used for Jobs
+        embedded_callbacks_off
       end
 
       # Patch the way MongoMapper reloads a model

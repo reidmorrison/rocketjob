@@ -19,7 +19,7 @@ module Plugins
       end
 
       after do
-        @job.destroy if @job && !@job.new_record?
+        @job.delete if @job && !@job.new_record?
         RestartableJob.delete_all
       end
 
@@ -61,10 +61,11 @@ module Plugins
 
       describe '#complete' do
         it 'queues a new job when destroy_on_complete' do
+          assert_equal 0, RestartableJob.count
           @job = RestartableJob.create!(destroy_on_complete: true)
           @job.perform_now
           assert @job.completed?, @job.attributes.ai
-          assert_equal 1, RestartableJob.count
+          assert_equal 1, RestartableJob.count, RestartableJob.all.to_a.ai
         end
 
         it 'queues a new job when not destroy_on_complete' do

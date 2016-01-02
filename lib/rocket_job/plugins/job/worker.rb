@@ -145,12 +145,8 @@ module RocketJob
                 end
               end
             end
-            complete
-            if destroy_on_complete
-              destroy
-            elsif !new_record?
-              save!
-            end
+            complete if may_complete?
+            save! unless new_record? || destroyed?
           end
           false
         end
