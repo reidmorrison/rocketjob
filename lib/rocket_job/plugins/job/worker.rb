@@ -136,7 +136,7 @@ module RocketJob
           raise(ArgumentError, 'Job must be started before calling #rocket_job_work') unless running?
           rocket_job_fail_on_exception!(worker.name, raise_exceptions) do
             run_callbacks :perform do
-              # Allow callbacks to fail, or abort the job
+              # Allow callbacks to fail, complete or abort the job
               if running?
                 ret = perform(*arguments)
                 if collect_output?
