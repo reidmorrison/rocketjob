@@ -10,10 +10,10 @@ class DirmonEntryTest < Minitest::Test
 
   class WithFullFileNameJob < RocketJob::Job
     # Dirmon will store the filename in this property when starting the job
-    key :full_file_name, String
+    key :upload_file_name, String
 
     def perform
-      # Do something with the file name stored in :full_file_name
+      # Do something with the file name stored in :upload_file_name
     end
   end
 
@@ -240,7 +240,7 @@ class DirmonEntryTest < Minitest::Test
           assert_equal @archive_real_name, @job.arguments.first[:full_file_name], @job.arguments
         end
 
-        it 'sets full_file_name property' do
+        it 'sets upload_file_name property' do
           @entry = RocketJob::DirmonEntry.new(
             pattern:           'test/files/**/*',
             job_class_name:    'DirmonEntryTest::WithFullFileNameJob',
@@ -250,7 +250,7 @@ class DirmonEntryTest < Minitest::Test
           job = @entry.job_class.new
           @entry.send(:upload_default, job, @pathname)
           archive_real_name = @archive_path.join("#{job.id}_#{File.basename(@file_name)}").to_s
-          assert_equal archive_real_name, job.full_file_name, job.arguments
+          assert_equal archive_real_name, job.upload_file_name, job.arguments
         end
 
         it 'handles non hash argument and missing property' do

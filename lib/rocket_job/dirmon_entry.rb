@@ -304,12 +304,14 @@ module RocketJob
     # Archives the file for a job where there was no #upload method
     def upload_default(job, pathname)
       full_file_name = archive_file(job, pathname)
-      if job.respond_to?(:full_file_name=)
+      if job.respond_to?(:upload_file_name=)
+        job.upload_file_name = full_file_name
+      elsif job.respond_to?(:full_file_name=)
         job.full_file_name = full_file_name
       elsif job.arguments.first.is_a?(Hash)
         job.arguments.first[:full_file_name] = full_file_name
       else
-        raise(ArgumentError, "#{job_class_name} must either have attribute 'full_file_name' or the first argument must be a Hash")
+        raise(ArgumentError, "#{job_class_name} must either have attribute 'upload_file_name' or the first argument must be a Hash")
       end
     end
 
