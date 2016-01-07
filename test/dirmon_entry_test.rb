@@ -262,14 +262,6 @@ class DirmonEntryTest < Minitest::Test
       end
 
       describe '#upload_file' do
-        it 'upload using #file_store_upload' do
-          @job.define_singleton_method(:file_store_upload) do |file_name|
-            self.description = "FILE:#{file_name}"
-          end
-          @entry.send(:upload_file, @job, @pathname)
-          assert_equal "FILE:#{@file_name}", @job.description
-        end
-
         it 'upload using #upload' do
           @job.define_singleton_method(:upload) do |file_name|
             self.description = "FILE:#{file_name}"

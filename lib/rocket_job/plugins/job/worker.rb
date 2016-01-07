@@ -65,6 +65,11 @@ module RocketJob
             end
           end
 
+          # Requeues all jobs that were running on worker that died
+          def self.requeue_dead_worker(worker_name)
+            running.each { |job| job.requeue!(worker_name) if job.may_requeue?(worker_name) }
+          end
+
           # Turn off embedded callbacks. Slow and not used for Jobs
           embedded_callbacks_off
         end

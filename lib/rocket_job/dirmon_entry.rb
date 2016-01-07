@@ -197,7 +197,7 @@ module RocketJob
     end
 
     # The default archive directory that is used when the job being queued does not respond
-    # to #file_store_upload or #upload, and do not have an `archive_directory` specified in this entry
+    # to #upload, and does not have an `archive_directory` specified in this entry
     cattr_accessor :default_archive_directory
 
     @@default_archive_directory = '_archive'.freeze
@@ -292,13 +292,7 @@ module RocketJob
 
     # Upload the file to the job
     def upload_file(job, pathname)
-      if job.respond_to?(:file_store_upload)
-        # Allow the job to determine what to do with the file
-        # Pass the pathname as a string, not a Pathname (IO) instance
-        # so that it can read the file directly
-        job.file_store_upload(pathname.to_s)
-        archive_directory ? archive_file(job, pathname) : pathname.unlink
-      elsif job.respond_to?(:upload)
+      if job.respond_to?(:upload)
         # With RocketJob Pro the file can be uploaded directly into the Job itself
         job.upload(pathname.to_s)
         archive_directory ? archive_file(job, pathname) : pathname.unlink
@@ -307,7 +301,7 @@ module RocketJob
       end
     end
 
-    # Archives the file for a job where there was no #file_store_upload or #upload method
+    # Archives the file for a job where there was no #upload method
     def upload_default(job, pathname)
       full_file_name = archive_file(job, pathname)
       if job.respond_to?(:full_file_name=)

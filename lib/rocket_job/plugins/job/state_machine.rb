@@ -91,6 +91,16 @@ module RocketJob
           before_retry :rocket_job_clear_exception
           before_resume :rocket_job_clear_completed_at
           after_complete :rocket_job_destroy_on_complete
+
+          # Pause all running jobs
+          def self.pause_all
+            running.each(&:pause!)
+          end
+
+          # Resume all paused jobs
+          def self.resume_all
+            paused.each(&:resume!)
+          end
         end
 
         private

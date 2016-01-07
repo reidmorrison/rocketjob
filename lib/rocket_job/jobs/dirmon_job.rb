@@ -10,7 +10,7 @@ module RocketJob
     # * On each subsequent Dirmon run it checks the size of each file against the
     #   previous list of known files, and only if the file size has not changed
     #   the corresponding job is started for that file.
-    # * If the job implements #file_store_upload or #upload, that method is called
+    # * If the job implements #upload, that method is called
     #   and then the file is deleted, or moved to the archive_directory if supplied
 
     # * Otherwise, the file is moved to the supplied archive_directory (defaults to
@@ -18,8 +18,7 @@ module RocketJob
     #   file name of the archived file is passed into the job as it's first argument.
 
     # Note:
-    # - Jobs that do not implement #file_store_upload or #upload _must_ have a
-    #   Hash as the first argument
+    # - Jobs that do not implement #upload _must_ have a Hash as the first argument
     #
     # With RocketJob Pro, the file is automatically uploaded into the job itself
     # using the job's #upload method, after which the file is archived or deleted
