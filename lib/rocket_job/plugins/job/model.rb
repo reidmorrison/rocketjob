@@ -114,6 +114,36 @@ module RocketJob
           validates :priority, inclusion: 1..100
           validates :log_level, inclusion: SemanticLogger::LEVELS + [nil]
 
+          # Returns [String] the singular name for this job class
+          #
+          # Example:
+          #   job = DataStudyJob.new
+          #   job.stage_dir_name
+          #   # => "data_study"
+          def self.underscore_name
+            @underscore_name ||= name.sub(/Job$/, '').underscore
+          end
+
+          # Allow the collective name for this job class to be overridden
+          def self.underscore_name=(underscore_name)
+            @underscore_name = underscore_name
+          end
+
+          # Returns [String] the human readable name for this job class
+          #
+          # Example:
+          #   job = DataStudyJob.new
+          #   job.human_name
+          #   # => "Data Study"
+          def self.human_name
+            @human_name ||= name.sub(/Job$/, '').titleize
+          end
+
+          # Allow the human readable job name for this job class to be overridden
+          def self.human_name=(human_name)
+            @human_name = human_name
+          end
+
           # Returns the number of required arguments for this job
           def self.rocket_job_argument_count
             instance_method(:perform).arity
@@ -172,6 +202,11 @@ module RocketJob
           attrs = serializable_hash(methods: [:seconds, :duration])
           attrs.delete('result') unless collect_output?
           case
+          when queued?
+            attrs.delete('started_at')
+            attrs.delete('completed_at')
+            attrs.delete('result')
+            attrs
           when running?
             attrs.delete('completed_at')
             attrs.delete('result')
