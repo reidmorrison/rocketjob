@@ -90,7 +90,7 @@ module RocketJob
           if respond_to?(:validate!)
             validate!
           elsif invalid?
-            raise(MongoMapper::DocumentNotValid, "Validation failed: #{errors.messages.join(', ')}")
+            raise(MongoMapper::DocumentNotValid, self)
           end
           worker = RocketJob::Worker.new(name: 'inline')
           worker.started

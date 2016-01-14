@@ -118,7 +118,7 @@ module RocketJob
           #
           # Example:
           #   job = DataStudyJob.new
-          #   job.stage_dir_name
+          #   job.underscore_name
           #   # => "data_study"
           def self.underscore_name
             @underscore_name ||= name.sub(/Job$/, '').underscore
@@ -142,6 +142,21 @@ module RocketJob
           # Allow the human readable job name for this job class to be overridden
           def self.human_name=(human_name)
             @human_name = human_name
+          end
+
+          # Returns [String] the collective name for this job class
+          #
+          # Example:
+          #   job = DataStudyJob.new
+          #   job.collective_name
+          #   # => "data_studies"
+          def self.collective_name
+            @collective_name ||= name.sub(/Job$/, '').pluralize.underscore
+          end
+
+          # Allow the collective name for this job class to be overridden
+          def self.collective_name=(collective_name)
+            @collective_name = collective_name
           end
 
           # Returns the number of required arguments for this job
