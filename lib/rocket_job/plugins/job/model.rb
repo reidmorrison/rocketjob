@@ -159,6 +159,22 @@ module RocketJob
             @collective_name = collective_name
           end
 
+          # Scope for jobs scheduled to run in the future
+          def self.scheduled
+            queued.where(run_at: {'$gt' => Time.now})
+          end
+
+          # Scope for queued jobs that can run now
+          # I.e. Queued jobs excluding scheduled jobs
+          def self.queued_now
+            queued.where(
+              '$or' => [
+                {run_at: {'$exists' => false}},
+                {run_at: {'$lte' => Time.now}}
+              ]
+            )
+          end
+
           # Returns the number of required arguments for this job
           def self.rocket_job_argument_count
             instance_method(:perform).arity
@@ -210,6 +226,11 @@ module RocketJob
         # Returns [true|false] whether the job has expired
         def expired?
           expires_at && (expires_at < Time.now)
+        end
+
+        # Returns [true|false] whether the job is scheduled to run in the future
+        def scheduled?
+          queued? && run_at && (run_at > Time.now)
         end
 
         # Returns [Hash] status of this job
