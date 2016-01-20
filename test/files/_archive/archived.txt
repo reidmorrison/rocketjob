@@ -1,3 +1,0 @@
-Hello World
-Line2
-Line3

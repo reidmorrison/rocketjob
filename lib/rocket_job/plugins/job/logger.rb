@@ -22,7 +22,7 @@ module RocketJob
           logger.info('Start #perform')
           logger.benchmark_info(
             'Completed #perform',
-            metric:             "rocketjob/#{self.class.name.underscore}",
+            metric:             "rocketjob/#{self.class.name.underscore}/perform",
             log_exception:      :full,
             on_exception_level: :error,
             silence:            log_level,
