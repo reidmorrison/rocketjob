@@ -230,7 +230,7 @@ module RocketJob
 
         # Returns [true|false] whether the job is scheduled to run in the future
         def scheduled?
-          queued? && run_at && (run_at > Time.now)
+          queued? && run_at.present? && (run_at > Time.now)
         end
 
         # Returns [Hash] status of this job

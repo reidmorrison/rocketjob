@@ -30,24 +30,24 @@ module Plugins
         describe '#scheduled?' do
           it 'returns true if job is queued to run in the future' do
             @job = SimpleJob.new(run_at: 1.day.from_now)
-            assert @job.queued?
-            assert @job.scheduled?
+            assert_equal true, @job.queued?
+            assert_equal true, @job.scheduled?
             @job.start
-            assert @job.running?
-            refute @job.scheduled?
+            assert_equal true, @job.running?
+            assert_equal false, @job.scheduled?
           end
 
           it 'returns false if job is queued and can be run now' do
             @job = SimpleJob.new
-            assert @job.queued?
-            refute @job.scheduled?
+            assert_equal true, @job.queued?
+            assert_equal false, @job.scheduled?
           end
 
           it 'returns false if job is running' do
             @job = SimpleJob.new
             @job.start
-            assert @job.running?
-            refute @job.scheduled?
+            assert_equal true, @job.running?
+            assert_equal false, @job.scheduled?
           end
         end
 
