@@ -127,8 +127,6 @@ module RocketJob
           raise exc if raise_exceptions
         end
 
-        private
-
         # Works on this job
         #
         # Returns [true|false] whether this job should be excluded from the next lookup
