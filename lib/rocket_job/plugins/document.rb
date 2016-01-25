@@ -53,7 +53,7 @@ module RocketJob
       private
 
       def update_attributes_and_reload(attrs)
-        if doc = self.class.find_and_modify(query: {:_id => id}, update: {'$set' => attrs})
+        if doc = collection.find_and_modify(query: {:_id => id}, update: {'$set' => attrs})
           # Clear out keys that are not returned during the reload from MongoDB
           (keys.keys - doc.keys).each { |key| send("#{key}=", nil) }
           initialize_default_values

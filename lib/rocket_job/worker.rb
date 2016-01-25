@@ -90,8 +90,6 @@ module RocketJob
     # Requeue any jobs being worked by this worker when it is destroyed
     before_destroy :requeue_jobs
 
-    after_initialize :build_heartbeat
-
     # Run the worker process
     # Attributes supplied are passed to #new
     def self.run(attrs={})
@@ -165,6 +163,7 @@ module RocketJob
     # - The worker is no longer able to communicate with the MongoDB Server
     def zombie?(missed = 4)
       return false unless running?
+      return true if heartbeat.updated_at.nil?
       dead_seconds = Config.instance.heartbeat_seconds * missed
       (Time.now - heartbeat.updated_at) >= dead_seconds
     end
@@ -208,6 +207,7 @@ module RocketJob
     # Management Thread
     def run
       logger.info "Using MongoDB Database: #{RocketJob::Job.database.name}"
+      build_heartbeat(updated_at: Time.now, current_threads: 0)
       started!
       adjust_worker_threads(true)
       logger.info "RocketJob Worker started with #{max_threads} workers running"
