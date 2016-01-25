@@ -1,18 +1,17 @@
 # Rocket Job
-[![Gem Version](https://img.shields.io/gem/v/rocketjob.svg)](https://rubygems.org/gems/rocketjob) [![Build Status](https://travis-ci.org/rocketjob/rocketjob.svg?branch=master)](https://travis-ci.org/rocketjob/rocketjob) [![Downloads](https://img.shields.io/gem/dt/rocketjob.svg)](https://rubygems.org/gems/rocketjob) ![](https://img.shields.io/badge/status-Production%20Ready-blue.svg) [![Gitter chat](https://img.shields.io/badge/IRC%20(gitter)-Support-brightgreen.svg)](https://gitter.im/rocketjob/support)
+[![Gem Version](https://img.shields.io/gem/v/rocketjob.svg)](https://rubygems.org/gems/rocketjob) [![Build Status](https://travis-ci.org/rocketjob/rocketjob.svg?branch=master)](https://travis-ci.org/rocketjob/rocketjob) [![Downloads](https://img.shields.io/gem/dt/rocketjob.svg)](https://rubygems.org/gems/rocketjob) [![License](https://img.shields.io/badge/license-Apache%202.0-brightgreen.svg)](http://opensource.org/licenses/Apache-2.0) ![](https://img.shields.io/badge/status-Production%20Ready-blue.svg) [![Gitter chat](https://img.shields.io/badge/IRC%20(gitter)-Support-brightgreen.svg)](https://gitter.im/rocketjob/support)
 
-Enterprise Batch Processing System focused on performance, scalability, reliability, and visibility of every job in the system.
+Rocket Job is a distributed, priority-based, background job, computation system for Ruby.
+Rocket Job makes it easy to reliably process data using jobs written in Ruby.
 
-Outgrown existing background job processing solutions? Or, start small and scale up later.
+Outgrown existing Ruby background job processing solutions?
 
-Works with or without Rails.
+Upgrade to Rocket Job.
+Or, start small with Rocket Job and seamlessly scale up to meet future business demands.
 
-## Status
+Checkout http://rocketjob.io/
 
-Production Ready
-
-Already in use in production processing large files with millions
-of records, as well as large jobs to walk though large databases.
+![](http://rocketjob.io/images/rocket-icon-256x256.png)
 
 ## Documentation
 
@@ -23,14 +22,6 @@ of records, as well as large jobs to walk though large databases.
 
 * Questions? Join the chat room on Gitter for [rocketjob support](https://gitter.im/rocketjob/support)
 * [Report bugs](https://github.com/rocketjob/rocketjob/issues)
-
-## Dependencies
-
-* [MongoDB](https://www.mongodb.org)
-    * Persists job information.
-    * Version 2.7 or greater.
-* [Semantic Logger](https://rocketjob.github.io/semantic_logger)
-    * Highly concurrent scalable logging.
 
 ## Versioning
 
