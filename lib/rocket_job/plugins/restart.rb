@@ -22,7 +22,7 @@ module RocketJob
         after_abort :rocket_job_restart_new_instance
         after_complete :rocket_job_restart_new_instance
         after_fail :rocket_job_restart_abort
-        before_destroy :rocket_job_restart_destroy
+        after_destroy :rocket_job_restart_destroy
       end
 
       private

@@ -120,10 +120,14 @@ module RocketJob
           if failed? || !may_fail?
             self.exception        = JobException.from_exception(exc)
             exception.worker_name = worker_name
+            save! unless new_record? || destroyed?
           else
-            fail(worker_name, exc)
+            if new_record? || destroyed?
+              fail(worker_name, exc)
+            else
+              fail!(worker_name, exc)
+            end
           end
-          save! unless new_record?
           raise exc if raise_exceptions
         end
 
@@ -148,8 +152,11 @@ module RocketJob
                 end
               end
             end
-            complete if may_complete?
-            save! unless new_record? || destroyed?
+            if new_record? || destroyed?
+              complete if may_complete?
+            else
+              may_complete? ? complete! : save!
+            end
           end
           false
         end

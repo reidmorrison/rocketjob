@@ -144,7 +144,6 @@ class DirmonJobTest < Minitest::Test
 
     describe '#perform' do
       it 'check directories and reschedule' do
-        dirmon_job          = nil
         previous_file_names = {
           "#{@directory}/abc/file1" => 5,
           "#{@directory}/abc/file2" => 10,
@@ -153,21 +152,24 @@ class DirmonJobTest < Minitest::Test
           "#{@directory}/abc/file1" => 10,
           "#{@directory}/abc/file2" => 10,
         }
+        assert_equal 0, RocketJob::Jobs::DirmonJob.count
+        # perform_now does not save the job, just runs it
+        @dirmon_job = RocketJob::Jobs::DirmonJob.create!(
+          previous_file_names: previous_file_names,
+          priority:            11,
+          check_seconds:       30
+        )
         RocketJob::Jobs::DirmonJob.stub_any_instance(:check_directories, new_file_names) do
-          # perform_now does not save the job, just runs it
-          dirmon_job = RocketJob::Jobs::DirmonJob.new(
-            previous_file_names: previous_file_names,
-            priority:            11,
-            check_seconds:       30
-          )
-          dirmon_job.perform_now
+          @dirmon_job.perform_now
         end
-        assert dirmon_job.completed?, dirmon_job.status.inspect
+        assert @dirmon_job.completed?, @dirmon_job.status.inspect
+        # Job must destroy on complete
+        refute RocketJob::Jobs::DirmonJob.find(@dirmon_job.id)
 
         # Must have enqueued another instance to run in the future
         assert_equal 1, RocketJob::Jobs::DirmonJob.count
         assert new_dirmon_job = RocketJob::Jobs::DirmonJob.last
-        refute_equal dirmon_job.id.to_s, new_dirmon_job.id.to_s
+        refute_equal @dirmon_job.id.to_s, new_dirmon_job.id.to_s
         assert new_dirmon_job.run_at
         assert_equal 11, new_dirmon_job.priority
         assert_equal 30, new_dirmon_job.check_seconds
