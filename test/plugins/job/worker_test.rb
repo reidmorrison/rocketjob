@@ -85,6 +85,17 @@ module Plugins
             assert_equal 15, @job.result['result']
           end
 
+          it 'saves exception' do
+            @job = SumJob.new(arguments: ['10', 5])
+            assert_raises TypeError do
+              @job.perform_now
+            end
+            assert @job.exception.backtrace
+            assert_equal 'TypeError', @job.exception.class_name
+            assert_equal 'no implicit conversion of Fixnum into String', @job.exception.message
+            assert_equal 'inline', @job.exception.worker_name
+          end
+
           it 'silence logging when log_level is set' do
             @job           = NoisyJob.new
             @job.log_level = :warn

@@ -13,7 +13,7 @@ Gem::Specification.new do |s|
   s.homepage    = 'http://rocketjob.io'
   s.summary     = 'Enterprise Batch Processing System for Ruby, JRuby, and Rubinius'
   s.description = 'Enterprise Batch Processing System focused on performance, scalability, reliability, and visibility of every job in the system.'
-  s.executables = ['rocketjob']
+  s.executables = ['rocketjob', 'rocketjob_perf']
   s.files       = Dir['lib/**/*', 'bin/*', 'LICENSE.txt', 'Rakefile', 'README.md']
   s.test_files  = Dir['test/**/*']
   s.license     = 'GPL-3.0'

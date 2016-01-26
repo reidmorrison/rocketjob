@@ -35,22 +35,32 @@ module RocketJob
           #   skip_job_ids [Array<BSON::ObjectId>]
           #     Job ids to exclude when looking for the next job
           def self.rocket_job_retrieve(worker_name, skip_job_ids = nil)
-            query        = {
-              '$and' => [
+            run_at       = [
+              {run_at: {'$exists' => false}},
+              {run_at: {'$lte' => Time.now}}
+            ]
+            query        =
+              if defined?(RocketJobPro)
                 {
-                  '$or' => [
-                    {'state' => 'queued'}, # Jobs
-                    {'state' => 'running', 'sub_state' => :processing} # Slices
-                  ]
-                },
-                {
-                  '$or' => [
-                    {run_at: {'$exists' => false}},
-                    {run_at: {'$lte' => Time.now}}
+                  '$and' => [
+                    {
+                      '$or' => [
+                        {'state' => 'queued'}, # Jobs
+                        {'state' => 'running', 'sub_state' => :processing} # Slices
+                      ]
+                    },
+                    {
+                      '$or' => run_at
+                    }
                   ]
                 }
-              ]
-            }
+              else
+                {
+                  'state' => 'queued',
+                  '$or'   => run_at
+                }
+              end
+
             query['_id'] = {'$nin' => skip_job_ids} if skip_job_ids && skip_job_ids.size > 0
 
             if doc = find_and_modify(

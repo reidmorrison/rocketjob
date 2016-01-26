@@ -7,11 +7,6 @@ module Plugins
     class SingletonJob < RocketJob::Job
       include RocketJob::Plugins::Singleton
 
-      rocket_job do |job|
-        job.priority    = 53
-        job.description = 'Hello'
-      end
-
       def perform
       end
     end
@@ -80,7 +75,7 @@ module Plugins
           @job = SingletonJob.new
           @job.start!
           job2 = SingletonJob.new
-          assert_equal false, job2.valid?
+          refute job2.valid?
           assert_equal ['Another instance of Plugins::SingletonTest::SingletonJob is already queued or running'], job2.errors.messages[:state]
         end
 
