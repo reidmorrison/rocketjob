@@ -150,6 +150,41 @@ module RocketJob
       paused.each(&:resume!)
     end
 
+    # Returns [Hash<String:Integer>] of the number of workers in each state.
+    # Note: If there are no workers in that particular state then the hash will not have a value for it.
+    #
+    # Example workers in every state:
+    #   RocketJob::Job.counts_by_state
+    #   # => {
+    #          :aborted => 1,
+    #          :completed => 37,
+    #          :failed => 1,
+    #          :paused => 3,
+    #          :queued => 4,
+    #          :running => 1,
+    #          :queued_now => 1,
+    #          :scheduled => 3
+    #        }
+    #
+    # Example no workers active:
+    #   RocketJob::Job.counts_by_state
+    #   # => {}
+    def self.counts_by_state
+      counts = {}
+      collection.aggregate([
+        {
+          '$group' => {
+            _id:   '$state',
+            count: {'$sum' => 1}
+          }
+        }
+      ]
+      ).each do |result|
+        counts[result['_id']] = result['count']
+      end
+      counts
+    end
+
     # Returns [Boolean] whether the worker is shutting down
     def shutting_down?
       self.class.shutdown? || !running?

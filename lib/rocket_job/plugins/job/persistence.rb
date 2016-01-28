@@ -71,6 +71,62 @@ module RocketJob
               load(doc)
             end
           end
+
+          # Returns [Hash<String:Integer>] of the number of jobs in each state
+          # Queued jobs are separated into :queued_now and :scheduled
+          #   :queued_now are jobs that are awaiting processing and can be processed now.
+          #   :scheduled are jobs scheduled to run the future.
+          #
+          # Note: If there are no jobs in that particular state then the hash will not have a value for it
+          #
+          # Example jobs in every state:
+          #   RocketJob::Job.counts_by_state
+          #   # => {
+          #          :aborted => 1,
+          #          :completed => 37,
+          #          :failed => 1,
+          #          :paused => 3,
+          #          :queued => 4,
+          #          :running => 1,
+          #          :queued_now => 1,
+          #          :scheduled => 3
+          #        }
+          #
+          # Example jobs some states:
+          #   RocketJob::Job.counts_by_state
+          #   # => {
+          #          :failed => 1,
+          #          :running => 25,
+          #          :completed => 1237
+          #        }
+          def self.counts_by_state
+            counts = {}
+            collection.aggregate([
+              {
+                '$group' => {
+                  _id:   '$state',
+                  count: {'$sum' => 1}
+                }
+              }
+            ]
+            ).each do |result|
+              counts[result['_id']] = result['count']
+            end
+
+            # Calculate :queued_now and :scheduled if there are queued jobs
+            if queued_count = counts[:queued]
+              scheduled_count = RocketJob::Job.where(state: :queued, run_at: {'$gt' => Time.now}).count
+              if scheduled_count > 0
+                queued_now_count = queued_count - scheduled_count
+                counts[:queued_now] = queued_count - scheduled_count if queued_now_count > 0
+                counts[:scheduled]  = scheduled_count
+              else
+                counts[:queued_now] = queued_count
+              end
+            end
+            counts
+          end
+
         end
 
         # Set in-memory job to complete if `destroy_on_complete` and the job has been destroyed

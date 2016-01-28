@@ -196,6 +196,37 @@ module RocketJob
       path
     end
 
+    # Returns [Hash<String:Integer>] of the number of dirmon entries in each state.
+    # Note: If there are no workers in that particular state then the hash will not have a value for it.
+    #
+    # Example dirmon entries in every state:
+    #   RocketJob::DirmonEntry.counts_by_state
+    #   # => {
+    #          :pending => 1,
+    #          :enabled => 37,
+    #          :failed => 1,
+    #          :disabled => 3
+    #        }
+    #
+    # Example no dirmon entries:
+    #   RocketJob::Job.counts_by_state
+    #   # => {}
+    def self.counts_by_state
+      counts = {}
+      collection.aggregate([
+        {
+          '$group' => {
+            _id:   '$state',
+            count: {'$sum' => 1}
+          }
+        }
+      ]
+      ).each do |result|
+        counts[result['_id']] = result['count']
+      end
+      counts
+    end
+
     # The default archive directory that is used when the job being queued does not respond
     # to #upload, and does not have an `archive_directory` specified in this entry
     cattr_accessor :default_archive_directory
