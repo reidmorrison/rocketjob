@@ -12,7 +12,8 @@ module RocketJob
           # State Machine events and transitions
           #
           #   :queued -> :running -> :completed
-          #                       -> :paused     -> :running
+          #                       -> :paused     -> :running (if started )
+          #                                      -> :queued ( if no started )
           #                                      -> :aborted
           #                       -> :failed     -> :aborted
           #                                      -> :queued
@@ -59,10 +60,12 @@ module RocketJob
 
             event :pause do
               transitions from: :running, to: :paused
+              transitions from: :queued, to: :paused
             end
 
             event :resume do
-              transitions from: :paused, to: :running
+              transitions from: :paused, to: :running, if: -> { started_at }
+              transitions from: :paused, to: :queued, unless: -> { started_at }
             end
 
             event :abort do
