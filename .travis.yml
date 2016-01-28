@@ -4,7 +4,6 @@ bundler_args: --without development
 rvm:
   - 2.0
   - 2.2
-  - 2.3.0
   - jruby-1.7
   - jruby-9
 
