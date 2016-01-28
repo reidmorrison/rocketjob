@@ -12,7 +12,7 @@ class RocketJobPerf
   def initialize
     @version          = RocketJob::VERSION
     @ruby             = defined?(JRuby) ? "jruby_#{JRUBY_VERSION}" : "ruby_#{RUBY_VERSION}"
-    @count            = 1000
+    @count            = 100_000
     @worker_processes = 0
     @worker_threads   = 0
     @environment      = ENV['RAILS_ENV'] || ENV['RACK_ENV'] || 'development'

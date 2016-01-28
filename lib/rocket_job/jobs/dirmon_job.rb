@@ -47,7 +47,7 @@ module RocketJob
       key :check_seconds, Float, default: 300.0
       key :previous_file_names, Hash # Hash[file_name, size]
 
-      after_initialize :set_run_at
+      before_create :set_run_at
 
       # Iterate over each Dirmon entry looking for new files
       # If a new file is found, it is not processed immediately, instead
