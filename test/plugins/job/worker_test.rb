@@ -92,7 +92,11 @@ module Plugins
             end
             assert @job.exception.backtrace
             assert_equal 'TypeError', @job.exception.class_name
-            assert_equal 'no implicit conversion of Fixnum into String', @job.exception.message
+            if RUBY_VERSION.to_f < 2.0
+              assert_equal "can't convert Fixnum into String", @job.exception.message
+            else
+              assert_equal 'no implicit conversion of Fixnum into String', @job.exception.message
+            end
             assert_equal 'inline', @job.exception.worker_name
           end
 
