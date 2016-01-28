@@ -22,7 +22,6 @@ module RocketJob
         after_abort :rocket_job_restart_new_instance
         after_complete :rocket_job_restart_new_instance
         after_fail :rocket_job_restart_abort
-        after_destroy :rocket_job_restart_destroy
       end
 
       private
@@ -42,11 +41,6 @@ module RocketJob
         else
           logger.info('New job instance not started since one is already active')
         end
-      end
-
-      # Destroy can be called in any state, create a new copy if this one is active
-      def rocket_job_restart_destroy
-        rocket_job_restart_new_instance if (queued? || running? || paused?) && !expired?
       end
 
       def rocket_job_restart_abort
