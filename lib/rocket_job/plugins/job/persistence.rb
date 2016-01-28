@@ -15,12 +15,12 @@ module RocketJob
           # Create indexes
           def self.create_indexes
             # Used by find_and_modify in .rocket_job_retrieve
-            ensure_index({state: 1, priority: 1, created_at: 1}, background: true)
+            ensure_index({state: 1, priority: 1, _id: 1}, background: true)
             # Remove outdated indexes if present
             drop_index('state_1_run_at_1_priority_1_created_at_1_sub_state_1') rescue nil
             drop_index('state_1_priority_1_created_at_1_sub_state_1') rescue nil
-            # Used by Mission Control
-            ensure_index [[:created_at, 1]]
+            drop_index('state_1_priority_1_created_at_1') rescue nil
+            drop_index('created_at_1') rescue nil
           end
 
           # Retrieves the next job to work on in priority based order
@@ -65,7 +65,7 @@ module RocketJob
 
             if doc = find_and_modify(
               query:  query,
-              sort:   {priority: 1, created_at: 1},
+              sort:   {priority: 1, _id: 1},
               update: {'$set' => {'worker_name' => worker_name, 'state' => 'running'}}
             )
               load(doc)
