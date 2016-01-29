@@ -5,6 +5,8 @@ module RocketJob
   module Plugins
     # Automatically starts a new instance of this job anytime it fails, aborts, or completes.
     # Failed jobs are aborted so that they cannot be restarted.
+    # On destroy this job is destroyed without starting a new copy. Abort the job first to get
+    # it to start a new instance before destroying.
     # Include RocketJob::Plugins::Singleton to prevent multiple copies of a job from running at
     # the same time.
     #

@@ -84,81 +84,13 @@ module Plugins
         end
       end
 
-      describe '#destroy' do
-        it 'does not enqueue a new job when in a final state' do
-          @job = RestartableJob.create!(destroy_on_complete: false)
-          @job.perform_now
-          assert @job.completed?
-          assert_equal 2, RestartableJob.count
-          @job.destroy
-          assert_equal 1, RestartableJob.count
-        end
-
-        it 'enqueues a new job when queued' do
-          @job = RestartableJob.create!
-          assert @job.queued?
-          assert_equal 1, RestartableJob.count
-          @job.destroy
-          assert_equal 1, RestartableJob.count
-
-          assert other = RestartableJob.last
-          refute_equal @job.id, other.id
-          assert other.queued?
-        end
-
-        it 'enqueues a new job when running' do
-          @job = RestartableJob.new
-          @job.start!
-          assert_equal 1, RestartableJob.count
-          @job.destroy
-          assert_equal 1, RestartableJob.count
-
-          assert other = RestartableJob.last
-          refute_equal @job.id, other.id
-          assert other.queued?, other.state
-        end
-
-        it 'enqueues a new job when paused' do
+      describe '#pause' do
+        it 'does not enqueues a new job when paused' do
           @job = RestartableJob.new
           @job.start
           @job.pause!
           assert @job.paused?
           assert_equal 1, RestartableJob.count
-          @job.destroy
-          assert_equal 1, RestartableJob.count
-
-          assert other = RestartableJob.last
-          refute_equal @job.id, other.id
-          assert other.queued?
-        end
-
-        it 'does not enqueue a new job when the job is queued and has expired' do
-          @job = RestartableJob.create!(destroy_on_complete: false, expires_at: Time.now - 1.day)
-          assert @job.queued?
-          assert_equal 1, RestartableJob.count
-          @job.destroy
-          assert_equal 0, RestartableJob.count
-        end
-
-        it 'does not enqueue a new job when the job is running and has expired' do
-          @job = RestartableJob.new(destroy_on_complete: false, expires_at: Time.now - 1.day)
-          @job.start!
-          assert @job.running?
-          assert @job.expired?
-          assert_equal 1, RestartableJob.count
-          @job.destroy
-          assert_equal 0, RestartableJob.count, RestartableJob.all.to_a.ai
-        end
-
-        it 'does not enqueue a new job when the job is paused and has expired' do
-          @job = RestartableJob.new(destroy_on_complete: false, expires_at: Time.now - 1.day)
-          @job.start
-          @job.pause!
-          assert @job.paused?
-          assert @job.expired?
-          assert_equal 1, RestartableJob.count
-          @job.destroy
-          assert_equal 0, RestartableJob.count, RestartableJob.all.to_a.ai
         end
       end
 

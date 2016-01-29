@@ -117,7 +117,7 @@ module RocketJob
             if queued_count = counts[:queued]
               scheduled_count = RocketJob::Job.where(state: :queued, run_at: {'$gt' => Time.now}).count
               if scheduled_count > 0
-                queued_now_count = queued_count - scheduled_count
+                queued_now_count    = queued_count - scheduled_count
                 counts[:queued_now] = queued_count - scheduled_count if queued_now_count > 0
                 counts[:scheduled]  = scheduled_count
               else

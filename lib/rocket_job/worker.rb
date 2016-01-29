@@ -154,7 +154,7 @@ module RocketJob
     # Note: If there are no workers in that particular state then the hash will not have a value for it.
     #
     # Example workers in every state:
-    #   RocketJob::Job.counts_by_state
+    #   RocketJob::Worker.counts_by_state
     #   # => {
     #          :aborted => 1,
     #          :completed => 37,
@@ -167,7 +167,7 @@ module RocketJob
     #        }
     #
     # Example no workers active:
-    #   RocketJob::Job.counts_by_state
+    #   RocketJob::Worker.counts_by_state
     #   # => {}
     def self.counts_by_state
       counts = {}
