@@ -1,5 +1,10 @@
 $LOAD_PATH.unshift File.dirname(__FILE__) + '/../lib'
 
+begin
+  require 'active_model/serializers'
+rescue LoadError
+  # Only used when running Rails 5
+end
 require 'yaml'
 require 'minitest/autorun'
 require 'minitest/reporters'

@@ -1,5 +1,4 @@
 # encoding: UTF-8
-require 'socket'
 require 'concurrent'
 module RocketJob
   # Worker
@@ -33,11 +32,10 @@ module RocketJob
 
     # @formatter:off
     # Unique Name of this worker instance
-    #   Defaults to the `hostname` but _must_ be overriden if mutiple Worker instances
-    #   are started on the same host
+    #   Default: `host name:PID`
     # The unique name is used on re-start to re-queue any jobs that were being processed
     # at the time the worker or host unexpectedly terminated, if any
-    key :name,               String, default: -> { "#{Socket.gethostname}:#{$$}" }
+    key :name,               String, default: -> { "#{SemanticLogger.host}:#{$$}" }
 
     # The maximum number of threads that this worker should use
     #   If set, it will override the default value in RocketJob::Config

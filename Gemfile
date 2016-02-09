@@ -1,11 +1,6 @@
-source 'http://rubygems.org'
+eval File.read(File.expand_path('../gemfiles/Gemfile.common.rb', __FILE__)), nil, 'Gemfile.common.rb'
+
+gem 'rails', '~> 5.0.0.beta2'
+gem 'activemodel-serializers-xml', require: 'active_model/serializers'
 
 gemspec
-
-gem 'rake'
-gem 'minitest'
-gem 'minitest-reporters'
-gem 'minitest-stub_any_instance'
-gem 'bson_ext', platform: :ruby
-gem 'awesome_print'
-gem 'rubyzip'

@@ -131,7 +131,7 @@ module RocketJob
     # Parse command line options placing results in the corresponding instance variables
     def parse(argv)
       parser        = OptionParser.new do |o|
-        o.on('-n', '--name NAME', 'Unique Name of this worker instance (Default: hostname:PID)') do |arg|
+        o.on('-n', '--name NAME', 'Unique Name of this worker instance (Default: host_name:PID)') do |arg|
           @name = arg
         end
         o.on('-t', '--threads COUNT', 'Number of worker threads to start') do |arg|

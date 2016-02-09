@@ -59,7 +59,9 @@ module RocketJob
                 logger.info "Destroyed expired job #{job.class.name}, id:#{job.id}"
               else
                 job.worker_name = worker_name
-                job.rocket_job_fail_on_exception!(worker_name) { job.start }
+                job.rocket_job_fail_on_exception!(worker_name) do
+                  defined?(RocketJobPro) ? job.start! : job.start
+                end
                 return job if job.running?
               end
             end

@@ -13,7 +13,7 @@ module Mongo
       MongoClient.logger.send(level, msg)
     end
 
-    protected
+    private
 
     def log_operation(name, payload, duration)
       MongoClient.logger.benchmark_trace(name, duration: (duration * 1000), payload: payload)

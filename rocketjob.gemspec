@@ -19,7 +19,7 @@ Gem::Specification.new do |s|
   s.license     = 'GPL-3.0'
   s.has_rdoc    = true
   s.add_dependency 'aasm', '~> 4.3'
-  s.add_dependency 'semantic_logger', '~> 2.21'
+  s.add_dependency 'semantic_logger', '~> 3.0'
   s.add_dependency 'mongo_ha', '~> 1.11'
   s.add_dependency 'mongo', '~> 1.11'
   s.add_dependency 'mongo_mapper', '~> 0.13'
