@@ -196,7 +196,7 @@ module RocketJob
     # - The worker is no longer able to communicate with the MongoDB Server
     def zombie?(missed = 4)
       return false unless running?
-      return true if heartbeat.updated_at.nil?
+      return true if heartbeat.nil? || heartbeat.updated_at.nil?
       dead_seconds = Config.instance.heartbeat_seconds * missed
       (Time.now - heartbeat.updated_at) >= dead_seconds
     end

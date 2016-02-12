@@ -305,10 +305,12 @@ module RocketJob
     # Queues the job for the supplied pathname
     def later(pathname)
       if klass = job_class
-        job = klass.new(properties.merge(arguments: arguments))
-        upload_file(job, pathname)
-        job.save!
-        job
+        logger.benchmark_info "Enqueued: #{name}, Job class: #{job_class_name}" do
+          job = klass.new(properties.merge(arguments: arguments))
+          upload_file(job, pathname)
+          job.save!
+          job
+        end
       else
         raise(ArgumentError, "Cannot instantiate a class for: #{job_class_name.inspect}")
       end
