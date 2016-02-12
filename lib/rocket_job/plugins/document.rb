@@ -6,17 +6,18 @@ require 'mongo_mapper'
 
 module RocketJob
   module Plugins
-    # Prevent more than one instance of this job class from running at a time
+    # Base class for storing models in MongoDB
     module Document
       extend ActiveSupport::Concern
       include MongoMapper::Document
+      include RocketJob::Plugins::StaticDocument
 
       included do
         # Add after_initialize & after_find callbacks
         define_model_callbacks :initialize, :find, :only => [:after]
 
         # Prevent data in MongoDB from re-defining the model behavior
-        #self.static_keys = true
+        self.static_keys = true
 
         # Turn off embedded callbacks. Slow and not used for Jobs
         embedded_callbacks_off

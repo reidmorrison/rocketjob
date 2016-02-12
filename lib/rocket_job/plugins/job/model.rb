@@ -187,6 +187,7 @@ module RocketJob
 
           # Add to user definable properties in Dirmon Entry
           def self.public_rocket_job_properties(*properties)
+            properties.each { |property| raise("Invalid public_rocket_job_property: #{property.inspect}") unless key?(property)}
             rocket_job_properties.concat(properties).uniq!
           end
 
@@ -237,6 +238,7 @@ module RocketJob
         def as_json
           attrs = serializable_hash(methods: [:seconds, :duration])
           attrs.delete('result') unless collect_output?
+          attrs.delete('failure_count') unless failure_count > 0
           case
           when queued?
             attrs.delete('started_at')
@@ -246,6 +248,9 @@ module RocketJob
           when running?
             attrs.delete('completed_at')
             attrs.delete('result')
+            attrs
+          when completed?
+            attrs.delete('percent_complete')
             attrs
           when paused?
             attrs.delete('completed_at')
@@ -269,8 +274,6 @@ module RocketJob
         def status(time_zone = 'Eastern Time (US & Canada)')
           h = as_json
           h.delete('seconds')
-          h.delete('percent_complete') if completed?
-          h.delete('failure_count') unless failure_count > 0
           h.dup.each_pair do |k, v|
             case
             when v.is_a?(Time)
