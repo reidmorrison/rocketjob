@@ -29,7 +29,6 @@ module RocketJob
     autoload :Restart,         'rocket_job/plugins/restart'
     autoload :Singleton,       'rocket_job/plugins/singleton'
     autoload :StateMachine,    'rocket_job/plugins/state_machine'
-    autoload :StaticDocument,  'rocket_job/plugins/static_document'
   end
 
   module Jobs

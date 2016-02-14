@@ -8,16 +8,18 @@ module RocketJob
   module Plugins
     # Base class for storing models in MongoDB
     module Document
+      autoload :Static, 'rocket_job/plugins/document/static'
+
       extend ActiveSupport::Concern
       include MongoMapper::Document
-      include RocketJob::Plugins::StaticDocument
+      include RocketJob::Plugins::Document::Static
 
       included do
         # Add after_initialize & after_find callbacks
         define_model_callbacks :initialize, :find, :only => [:after]
 
         # Prevent data in MongoDB from re-defining the model behavior
-        self.static_keys = true
+        self.static_keys     = true
 
         # Turn off embedded callbacks. Slow and not used for Jobs
         embedded_callbacks_off

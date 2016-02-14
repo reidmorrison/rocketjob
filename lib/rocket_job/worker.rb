@@ -45,7 +45,7 @@ module RocketJob
     key :started_at,         Time
 
     # The heartbeat information for this worker
-    one :heartbeat,          class_name: 'RocketJob::Heartbeat'
+    has_one :heartbeat,      class_name: 'RocketJob::Heartbeat'
 
     # Current state
     #   Internal use only. Do not set this field directly
