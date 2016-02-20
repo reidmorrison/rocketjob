@@ -11,18 +11,18 @@ Gem::Specification.new do |s|
   s.authors     = ['Reid Morrison']
   s.email       = ['reidmo@gmail.com']
   s.homepage    = 'http://rocketjob.io'
-  s.summary     = 'Enterprise Batch Processing System for Ruby, JRuby, and Rubinius'
+  s.summary     = 'Enterprise Batch Processing System for Ruby'
   s.description = 'Enterprise Batch Processing System focused on performance, scalability, reliability, and visibility of every job in the system.'
   s.executables = ['rocketjob', 'rocketjob_perf']
   s.files       = Dir['lib/**/*', 'bin/*', 'LICENSE.txt', 'Rakefile', 'README.md']
   s.test_files  = Dir['test/**/*']
-  s.license     = 'GPL-3.0'
+  s.license     = 'Apache-2.0'
   s.has_rdoc    = true
-  s.add_dependency 'aasm', '~> 4.3'
-  s.add_dependency 'semantic_logger', '~> 3.0'
+  s.add_dependency 'aasm', '>= 4.3'
+  s.add_dependency 'semantic_logger', '>= 2.21'
   s.add_dependency 'mongo_ha', '~> 1.11'
   s.add_dependency 'mongo', '~> 1.11'
   s.add_dependency 'mongo_mapper', '~> 0.13'
-  s.add_dependency 'symmetric-encryption', '~> 3.0'
+  s.add_dependency 'symmetric-encryption', '>= 3.0'
   s.add_dependency 'concurrent-ruby', '~> 1.0'
 end
