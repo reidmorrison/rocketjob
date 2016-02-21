@@ -16,7 +16,7 @@ module Mongo
     private
 
     def log_operation(name, payload, duration)
-      MongoClient.logger.benchmark_trace(name, duration: (duration * 1000), payload: payload)
+      MongoClient.logger.measure_trace(name, duration: (duration * 1000), payload: payload)
     end
 
   end

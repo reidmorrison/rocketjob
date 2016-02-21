@@ -251,7 +251,7 @@ module RocketJob
 
     # Passes each filename [Pathname] found that matches the pattern into the supplied block
     def each(&block)
-      logger.fast_tag("DirmonEntry:#{id}") do
+      logger.fast_tag("dirmon_entry:#{id}") do
         # Case insensitive filename matching
         Pathname.glob(pattern, File::FNM_CASEFOLD).each do |pathname|
           next if pathname.directory?
@@ -305,7 +305,7 @@ module RocketJob
     # Queues the job for the supplied pathname
     def later(pathname)
       if klass = job_class
-        logger.benchmark_info "Enqueued: #{name}, Job class: #{job_class_name}" do
+        logger.measure_info "Enqueued: #{name}, Job class: #{job_class_name}" do
           job = klass.new(properties.merge(arguments: arguments))
           upload_file(job, pathname)
           job.save!

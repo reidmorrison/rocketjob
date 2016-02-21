@@ -20,7 +20,7 @@ module RocketJob
         #   - silence noisy jobs by raising log level
         def rocket_job_around_logger(&block)
           logger.info('Start #perform')
-          logger.benchmark_info(
+          logger.measure_info(
             'Completed #perform',
             metric:             "rocketjob/#{self.class.name.underscore}/perform",
             log_exception:      :full,

@@ -58,7 +58,7 @@ module RocketJob
       SemanticLogger.default_level = log_level.to_sym if log_level
 
       if Rails.configuration.eager_load
-        RocketJob::Worker.logger.benchmark_info('Eager loaded Rails and all Engines') do
+        RocketJob::Worker.logger.measure_info('Eager loaded Rails and all Engines') do
           Rails.application.eager_load!
           Rails::Engine.subclasses.each(&:eager_load!)
         end
