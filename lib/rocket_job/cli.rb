@@ -83,7 +83,7 @@ module RocketJob
       # Log to file except when booting rails, when it will add the log file path
       path = log_file ? Pathname.new(log_file) : Pathname.pwd.join("log/#{environment}.log")
       path.dirname.mkpath
-      SemanticLogger.add_appender(path.to_s, &SemanticLogger::Appender::Base.colorized_formatter)
+      SemanticLogger.add_appender(file_name: path.to_s, formatter: :color)
 
       logger.info "Rails not detected. Running standalone: #{environment}"
       RocketJob::Config.load!(environment)
@@ -112,7 +112,7 @@ module RocketJob
     end
 
     def setup_logger
-      SemanticLogger.add_appender(STDOUT, &SemanticLogger::Appender::Base.colorized_formatter) unless quiet
+      SemanticLogger.add_appender(io: STDOUT, formatter: :color) unless quiet
       SemanticLogger.default_level = log_level.to_sym if log_level
 
       # Enable SemanticLogger signal handling for this process

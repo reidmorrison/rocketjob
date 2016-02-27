@@ -8,7 +8,7 @@ begin
   RocketJob::CLI.new(ARGV).run
 rescue => exc
   # Failsafe logger that writes to STDERR
-  SemanticLogger.add_appender(STDERR, :error, &SemanticLogger::Appender::Base.colorized_formatter)
+  SemanticLogger.add_appender(io: STDERR, level: :error, formatter: :color)
   SemanticLogger['RocketJob'].error('Rocket Job shutting down due to exception', exc)
   SemanticLogger.flush
   exit 1
