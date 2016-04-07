@@ -207,7 +207,7 @@ class DirmonEntryTest < Minitest::Test
         @file_name    = @file.path
         @pathname     = Pathname.new(@file_name)
         File.open(@file_name, 'w') { |file| file.write('Hello World') }
-        assert File.exists?(@file_name)
+        assert File.exist?(@file_name)
         @archive_real_name = @archive_path.join("#{@job.id}_#{File.basename(@file_name)}").to_s
       end
 
@@ -230,7 +230,7 @@ class DirmonEntryTest < Minitest::Test
       describe '#archive_file' do
         it 'archive file' do
           assert_equal @archive_real_name, @entry.send(:archive_file, @job, Pathname.new(@file_name))
-          assert File.exists?(@archive_real_name)
+          assert File.exist?(@archive_real_name)
         end
       end
 

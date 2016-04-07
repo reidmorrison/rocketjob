@@ -107,6 +107,9 @@ module RocketJob
 
         key :cron_schedule, String
 
+        # Make cron_schedule editable for scheduled jobs
+        public_rocket_job_properties :cron_schedule
+
         before_create :rocket_job_set_run_at
 
         validates_presence_of :cron_schedule
