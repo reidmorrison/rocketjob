@@ -78,7 +78,7 @@ module Plugins
           @job = ProcessingWindowJob.new
           refute @job.valid?
           assert_equal "can't be blank", @job.errors.messages[:processing_schedule].first
-          assert_equal "not a string: nil", @job.errors.messages[:processing_schedule].second
+          assert_equal 'not a string: nil', @job.errors.messages[:processing_schedule].second
           assert_equal "can't be blank", @job.errors.messages[:processing_duration].first
         end
 
