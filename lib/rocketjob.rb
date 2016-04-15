@@ -65,3 +65,6 @@ module RocketJob
   end
 
 end
+
+# Add Active Job adapter for Rails
+require 'rocket_job/extensions/rocket_job_adapter' if defined?(ActiveJob)
