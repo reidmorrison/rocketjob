@@ -195,7 +195,7 @@ module RocketJob
     # - The worker process is "hanging"
     # - The worker is no longer able to communicate with the MongoDB Server
     def zombie?(missed = 4)
-      return false unless running?
+      return false unless running? || stopping?
       return true if heartbeat.nil? || heartbeat.updated_at.nil?
       dead_seconds = Config.instance.heartbeat_seconds * missed
       (Time.now - heartbeat.updated_at) >= dead_seconds
@@ -260,13 +260,21 @@ module RocketJob
         # Stop worker if shutdown indicator was set
         stop! if self.class.shutdown? && may_stop?
       end
+
       logger.info 'Waiting for worker threads to stop'
-      # TODO Put a timeout on join.
-      # Log Thread dump for active threads
-      # Compare thread dumps for any changes, force down if no change?
-      # reload, if model missing: Send Shutdown exception to each thread
-      #           5 more seconds then exit
-      worker_threads.each { |t| t.join }
+      while thread = worker_threads.first
+        # Timeout waiting for thread to stop
+        if thread.join(5).nil?
+          begin
+            update_attributes_and_reload(
+              'heartbeat.updated_at'      => Time.now,
+              'heartbeat.current_threads' => worker_count
+            )
+          rescue MongoMapper::DocumentNotFound
+            logger.error('Worker has been destroyed. Going down hard!')
+          end
+        end
+      end
       logger.info 'Shutdown'
     rescue Exception => exc
       logger.error('RocketJob::Worker is stopping due to an exception', exc)

@@ -17,6 +17,12 @@ Checkout http://rocketjob.io/
 * Questions? Join the chat room on Gitter for [rocketjob support](https://gitter.im/rocketjob/support)
 * [Report bugs](https://github.com/rocketjob/rocketjob/issues)
 
+## Ruby Support
+
+Rocket Job is tested and supported on the following Ruby platforms:
+- Ruby 2.1, 2.2, 2.3, and above
+- JRuby 1.7.23, 9.0.5 and above
+
 ## Versioning
 
 This project uses [Semantic Versioning](http://semver.org/).

@@ -1,5 +1,4 @@
 require 'optparse'
-require 'yaml'
 require 'semantic_logger'
 module RocketJob
   # Command Line Interface parser for RocketJob

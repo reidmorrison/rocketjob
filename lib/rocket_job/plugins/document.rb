@@ -15,9 +15,6 @@ module RocketJob
       include RocketJob::Plugins::Document::Static
 
       included do
-        # Add after_initialize & after_find callbacks
-        define_model_callbacks :initialize, :find, :only => [:after]
-
         # Prevent data in MongoDB from re-defining the model behavior
         self.static_keys     = true
 
@@ -35,21 +32,6 @@ module RocketJob
           self
         else
           raise MongoMapper::DocumentNotFound, "Document match #{_id.inspect} does not exist in #{collection.name} collection"
-        end
-      end
-
-      # Add after_initialize callbacks
-      # TODO: Remove after new MongoMapper gem is released
-      #       Also remove define_model_callbacks above
-      def initialize(*)
-        run_callbacks(:initialize) { super }
-      end
-
-      def initialize_from_database(*)
-        run_callbacks(:initialize) do
-          run_callbacks(:find) do
-            super
-          end
         end
       end
 

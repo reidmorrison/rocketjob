@@ -1,6 +1,6 @@
-source 'http://rubygems.org'
+source 'https://rubygems.org'
 
-gem 'rake'
+gem 'rake', '~> 10.0'
 gem 'minitest'
 gem 'minitest-reporters'
 gem 'minitest-stub_any_instance'
