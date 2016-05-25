@@ -8,11 +8,8 @@ module RocketJob
   module Plugins
     # Base class for storing models in MongoDB
     module Document
-      autoload :Static, 'rocket_job/plugins/document/static'
-
       extend ActiveSupport::Concern
       include MongoMapper::Document
-      include RocketJob::Plugins::Document::Static
 
       included do
         # Prevent data in MongoDB from re-defining the model behavior.

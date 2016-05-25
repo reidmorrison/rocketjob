@@ -1,11 +1,10 @@
-module RocketJob
+# TODO Delete this file once PR has been accepted
+#   https://github.com/mongomapper/mongomapper/pull/641
+MongoMapper::Plugins::Keys::Static
+module MongoMapper
   module Plugins
-    # Extension for Document to implement static keys
-    # Remove when new MongoMapper gem is released
-    module Document
+    module Keys
       module Static
-        extend ActiveSupport::Concern
-
         module ClassMethods
           def embedded_keys
             @embedded_keys ||= embedded_associations.collect(&:as)
