@@ -15,10 +15,14 @@ module RocketJob
       include RocketJob::Plugins::Document::Static
 
       included do
-        # Prevent data in MongoDB from re-defining the model behavior
+        # Prevent data in MongoDB from re-defining the model behavior.
         self.static_keys     = true
 
-        # Turn off embedded callbacks. Slow and not used for Jobs
+        # Only save changes to this instance to prevent losing
+        # changes made by other processes or threads.
+        self.partial_updates = true
+
+        # Turn off embedded callbacks. Slow and not used by Jobs.
         embedded_callbacks_off
       end
 
