@@ -18,7 +18,7 @@ module RocketJob
       extend ActiveSupport::Concern
 
       # Attributes to exclude when copying across the attributes to the new instance
-      RESTART_EXCLUDES = %w(_id state created_at started_at completed_at failure_count worker_name percent_complete exception result run_at)
+      RESTART_EXCLUDES = %w(_id state created_at started_at completed_at failure_count worker_name percent_complete exception result run_at record_count)
 
       included do
         after_abort :rocket_job_restart_new_instance
