@@ -17,6 +17,7 @@ module Plugins
 
       describe RocketJob::Plugins::Job::Persistence do
         before do
+          RocketJob::Job.destroy_all
           @description = 'Hello World'
           @arguments   = [{key: 'value'}]
           @job         = PersistJob.new(
@@ -28,6 +29,8 @@ module Plugins
 
         after do
           @job.destroy if @job && !@job.new_record?
+          @job2.destroy if @job2 && !@job2.new_record?
+          @job3.destroy if @job3 && !@job3.new_record?
         end
 
         describe '.config' do
@@ -72,6 +75,20 @@ module Plugins
             assert_nil @job.run_at
             assert_nil @job.started_at
             assert_equal :queued, @job.state
+          end
+        end
+
+        describe '.counts_by_state' do
+          it 'returns states as symbols' do
+            @job.start!
+            @job2 = PersistJob.create!(arguments: [{key: 'value'}])
+            @job3 = PersistJob.create!(arguments: [{key: 'value'}], run_at: 1.day.from_now)
+            counts = RocketJob::Job.counts_by_state
+            assert_equal 4, counts.size, counts.ai
+            assert_equal 1, counts[:running]
+            assert_equal 2, counts[:queued]
+            assert_equal 1, counts[:queued_now]
+            assert_equal 1, counts[:scheduled]
           end
         end
 

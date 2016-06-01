@@ -178,7 +178,7 @@ module RocketJob
         }
       ]
       ).each do |result|
-        counts[result['_id']] = result['count']
+        counts[result['_id'].to_sym] = result['count']
       end
       counts
     end
