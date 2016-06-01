@@ -15,7 +15,7 @@ rvm:
 
 matrix:
   exclude:
-    - rvm: jruby-1.7.23
+    - rvm: jruby-1.7.25
       gemfile: gemfiles/rails5_0.gemfile
     - rvm: 2.1.10
       gemfile: gemfiles/rails5_0.gemfile
