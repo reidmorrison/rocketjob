@@ -263,8 +263,11 @@ module RocketJob
 
       logger.info 'Waiting for worker threads to stop'
       while thread = worker_threads.first
-        # Timeout waiting for thread to stop
-        if thread.join(5).nil?
+        if thread.join(5)
+          # Worker thread is dead
+          worker_threads.shift
+        else
+          # Timeout waiting for thread to stop
           begin
             update_attributes_and_reload(
               'heartbeat.updated_at'      => Time.now,
@@ -272,6 +275,7 @@ module RocketJob
             )
           rescue MongoMapper::DocumentNotFound
             logger.error('Worker has been destroyed. Going down hard!')
+            break
           end
         end
       end
