@@ -69,6 +69,7 @@ module RocketJob
 
           # Requeues all jobs that were running on worker that died
           def self.requeue_dead_worker(worker_name)
+            # TODO Need to requeue paused, failed since user may have transitioned job before it finished
             running.each do |job|
               job.requeue!(worker_name) if job.may_requeue?(worker_name)
             end
@@ -99,7 +100,7 @@ module RocketJob
           worker = RocketJob::Worker.new(name: 'inline')
           worker.started
           start if may_start?
-          # Raise exceptions
+          # Re-Raise exceptions
           rocket_job_work(worker, true) if running?
           result
         end
@@ -115,10 +116,10 @@ module RocketJob
         # worker_name: [String]
         #   Name of the worker on which the exception has occurred
         #
-        # raise_exceptions: [true|false]
+        # re_raise_exceptions: [true|false]
         #   Re-raise the exception after updating the job
-        #   Default: !RocketJob::Config.inline_mode
-        def rocket_job_fail_on_exception!(worker_name, raise_exceptions = !RocketJob::Config.inline_mode)
+        #   Default: false
+        def rocket_job_fail_on_exception!(worker_name, re_raise_exceptions = false)
           yield
         rescue Exception => exc
           if failed? || !may_fail?
@@ -132,7 +133,7 @@ module RocketJob
               fail!(worker_name, exc)
             end
           end
-          raise exc if raise_exceptions
+          raise exc if re_raise_exceptions
         end
 
         # Works on this job
@@ -143,9 +144,9 @@ module RocketJob
         # is set in the job itself.
         #
         # Thread-safe, can be called by multiple threads at the same time
-        def rocket_job_work(worker, raise_exceptions = !RocketJob::Config.inline_mode)
+        def rocket_job_work(worker, re_raise_exceptions = false)
           raise(ArgumentError, 'Job must be started before calling #rocket_job_work') unless running?
-          rocket_job_fail_on_exception!(worker.name, raise_exceptions) do
+          rocket_job_fail_on_exception!(worker.name, re_raise_exceptions) do
             run_callbacks :perform do
               # Allow callbacks to fail, complete or abort the job
               if running?

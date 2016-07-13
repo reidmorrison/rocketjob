@@ -348,6 +348,8 @@ module RocketJob
       logger.info "Stopping. Worker state: #{state.inspect}"
     rescue Exception => exc
       logger.fatal('Unhandled exception in job processing thread', exc)
+    ensure
+      ActiveRecord::Base.clear_active_connections! if defined?(ActiveRecord::Base)
     end
 
     # Process the next available job

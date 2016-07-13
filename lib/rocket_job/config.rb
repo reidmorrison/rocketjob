@@ -16,9 +16,9 @@ module RocketJob
       end
     end
 
-    # Useful for Testing, not recommended elsewhere
-    # By enabling inline_mode jobs will be called in-line using perform_now
-    # No worker processes will be created, nor threads created
+    # Useful for Testing, not recommended elsewhere.
+    # When enabled all calls to `perform_later` will be redirected to `perform_now`.
+    # Also, exceptions will be raised instead of failing the job.
     cattr_accessor(:inline_mode) { false }
 
     # @formatter:off
