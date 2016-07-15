@@ -2,6 +2,11 @@
 require 'active_support/concern'
 require 'mongo'
 require 'mongo_ha'
+begin
+  require 'active_model/serializers/xml'
+rescue LoadError
+  raise "Please add gem 'activemodel-serializers-xml' to Gemfile to support Active Model V5"
+end
 require 'mongo_mapper'
 
 module RocketJob
