@@ -274,7 +274,7 @@ module RocketJob
               'heartbeat.current_threads' => worker_count
             )
           rescue MongoMapper::DocumentNotFound
-            logger.error('Worker has been destroyed. Going down hard!')
+            logger.warn('Worker has been destroyed. Going down hard!')
             break
           end
         end
