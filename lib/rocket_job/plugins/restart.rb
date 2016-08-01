@@ -17,10 +17,11 @@ module RocketJob
     module Restart
       extend ActiveSupport::Concern
 
-      # Attributes to exclude when copying across the attributes to the new instance
-      RESTART_EXCLUDES = %w(_id state created_at started_at completed_at failure_count worker_name percent_complete exception result run_at record_count sub_state)
-
       included do
+        # Attributes to exclude when copying across the attributes to the new instance
+        class_attribute :rocket_job_restart_excludes
+        self.rocket_job_restart_excludes = %w(_id state created_at started_at completed_at failure_count worker_name percent_complete exception result run_at record_count sub_state)
+
         after_abort :rocket_job_restart_new_instance
         after_complete :rocket_job_restart_new_instance
         after_fail :rocket_job_restart_abort
@@ -32,7 +33,7 @@ module RocketJob
       def rocket_job_restart_new_instance
         return if expired?
         attrs = attributes.dup
-        RESTART_EXCLUDES.each { |attr| attrs.delete(attr) }
+        rocket_job_restart_excludes.each { |attr| attrs.delete(attr) }
 
         # Copy across run_at for future dated jobs
         attrs['run_at'] = run_at if run_at && (run_at > Time.now)

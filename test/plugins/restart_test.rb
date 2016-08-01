@@ -6,7 +6,15 @@ module Plugins
     class RestartableJob < RocketJob::Job
       include RocketJob::Plugins::Restart
 
+      # Ensure a new start_at and end_at is generated every time this job is restarted
+      self.rocket_job_restart_excludes = self.rocket_job_restart_excludes + %w(start_at end_at)
+
+      key :start_at, Date
+      key :end_at, Date
+
       def perform
+        self.start_at = Date.today
+        self.end_at   = Date.today
         'DONE'
       end
     end
@@ -147,11 +155,14 @@ module Plugins
           assert job2.queued?, job2.attributes.ai
 
           # Copy across all attributes, except
-          @job.attributes.each_pair do |key, value|
-            next if RocketJob::Plugins::Restart::RESTART_EXCLUDES.include?(key)
+          job2.attributes.each_pair do |key, value|
+            refute_equal 'start_at', key, "Should not include start_at in retried job. #{job2.attributes.inspect}"
+            next if RestartableJob.rocket_job_restart_excludes.include?(key)
             assert_equal value, job2[key], "Attributes are supposed to be copied across. For #{key}"
           end
 
+          assert_equal nil, job2.start_at
+          assert_equal nil, job2.end_at
           assert_equal :queued, job2.state
           assert job2.created_at
           assert_equal nil, job2.started_at
