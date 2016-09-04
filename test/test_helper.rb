@@ -17,4 +17,5 @@ MiniTest::Reporters.use! MiniTest::Reporters::SpecReporter.new
 SemanticLogger.add_appender(file_name: 'test.log', formatter: :color)
 SemanticLogger.default_level = :debug
 
-RocketJob::Config.load!('test', 'test/config/mongo.yml')
+RocketJob::Config.load!('test', 'test/config/mongoid.yml')
+Mongoid.logger = SemanticLogger[Mongoid]

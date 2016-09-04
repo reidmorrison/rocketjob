@@ -20,13 +20,10 @@ module RocketJob
     # class BusinessHoursJob < RocketJob::Job
     #   include RocketJob::Plugins::ProcessingWindow
     #
-    #   # Set the default processing_window
-    #   rocket_job do |job|
-    #     # The start of the processing window
-    #     job.processing_schedule = "30 8 * * * America/New_York"
-    #     # How long the processing window is:
-    #     job.processing_duration = 12.hours
-    #   end
+    #   # The start of the processing window
+    #   self.processing_schedule = "30 8 * * * America/New_York"
+    #   # How long the processing window is:
+    #   self..processing_duration = 12.hours
     #
     #   def perform
     #     # Job will only run between 8:30am and 8:30pm Eastern
@@ -41,8 +38,8 @@ module RocketJob
       extend ActiveSupport::Concern
 
       included do
-        key :processing_schedule, String
-        key :processing_duration, Integer
+        field :processing_schedule, type: String, class_attribute: true
+        field :processing_duration, type: Integer, class_attribute: true
 
         before_create :rocket_job_processing_window_set_run_at
         before_retry :rocket_job_processing_window_set_run_at

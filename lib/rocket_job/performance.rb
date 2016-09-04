@@ -20,7 +20,7 @@ module RocketJob
 
       self.worker_processes = 0
       self.worker_threads   = 0
-      RocketJob::Worker.where(state: :running).each do |worker_process|
+      RocketJob::Worker.running.each do |worker_process|
         unless worker_process.zombie?
           self.worker_processes += 1
           self.worker_threads   += worker_process.heartbeat.current_threads

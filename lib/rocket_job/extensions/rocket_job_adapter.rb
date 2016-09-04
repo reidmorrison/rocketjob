@@ -1,5 +1,3 @@
-#require 'rocketjob'
-
 module ActiveJob
   module QueueAdapters
     # == Rocket Job adapter for Active Job
@@ -38,9 +36,9 @@ module ActiveJob
       end
 
       class JobWrapper < RocketJob::Job #:nodoc:
-        key :active_job_id, String
-        key :active_job_class, String
-        key :active_job_queue, String
+        field :active_job_id, type: String
+        field :active_job_class, type: String
+        field :active_job_queue, type: String
 
         def perform(job_data)
           Base.execute job_data

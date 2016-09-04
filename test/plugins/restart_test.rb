@@ -9,8 +9,8 @@ module Plugins
       # Ensure a new start_at and end_at is generated every time this job is restarted
       self.rocket_job_restart_excludes = self.rocket_job_restart_excludes + %w(start_at end_at)
 
-      key :start_at, Date
-      key :end_at, Date
+      field :start_at, type: Date
+      field :end_at, type: Date
 
       def perform
         self.start_at = Date.today
@@ -53,7 +53,7 @@ module Plugins
           @job = RestartableJob.create!
           @job.abort!
           assert_equal 2, RestartableJob.count
-          assert other = RestartableJob.where(id: {'$ne' => @job.id}).first
+          assert other = RestartableJob.where(:id.ne => @job.id).first
           refute_equal @job.id, other.id
           assert other.queued?
         end
@@ -63,7 +63,7 @@ module Plugins
           assert @job.expired?
           @job.abort!
           assert_equal 1, RestartableJob.count
-          assert_equal nil, RestartableJob.where(id: {'$ne' => @job.id}).first
+          assert_equal nil, RestartableJob.where(:id.ne => @job.id).first
         end
       end
 
@@ -133,7 +133,7 @@ module Plugins
           assert @job.running?
           assert @job.expired?
           assert_equal 1, RestartableJob.count
-          assert_equal nil, RestartableJob.where(id: {'$ne' => @job.id}).first
+          assert_equal nil, RestartableJob.where(:id.ne => @job.id).first
         end
       end
 
@@ -142,7 +142,7 @@ module Plugins
           @job = RestartableJob.create!(destroy_on_complete: true)
           @job.perform_now
           assert_equal 1, RestartableJob.count
-          assert job2 = RestartableJob.where(id: {'$ne' => @job.id}).first
+          assert job2 = RestartableJob.where(:id.ne => @job.id).first
           assert job2.queued?, job2.attributes.ai
         end
 
@@ -151,7 +151,7 @@ module Plugins
           refute @job.expired?
           @job.perform_now
           assert_equal 1, RestartableJob.count
-          assert job2 = RestartableJob.where(id: {'$ne' => @job.id}).first
+          assert job2 = RestartableJob.where(:id.ne => @job.id).first
           assert job2.queued?, job2.attributes.ai
 
           # Copy across all attributes, except
@@ -178,7 +178,7 @@ module Plugins
           @job = RestartableJob.create!(run_at: Time.now + 1.day, destroy_on_complete: true)
           @job.perform_now
           assert_equal 1, RestartableJob.count
-          assert job2 = RestartableJob.where(id: {'$ne' => @job.id}).first
+          assert job2 = RestartableJob.where(:id.ne => @job.id).first
           assert job2.run_at, job2.attributes.ai
         end
 
@@ -186,7 +186,7 @@ module Plugins
           @job = RestartableJob.create!(run_at: Time.now - 1.day, destroy_on_complete: true)
           @job.perform_now
           assert_equal 1, RestartableJob.count
-          assert job2 = RestartableJob.where(id: {'$ne' => @job.id}).first
+          assert job2 = RestartableJob.where(:id.ne => @job.id).first
           assert_equal nil, job2.run_at
         end
       end

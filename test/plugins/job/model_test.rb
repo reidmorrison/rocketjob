@@ -11,9 +11,7 @@ module Plugins
       end
 
       class TwoArgumentJob < RocketJob::Job
-        rocket_job do |job|
-          job.priority = 53
-        end
+        self.priority = 53
 
         def perform(a, b)
           a + b

@@ -30,26 +30,24 @@ module RocketJob
       include RocketJob::Plugins::Cron
       include RocketJob::Plugins::Singleton
 
-      rocket_job do |job|
-        job.priority      = 50
-        job.description   = 'Cleans out historical jobs'
-        job.cron_schedule = '0 0 * * * America/New_York'
-      end
+      self.priority      = 50
+      self.description   = 'Cleans out historical jobs'
+      self.cron_schedule = '0 0 * * * America/New_York'
 
       # Retention intervals in seconds
       # Set to nil to not
-      key :aborted_retention, Integer, default: 7.days
-      key :completed_retention, Integer, default: 7.days
-      key :failed_retention, Integer, default: 14.days
-      key :paused_retention, Integer, default: 90.days
-      key :queued_retention, Integer
+      field :aborted_retention, Integer, default: 7.days
+      field :completed_retention, Integer, default: 7.days
+      field :failed_retention, Integer, default: 14.days
+      field :paused_retention, Integer, default: 90.days
+      field :queued_retention, Integer
 
       def perform
-        RocketJob::Job.where(state: :aborted, created_at: {'$lte' => aborted_retention.ago}).destroy_all if aborted_retention
-        RocketJob::Job.where(state: :completed, created_at: {'$lte' => completed_retention.ago}).destroy_all if completed_retention
-        RocketJob::Job.where(state: :failed, created_at: {'$lte' => failed_retention.ago}).destroy_all if failed_retention
-        RocketJob::Job.where(state: :paused, created_at: {'$lte' => paused_retention.ago}).destroy_all if paused_retention
-        RocketJob::Job.where(state: :queued, created_at: {'$lte' => queued_retention.ago}).destroy_all if queued_retention
+        RocketJob::Job.aborted.where(created_at: {'$lte' => aborted_retention.ago}).destroy_all if aborted_retention
+        RocketJob::Job.completed.where(created_at: {'$lte' => completed_retention.ago}).destroy_all if completed_retention
+        RocketJob::Job.failed.where(created_at: {'$lte' => failed_retention.ago}).destroy_all if failed_retention
+        RocketJob::Job.paused.where(created_at: {'$lte' => paused_retention.ago}).destroy_all if paused_retention
+        RocketJob::Job.queued.where(created_at: {'$lte' => queued_retention.ago}).destroy_all if queued_retention
       end
 
     end

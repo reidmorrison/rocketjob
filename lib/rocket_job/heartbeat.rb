@@ -4,44 +4,39 @@ module RocketJob
   #
   # Information from the worker as at it's last heartbeat
   class Heartbeat
-    include MongoMapper::EmbeddedDocument
+    include Plugins::Document
 
-    embedded_in :worker
-
-    # @formatter:off
     # Time of the last heartbeat received from this worker
-    key :updated_at,                 Time
+    field :updated_at, type: Time
 
     # Number of threads running as at the last heartbeat interval
-    key :active_threads,             Integer
+    field :active_threads, type: Integer
     # Number of threads in the pool
     #   This number should grow and shrink between 1 and :max_threads
-    key :current_threads,             Integer
+    field :current_threads, type: Integer
 
     #
-    # Process Information
+    # Process Information. Future.
     #
 
     # Percentage utilization for the worker process alone
-    key :process_cpu,                Integer
+    #field :process_cpu, type: Integer
     # Kilo Bytes used by the worker process (Virtual & Physical)
-    key :process_mem_phys_kb,        Integer
-    key :process_mem_virt_kb,        Integer
+    #field :process_mem_phys_kb, type: Integer
+    #field :process_mem_virt_kb, type: Integer
 
     #
-    # System Information
+    # System Information. Future.
     #
 
     # Percentage utilization for the host machine
-    key :host_cpu,                   Integer
+    #field :host_cpu, type: Integer
     # Kilo Bytes Available on the host machine (Physical)
-    key :host_mem_avail_phys_kbytes, Float
-    key :host_mem_avail_virt_kbytes, Float
+    #field :host_mem_avail_phys_kbytes, type: Float
+    #field :host_mem_avail_virt_kbytes, type: Float
 
     # If available
-    key :load_average,               Float
-    # @formatter:on
-
+    #field :load_average, type: Float
   end
 end
 

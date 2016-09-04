@@ -74,9 +74,6 @@ module RocketJob
               job.requeue!(worker_name) if job.may_requeue?(worker_name)
             end
           end
-
-          # Turn off embedded callbacks. Slow and not used for Jobs
-          embedded_callbacks_off
         end
 
         # Runs the job now in the current thread.
@@ -91,12 +88,8 @@ module RocketJob
         #
         # Exceptions are _not_ suppressed and should be handled by the caller.
         def perform_now
-          # Call validations
-          if respond_to?(:validate!)
-            validate!
-          elsif invalid?
-            raise(MongoMapper::DocumentNotValid, self)
-          end
+          raise(Mongoid::Errors::Validations, self) unless valid?
+
           worker = RocketJob::Worker.new(name: 'inline')
           worker.started
           start if may_start?
@@ -153,7 +146,7 @@ module RocketJob
                 ret = perform(*arguments)
                 if collect_output?
                   # Result must be a Hash, if not put it in a Hash
-                  self.result = (ret.is_a?(Hash) || ret.is_a?(BSON::OrderedHash)) ? ret : {result: ret}
+                  self.result = ret.is_a?(Hash) ? ret : {'result' => ret}
                 end
               end
             end

@@ -26,9 +26,7 @@ module RocketJob
     #   include RocketJob::Plugins::Retry
     #
     #   # Set the default retry_count
-    #   rocket_job do |job|
-    #     job.max_retries = 3
-    #   end
+    #   self.max_retries = 3
     #
     #   def perform
     #     puts "DONE"
@@ -52,10 +50,10 @@ module RocketJob
 
         # Maximum number of times to retry this job
         # 25 is approximately 3 weeks of retries
-        key :max_retries, Integer, default: 25
+        field :max_retries, type: Integer, default: 25, class_attribute: true
 
         # List of times when this job failed
-        key :failed_times, Array
+        field :failed_times, type: Array, default: []
 
         # Make max_retries editable in Rocket Job Mission Control
         public_rocket_job_properties :max_retries

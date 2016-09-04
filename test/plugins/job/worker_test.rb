@@ -19,11 +19,9 @@ module Plugins
       end
 
       class SumJob < RocketJob::Job
-        rocket_job do |job|
-          job.destroy_on_complete = false
-          job.collect_output      = true
-          job.priority            = 51
-        end
+        self.destroy_on_complete = false
+        self.collect_output      = true
+        self.priority            = 51
 
         def perform(first, second)
           first + second
@@ -134,7 +132,7 @@ module Plugins
             # Manually run the job
             @job.perform_now
             assert @job.completed?, @job.attributes.ai
-            assert_equal 24, @job.result['result']
+            assert_equal 24, @job.result['result'], -> { @job.result.ai }
 
             assert_nil @job.worker_name
             assert @job.completed_at

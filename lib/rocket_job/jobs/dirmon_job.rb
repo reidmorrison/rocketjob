@@ -39,13 +39,12 @@ module RocketJob
       # Start a new job when this one completes, fails, or aborts
       include RocketJob::Plugins::Restart
 
-      rocket_job do |job|
-        job.priority = 40
-      end
+      self.priority = 40
 
       # Number of seconds between directory scans. Default 5 mins
-      key :check_seconds, Float, default: 300.0
-      key :previous_file_names, Hash # Hash[file_name, size]
+      field :check_seconds, type: Float, default: 300.0
+      # Hash[file_name, size]
+      field :previous_file_names, type: Hash, default: {}
 
       before_create :set_run_at
 
@@ -68,7 +67,7 @@ module RocketJob
       # since the last run
       def check_directories
         new_file_names = {}
-        DirmonEntry.where(state: :enabled).each do |entry|
+        DirmonEntry.enabled.each do |entry|
           entry.each do |pathname|
             # BSON Keys cannot contain periods
             key           = pathname.to_s.gsub('.', '_')

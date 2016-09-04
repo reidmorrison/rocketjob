@@ -164,7 +164,7 @@ class DirmonJobTest < Minitest::Test
         end
         assert @dirmon_job.completed?, @dirmon_job.status.inspect
         # Job must destroy on complete
-        refute RocketJob::Jobs::DirmonJob.find(@dirmon_job.id)
+        assert_equal 0, RocketJob::Jobs::DirmonJob.where(id: @dirmon_job.id).count, -> { RocketJob::Jobs::DirmonJob.all.to_a.ai }
 
         # Must have enqueued another instance to run in the future
         assert_equal 1, RocketJob::Jobs::DirmonJob.count
@@ -191,17 +191,18 @@ class DirmonJobTest < Minitest::Test
             dirmon_job.perform_now
           end
         end
+        dirmon_job.save!
         assert dirmon_job.aborted?, dirmon_job.status.ai
         assert_equal 'RuntimeError', dirmon_job.exception.class_name, dirmon_job.exception.attributes
         assert_equal 'Oh no', dirmon_job.exception.message, dirmon_job.exception.attributes
 
         # Must have enqueued another instance to run in the future
-        assert_equal 2, RocketJob::Jobs::DirmonJob.count, RocketJob::Jobs::DirmonJob.to_a
-        assert new_dirmon_job = RocketJob::Jobs::DirmonJob.last
+        assert_equal 2, RocketJob::Jobs::DirmonJob.count, -> { RocketJob::Jobs::DirmonJob.all.ai }
+        assert new_dirmon_job = RocketJob::Jobs::DirmonJob.queued.first
         assert new_dirmon_job.run_at
-        assert_equal 11, new_dirmon_job.priority
+        assert_equal 11, new_dirmon_job.priority, -> { new_dirmon_job.attributes.ai }
         assert_equal 30, new_dirmon_job.check_seconds
-        assert new_dirmon_job.queued?
+        assert new_dirmon_job.queued?, new_dirmon_job.state
 
         new_dirmon_job.destroy
       end

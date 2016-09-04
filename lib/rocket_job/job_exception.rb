@@ -4,25 +4,22 @@ module RocketJob
   #
   # Information from the worker as at it's last heartbeat
   class JobException
-    include MongoMapper::EmbeddedDocument
+    include Plugins::Document
 
-    # @formatter:off
     # Name of the exception class
-    key :class_name,              String
+    field :class_name, type: String
 
     # Exception message
-    key :message,                 String
+    field :message, type: String
 
     # Exception Backtrace [Array<String>]
-    key :backtrace,               Array
+    field :backtrace, type: Array, default: []
 
     # Name of the worker on which this exception occurred
-    key :worker_name,             String
+    field :worker_name, type: String
 
     # The record within which this exception occurred
-    key :record_number,           Integer
-
-    # @formatter:on
+    field :record_number, type: Integer
 
     # Returns [JobException] built from the supplied exception
     def self.from_exception(exc)

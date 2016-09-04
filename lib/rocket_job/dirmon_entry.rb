@@ -6,9 +6,8 @@ module RocketJob
     include Plugins::Document
     include Plugins::StateMachine
 
-    # @formatter:off
     # User defined name used to identify this DirmonEntry in Mission Control
-    key :name,               String
+    field :name, type: String
 
     # Pattern for finding files
     #
@@ -27,13 +26,13 @@ module RocketJob
     # - If there is no '*' in the pattern then an exact filename match is expected
     # - The pattern is not validated to ensure the path exists, it will be validated against the
     #   `whitelist_paths` when processed by DirmonJob
-    key :pattern,            String
+    field :pattern, type: String
 
     # Job to enqueue for processing for every file that matches the pattern
     #
     # Example:
     #   "ProcessItJob"
-    key :job_class_name,     String
+    field :job_class_name, type: String
 
     # Any user supplied arguments for the method invocation
     # All keys must be UTF-8 strings. The values can be any valid BSON type:
@@ -50,13 +49,13 @@ module RocketJob
     #   Regular Expression
     #
     # Note: Date is not supported, convert it to a UTC time
-    key :arguments,          Array
+    field :arguments, type: Array, default: []
 
     # Any job properties to set
     #
     # Example, override the default job priority:
     #   { priority: 45 }
-    key :properties,         Hash
+    field :properties, type: Hash, default: {}
 
     # Archive directory to move files to when processed to prevent processing the
     # file again.
@@ -64,10 +63,10 @@ module RocketJob
     # If supplied, the file will be moved to this directory before the job is started
     # If the file was in a sub-directory, the corresponding sub-directory will
     # be created in the archive directory.
-    key :archive_directory,  String
+    field :archive_directory, type: String
 
     # If this DirmonEntry is in the failed state, exception contains the cause
-    one :exception,          class_name: 'RocketJob::JobException'
+    embeds_one :exception, class_name: 'RocketJob::JobException'
 
     # The maximum number of files that should ever match during a single poll of the pattern.
     #
@@ -75,14 +74,14 @@ module RocketJob
     # Exceeding this number will result in an exception being logged in a failed Dirmon instance.
     # Dirmon processing will continue with new instances.
     # TODO: Implement max_hits
-    #key :max_hits,           Integer, default: 100
+    #field :max_hits, type: Integer, default: 100
 
     #
     # Read-only attributes
     #
 
     # Current state, as set by the state machine. Do not modify directly.
-    key :state,              Symbol, default: :pending
+    field :state, type: Symbol, default: :pending
 
     # State Machine events and transitions
     #
@@ -107,13 +106,13 @@ module RocketJob
       state :disabled
 
       event :enable do
-        transitions from: :pending,  to: :enabled
+        transitions from: :pending, to: :enabled
         transitions from: :disabled, to: :enabled
       end
 
       event :disable do
         transitions from: :enabled, to: :disabled
-        transitions from: :failed,  to: :disabled
+        transitions from: :failed, to: :disabled
       end
 
       event :fail, before: :set_exception do

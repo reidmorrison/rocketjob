@@ -1,7 +1,6 @@
 language: ruby
 
 gemfile:
-  - gemfiles/rails3_2.gemfile
   - gemfiles/rails4_1.gemfile
   - gemfiles/rails4_2.gemfile
   - gemfiles/rails5_0.gemfile
@@ -10,12 +9,12 @@ rvm:
   - 2.1.10
   - 2.2.5
   - 2.3.1
-  - jruby-1.7.25
-  - jruby-9.1.2.0
+  - jruby-1.7.26
+  - jruby-9.1.4.0
 
 matrix:
   exclude:
-    - rvm: jruby-1.7.25
+    - rvm: jruby-1.7.26
       gemfile: gemfiles/rails5_0.gemfile
     - rvm: 2.1.10
       gemfile: gemfiles/rails5_0.gemfile

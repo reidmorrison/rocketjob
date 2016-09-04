@@ -8,8 +8,8 @@ module Plugins
       include RocketJob::Plugins::Document
       include RocketJob::Plugins::StateMachine
 
-      key :name
-      key :state
+      field :name, type: String
+      field :state, type: String
       validates_presence_of :name, :state
 
       aasm column: :state do
@@ -33,19 +33,19 @@ module Plugins
 
       describe '#aasm_write_state' do
         it 'raises an exception when a validation fails on create!' do
-          assert_raises MongoMapper::DocumentNotValid do
+          assert_raises Mongoid::Errors::Validations do
             @doc = Test.create!
           end
         end
 
         it 'raises an exception when a validation fails on save' do
-          assert_raises MongoMapper::DocumentNotValid do
+          assert_raises Mongoid::Errors::Validations do
             @doc.save!
           end
         end
 
         it 'raises an exception when a validation fails on state transition with save' do
-          assert_raises MongoMapper::DocumentNotValid do
+          assert_raises Mongoid::Errors::Validations do
             @doc.enable!
           end
           assert @doc.pending?

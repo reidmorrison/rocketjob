@@ -10,7 +10,7 @@ class DirmonEntryTest < Minitest::Test
 
   class WithFullFileNameJob < RocketJob::Job
     # Dirmon will store the filename in this property when starting the job
-    key :upload_file_name, String
+    field :upload_file_name, type: String
 
     def perform
       # Do something with the file name stored in :upload_file_name
@@ -33,7 +33,7 @@ class DirmonEntryTest < Minitest::Test
   describe RocketJob::DirmonEntry do
     describe '.config' do
       it 'support multiple databases' do
-        assert_equal 'test_rocketjob', RocketJob::DirmonEntry.collection.db.name
+        assert_equal 'test_rocketjob', RocketJob::DirmonEntry.collection.database.name
       end
     end
 
@@ -198,10 +198,7 @@ class DirmonEntryTest < Minitest::Test
           archive_directory: @archive_directory
         )
         @job          = DirmonEntryTest::OneArgumentJob.new(
-          @entry.properties.merge(
-            arguments:  @entry.arguments,
-            properties: @entry.properties
-          )
+          @entry.properties.merge(arguments: @entry.arguments)
         )
         @file         = Tempfile.new('archive')
         @file_name    = @file.path
@@ -277,6 +274,7 @@ class DirmonEntryTest < Minitest::Test
           job              = @entry.later(@pathname)
           assert_equal Pathname.new(@archive_directory).join("#{job.id}_#{File.basename(@file_name)}").realdirpath.to_s, job.arguments.first[:full_file_name]
           assert job.queued?
+          assert_equal 23, job.priority
         end
 
         it 'fails with bad job class name' do

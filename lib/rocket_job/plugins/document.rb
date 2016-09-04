@@ -1,59 +1,67 @@
 # encoding: UTF-8
 require 'active_support/concern'
-require 'mongo'
-require 'mongo_ha'
-begin
-  require 'active_model/serializers/xml'
-rescue LoadError
-  raise "Please add gem 'activemodel-serializers-xml' to Gemfile to support Active Model V5"
-end
-require 'mongo_mapper'
 
 module RocketJob
   module Plugins
     # Base class for storing models in MongoDB
     module Document
       extend ActiveSupport::Concern
-      include MongoMapper::Document
+      include Mongoid::Document
 
-      included do
-        # Prevent data in MongoDB from re-defining the model behavior.
-        self.static_keys     = true
+      module ClassMethods
+        # Defines all the fields that are accessible on the Document
+        # For each field that is defined, a getter and setter will be
+        # added as an instance method to the Document.
+        #
+        # @example Define a field.
+        #   field :score, :type => Integer, :default => 0
+        #
+        # @param [ Symbol ] name The name of the field.
+        # @param [ Hash ] options The options to pass to the field.
+        #
+        # @option options [ Class ] :type The type of the field.
+        # @option options [ String ] :label The label for the field.
+        # @option options [ Object, Proc ] :default The field's default
+        # @option options [ Boolean ] :class_attribute Keep the fields default in a class_attribute
+        #
+        # @return [ Field ] The generated field
+        def field(name, options)
+          if options.delete(:class_attribute) == true
+            class_attribute(name, instance_accessor: false)
+            if default = options[:default]
+              public_send("#{name}=", default)
+            end
+            options[:default] = lambda { self.class.public_send(name) }
+          end
+          super(name, options)
+        end
 
-        # Only save changes to this instance to prevent losing
-        # changes made by other processes or threads.
-        self.partial_updates = true
+        # V2 Backward compatibility
+        # DEPRECATED
+        def key(name, type, options = {})
+          field(name, options.merge(type: type))
+        end
 
-        # Turn off embedded callbacks. Slow and not used by Jobs.
-        embedded_callbacks_off
-      end
-
-      # Patch the way MongoMapper reloads a model
-      def reload
-        if doc = collection.find_one(:_id => id)
-          # Clear out keys that are not returned during the reload from MongoDB
-          (keys.keys - doc.keys).each { |key| send("#{key}=", nil) }
-          initialize_default_values
-          load_from_database(doc)
-          self
-        else
-          raise MongoMapper::DocumentNotFound, "Document match #{_id.inspect} does not exist in #{collection.name} collection"
+        # DEPRECATED
+        def rocket_job
+          raise(NotImplementedError, "Replace calls to .rocket_job with calls to set class instance variables. For example: self.priority = 50")
         end
       end
 
       private
 
-      def update_attributes_and_reload(attrs)
-        if doc = collection.find_and_modify(query: {:_id => id}, update: {'$set' => attrs})
-          # Clear out keys that are not returned during the reload from MongoDB
-          (keys.keys - doc.keys).each { |key| send("#{key}=", nil) }
-          initialize_default_values
-          load_from_database(doc)
-          self
-        else
-          raise MongoMapper::DocumentNotFound, "Document match #{_id.inspect} does not exist in #{collection.name} collection"
-        end
-      end
+      # TODO: Need similar capability for Mongoid
+      # def update_attributes_and_reload(attrs)
+      #   if doc = collection.find_and_modify(query: {:_id => id}, update: {'$set' => attrs})
+      #     # Clear out keys that are not returned during the reload from MongoDB
+      #     (keys.keys - doc.keys).each { |key| send("#{key}=", nil) }
+      #     initialize_default_values
+      #     load_from_database(doc)
+      #     self
+      #   else
+      #     raise MongoMapper::DocumentNotFound, "Document match #{_id.inspect} does not exist in #{collection.name} collection"
+      #   end
+      # end
 
     end
   end

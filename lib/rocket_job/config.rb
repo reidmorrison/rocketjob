@@ -21,15 +21,14 @@ module RocketJob
     # Also, exceptions will be raised instead of failing the job.
     cattr_accessor(:inline_mode) { false }
 
-    # @formatter:off
     # The maximum number of worker threads to create on any one worker
-    key :max_worker_threads,         Integer, default: 10
+    field :max_worker_threads, type: Integer, default: 10
 
     # Number of seconds between heartbeats from Rocket Job Worker processes
-    key :heartbeat_seconds,          Integer, default: 15
+    field :heartbeat_seconds, type: Integer, default: 15
 
     # Maximum number of seconds a Worker will wait before checking for new jobs
-    key :max_poll_seconds,           Integer, default: 5
+    field :max_poll_seconds, type: Integer, default: 5
 
     # Number of seconds between checking for:
     # - Jobs with a higher priority
@@ -40,33 +39,22 @@ module RocketJob
     #
     # Note:
     #   Not all job types support pausing in the middle
-    key :re_check_seconds,           Integer, default: 60
+    field :re_check_seconds, type: Integer, default: 60
 
-    # @formatter:on
-
-    # Replace the MongoMapper default mongo connection for holding jobs
-    def self.mongo_connection=(connection)
-      connection(connection)
-      Worker.connection(connection)
-      Job.connection(connection)
-      Config.connection(connection)
-      DirmonEntry.connection(connection)
-
-      db_name = connection.db.name
-      set_database_name(db_name)
-      Worker.set_database_name(db_name)
-      Job.set_database_name(db_name)
-      Config.set_database_name(db_name)
-      DirmonEntry.set_database_name(db_name)
+    # Change the RocketJob store
+    def self.store_in(options)
+      super
+      Worker.store_in(options)
+      Job.store_in(options)
+      DirmonEntry.store_in(options)
     end
 
-    # Configure MongoMapper
-    def self.load!(environment='development', file_name=nil, encryption_file_name=nil)
+    # Configure Mongoid
+    def self.load!(environment = 'development', file_name = nil, encryption_file_name = nil)
       config_file = file_name ? Pathname.new(file_name) : Pathname.pwd.join('config/mongo.yml')
       if config_file.file?
         logger.debug "Reading MongoDB configuration from: #{config_file}"
-        config = YAML.load(ERB.new(config_file.read).result)
-        MongoMapper.setup(config, environment)
+        Mongoid.load!(config_file, environment)
       else
         raise(ArgumentError, "Mongo Configuration file: #{config_file.to_s} not found")
       end

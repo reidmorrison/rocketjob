@@ -30,26 +30,25 @@ module RocketJob
     include Plugins::StateMachine
     include SemanticLogger::Loggable
 
-    # @formatter:off
     # Unique Name of this worker instance
     #   Default: `host name:PID`
     # The unique name is used on re-start to re-queue any jobs that were being processed
     # at the time the worker or host unexpectedly terminated, if any
-    key :name,               String, default: -> { "#{SemanticLogger.host}:#{$$}" }
+    field :name, type: String, default: -> { "#{SemanticLogger.host}:#{$$}" }
 
     # The maximum number of threads that this worker should use
     #   If set, it will override the default value in RocketJob::Config
-    key :max_threads,        Integer, default: -> { Config.instance.max_worker_threads }
+    field :max_threads, type: Integer, default: -> { Config.instance.max_worker_threads }
 
     # When this worker process was started
-    key :started_at,         Time
+    field :started_at, type: Time
 
     # The heartbeat information for this worker
-    has_one :heartbeat,      class_name: 'RocketJob::Heartbeat'
+    embeds_one :heartbeat, class_name: 'RocketJob::Heartbeat'
 
     # Current state
     #   Internal use only. Do not set this field directly
-    key :state,              Symbol, default: :starting
+    field :state, type: Symbol, default: :starting
 
     validates_presence_of :state, :name, :max_threads
 
@@ -78,12 +77,11 @@ module RocketJob
       end
 
       event :stop do
-        transitions from: :running,  to: :stopping
-        transitions from: :paused,   to: :stopping
+        transitions from: :running, to: :stopping
+        transitions from: :paused, to: :stopping
         transitions from: :starting, to: :stopping
       end
     end
-    # @formatter:on
 
     # Requeue any jobs being worked by this worker when it is destroyed
     before_destroy :requeue_jobs
@@ -135,7 +133,7 @@ module RocketJob
 
     # Stop all running, paused, or starting workers
     def self.stop_all
-      where(state: [:running, :paused, :starting]).each(&:stop!)
+      where(:state.in => [:running, :paused, :starting]).each(&:stop!)
     end
 
     # Pause all running workers
@@ -245,7 +243,6 @@ module RocketJob
       adjust_worker_threads(true)
       logger.info "RocketJob Worker started with #{max_threads} workers running"
 
-      count = 0
       while running? || paused?
         sleep Config.instance.heartbeat_seconds
 
@@ -273,7 +270,7 @@ module RocketJob
               'heartbeat.updated_at'      => Time.now,
               'heartbeat.current_threads' => worker_count
             )
-          rescue MongoMapper::DocumentNotFound
+          rescue Mongoid::DocumentNotFound
             logger.warn('Worker has been destroyed. Going down hard!')
             break
           end

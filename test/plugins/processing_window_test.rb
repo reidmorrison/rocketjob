@@ -55,8 +55,8 @@ module Plugins
 
       describe '#rocket_job_processing_window_active?' do
         it 'returns true when in the processing window' do
-          time = Time.parse('2015-12-09 17:50:05 +0000')
-          @job = ProcessingWindowJob.new(processing_schedule: '* 17 * * * UTC', processing_duration: 1.hour)
+          time   = Time.parse('2015-12-09 17:50:05 +0000')
+          @job   = ProcessingWindowJob.new(processing_schedule: '* 17 * * * UTC', processing_duration: 1.hour)
           result = Time.stub(:now, time) do
             @job.rocket_job_processing_window_active?
           end
@@ -64,8 +64,8 @@ module Plugins
         end
 
         it 'returns false when not in the processing window' do
-          time = Time.parse('2015-12-09 16:50:05 +0000')
-          @job = ProcessingWindowJob.new(processing_schedule: '* 17 * * * UTC', processing_duration: 1.hour)
+          time   = Time.parse('2015-12-09 16:50:05 +0000')
+          @job   = ProcessingWindowJob.new(processing_schedule: '* 17 * * * UTC', processing_duration: 1.hour)
           result = Time.stub(:now, time) do
             @job.rocket_job_processing_window_active?
           end

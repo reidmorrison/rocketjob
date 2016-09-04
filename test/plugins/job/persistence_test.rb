@@ -6,9 +6,7 @@ module Plugins
     class PersistenceTest < Minitest::Test
 
       class PersistJob < RocketJob::Job
-        rocket_job do |job|
-          job.priority = 53
-        end
+        self.priority = 53
 
         def perform(hash)
           hash
@@ -19,7 +17,7 @@ module Plugins
         before do
           RocketJob::Job.destroy_all
           @description = 'Hello World'
-          @arguments   = [{key: 'value'}]
+          @arguments   = [{'key' => 'value'}]
           @job         = PersistJob.new(
             description:         @description,
             arguments:           [{key: 'value'}],
@@ -35,7 +33,7 @@ module Plugins
 
         describe '.config' do
           it 'support multiple databases' do
-            assert_equal 'test_rocketjob', RocketJob::Job.collection.db.name
+            assert_equal 'test_rocketjob', RocketJob::Job.collection.database.name
           end
         end
 
@@ -52,7 +50,7 @@ module Plugins
             @job.save!
             @job.worker_name = '123'
             @job.reload
-            assert @job.arguments.first.is_a?(ActiveSupport::HashWithIndifferentAccess), @job.arguments.first.class.ai
+            assert @job.arguments.first.is_a?(Hash), @job.arguments.first.class.ai
             assert_equal 'value', @job.arguments.first['key']
             assert_equal 'value', @job.arguments.first[:key]
             assert_equal nil, @job.worker_name
@@ -81,8 +79,8 @@ module Plugins
         describe '.counts_by_state' do
           it 'returns states as symbols' do
             @job.start!
-            @job2 = PersistJob.create!(arguments: [{key: 'value'}])
-            @job3 = PersistJob.create!(arguments: [{key: 'value'}], run_at: 1.day.from_now)
+            @job2  = PersistJob.create!(arguments: [{key: 'value'}])
+            @job3  = PersistJob.create!(arguments: [{key: 'value'}], run_at: 1.day.from_now)
             counts = RocketJob::Job.counts_by_state
             assert_equal 4, counts.size, counts.ai
             assert_equal 1, counts[:running]
