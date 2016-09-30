@@ -6,6 +6,6 @@ gem 'mongoid', '~> 5.0'
 
 # Rails 5
 # gem 'activemodel', '~> 5.0'
-# gem 'mongoid', '>= 6.0.0.rc0'
+# gem 'mongoid', '~> 6.0'
 
 gemspec

@@ -41,14 +41,6 @@ module RocketJob
     #   Not all job types support pausing in the middle
     field :re_check_seconds, type: Integer, default: 60
 
-    # Change the RocketJob store
-    def self.store_in(options)
-      super
-      Worker.store_in(options)
-      Job.store_in(options)
-      DirmonEntry.store_in(options)
-    end
-
     # Configure Mongoid
     def self.load!(environment = 'development', file_name = nil, encryption_file_name = nil)
       config_file = file_name ? Pathname.new(file_name) : Pathname.pwd.join('config/mongo.yml')

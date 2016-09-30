@@ -50,6 +50,8 @@ module RocketJob
     #   Internal use only. Do not set this field directly
     field :state, type: Symbol, default: :starting
 
+    index({name: 1}, background: true, unique: true, drop_dups: true)
+
     validates_presence_of :state, :name, :max_threads
 
     # States
@@ -90,7 +92,8 @@ module RocketJob
     # Attributes supplied are passed to #new
     def self.run(attrs={})
       Thread.current.name = 'rocketjob main'
-      create_indexes
+      # Create Indexes on worker startup
+      Mongoid.create_indexes
       register_signal_handlers
       if defined?(RocketJobPro) && (RocketJob::Job.database.name != RocketJob::Jobs::PerformanceJob.database.name)
         raise 'The RocketJob configuration is being applied after the system has been initialized'
@@ -109,13 +112,6 @@ module RocketJob
 
     ensure
       worker.destroy if worker
-    end
-
-    # Create indexes
-    def self.create_indexes
-      ensure_index [[:name, 1]], background: true, unique: true
-      # Also create indexes for the jobs collection
-      Job.create_indexes
     end
 
     # Destroy's all instances of zombie workers and requeues any jobs still "running"
@@ -275,6 +271,11 @@ module RocketJob
             break
           end
         end
+      end
+
+      # Logs the backtrace for each of the worker threads
+      if SemanticLogger::VERSION.to_i >= 4
+        worker_threads.each { |thread| logger.backtrace(thread: thread) }
       end
       logger.info 'Shutdown'
     rescue Exception => exc

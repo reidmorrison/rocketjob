@@ -7,7 +7,7 @@ module Plugins
       include RocketJob::Plugins::Restart
 
       # Ensure a new start_at and end_at is generated every time this job is restarted
-      self.rocket_job_restart_excludes = self.rocket_job_restart_excludes + %w(start_at end_at)
+      self.rocket_job_restart_excludes += %w(start_at end_at)
 
       field :start_at, type: Date
       field :end_at, type: Date
@@ -28,7 +28,6 @@ module Plugins
 
       after do
         @job.delete if @job && !@job.new_record?
-        RestartableJob.delete_all
       end
 
       describe '#create!' do
@@ -171,7 +170,7 @@ module Plugins
           assert_equal nil, job2.worker_name
           assert_equal 0, job2.percent_complete
           assert_equal nil, job2.exception
-          assert_equal({}, job2.result)
+          refute job2.result
         end
 
         it 'copies run_at when it is in the future' do

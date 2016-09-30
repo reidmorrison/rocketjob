@@ -15,7 +15,7 @@ module RocketJob
           # The following attributes are set when the job is created
 
           # Description for this job instance
-          field :description, type: String, class_attribute: true
+          field :description, type: String, class_attribute: true, user_editable: true
 
           # Priority of this job as it relates to other jobs [1..100]
           #   1: Highest Priority
@@ -28,7 +28,7 @@ module RocketJob
           # In RocketJob Pro, if a SlicedJob is running and a higher priority job
           # arrives, then the current job will complete the current slices and process
           # the new higher priority job
-          field :priority, type: Integer, default: 50, class_attribute: true
+          field :priority, type: Integer, default: 50, class_attribute: true, user_editable: true
 
           # When the job completes destroy it from both the database and the UI
           field :destroy_on_complete, type: Boolean, default: true, class_attribute: true
@@ -58,13 +58,13 @@ module RocketJob
           #
           # Note: Date is not supported, convert it to a UTC time
           # DEPRECATED
-          field :arguments, type: Array, default: []
+          field :arguments, type: Array, default: [], user_editable: true
 
           # Raise or lower the log level when calling the job
           # Can be used to reduce log noise, especially during high volume calls
           # For debugging a single job can be logged at a low level such as :trace
           #   Levels supported: :trace, :debug, :info, :warn, :error, :fatal
-          field :log_level, type: Symbol
+          field :log_level, type: Symbol, user_editable: true
 
           #
           # Read-only attributes
@@ -103,24 +103,28 @@ module RocketJob
           # and the job returned actually returned a Hash, otherwise nil
           # Not applicable to SlicedJob jobs, since its output is stored in a
           # separate collection
-          field :result, type: Hash, default: {}
+          field :result, type: Hash
+
+          index({state: 1, priority: 1, _id: 1}, background: true)
 
           validates_presence_of :state, :failure_count, :created_at
           validates :priority, inclusion: 1..100
           validates :log_level, inclusion: SemanticLogger::LEVELS + [nil]
+        end
 
+        module ClassMethods
           # Returns [String] the singular name for this job class
           #
           # Example:
           #   job = DataStudyJob.new
           #   job.underscore_name
           #   # => "data_study"
-          def self.underscore_name
+          def underscore_name
             @underscore_name ||= name.sub(/Job$/, '').underscore
           end
 
           # Allow the collective name for this job class to be overridden
-          def self.underscore_name=(underscore_name)
+          def underscore_name=(underscore_name)
             @underscore_name = underscore_name
           end
 
@@ -130,12 +134,12 @@ module RocketJob
           #   job = DataStudyJob.new
           #   job.human_name
           #   # => "Data Study"
-          def self.human_name
+          def human_name
             @human_name ||= name.sub(/Job$/, '').titleize
           end
 
           # Allow the human readable job name for this job class to be overridden
-          def self.human_name=(human_name)
+          def human_name=(human_name)
             @human_name = human_name
           end
 
@@ -145,23 +149,23 @@ module RocketJob
           #   job = DataStudyJob.new
           #   job.collective_name
           #   # => "data_studies"
-          def self.collective_name
+          def collective_name
             @collective_name ||= name.sub(/Job$/, '').pluralize.underscore
           end
 
           # Allow the collective name for this job class to be overridden
-          def self.collective_name=(collective_name)
+          def collective_name=(collective_name)
             @collective_name = collective_name
           end
 
           # Scope for jobs scheduled to run in the future
-          def self.scheduled
+          def scheduled
             queued.where(:run_at.gt => Time.now)
           end
 
           # Scope for queued jobs that can run now
           # I.e. Queued jobs excluding scheduled jobs
-          def self.queued_now
+          def queued_now
             queued.or(
               {:run_at.exists => false},
               {:run_at.lte => Time.now}
@@ -169,23 +173,14 @@ module RocketJob
           end
 
           # Returns the number of required arguments for this job
-          def self.rocket_job_argument_count
+          def rocket_job_argument_count
             instance_method(:perform).arity
           end
 
-          # User definable properties in Dirmon Entry
-          def self.rocket_job_properties
-            @rocket_job_properties ||= (self == RocketJob::Job ? [] : superclass.rocket_job_properties)
+          # DEPRECATED
+          def rocket_job
+            raise(NotImplementedError, "Replace calls to .rocket_job with calls to set class instance variables. For example: self.priority = 50")
           end
-
-          # Add to user definable properties in Dirmon Entry
-          def self.public_rocket_job_properties(*properties)
-            properties.each { |property| raise("Invalid public_rocket_job_property: #{property.inspect}") unless method_defined?("#{property}=") }
-            rocket_job_properties.concat(properties).uniq!
-          end
-
-          # User definable properties in Dirmon Entry
-          public_rocket_job_properties :description, :priority, :log_level, :arguments
         end
 
         # Returns [true|false] whether to collect nil results from running this batch

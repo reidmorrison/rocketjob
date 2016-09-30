@@ -14,11 +14,6 @@ module RocketJob
 
           after_initialize :rocket_job_make_indifferent_arguments
 
-          # Create indexes
-          def self.create_indexes
-            ensure_index({state: 1, priority: 1, _id: 1}, background: true)
-          end
-
           # Retrieves the next job to work on in priority based order
           # and assigns it to this worker
           #
@@ -31,19 +26,10 @@ module RocketJob
           #   skip_job_ids [Array<BSON::ObjectId>]
           #     Job ids to exclude when looking for the next job
           def self.rocket_job_retrieve(worker_name, skip_job_ids = nil)
-            update = query = nil
-            if defined?(RocketJobPro)
-              # TODO: Move to RJ Pro
-              scheduled = self.or({:run_at.exists => false}, {:run_at.lte => Time.now})
-              working   = self.or({state: :queued}, {state: :running, sub_state: :processing})
-              query     = self.and(working, scheduled)
-              update    = {'$set' => {'worker_name' => worker_name, 'state' => 'running'}}
-            else
-              query  = queued_now
-              update = {'$set' => {'worker_name' => worker_name, 'state' => 'running', 'started_at' => Time.now}}
-            end
+            query  = queued_now
+            update = {'$set' => {'worker_name' => worker_name, 'state' => 'running', 'started_at' => Time.now}}
 
-            query = query.where(:id.nin => skip_job_ids) if skip_job_ids && skip_job_ids.size > 0
+            query  = query.where(:id.nin => skip_job_ids) if skip_job_ids && skip_job_ids.size > 0
 
             query.sort(priority: 1, _id: 1).find_one_and_update(update)
           end

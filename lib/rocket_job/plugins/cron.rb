@@ -101,10 +101,7 @@ module RocketJob
       included do
         include Restart
 
-        field :cron_schedule, type: String, class_attribute: true
-
-        # Make cron_schedule editable for scheduled jobs
-        public_rocket_job_properties :cron_schedule
+        field :cron_schedule, type: String, class_attribute: true, user_editable: true
 
         before_create :rocket_job_set_run_at
 

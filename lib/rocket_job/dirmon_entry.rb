@@ -83,6 +83,9 @@ module RocketJob
     # Current state, as set by the state machine. Do not modify directly.
     field :state, type: Symbol, default: :pending
 
+    # Unique index on pattern to help prevent two entries from scanning the same files
+    index({pattern: 1}, background: true, unique: true, drop_dups: true)
+
     # State Machine events and transitions
     #
     # :pending -> :enabled  -> :disabled
@@ -146,12 +149,6 @@ module RocketJob
           record.errors.add(attr, "Unknown property: #{k.inspect} with value: #{v}") unless methods.include?("#{k}=".to_sym)
         end
       end
-    end
-
-    # Create indexes
-    def self.create_indexes
-      # Unique index on pattern to help prevent two entries from scanning the same files
-      ensure_index({pattern: 1}, background: true, unique: true)
     end
 
     # Security Settings

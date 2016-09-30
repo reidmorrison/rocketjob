@@ -8,6 +8,13 @@ module RocketJob
       extend ActiveSupport::Concern
       include Mongoid::Document
 
+      included do
+        store_in client: 'rocketjob'
+
+        class_attribute :user_editable_fields, instance_accessor: false
+        self.user_editable_fields = []
+      end
+
       module ClassMethods
         # Defines all the fields that are accessible on the Document
         # For each field that is defined, a getter and setter will be
@@ -23,9 +30,13 @@ module RocketJob
         # @option options [ String ] :label The label for the field.
         # @option options [ Object, Proc ] :default The field's default
         # @option options [ Boolean ] :class_attribute Keep the fields default in a class_attribute
+        # @option options [ Boolean ] :user_editable Field can be edited by end users in RJMC
         #
         # @return [ Field ] The generated field
         def field(name, options)
+          if options.delete(:user_editable) == true
+            self.user_editable_fields << name.to_sym unless user_editable_fields.include?(name.to_sym)
+          end
           if options.delete(:class_attribute) == true
             class_attribute(name, instance_accessor: false)
             if default = options[:default]
@@ -42,9 +53,14 @@ module RocketJob
           field(name, options.merge(type: type))
         end
 
-        # DEPRECATED
-        def rocket_job
-          raise(NotImplementedError, "Replace calls to .rocket_job with calls to set class instance variables. For example: self.priority = 50")
+        # Mongoid does not apply ordering, add sort
+        def first
+          all.sort('_id' => 1).first
+        end
+
+        # Mongoid does not apply ordering, add sort
+        def last
+          all.sort('_id' => -1).first
         end
       end
 
