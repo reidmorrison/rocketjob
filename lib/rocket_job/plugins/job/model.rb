@@ -179,7 +179,14 @@ module RocketJob
 
           # DEPRECATED
           def rocket_job
-            raise(NotImplementedError, "Replace calls to .rocket_job with calls to set class instance variables. For example: self.priority = 50")
+            warn 'Replace calls to .rocket_job with calls to set class instance variables. For example: self.priority = 50'
+            yield(self)
+          end
+
+          # DEPRECATED
+          def public_rocket_job_properties(*args)
+            warn "Replace calls to .public_rocket_job_properties by adding `user_editable: true` option to the field declaration in #{name} for: #{args.inspect}"
+            self.user_editable_fields += args.collect(&:to_sym)
           end
         end
 

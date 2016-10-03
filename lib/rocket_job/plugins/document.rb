@@ -35,7 +35,7 @@ module RocketJob
         # @return [ Field ] The generated field
         def field(name, options)
           if options.delete(:user_editable) == true
-            self.user_editable_fields << name.to_sym unless user_editable_fields.include?(name.to_sym)
+            self.user_editable_fields += [name.to_sym] unless user_editable_fields.include?(name.to_sym)
           end
           if options.delete(:class_attribute) == true
             class_attribute(name, instance_accessor: false)

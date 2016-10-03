@@ -17,6 +17,42 @@ Checkout http://rocketjob.io/
 * Questions? Join the chat room on Gitter for [rocketjob support](https://gitter.im/rocketjob/support)
 * [Report bugs](https://github.com/rocketjob/rocketjob/issues)
 
+## Upgrading to V3
+
+* V3 replaces MongoMapper with Mongoid which supports the latest MongoDB Ruby client driver.
+* Replase usages of `rocket_job do` to set default values:
+
+~~~ruby
+  rocket_job do |job|
+    job.priority = 25
+  end
+~~~
+
+With:
+
+~~~ruby
+  self.priority = 25
+~~~
+
+* Replace `key` with `field` when adding attributes to a job:
+
+~~~ruby
+  key :inquiry_defaults, Hash
+~~~
+
+With:
+
+~~~ruby
+  field :inquiry_defaults, type: Hash, default: {}
+~~~
+
+* Replace usage of `public_rocket_job_properties` with the `user_editable` option:
+
+~~~ruby
+field :priority, type: Integer, default: 50, user_editable: true
+~~~
+
+
 ## Ruby Support
 
 Rocket Job is tested and supported on the following Ruby platforms:
