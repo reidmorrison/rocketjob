@@ -66,18 +66,19 @@ module RocketJob
 
       private
 
-      # TODO: Need similar capability for Mongoid
-      # def update_attributes_and_reload(attrs)
-      #   if doc = collection.find_and_modify(query: {:_id => id}, update: {'$set' => attrs})
-      #     # Clear out keys that are not returned during the reload from MongoDB
-      #     (keys.keys - doc.keys).each { |key| send("#{key}=", nil) }
-      #     initialize_default_values
-      #     load_from_database(doc)
-      #     self
-      #   else
-      #     raise MongoMapper::DocumentNotFound, "Document match #{_id.inspect} does not exist in #{collection.name} collection"
-      #   end
-      # end
+      # Apply changes to this document returning the updated document from the database.
+      # Allows other changes to be made on the server that will be loaded.
+      def find_and_update(attrs)
+        if doc = collection.find(_id: id).find_one_and_update({'$set' => attrs}, return_document: :after)
+          # Clear out keys that are not returned during the reload from MongoDB
+          (fields.keys + embedded_relations.keys - doc.keys).each { |key| send("#{key}=", nil) }
+          @attributes = attributes
+          apply_defaults
+          self
+        else
+          raise Mongoid::Error::DocumentNotFound, "Document match #{_id.inspect} does not exist in #{collection.name} collection"
+        end
+      end
 
     end
   end

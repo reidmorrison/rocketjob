@@ -8,11 +8,11 @@ module RocketJob
       module Worker
         extend ActiveSupport::Concern
 
-        included do
+        module ClassMethods
           # Run this job later
           #
           # Saves it to the database for processing later by workers
-          def self.perform_later(*args, &block)
+          def perform_later(*args, &block)
             if RocketJob::Config.inline_mode
               perform_now(*args, &block)
             else
@@ -28,7 +28,7 @@ module RocketJob
           # The job is not saved to the database since it is processed entriely in memory
           # As a result before_save and before_destroy callbacks will not be called.
           # Validations are still called however prior to calling #perform
-          def self.perform_now(*args, &block)
+          def perform_now(*args, &block)
             job = new(arguments: args)
             block.call(job) if block
             job.perform_now
@@ -48,7 +48,7 @@ module RocketJob
           #
           # Note:
           #   If a job is in queued state it will be started
-          def self.rocket_job_next_job(worker_name, skip_job_ids = nil)
+          def rocket_job_next_job(worker_name, skip_job_ids = nil)
             while (job = rocket_job_retrieve(worker_name, skip_job_ids))
               case
               when job.running?
@@ -68,7 +68,7 @@ module RocketJob
           end
 
           # Requeues all jobs that were running on worker that died
-          def self.requeue_dead_worker(worker_name)
+          def requeue_dead_worker(worker_name)
             # TODO Need to requeue paused, failed since user may have transitioned job before it finished
             running.each do |job|
               job.requeue!(worker_name) if job.may_requeue?(worker_name)
@@ -157,6 +157,12 @@ module RocketJob
             end
           end
           false
+        end
+
+        # Returns [Hash<String:[Array<ActiveWorker>]>] All workers actively working on this job
+        def rocket_job_active_workers
+          return {} unless running?
+          {worker_name => [ActiveWorker.new(worker_name, started_at, self)]}
         end
 
       end

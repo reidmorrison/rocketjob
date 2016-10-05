@@ -93,11 +93,8 @@ module RocketJob
     def self.run(attrs={})
       Thread.current.name = 'rocketjob main'
       # Create Indexes on worker startup
-      Mongoid.create_indexes
+      Mongoid::Tasks::Database.create_indexes
       register_signal_handlers
-      if defined?(RocketJobPro) && (RocketJob::Job.database.name != RocketJob::Jobs::PerformanceJob.database.name)
-        raise 'The RocketJob configuration is being applied after the system has been initialized'
-      end
 
       worker = create!(attrs)
       if worker.max_threads == 0
@@ -233,7 +230,7 @@ module RocketJob
 
     # Management Thread
     def run
-      logger.info "Using MongoDB Database: #{RocketJob::Job.database.name}"
+      logger.info "Using MongoDB Database: #{RocketJob::Job.collection.database.name}"
       build_heartbeat(updated_at: Time.now, current_threads: 0)
       started!
       adjust_worker_threads(true)
@@ -242,7 +239,7 @@ module RocketJob
       while running? || paused?
         sleep Config.instance.heartbeat_seconds
 
-        update_attributes_and_reload(
+        find_and_update(
           'heartbeat.updated_at'      => Time.now,
           'heartbeat.current_threads' => worker_count
         )
@@ -262,11 +259,11 @@ module RocketJob
         else
           # Timeout waiting for thread to stop
           begin
-            update_attributes_and_reload(
+            find_and_update(
               'heartbeat.updated_at'      => Time.now,
               'heartbeat.current_threads' => worker_count
             )
-          rescue Mongoid::DocumentNotFound
+          rescue Mongoid::Errors::DocumentNotFound
             logger.warn('Worker has been destroyed. Going down hard!')
             break
           end

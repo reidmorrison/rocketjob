@@ -5,6 +5,7 @@ require 'rocket_job/version'
 
 # @formatter:off
 module RocketJob
+  autoload :ActiveWorker,       'rocket_job/active_worker'
   autoload :CLI,                'rocket_job/cli'
   autoload :Config,             'rocket_job/config'
   autoload :DirmonEntry,        'rocket_job/dirmon_entry'

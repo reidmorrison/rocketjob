@@ -96,7 +96,7 @@ module RocketJob
           return super unless destroy_on_complete
           begin
             super
-          rescue Mongoid::DocumentNotFound
+          rescue Mongoid::Errors::DocumentNotFound
             unless completed?
               self.state = :completed
               rocket_job_set_completed_at

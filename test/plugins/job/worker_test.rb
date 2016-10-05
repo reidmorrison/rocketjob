@@ -30,7 +30,8 @@ module Plugins
 
       describe RocketJob::Plugins::Job::Worker do
         before do
-          RocketJob::Job.destroy_all
+          RocketJob::Job.delete_all
+          RocketJob::Worker.delete_all
         end
 
         after do
@@ -172,6 +173,31 @@ module Plugins
             @job = SumJob.perform_now(1, 5)
             assert_equal true, @job.completed?
             assert_equal 6, @job.result['result']
+          end
+        end
+
+        describe '#rocket_job_active_workers' do
+          before do
+            @job    = QuietJob.create!
+            @worker = RocketJob::Worker.create!(name: 'worker:123')
+          end
+
+          it 'should return empty hash for no active jobs' do
+            assert_equal({}, @job.rocket_job_active_workers)
+          end
+
+          it 'should return active workers' do
+            assert job = RocketJob::Job.rocket_job_next_job(@worker.name)
+            assert active = job.rocket_job_active_workers
+            assert_equal 1, active.size
+            assert active_workers = active[@worker.name]
+            assert_equal 1, active_workers.size
+            assert active_worker = active_workers.first
+            assert_equal @job.id, active_worker.job.id
+            assert_equal @worker.name, active_worker.worker_name
+            assert_equal job.started_at, active_worker.started_at
+            assert active_worker.duration_s
+            assert active_worker.duration
           end
         end
 
