@@ -15,6 +15,7 @@ module RocketJob
   autoload :Job,                'rocket_job/job'
   autoload :JobException,       'rocket_job/job_exception'
   autoload :Worker,             'rocket_job/worker'
+  autoload :Performance,        'rocket_job/performance'
 
   module Plugins
     module Job
