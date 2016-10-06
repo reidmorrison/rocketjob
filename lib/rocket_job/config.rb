@@ -43,9 +43,9 @@ module RocketJob
 
     # Configure Mongoid
     def self.load!(environment = 'development', file_name = nil, encryption_file_name = nil)
-      config_file = file_name ? Pathname.new(file_name) : Pathname.pwd.join('config/mongo.yml')
+      config_file = file_name ? Pathname.new(file_name) : Pathname.pwd.join('config/mongoid.yml')
       if config_file.file?
-        logger.debug "Reading MongoDB configuration from: #{config_file}"
+        logger.debug "Reading Mongo configuration from: #{config_file}"
         Mongoid.load!(config_file, environment)
       else
         raise(ArgumentError, "Mongo Configuration file: #{config_file.to_s} not found")

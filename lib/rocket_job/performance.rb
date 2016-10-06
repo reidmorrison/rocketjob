@@ -63,7 +63,7 @@ module RocketJob
         o.on('-c', '--count COUNT', 'Count of jobs to enqueue') do |arg|
           self.count = arg.to_i
         end
-        o.on('-m', '--mongo MONGO_CONFIG_FILE_NAME', 'Location of mongo.yml config file') do |arg|
+        o.on('-m', '--mongo MONGO_CONFIG_FILE_NAME', 'Path and filename of config file. Default: config/mongoid.yml') do |arg|
           self.mongo_config = arg
         end
         o.on('-e', '--environment ENVIRONMENT', 'The environment to run the app on (Default: RAILS_ENV || RACK_ENV || development)') do |arg|

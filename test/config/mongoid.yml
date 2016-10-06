@@ -42,7 +42,7 @@ development:
       options:
         <<: *client_options
         write:
-          w:           1
+          w:   0
         max_pool_size: 5
         min_pool_size: 1
     rocketjob:

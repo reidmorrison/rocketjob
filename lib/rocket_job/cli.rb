@@ -4,17 +4,19 @@ module RocketJob
   # Command Line Interface parser for RocketJob
   class CLI
     include SemanticLogger::Loggable
-    attr_accessor :name, :threads, :environment, :pidfile, :directory, :quiet, :log_level, :log_file
+    attr_accessor :name, :threads, :environment, :pidfile, :directory, :quiet, :log_level, :log_file, :mongo_config, :symmetric_encryption_config
 
     def initialize(argv)
-      @name        = nil
-      @threads     = nil
-      @quiet       = false
-      @environment = nil
-      @pidfile     = nil
-      @directory   = '.'
-      @log_level   = nil
-      @log_file    = nil
+      @name                        = nil
+      @threads                     = nil
+      @quiet                       = false
+      @environment                 = nil
+      @pidfile                     = nil
+      @directory                   = '.'
+      @log_level                   = nil
+      @log_file                    = nil
+      @mongo_config                = nil
+      @symmetric_encryption_config = nil
       parse(argv)
     end
 
@@ -85,7 +87,7 @@ module RocketJob
       SemanticLogger.add_appender(file_name: path.to_s, formatter: :color)
 
       logger.info "Rails not detected. Running standalone: #{environment}"
-      RocketJob::Config.load!(environment)
+      RocketJob::Config.load!(environment, mongo_config, symmetric_encryption_config)
       self.class.eager_load_jobs
     end
 
@@ -153,6 +155,12 @@ module RocketJob
         end
         o.on('--pidfile PATH', 'Use PATH as a pidfile') do |arg|
           @pidfile = arg
+        end
+        o.on('-m', '--mongo MONGO_CONFIG_FILE_NAME', 'Path and filename of config file. Default: config/mongoid.yml') do |arg|
+          @mongo_config = arg
+        end
+        o.on('-s', '--symmetric-encryption SYMMETRIC_ENCRYPTION_CONFIG_FILE_NAME', 'Path and filename of Symmetric Encryption config file. Default: config/symmetric-encryption.yml') do |arg|
+          @symmetric_encryption_config = arg
         end
         o.on('-v', '--version', 'Print the version information') do
           puts "Rocket Job v#{RocketJob::VERSION}"
