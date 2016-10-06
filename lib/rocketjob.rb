@@ -1,6 +1,7 @@
 # encoding: UTF-8
 require 'semantic_logger'
 require 'mongoid'
+require 'rocket_job/extensions/mongo/logging'
 require 'rocket_job/version'
 
 # @formatter:off
