@@ -167,7 +167,7 @@ module Plugins
           assert_equal nil, job2.started_at
           assert_equal nil, job2.completed_at
           assert_equal 0, job2.failure_count
-          assert_equal nil, job2.worker_name
+          assert_equal nil, job2.server_name
           assert_equal 0, job2.percent_complete
           assert_equal nil, job2.exception
           refute job2.result

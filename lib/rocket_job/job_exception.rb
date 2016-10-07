@@ -1,8 +1,5 @@
 # encoding: UTF-8
 module RocketJob
-  # Heartbeat
-  #
-  # Information from the worker as at it's last heartbeat
   class JobException
     include Plugins::Document
 
@@ -15,8 +12,8 @@ module RocketJob
     # Exception Backtrace [Array<String>]
     field :backtrace, type: Array, default: []
 
-    # Name of the worker on which this exception occurred
-    field :worker_name, type: String
+    # Name of the server on which this exception occurred
+    field :server_name, type: String
 
     # The record within which this exception occurred
     field :record_number, type: Integer

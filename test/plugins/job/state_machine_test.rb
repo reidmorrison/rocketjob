@@ -20,34 +20,34 @@ module Plugins
 
         describe '#requeue!' do
           it 'requeue jobs from dead workers' do
-            worker_name      = 'server:12345'
-            @job.worker_name = worker_name
+            server_name      = 'server:12345'
+            @job.server_name = server_name
             @job.start!
             assert @job.running?
 
-            @job.requeue!(worker_name)
+            @job.requeue!(server_name)
             @job.reload
 
             assert @job.queued?
-            assert_equal nil, @job.worker_name
+            assert_equal nil, @job.server_name
           end
         end
 
         describe '#requeue' do
           it 'requeue jobs from dead workers' do
-            worker_name      = 'server:12345'
-            @job.worker_name = worker_name
+            server_name      = 'server:12345'
+            @job.server_name = server_name
             assert @job.valid?, @job.errors.messages
             @job.start!
             assert @job.running?, @job.state
 
-            @job.requeue(worker_name)
+            @job.requeue(server_name)
             assert @job.queued?
-            assert_equal nil, @job.worker_name
+            assert_equal nil, @job.server_name
 
             @job.reload
             assert @job.running?
-            assert_equal worker_name, @job.worker_name
+            assert_equal server_name, @job.server_name
           end
         end
 
@@ -77,7 +77,7 @@ module Plugins
             assert exc = @job.exception
             assert_equal 'RocketJob::JobException', exc.class_name
             assert_equal nil, exc.message
-            assert_equal nil, exc.worker_name
+            assert_equal nil, exc.server_name
             assert_equal [], exc.backtrace
           end
 
@@ -95,19 +95,19 @@ module Plugins
 
         describe '#retry!' do
           it 'retry failed jobs' do
-            worker_name      = 'server:12345'
-            @job.worker_name = worker_name
+            server_name      = 'server:12345'
+            @job.server_name = server_name
             @job.start!
             assert @job.running?
-            assert_equal worker_name, @job.worker_name
+            assert_equal server_name, @job.server_name
 
-            @job.fail!(worker_name, 'oh no')
+            @job.fail!(server_name, 'oh no')
             assert @job.failed?
             assert_equal 'oh no', @job.exception.message
 
             @job.retry!
             assert @job.queued?
-            assert_equal nil, @job.worker_name
+            assert_equal nil, @job.server_name
             assert_equal nil, @job.exception
           end
         end

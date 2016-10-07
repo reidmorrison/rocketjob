@@ -46,21 +46,21 @@ module Plugins
         describe '#reload' do
           it 'handle hash' do
             assert_equal 'value', @job.arguments.first[:key]
-            @job.worker_name = nil
+            @job.server_name = nil
             @job.save!
-            @job.worker_name = '123'
+            @job.server_name = '123'
             @job.reload
             assert @job.arguments.first.is_a?(Hash), @job.arguments.first.class.ai
             assert_equal 'value', @job.arguments.first['key']
             assert_equal 'value', @job.arguments.first[:key]
-            assert_equal nil, @job.worker_name
+            assert_equal nil, @job.server_name
           end
         end
 
         describe '#save!' do
           it 'save a blank job' do
             @job.save!
-            assert_nil @job.worker_name
+            assert_nil @job.server_name
             assert_nil @job.completed_at
             assert @job.created_at
             assert_equal @description, @job.description

@@ -274,16 +274,16 @@ module RocketJob
     end
 
     # Set exception information for this DirmonEntry and fail it
-    def set_exception(worker_name, exc_or_message)
+    def set_exception(server_name, exc_or_message)
       if exc_or_message.is_a?(Exception)
         self.exception        = JobException.from_exception(exc_or_message)
-        exception.worker_name = worker_name
+        exception.server_name = server_name
       else
         build_exception(
           class_name:  'RocketJob::DirmonEntryException',
           message:     exc_or_message,
           backtrace:   [],
-          worker_name: worker_name
+          server_name: server_name
         )
       end
     end

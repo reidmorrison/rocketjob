@@ -82,7 +82,7 @@ module RocketJob
       def rocket_job_clear_exception
         self.completed_at = nil
         self.exception    = nil unless rocket_job_retry_on_fail?
-        self.worker_name  = nil
+        self.server_name  = nil
       end
 
       # Returns [Time] when to retry this job at

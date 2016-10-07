@@ -31,7 +31,7 @@ module Plugins
       describe RocketJob::Plugins::Job::Worker do
         before do
           RocketJob::Job.delete_all
-          RocketJob::Worker.delete_all
+          RocketJob::Server.delete_all
         end
 
         after do
@@ -41,7 +41,7 @@ module Plugins
         describe '.rocket_job_next_job' do
           before do
             @job    = QuietJob.new
-            @worker = RocketJob::Worker.new(name: 'worker:123')
+            @worker = RocketJob::Server.new(name: 'worker:123')
           end
 
           it 'return nil when no jobs available' do
@@ -96,7 +96,7 @@ module Plugins
             else
               assert_equal 'no implicit conversion of Fixnum into String', @job.exception.message
             end
-            assert_equal 'inline', @job.exception.worker_name
+            assert_equal 'inline', @job.exception.server_name
           end
 
           it 'silence logging when log_level is set' do
@@ -135,7 +135,7 @@ module Plugins
             assert @job.completed?, @job.attributes.ai
             assert_equal 24, @job.result['result'], -> { @job.result.ai }
 
-            assert_nil @job.worker_name
+            assert_nil @job.server_name
             assert @job.completed_at
             assert @job.created_at
             assert_equal false, @job.destroy_on_complete
@@ -155,7 +155,7 @@ module Plugins
             assert @job.completed?, @job.attributes.ai
             assert_equal 24, @job.result['result']
 
-            assert_nil @job.worker_name
+            assert_nil @job.server_name
             assert @job.completed_at
             assert @job.created_at
             assert_equal false, @job.destroy_on_complete
@@ -176,28 +176,28 @@ module Plugins
           end
         end
 
-        describe '#rocket_job_active_workers' do
+        describe '#rocket_job_active_servers' do
           before do
             @job    = QuietJob.create!
-            @worker = RocketJob::Worker.create!(name: 'worker:123')
+            @worker = RocketJob::Server.create!(name: 'worker:123')
           end
 
           it 'should return empty hash for no active jobs' do
-            assert_equal({}, @job.rocket_job_active_workers)
+            assert_equal({}, @job.rocket_job_active_servers)
           end
 
-          it 'should return active workers' do
+          it 'should return active servers' do
             assert job = RocketJob::Job.rocket_job_next_job(@worker.name)
-            assert active = job.rocket_job_active_workers
+            assert active = job.rocket_job_active_servers
             assert_equal 1, active.size
-            assert active_workers = active[@worker.name]
-            assert_equal 1, active_workers.size
-            assert active_worker = active_workers.first
-            assert_equal @job.id, active_worker.job.id
-            assert_equal @worker.name, active_worker.worker_name
-            assert_equal job.started_at, active_worker.started_at
-            assert active_worker.duration_s
-            assert active_worker.duration
+            assert active_servers = active[@worker.name]
+            assert_equal 1, active_servers.size
+            assert active_server = active_servers.first
+            assert_equal @job.id, active_server.job.id
+            assert_equal @worker.name, active_server.name
+            assert_equal job.started_at, active_server.started_at
+            assert active_server.duration_s
+            assert active_server.duration
           end
         end
 

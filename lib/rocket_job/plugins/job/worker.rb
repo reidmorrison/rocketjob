@@ -40,26 +40,26 @@ module RocketJob
           #   with records that require processing
           #
           # Parameters
-          #   worker_name [String]
-          #     Name of the worker that will be processing this job
+          #   server_name [String]
+          #     Name of the server that will be processing this job
           #
           #   skip_job_ids [Array<BSON::ObjectId>]
           #     Job ids to exclude when looking for the next job
           #
           # Note:
           #   If a job is in queued state it will be started
-          def rocket_job_next_job(worker_name, skip_job_ids = nil)
-            while (job = rocket_job_retrieve(worker_name, skip_job_ids))
+          def rocket_job_next_job(server_name, skip_job_ids = nil)
+            while (job = rocket_job_retrieve(server_name, skip_job_ids))
               case
               when job.running?
                 # Batch Job
                 return job
               when job.expired?
-                job.rocket_job_fail_on_exception!(worker_name) { job.destroy }
+                job.rocket_job_fail_on_exception!(server_name) { job.destroy }
                 logger.info "Destroyed expired job #{job.class.name}, id:#{job.id}"
               else
-                job.worker_name = worker_name
-                job.rocket_job_fail_on_exception!(worker_name) do
+                job.server_name = server_name
+                job.rocket_job_fail_on_exception!(server_name) do
                   defined?(RocketJobPro) ? job.start! : job.start
                 end
                 return job if job.running?
@@ -67,11 +67,11 @@ module RocketJob
             end
           end
 
-          # Requeues all jobs that were running on worker that died
-          def requeue_dead_worker(worker_name)
-            # TODO Need to requeue paused, failed since user may have transitioned job before it finished
-            running.each do |job|
-              job.requeue!(worker_name) if job.may_requeue?(worker_name)
+          # Requeues all jobs that were running on a server that died
+          def requeue_dead_server(server_name)
+            # Need to requeue paused, failed since user may have transitioned job before it finished
+            where(:state.in => [:running, :paused, :faled]).each do |job|
+              job.requeue!(server_name) if job.may_requeue?(server_name)
             end
           end
         end
@@ -90,8 +90,7 @@ module RocketJob
         def perform_now
           raise(Mongoid::Errors::Validations, self) unless valid?
 
-          worker = RocketJob::Worker.new(name: 'inline')
-          worker.started
+          worker = RocketJob::Worker.new(0, 'inline')
           start if may_start?
           # Re-Raise exceptions
           rocket_job_work(worker, true) if running?
@@ -106,24 +105,24 @@ module RocketJob
         #
         # The job is automatically saved only if an exception is raised in the supplied block.
         #
-        # worker_name: [String]
-        #   Name of the worker on which the exception has occurred
+        # server_name: [String]
+        #   Name of the server on which the exception has occurred
         #
         # re_raise_exceptions: [true|false]
         #   Re-raise the exception after updating the job
         #   Default: false
-        def rocket_job_fail_on_exception!(worker_name, re_raise_exceptions = false)
+        def rocket_job_fail_on_exception!(server_name, re_raise_exceptions = false)
           yield
         rescue Exception => exc
           if failed? || !may_fail?
             self.exception        = JobException.from_exception(exc)
-            exception.worker_name = worker_name
+            exception.server_name = server_name
             save! unless new_record? || destroyed?
           else
             if new_record? || destroyed?
-              fail(worker_name, exc)
+              fail(server_name, exc)
             else
-              fail!(worker_name, exc)
+              fail!(server_name, exc)
             end
           end
           raise exc if re_raise_exceptions
@@ -139,7 +138,7 @@ module RocketJob
         # Thread-safe, can be called by multiple threads at the same time
         def rocket_job_work(worker, re_raise_exceptions = false)
           raise(ArgumentError, 'Job must be started before calling #rocket_job_work') unless running?
-          rocket_job_fail_on_exception!(worker.name, re_raise_exceptions) do
+          rocket_job_fail_on_exception!(worker.server_name, re_raise_exceptions) do
             run_callbacks :perform do
               # Allow callbacks to fail, complete or abort the job
               if running?
@@ -159,10 +158,10 @@ module RocketJob
           false
         end
 
-        # Returns [Hash<String:[Array<ActiveWorker>]>] All workers actively working on this job
-        def rocket_job_active_workers
+        # Returns [Hash<String:[Array<ActiveWorker>]>] All servers actively working on this job
+        def rocket_job_active_servers
           return {} unless running?
-          {worker_name => [ActiveWorker.new(worker_name, started_at, self)]}
+          {server_name => [ActiveServer.new(server_name, started_at, self)]}
         end
 
       end

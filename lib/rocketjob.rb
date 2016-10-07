@@ -6,7 +6,7 @@ require 'rocket_job/version'
 
 # @formatter:off
 module RocketJob
-  autoload :ActiveWorker,       'rocket_job/active_worker'
+  autoload :ActiveServer,       'rocket_job/active_server'
   autoload :CLI,                'rocket_job/cli'
   autoload :Config,             'rocket_job/config'
   autoload :DirmonEntry,        'rocket_job/dirmon_entry'
@@ -15,6 +15,7 @@ module RocketJob
   autoload :JobException,       'rocket_job/job_exception'
   autoload :Worker,             'rocket_job/worker'
   autoload :Performance,        'rocket_job/performance'
+  autoload :Server,             'rocket_job/server'
 
   module Plugins
     module Job

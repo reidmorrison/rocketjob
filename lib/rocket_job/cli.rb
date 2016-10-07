@@ -4,11 +4,11 @@ module RocketJob
   # Command Line Interface parser for RocketJob
   class CLI
     include SemanticLogger::Loggable
-    attr_accessor :name, :threads, :environment, :pidfile, :directory, :quiet, :log_level, :log_file, :mongo_config, :symmetric_encryption_config
+    attr_accessor :name, :workers, :environment, :pidfile, :directory, :quiet, :log_level, :log_file, :mongo_config, :symmetric_encryption_config
 
     def initialize(argv)
       @name                        = nil
-      @threads                     = nil
+      @workers                     = nil
       @quiet                       = false
       @environment                 = nil
       @pidfile                     = nil
@@ -20,7 +20,7 @@ module RocketJob
       parse(argv)
     end
 
-    # Run a RocketJob::Worker from the command line
+    # Run a RocketJob::Server from the command line
     def run
       Thread.current.name = 'rocketjob main'
       setup_environment
@@ -30,8 +30,8 @@ module RocketJob
 
       opts               = {}
       opts[:name]        = name if name
-      opts[:max_threads] = threads if threads
-      Worker.run(opts)
+      opts[:max_workers] = workers if workers
+      Server.run(opts)
     end
 
     def rails?
@@ -59,7 +59,7 @@ module RocketJob
       SemanticLogger.default_level = log_level.to_sym if log_level
 
       if Rails.configuration.eager_load
-        RocketJob::Worker.logger.measure_info('Eager loaded Rails and all Engines') do
+        logger.measure_info('Eager loaded Rails and all Engines') do
           Rails.application.eager_load!
           Rails::Engine.subclasses.each(&:eager_load!)
         end
@@ -132,11 +132,15 @@ module RocketJob
     # Parse command line options placing results in the corresponding instance variables
     def parse(argv)
       parser        = OptionParser.new do |o|
-        o.on('-n', '--name NAME', 'Unique Name of this worker instance (Default: host_name:PID)') do |arg|
+        o.on('-n', '--name NAME', 'Unique Name of this server (Default: host_name:PID)') do |arg|
           @name = arg
         end
-        o.on('-t', '--threads COUNT', 'Number of worker threads to start') do |arg|
-          @threads = arg.to_i
+        o.on('-w', '--workers COUNT', 'Number of workers (threads) to start') do |arg|
+          @workers = arg.to_i
+        end
+        o.on('-t', '--threads COUNT', 'Deprecated') do |arg|
+          warn '-t and --threads are deprecated, use -w or --workers'
+          @workers = arg.to_i
         end
         o.on('-q', '--quiet', 'Do not write to stdout, only to logfile. Necessary when running as a daemon') do
           @quiet = true

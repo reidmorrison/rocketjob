@@ -77,7 +77,7 @@ module RocketJob
 
             event :requeue do
               transitions from: :running, to: :queued,
-                if:             -> _worker_name { worker_name == _worker_name },
+                if:             -> _worker_name { server_name == _worker_name },
                 after:          :rocket_job_clear_started_at
             end
           end
@@ -110,16 +110,16 @@ module RocketJob
 
         # Sets the exception child object for this job based on the
         # supplied Exception instance or message
-        def rocket_job_set_exception(worker_name = nil, exc_or_message = nil)
+        def rocket_job_set_exception(server_name = nil, exc_or_message = nil)
           if exc_or_message.is_a?(Exception)
             self.exception        = JobException.from_exception(exc_or_message)
-            exception.worker_name = worker_name
+            exception.server_name = server_name
           else
             build_exception(
               class_name:  'RocketJob::JobException',
               message:     exc_or_message,
               backtrace:   [],
-              worker_name: worker_name
+              server_name: server_name
             )
           end
         end
@@ -139,12 +139,12 @@ module RocketJob
         def rocket_job_clear_exception
           self.completed_at = nil
           self.exception    = nil
-          self.worker_name  = nil
+          self.server_name  = nil
         end
 
         def rocket_job_set_completed_at
           self.completed_at = Time.now
-          self.worker_name  = nil
+          self.server_name  = nil
         end
 
         def rocket_job_clear_completed_at
@@ -153,7 +153,7 @@ module RocketJob
 
         def rocket_job_clear_started_at
           self.started_at  = nil
-          self.worker_name = nil
+          self.server_name = nil
         end
 
         def rocket_job_destroy_on_complete

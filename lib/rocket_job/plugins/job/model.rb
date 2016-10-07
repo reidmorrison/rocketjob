@@ -86,7 +86,7 @@ module RocketJob
           field :failure_count, type: Integer, default: 0
 
           # This name of the worker that this job is being processed by, or was processed by
-          field :worker_name, type: String
+          field :server_name, type: String
 
           #
           # Values that jobs can update during processing

@@ -21,11 +21,19 @@ module RocketJob
     # Also, exceptions will be raised instead of failing the job.
     cattr_accessor(:inline_mode) { false }
 
-    # The maximum number of worker threads to create on any one worker
+    #
+    # Servers
+    #
+
+    # The maximum number of workers to create on any one server
     field :max_worker_threads, type: Integer, default: 10
 
-    # Number of seconds between heartbeats from Rocket Job Worker processes
+    # Number of seconds between heartbeats from a Rocket Job Server process
     field :heartbeat_seconds, type: Integer, default: 15
+
+    #
+    # Workers
+    #
 
     # Maximum number of seconds a Worker will wait before checking for new jobs
     field :max_poll_seconds, type: Integer, default: 5

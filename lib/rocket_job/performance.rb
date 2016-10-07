@@ -15,12 +15,12 @@ module RocketJob
     end
 
     def run_test_case(count = self.count)
-      self.worker_processes = RocketJob::Worker.count
+      self.worker_processes = RocketJob::Server.count
       raise 'Please start workers before starting the performance test' if worker_processes == 0
 
       self.worker_processes = 0
       self.worker_threads   = 0
-      RocketJob::Worker.running.each do |worker_process|
+      RocketJob::Server.running.each do |worker_process|
         unless worker_process.zombie?
           self.worker_processes += 1
           self.worker_threads   += worker_process.heartbeat.current_threads
@@ -29,7 +29,7 @@ module RocketJob
       puts "Running: #{worker_threads} workers, distributed across #{worker_processes} processes"
 
       puts 'Waiting for workers to pause'
-      RocketJob::Worker.pause_all
+      RocketJob::Server.pause_all
       RocketJob::Jobs::SimpleJob.delete_all
       sleep 15
 
@@ -39,7 +39,7 @@ module RocketJob
       last = RocketJob::Jobs::SimpleJob.create(priority: 100, destroy_on_complete: false)
 
       puts 'Resuming workers'
-      RocketJob::Worker.resume_all
+      RocketJob::Server.resume_all
 
       while (!last.reload.completed?)
         sleep 3

@@ -40,32 +40,32 @@ class JobTest < Minitest::Test
       end
     end
 
-    describe '.requeue_dead_worker' do
+    describe '.requeue_dead_server' do
       it 'requeue jobs from dead workers' do
         assert_equal 52, @job2.priority
-        worker_name      = 'server:12345'
-        @job.worker_name = worker_name
+        server_name      = 'server:12345'
+        @job.server_name = server_name
         @job.start!
         assert @job.running?, @job.state
 
         worker_name2      = 'server:76467'
-        @job2.worker_name = worker_name2
+        @job2.server_name = worker_name2
         @job2.start!
         assert_equal true, @job2.valid?
         assert @job2.running?, @job2.state
         @job2.save!
 
-        RocketJob::Job.requeue_dead_worker(worker_name)
+        RocketJob::Job.requeue_dead_server(server_name)
         @job.reload
 
         assert @job.queued?
-        assert_equal nil, @job.worker_name
+        assert_equal nil, @job.server_name
 
-        assert_equal worker_name2, @job2.worker_name
+        assert_equal worker_name2, @job2.server_name
         @job2.reload
-        assert_equal worker_name2, @job2.worker_name
+        assert_equal worker_name2, @job2.server_name
         assert @job2.running?, @job2.state
-        assert_equal worker_name2, @job2.worker_name
+        assert_equal worker_name2, @job2.server_name
       end
     end
 

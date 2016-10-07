@@ -69,8 +69,8 @@ module RocketJob
       def rocket_job_processing_window_check
         return if rocket_job_processing_window_active?
         logger.warn("Processing window closed before job was processed. Job is re-scheduled to run at: #{rocket_job_processing_schedule.next_time}")
-        self.worker_name ||= 'inline'
-        self.requeue!(worker_name)
+        self.server_name ||= 'inline'
+        self.requeue!(server_name)
       end
 
       def rocket_job_processing_window_set_run_at

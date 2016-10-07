@@ -20,14 +20,14 @@ module RocketJob
           # Returns nil if no jobs are available for processing
           #
           # Parameters
-          #   worker_name [String]
+          #   server_name [String]
           #     Name of the worker that will be processing this job
           #
           #   skip_job_ids [Array<BSON::ObjectId>]
           #     Job ids to exclude when looking for the next job
-          def self.rocket_job_retrieve(worker_name, skip_job_ids = nil)
+          def self.rocket_job_retrieve(server_name, skip_job_ids = nil)
             query  = queued_now
-            update = {'$set' => {'worker_name' => worker_name, 'state' => 'running', 'started_at' => Time.now}}
+            update = {'$set' => {'server_name' => server_name, 'state' => 'running', 'started_at' => Time.now}}
 
             query  = query.where(:id.nin => skip_job_ids) if skip_job_ids && skip_job_ids.size > 0
 
