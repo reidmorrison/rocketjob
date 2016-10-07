@@ -7,11 +7,11 @@ module Mongo
       self.logger.name = 'Mongo'
 
       def started(event)
-        logger.trace("#{prefix(event)} Started", event.command)
+        logger.debug("#{prefix(event)} Started", event.command)
       end
 
       def succeeded(event)
-        logger.debug(message: prefix(event), duration: (event.duration * 1000))
+        logger.debug(message: "#{prefix(event)} Succeeded", duration: (event.duration * 1000))
       end
 
       def failed(event)
