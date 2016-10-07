@@ -17,7 +17,6 @@ class DirmonJobTest < Minitest::Test
       @entry             = RocketJob::DirmonEntry.new(
         pattern:           "#{@directory}/abc/*",
         job_class_name:    'DirmonJobTest::DirmonTestJob',
-        arguments:         [{input: 'yes'}],
         properties:        {priority: 23},
         archive_directory: @archive_directory
       )

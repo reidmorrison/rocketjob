@@ -34,23 +34,6 @@ module RocketJob
     #   "ProcessItJob"
     field :job_class_name, type: String
 
-    # Any user supplied arguments for the method invocation
-    # All keys must be UTF-8 strings. The values can be any valid BSON type:
-    #   Integer
-    #   Float
-    #   Time    (UTC)
-    #   String  (UTF-8)
-    #   Array
-    #   Hash
-    #   True
-    #   False
-    #   Symbol
-    #   nil
-    #   Regular Expression
-    #
-    # Note: Date is not supported, convert it to a UTC time
-    field :arguments, type: Array, default: []
-
     # Any job properties to set
     #
     # Example, override the default job priority:
@@ -134,13 +117,6 @@ module RocketJob
           false
         end
       record.errors.add(attr, 'job_class_name must be defined and must be derived from RocketJob::Job') unless exists
-    end
-
-    validates_each :arguments do |record, attr, value|
-      if klass = record.job_class
-        count = klass.rocket_job_argument_count
-        record.errors.add(attr, "There must be #{count} argument(s)") if value.size != count
-      end
     end
 
     validates_each :properties do |record, attr, value|
@@ -302,7 +278,7 @@ module RocketJob
     def later(pathname)
       if klass = job_class
         logger.measure_info "Enqueued: #{name}, Job class: #{job_class_name}" do
-          job = klass.new(properties.merge(arguments: arguments))
+          job = klass.new(properties)
           upload_file(job, pathname)
           job.save!
           job
@@ -337,10 +313,8 @@ module RocketJob
         job.upload_file_name = full_file_name
       elsif job.respond_to?(:full_file_name=)
         job.full_file_name = full_file_name
-      elsif job.arguments.first.is_a?(Hash)
-        job.arguments.first[:full_file_name] = full_file_name
       else
-        raise(ArgumentError, "#{job_class_name} must either have attribute 'upload_file_name' or the first argument must be a Hash")
+        raise(ArgumentError, "#{job_class_name} must either have attribute 'upload_file_name' or 'full_file_name'")
       end
     end
 

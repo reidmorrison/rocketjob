@@ -23,7 +23,10 @@ module Plugins
         self.collect_output      = true
         self.priority            = 51
 
-        def perform(first, second)
+        field :first, type: Integer
+        field :second, type: Integer
+
+        def perform
           first + second
         end
       end
@@ -78,25 +81,17 @@ module Plugins
 
         describe '#perform_now' do
           it 'calls perform method' do
-            @job = SumJob.new(arguments: [10, 5])
+            @job = SumJob.new(first: 10, second: 5)
             assert_equal 15, @job.perform_now['result']
             assert @job.completed?, @job.attributes.ai
             assert_equal 15, @job.result['result']
           end
 
-          it 'saves exception' do
-            @job = SumJob.new(arguments: ['10', 5])
-            assert_raises TypeError do
-              @job.perform_now
-            end
-            assert @job.exception.backtrace
-            assert_equal 'TypeError', @job.exception.class_name
-            if RUBY_VERSION.to_f < 2.0
-              assert_equal "can't convert Fixnum into String", @job.exception.message
-            else
-              assert_equal 'no implicit conversion of Fixnum into String', @job.exception.message
-            end
-            assert_equal 'inline:000', @job.exception.worker_name
+          it 'converts type' do
+            @job = SumJob.new(first: '10', second: 5)
+            assert_equal 15, @job.perform_now['result']
+            assert @job.completed?, @job.attributes.ai
+            assert_equal 15, @job.result['result']
           end
 
           it 'silence logging when log_level is set' do
@@ -126,7 +121,7 @@ module Plugins
         describe '.perform_later' do
           it 'queues the job for processing' do
             RocketJob::Config.stub(:inline_mode, false) do
-              @job = SumJob.perform_later(1, 23)
+              @job = SumJob.perform_later(first: 1, second: 23)
             end
             assert @job.queued?
 
@@ -149,7 +144,7 @@ module Plugins
 
           it 'runs the job immediately when inline_mode = true' do
             RocketJob::Config.stub(:inline_mode, true) do
-              @job = SumJob.perform_later(1, 23)
+              @job = SumJob.perform_later(first: 1, second: 23)
             end
 
             assert @job.completed?, @job.attributes.ai
@@ -170,7 +165,7 @@ module Plugins
 
         describe '.perform_now' do
           it 'run the job immediately' do
-            @job = SumJob.perform_now(1, 5)
+            @job = SumJob.perform_now(first: 1, second: 5)
             assert_equal true, @job.completed?
             assert_equal 6, @job.result['result']
           end

@@ -17,7 +17,7 @@ module RocketJob
 
     define_callbacks :running
 
-    attr_accessor :id, :worker_name
+    attr_accessor :id, :worker_name, :inline
     attr_reader :thread, :name
 
     def self.before_running(*filters, &blk)
@@ -32,7 +32,7 @@ module RocketJob
       set_callback(:running, :around, *filters, &blk)
     end
 
-    def initialize(id, server_name)
+    def initialize(id: 0, server_name: 'inline', inline: false)
       @id          = id
       @server_name = server_name
       if defined?(Concurrent::JavaAtomicBoolean) || defined?(Concurrent::CAtomicBoolean)
@@ -40,8 +40,8 @@ module RocketJob
       else
         @shutdown = false
       end
-      @name   = "#{server_name}:%04i" % id
-      @thread = Thread.new { run }
+      @name   = "#{server_name}:#{id}"
+      @thread = Thread.new { run } unless inline
     end
 
     if defined?(Concurrent::JavaAtomicBoolean) || defined?(Concurrent::CAtomicBoolean)

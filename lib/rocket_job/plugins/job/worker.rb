@@ -12,11 +12,11 @@ module RocketJob
           # Run this job later
           #
           # Saves it to the database for processing later by workers
-          def perform_later(*args, &block)
+          def perform_later(args, &block)
             if RocketJob::Config.inline_mode
-              perform_now(*args, &block)
+              perform_now(args, &block)
             else
-              job = new(arguments: args)
+              job = new(args)
               block.call(job) if block
               job.save!
               job
@@ -28,8 +28,8 @@ module RocketJob
           # The job is not saved to the database since it is processed entriely in memory
           # As a result before_save and before_destroy callbacks will not be called.
           # Validations are still called however prior to calling #perform
-          def perform_now(*args, &block)
-            job = new(arguments: args)
+          def perform_now(args, &block)
+            job = new(args)
             block.call(job) if block
             job.perform_now
             job
@@ -90,7 +90,7 @@ module RocketJob
         def perform_now
           raise(Mongoid::Errors::Validations, self) unless valid?
 
-          worker = RocketJob::Worker.new(0, 'inline')
+          worker = RocketJob::Worker.new(inline: true)
           start if may_start?
           # Re-Raise exceptions
           rocket_job_work(worker, true) if running?
@@ -142,7 +142,7 @@ module RocketJob
             run_callbacks :perform do
               # Allow callbacks to fail, complete or abort the job
               if running?
-                ret = perform(*arguments)
+                ret = perform
                 if collect_output?
                   # Result must be a Hash, if not put it in a Hash
                   self.result = ret.is_a?(Hash) ? ret : {'result' => ret}

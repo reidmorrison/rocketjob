@@ -7,6 +7,7 @@ module Plugins
 
       class PersistJob < RocketJob::Job
         self.priority = 53
+        field :data, type: Hash
 
         def perform(hash)
           hash
@@ -17,10 +18,10 @@ module Plugins
         before do
           RocketJob::Job.destroy_all
           @description = 'Hello World'
-          @arguments   = [{'key' => 'value'}]
+          @data        = {'key' => 'value'}
           @job         = PersistJob.new(
             description:         @description,
-            arguments:           [{key: 'value'}],
+            data:                @data,
             destroy_on_complete: false
           )
         end
@@ -45,14 +46,13 @@ module Plugins
 
         describe '#reload' do
           it 'handle hash' do
-            assert_equal 'value', @job.arguments.first[:key]
+            assert_equal 'value', @job.data['key']
             @job.worker_name = nil
             @job.save!
             @job.worker_name = '123'
             @job.reload
-            assert @job.arguments.first.is_a?(Hash), @job.arguments.first.class.ai
-            assert_equal 'value', @job.arguments.first['key']
-            assert_equal 'value', @job.arguments.first[:key]
+            assert @job.data.is_a?(Hash), @job.data.class.ai
+            assert_equal 'value', @job.data['key']
             assert_equal nil, @job.worker_name
           end
         end
@@ -66,7 +66,7 @@ module Plugins
             assert_equal @description, @job.description
             assert_equal false, @job.destroy_on_complete
             assert_nil @job.expires_at
-            assert_equal @arguments, @job.arguments
+            assert_equal @data, @job.data
             assert_equal 0, @job.percent_complete
             assert_equal 53, @job.priority
             assert_equal 0, @job.failure_count
@@ -79,8 +79,8 @@ module Plugins
         describe '.counts_by_state' do
           it 'returns states as symbols' do
             @job.start!
-            @job2  = PersistJob.create!(arguments: [{key: 'value'}])
-            @job3  = PersistJob.create!(arguments: [{key: 'value'}], run_at: 1.day.from_now)
+            @job2  = PersistJob.create!(data: {key: 'value'})
+            @job3  = PersistJob.create!(data: {key: 'value'}, run_at: 1.day.from_now)
             counts = RocketJob::Job.counts_by_state
             assert_equal 4, counts.size, counts.ai
             assert_equal 1, counts[:running]

@@ -42,24 +42,6 @@ module RocketJob
           # If a job has not started by this time, destroy it
           field :expires_at, type: Time
 
-          # Any user supplied arguments for the method invocation
-          # All keys must be UTF-8 strings. The values can be any valid BSON type:
-          #   Integer
-          #   Float
-          #   Time    (UTC)
-          #   String  (UTF-8)
-          #   Array
-          #   Hash
-          #   True
-          #   False
-          #   Symbol
-          #   nil
-          #   Regular Expression
-          #
-          # Note: Date is not supported, convert it to a UTC time
-          # DEPRECATED
-          field :arguments, type: Array, default: [], user_editable: true
-
           # Raise or lower the log level when calling the job
           # Can be used to reduce log noise, especially during high volume calls
           # For debugging a single job can be logged at a low level such as :trace
@@ -170,11 +152,6 @@ module RocketJob
               {:run_at.exists => false},
               {:run_at.lte => Time.now}
             )
-          end
-
-          # Returns the number of required arguments for this job
-          def rocket_job_argument_count
-            instance_method(:perform).arity
           end
 
           # DEPRECATED

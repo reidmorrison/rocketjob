@@ -310,7 +310,7 @@ module RocketJob
           return if shutdown?
           # Start worker
           begin
-            workers << Worker.new(next_worker_id, name)
+            workers << Worker.new(id: next_worker_id, server_name: name)
           rescue Exception => exc
             logger.fatal('Cannot start worker', exc)
           end

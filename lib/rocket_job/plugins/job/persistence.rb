@@ -12,8 +12,6 @@ module RocketJob
           # Store all job types in this collection
           store_in collection: 'rocket_job.jobs'
 
-          after_initialize :rocket_job_make_indifferent_arguments
-
           # Retrieves the next job to work on in priority based order
           # and assigns it to this worker
           #
@@ -104,14 +102,6 @@ module RocketJob
             end
             self
           end
-        end
-
-        private
-
-        # after_find: convert any hashes in the arguments list to HashWithIndifferentAccess
-        def rocket_job_make_indifferent_arguments
-          return unless arguments.present?
-          self.arguments = arguments.collect { |i| i.is_a?(Hash) ? i.with_indifferent_access : i }
         end
 
       end
