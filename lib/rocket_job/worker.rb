@@ -17,8 +17,8 @@ module RocketJob
 
     define_callbacks :running
 
-    attr_accessor :id, :server_name
-    attr_reader :thread
+    attr_accessor :id, :worker_name
+    attr_reader :thread, :name
 
     def self.before_running(*filters, &blk)
       set_callback(:running, :before, *filters, &blk)
@@ -40,6 +40,7 @@ module RocketJob
       else
         @shutdown = false
       end
+      @name   = "#{server_name}:%04i" % id
       @thread = Thread.new { run }
     end
 
@@ -95,7 +96,7 @@ module RocketJob
     def process_available_jobs
       skip_job_ids = []
       processed    = false
-      while (job = Job.rocket_job_next_job(server_name, skip_job_ids)) && !shutdown?
+      while (job = Job.rocket_job_next_job(worker_name, skip_job_ids)) && !shutdown?
         logger.fast_tag("job:#{job.id}") do
           if job.rocket_job_work(self)
             # Need to skip the specified job due to throttling or no work available

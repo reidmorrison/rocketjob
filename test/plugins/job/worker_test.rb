@@ -96,7 +96,7 @@ module Plugins
             else
               assert_equal 'no implicit conversion of Fixnum into String', @job.exception.message
             end
-            assert_equal 'inline', @job.exception.server_name
+            assert_equal 'inline:000', @job.exception.worker_name
           end
 
           it 'silence logging when log_level is set' do
@@ -135,7 +135,7 @@ module Plugins
             assert @job.completed?, @job.attributes.ai
             assert_equal 24, @job.result['result'], -> { @job.result.ai }
 
-            assert_nil @job.server_name
+            assert_nil @job.worker_name
             assert @job.completed_at
             assert @job.created_at
             assert_equal false, @job.destroy_on_complete
@@ -155,7 +155,7 @@ module Plugins
             assert @job.completed?, @job.attributes.ai
             assert_equal 24, @job.result['result']
 
-            assert_nil @job.server_name
+            assert_nil @job.worker_name
             assert @job.completed_at
             assert @job.created_at
             assert_equal false, @job.destroy_on_complete

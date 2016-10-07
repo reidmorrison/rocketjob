@@ -13,7 +13,7 @@ module RocketJob
     field :backtrace, type: Array, default: []
 
     # Name of the server on which this exception occurred
-    field :server_name, type: String
+    field :worker_name, type: String
 
     # The record within which this exception occurred
     field :record_number, type: Integer

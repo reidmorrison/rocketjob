@@ -19,3 +19,5 @@ SemanticLogger.default_level = :debug
 
 RocketJob::Config.load!('test', 'test/config/mongoid.yml')
 Mongoid.logger = SemanticLogger[Mongoid]
+
+#RocketJob::Job.collection.database.command(dropDatabase: 1)

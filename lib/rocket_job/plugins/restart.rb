@@ -20,7 +20,7 @@ module RocketJob
       included do
         # Attributes to exclude when copying across the attributes to the new instance
         class_attribute :rocket_job_restart_excludes
-        self.rocket_job_restart_excludes = %w(_id state created_at started_at completed_at failure_count server_name percent_complete exception result run_at record_count sub_state)
+        self.rocket_job_restart_excludes = %w(_id state created_at started_at completed_at failure_count worker_name percent_complete exception result run_at record_count sub_state)
 
         after_abort :rocket_job_restart_new_instance
         after_complete :rocket_job_restart_new_instance
