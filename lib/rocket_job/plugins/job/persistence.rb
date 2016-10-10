@@ -75,7 +75,7 @@ module RocketJob
 
             # Calculate :queued_now and :scheduled if there are queued jobs
             if queued_count = counts[:queued]
-              scheduled_count = RocketJob::Job.queued.where(:run_at.gt => Time.now).count
+              scheduled_count = RocketJob::Job.scheduled.count
               if scheduled_count > 0
                 queued_now_count    = queued_count - scheduled_count
                 counts[:queued_now] = queued_count - scheduled_count if queued_now_count > 0

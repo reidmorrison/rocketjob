@@ -39,8 +39,8 @@ module RocketJob
           end
           if options.delete(:class_attribute) == true
             class_attribute(name, instance_accessor: false)
-            if default = options[:default]
-              public_send("#{name}=", default)
+            if options.has_key?(:default)
+              public_send("#{name}=", options[:default])
             end
             options[:default] = lambda { self.class.public_send(name) }
           end
