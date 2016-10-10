@@ -3,6 +3,10 @@ module RocketJob
   class JobException
     include Plugins::Document
 
+    embedded_in :job, inverse_of: :exception
+    embedded_in :slice, inverse_of: :exception
+    embedded_in :dirmon_entry, inverse_of: :exception
+
     # Name of the exception class
     field :class_name, type: String
 
