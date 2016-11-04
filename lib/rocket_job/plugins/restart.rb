@@ -27,6 +27,15 @@ module RocketJob
         after_fail :rocket_job_restart_abort
       end
 
+      module ClassMethods
+        def field(name, options)
+          if options.delete(:copy_on_restart) == false
+            self.rocket_job_restart_excludes += [name.to_sym] unless rocket_job_restart_excludes.include?(name.to_sym)
+          end
+          super(name, options)
+        end
+      end
+
       private
 
       # Run again in the future, even if this run fails with an exception

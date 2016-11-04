@@ -3,7 +3,7 @@ require_relative 'test_helper'
 # Unit Test for RocketJob::Job
 class DirmonJobTest < Minitest::Test
   class DirmonTestJob < RocketJob::Job
-    def perform(hash)
+    def perform
       3645
     end
   end

@@ -46,7 +46,7 @@ module RocketJob
           # Can be used to reduce log noise, especially during high volume calls
           # For debugging a single job can be logged at a low level such as :trace
           #   Levels supported: :trace, :debug, :info, :warn, :error, :fatal
-          field :log_level, type: Symbol, user_editable: true
+          field :log_level, type: Symbol, class_attribute: true, user_editable: true
 
           #
           # Read-only attributes

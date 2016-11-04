@@ -41,6 +41,7 @@ module RocketJob
 
   module Jobs
     autoload :DirmonJob,        'rocket_job/jobs/dirmon_job'
+    autoload :HousekeepingJob,  'rocket_job/jobs/housekeeping_job'
     autoload :SimpleJob,        'rocket_job/jobs/simple_job'
   end
 
