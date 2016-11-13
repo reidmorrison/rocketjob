@@ -72,7 +72,7 @@ module RocketJob
         if doc = collection.find(_id: id).find_one_and_update({'$set' => attrs}, return_document: :after)
           # Clear out keys that are not returned during the reload from MongoDB
           (fields.keys + embedded_relations.keys - doc.keys).each { |key| send("#{key}=", nil) }
-          @attributes = attributes
+          @attributes = doc
           apply_defaults
           self
         else

@@ -150,6 +150,7 @@ module RocketJob
           def queued_now
             queued.or(
               {:run_at.exists => false},
+              {:run_at => nil},
               {:run_at.lte => Time.now}
             )
           end

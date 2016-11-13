@@ -26,7 +26,7 @@ module RocketJob
     #
 
     # The maximum number of workers to create on any one server
-    field :max_worker_threads, type: Integer, default: 10
+    field :max_workers, type: Integer, default: 10
 
     # Number of seconds between heartbeats from a Rocket Job Server process
     field :heartbeat_seconds, type: Integer, default: 15

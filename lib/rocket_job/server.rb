@@ -38,7 +38,7 @@ module RocketJob
 
     # The maximum number of workers this server should start
     #   If set, it will override the default value in RocketJob::Config
-    field :max_workers, type: Integer, default: -> { Config.instance.max_worker_threads }
+    field :max_workers, type: Integer, default: -> { Config.instance.max_workers }
 
     # When this server process was started
     field :started_at, type: Time
@@ -223,7 +223,7 @@ module RocketJob
     # Management Thread
     def run
       logger.info "Using MongoDB Database: #{RocketJob::Job.collection.database.name}"
-      build_heartbeat(updated_at: Time.now, current_threads: 0)
+      build_heartbeat(updated_at: Time.now, workers: 0)
       started!
       adjust_workers(true)
       logger.info "RocketJob Server started with #{workers.size} workers running"
@@ -232,8 +232,8 @@ module RocketJob
         sleep Config.instance.heartbeat_seconds
 
         find_and_update(
-          'heartbeat.updated_at'      => Time.now,
-          'heartbeat.current_threads' => worker_count
+          'heartbeat.updated_at' => Time.now,
+          'heartbeat.workers'    => worker_count
         )
 
         # In case number of threads has been modified
@@ -255,8 +255,8 @@ module RocketJob
           # Timeout waiting for worker to stop
           begin
             find_and_update(
-              'heartbeat.updated_at'      => Time.now,
-              'heartbeat.current_threads' => worker_count
+              'heartbeat.updated_at' => Time.now,
+              'heartbeat.workers'    => worker_count
             )
           rescue Mongoid::Errors::DocumentNotFound
             logger.warn('Server has been destroyed. Going down hard!')

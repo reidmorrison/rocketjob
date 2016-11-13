@@ -23,7 +23,7 @@ module RocketJob
       RocketJob::Server.running.each do |worker_process|
         unless worker_process.zombie?
           self.worker_processes += 1
-          self.worker_threads   += worker_process.heartbeat.current_threads
+          self.worker_threads   += worker_process.heartbeat.workers
         end
       end
       puts "Running: #{worker_threads} workers, distributed across #{worker_processes} processes"

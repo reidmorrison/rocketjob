@@ -1,4 +1,4 @@
 # encoding: UTF-8
 module RocketJob #:nodoc
-  VERSION = '3.0.0.beta'
+  VERSION = '3.0.0.beta2'
 end

@@ -9,11 +9,8 @@ module RocketJob
     # Time of the last heartbeat received from this server
     field :updated_at, type: Time
 
-    # Number of threads running as at the last heartbeat interval
-    field :active_threads, type: Integer
-    # Number of threads in the pool
-    #   This number should grow and shrink between 1 and :max_workers
-    field :current_threads, type: Integer
+    # Number of workers started.
+    field :workers, type: Integer
 
     #
     # Process Information. Future.

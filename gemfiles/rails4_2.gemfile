@@ -3,5 +3,3 @@ gemspec :path => '../'
 
 gem 'activemodel', '~> 4.2.0'
 gem 'mongoid', '~> 5.0'
-# mime-types v3 requires Ruby v2
-gem 'mime-types', '~> 2.0'
