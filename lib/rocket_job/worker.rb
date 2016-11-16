@@ -17,7 +17,7 @@ module RocketJob
 
     define_callbacks :running
 
-    attr_accessor :id, :worker_name, :inline
+    attr_accessor :id, :worker_name, :inline, :re_check_seconds, :filter, :current_filter
     attr_reader :thread, :name
 
     def self.before_running(*filters, &blk)
@@ -32,7 +32,7 @@ module RocketJob
       set_callback(:running, :around, *filters, &blk)
     end
 
-    def initialize(id: 0, server_name: 'inline', inline: false)
+    def initialize(id: 0, server_name: 'inline', inline: false, re_check_seconds: Config.instance.re_check_seconds, filter: nil)
       @id          = id
       @server_name = server_name
       if defined?(Concurrent::JavaAtomicBoolean) || defined?(Concurrent::CAtomicBoolean)
@@ -40,8 +40,12 @@ module RocketJob
       else
         @shutdown = false
       end
-      @name   = "#{server_name}:#{id}"
-      @thread = Thread.new { run } unless inline
+      @name             = "#{server_name}:#{id}"
+      @thread           = Thread.new { run } unless inline
+      @re_check_seconds = re_check_seconds
+      @re_check_start   = Time.now
+      @filter           = filter || {}
+      @current_filter   = @filter.dup
     end
 
     if defined?(Concurrent::JavaAtomicBoolean) || defined?(Concurrent::CAtomicBoolean)
@@ -94,14 +98,17 @@ module RocketJob
     # Process the next available job
     # Returns [Boolean] whether any job was actually processed
     def process_available_jobs
-      skip_job_ids = []
-      processed    = false
-      while (job = Job.rocket_job_next_job(worker_name, skip_job_ids)) && !shutdown?
+      # Only clear out the current_filter after every `re_check_seconds`
+      time = Time.now
+      if (time - @re_check_start) > re_check_seconds
+        @recheck_start      = time
+        self.current_filter = filter.dup
+      end
+
+      processed = false
+      while (job = Job.rocket_job_next_job(worker_name, current_filter)) && !shutdown?
         logger.fast_tag("job:#{job.id}") do
-          if job.rocket_job_work(self)
-            # Need to skip the specified job due to throttling or no work available
-            skip_job_ids << job.id
-          else
+          unless job.rocket_job_work(self, false, current_filter)
             processed = true
           end
         end

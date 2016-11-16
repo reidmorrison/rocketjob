@@ -25,6 +25,7 @@ module RocketJob
       autoload :Logger,         'rocket_job/plugins/job/logger'
       autoload :Model,          'rocket_job/plugins/job/model'
       autoload :Persistence,    'rocket_job/plugins/job/persistence'
+      autoload :Throttle,       'rocket_job/plugins/job/throttle'
       autoload :Worker,         'rocket_job/plugins/job/worker'
     end
     module Rufus

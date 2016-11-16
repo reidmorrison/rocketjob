@@ -6,6 +6,8 @@ module RocketJob
     include Plugins::Document
     include Plugins::StateMachine
 
+    store_in collection: 'rocket_job.dirmon_entries'
+
     # User defined name used to identify this DirmonEntry in Mission Control
     field :name, type: String
 

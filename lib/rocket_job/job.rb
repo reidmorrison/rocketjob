@@ -11,5 +11,6 @@ module RocketJob
     include Plugins::StateMachine
     include Plugins::Job::StateMachine
     include Plugins::Job::Worker
+    include Plugins::Job::Throttle
   end
 end

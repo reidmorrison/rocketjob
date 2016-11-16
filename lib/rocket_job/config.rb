@@ -21,6 +21,8 @@ module RocketJob
     # Also, exceptions will be raised instead of failing the job.
     cattr_accessor(:inline_mode) { false }
 
+    store_in collection: 'rocket_job.configs'
+
     #
     # Servers
     #

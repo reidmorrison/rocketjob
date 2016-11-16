@@ -2,31 +2,30 @@ require 'csv'
 require 'yaml'
 module RocketJob
   class Performance
-    attr_accessor :count, :worker_processes, :worker_threads, :version, :ruby, :environment, :mongo_config
+    attr_accessor :count, :servers, :workers, :version, :ruby, :environment, :mongo_config
 
     def initialize
-      @version          = RocketJob::VERSION
-      @ruby             = defined?(JRuby) ? "jruby_#{JRUBY_VERSION}" : "ruby_#{RUBY_VERSION}"
-      @count            = 100_000
-      @worker_processes = 0
-      @worker_threads   = 0
-      @environment      = ENV['RAILS_ENV'] || ENV['RACK_ENV'] || 'development'
-      @mongo_config     = 'config/mongo.yml'
+      @version      = RocketJob::VERSION
+      @ruby         = defined?(JRuby) ? "jruby_#{JRUBY_VERSION}" : "ruby_#{RUBY_VERSION}"
+      @count        = 100_000
+      @servers      = 0
+      @workers      = 0
+      @environment  = ENV['RAILS_ENV'] || ENV['RACK_ENV'] || 'development'
+      @mongo_config = 'config/mongo.yml'
     end
 
     def run_test_case(count = self.count)
-      self.worker_processes = RocketJob::Server.count
-      raise 'Please start workers before starting the performance test' if worker_processes == 0
+      raise 'Please start servers before starting the performance test' if RocketJob::Server.running.count == 0
 
-      self.worker_processes = 0
-      self.worker_threads   = 0
-      RocketJob::Server.running.each do |worker_process|
-        unless worker_process.zombie?
-          self.worker_processes += 1
-          self.worker_threads   += worker_process.heartbeat.workers
+      self.servers = 0
+      self.workers = 0
+      RocketJob::Server.running.each do |server|
+        unless server.zombie?
+          self.servers += 1
+          self.workers += server.heartbeat.workers
         end
       end
-      puts "Running: #{worker_threads} workers, distributed across #{worker_processes} processes"
+      puts "Running: #{workers} workers, distributed across #{servers} servers"
 
       puts 'Waiting for workers to pause'
       RocketJob::Server.pause_all
@@ -34,9 +33,9 @@ module RocketJob
       sleep 15
 
       puts 'Enqueuing jobs'
-      first = RocketJob::Jobs::SimpleJob.create(priority: 1, destroy_on_complete: false)
+      first = RocketJob::Jobs::SimpleJob.create!(priority: 1, destroy_on_complete: false)
       (count - 2).times { |i| RocketJob::Jobs::SimpleJob.create! }
-      last = RocketJob::Jobs::SimpleJob.create(priority: 100, destroy_on_complete: false)
+      last = RocketJob::Jobs::SimpleJob.create!(priority: 100, destroy_on_complete: false)
 
       puts 'Resuming workers'
       RocketJob::Server.resume_all
@@ -51,7 +50,7 @@ module RocketJob
 
     # Export the Results hash to a CSV file
     def export_results(results)
-      CSV.open("job_results_#{ruby}_#{worker_processes}p_#{threads}t_v#{version}.csv", 'wb') do |csv|
+      CSV.open("job_results_#{ruby}_#{servers}s_#{workers}w_v#{version}.csv", 'wb') do |csv|
         csv << results.first.keys
         results.each { |result| csv << result.values }
       end

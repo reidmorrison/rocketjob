@@ -12,24 +12,32 @@ module RocketJob
           # Store all job types in this collection
           store_in collection: 'rocket_job.jobs'
 
+          after_initialize :remove_arguments
+
           # Retrieves the next job to work on in priority based order
           # and assigns it to this worker
           #
           # Returns nil if no jobs are available for processing
           #
           # Parameters
-          #   worker_name [String]
+          #   worker_name: [String]
           #     Name of the worker that will be processing this job
           #
-          #   skip_job_ids [Array<BSON::ObjectId>]
-          #     Job ids to exclude when looking for the next job
-          def self.rocket_job_retrieve(worker_name, skip_job_ids = nil)
-            query  = queued_now
-            update = {'$set' => {'worker_name' => worker_name, 'state' => 'running', 'started_at' => Time.now}}
-
-            query  = query.where(:id.nin => skip_job_ids) if skip_job_ids && skip_job_ids.size > 0
-
-            query.sort(priority: 1, _id: 1).find_one_and_update(update)
+          #   filter: [Hash]
+          #     Filter to apply to the query.
+          #     For example: to exclude jobs from being returned.
+          #
+          # Example:
+          #   # Skip any job ids from the job_ids_list
+          #   filter = {:id.nin => job_ids_list}
+          #   job    = RocketJob::Job.rocket_job_retrieve('host:pid:worker', filter)
+          def self.rocket_job_retrieve(worker_name, filter)
+            SemanticLogger.silence(:info) do
+              query  = queued_now
+              query  = query.where(filter) unless filter.blank?
+              update = {'$set' => {'worker_name' => worker_name, 'state' => 'running', 'started_at' => Time.now}}
+              query.sort(priority: 1, _id: 1).find_one_and_update(update)
+            end
           end
 
           # Returns [Hash<String:Integer>] of the number of jobs in each state
@@ -102,6 +110,13 @@ module RocketJob
             end
             self
           end
+        end
+
+        private
+
+        # Remove old style arguments that were stored as an array
+        def remove_arguments
+          attributes.delete('arguments') unless respond_to?('arguments='.to_sym)
         end
 
       end

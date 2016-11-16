@@ -30,6 +30,8 @@ module RocketJob
     include Plugins::StateMachine
     include SemanticLogger::Loggable
 
+    store_in collection: 'rocket_job.servers'
+
     # Unique Name of this server instance
     #   Default: `host name:PID`
     # The unique name is used on re-start to re-queue any jobs that were being processed
@@ -42,6 +44,9 @@ module RocketJob
 
     # When this server process was started
     field :started_at, type: Time
+
+    # Filter to apply to control which job classes this server can process
+    field :filter, type: Hash
 
     # The heartbeat information for this server
     embeds_one :heartbeat, class_name: 'RocketJob::Heartbeat'
@@ -231,10 +236,12 @@ module RocketJob
       while running? || paused?
         sleep Config.instance.heartbeat_seconds
 
-        find_and_update(
-          'heartbeat.updated_at' => Time.now,
-          'heartbeat.workers'    => worker_count
-        )
+        SemanticLogger.silence(:info) do
+          find_and_update(
+            'heartbeat.updated_at' => Time.now,
+            'heartbeat.workers'    => worker_count
+          )
+        end
 
         # In case number of threads has been modified
         adjust_workers
@@ -293,7 +300,7 @@ module RocketJob
     #       that not all workers poll at the same time
     #       The worker also respond faster than max_poll_seconds when a new
     #       job is added.
-    def adjust_workers(stagger_workers=false)
+    def adjust_workers(stagger_workers = false)
       count = worker_count
       # Cleanup workers that have stopped
       if count != workers.count
@@ -310,7 +317,7 @@ module RocketJob
           return if shutdown?
           # Start worker
           begin
-            workers << Worker.new(id: next_worker_id, server_name: name)
+            workers << Worker.new(id: next_worker_id, server_name: name, filter: filter)
           rescue Exception => exc
             logger.fatal('Cannot start worker', exc)
           end
