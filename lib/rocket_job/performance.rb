@@ -11,26 +11,35 @@ module RocketJob
       @servers      = 0
       @workers      = 0
       @environment  = ENV['RAILS_ENV'] || ENV['RACK_ENV'] || 'development'
-      @mongo_config = 'config/mongo.yml'
+      @mongo_config = 'config/mongoid.yml'
     end
 
     def run_test_case(count = self.count)
-      raise 'Please start servers before starting the performance test' if RocketJob::Server.running.count == 0
+      raise 'Please start servers before starting the performance test' if RocketJob::Server.where(:state.in => ['running', 'paused']).count == 0
 
       self.servers = 0
       self.workers = 0
       RocketJob::Server.running.each do |server|
-        unless server.zombie?
-          self.servers += 1
-          self.workers += server.heartbeat.workers
-        end
+        next if server.zombie?
+        self.servers += 1
+        self.workers += server.heartbeat.workers
       end
       puts "Running: #{workers} workers, distributed across #{servers} servers"
 
       puts 'Waiting for workers to pause'
       RocketJob::Server.pause_all
       RocketJob::Jobs::SimpleJob.delete_all
-      sleep 15
+
+      # Wait for paused workers to stop
+      loop do
+        running = 0
+        RocketJob::Server.paused.each do |server|
+          running += server.heartbeat.workers unless server.zombie?
+        end
+        puts "Waiting for #{running} workers"
+        break if running == 0
+        sleep 1
+      end
 
       puts 'Enqueuing jobs'
       first = RocketJob::Jobs::SimpleJob.create!(priority: 1, destroy_on_complete: false)

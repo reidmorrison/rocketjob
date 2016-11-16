@@ -17,7 +17,7 @@ module RocketJob
 
     define_callbacks :running
 
-    attr_accessor :id, :worker_name, :inline, :re_check_seconds, :filter, :current_filter
+    attr_accessor :id, :re_check_seconds, :filter, :current_filter
     attr_reader :thread, :name
 
     def self.before_running(*filters, &blk)
@@ -91,7 +91,6 @@ module RocketJob
     rescue Exception => exc
       logger.fatal('Unhandled exception in job processing thread', exc)
     ensure
-      # TODO: Move to after_running callback
       ActiveRecord::Base.clear_active_connections! if defined?(ActiveRecord::Base)
     end
 
@@ -106,7 +105,7 @@ module RocketJob
       end
 
       processed = false
-      while (job = Job.rocket_job_next_job(worker_name, current_filter)) && !shutdown?
+      while (job = Job.rocket_job_next_job(name, current_filter)) && !shutdown?
         logger.fast_tag("job:#{job.id}") do
           unless job.rocket_job_work(self, false, current_filter)
             processed = true

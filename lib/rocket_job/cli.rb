@@ -19,7 +19,7 @@ module RocketJob
       @log_file                    = nil
       @mongo_config                = nil
       @symmetric_encryption_config = nil
-      @reg_exp                     = nil
+      @filter                      = nil
       parse(argv)
     end
 
@@ -146,8 +146,8 @@ module RocketJob
           warn '-t and --threads are deprecated, use -w or --workers'
           @workers = arg.to_i
         end
-        o.on('-F', '--filter REGEXP', 'Limit this worker to only those job classes that match this regular expression') do |arg|
-          @filter = Regexp.new(arg)
+        o.on('-F', '--filter REGEXP', 'Limit this worker to only those job classes that match this regular expression (case-insensitive)') do |arg|
+          @filter = Regexp.new(arg, true)
         end
         o.on('-q', '--quiet', 'Do not write to stdout, only to logfile. Necessary when running as a daemon') do
           @quiet = true

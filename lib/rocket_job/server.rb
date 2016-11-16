@@ -193,7 +193,6 @@ module RocketJob
 
       server = create!(attrs)
       server.send(:run)
-
     ensure
       server.destroy if server
     end
@@ -230,24 +229,31 @@ module RocketJob
       logger.info "Using MongoDB Database: #{RocketJob::Job.collection.database.name}"
       build_heartbeat(updated_at: Time.now, workers: 0)
       started!
-      adjust_workers(true)
-      logger.info "RocketJob Server started with #{workers.size} workers running"
+      logger.info 'RocketJob Server started'
 
+      stagger = true
       while running? || paused?
-        sleep Config.instance.heartbeat_seconds
-
         SemanticLogger.silence(:info) do
           find_and_update(
             'heartbeat.updated_at' => Time.now,
             'heartbeat.workers'    => worker_count
           )
         end
+        if paused?
+          workers.each(&:shutdown!)
+          stagger = true
+        end
 
         # In case number of threads has been modified
-        adjust_workers
+        adjust_workers(stagger)
+        stagger = false
 
         # Stop server if shutdown indicator was set
-        stop! if self.class.shutdown? && may_stop?
+        if self.class.shutdown? && may_stop?
+          stop!
+        else
+          sleep Config.instance.heartbeat_seconds
+        end
       end
 
       logger.info 'Waiting for workers to stop'
@@ -307,6 +313,8 @@ module RocketJob
         logger.info "Cleaning up #{workers.count - count} workers that went away"
         workers.delete_if { |t| !t.alive? }
       end
+
+      return unless running?
 
       # Need to add more workers?
       if count < max_workers

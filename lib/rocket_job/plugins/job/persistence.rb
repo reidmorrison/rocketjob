@@ -13,7 +13,9 @@ module RocketJob
           store_in collection: 'rocket_job.jobs'
 
           after_initialize :remove_arguments
+        end
 
+        module ClassMethods
           # Retrieves the next job to work on in priority based order
           # and assigns it to this worker
           #
@@ -31,12 +33,12 @@ module RocketJob
           #   # Skip any job ids from the job_ids_list
           #   filter = {:id.nin => job_ids_list}
           #   job    = RocketJob::Job.rocket_job_retrieve('host:pid:worker', filter)
-          def self.rocket_job_retrieve(worker_name, filter)
+          def rocket_job_retrieve(worker_name, filter)
             SemanticLogger.silence(:info) do
               query  = queued_now
               query  = query.where(filter) unless filter.blank?
               update = {'$set' => {'worker_name' => worker_name, 'state' => 'running', 'started_at' => Time.now}}
-              query.sort(priority: 1, _id: 1).find_one_and_update(update)
+              query.sort(priority: 1, _id: 1).find_one_and_update(update, bypass_document_validation: true)
             end
           end
 
@@ -67,7 +69,7 @@ module RocketJob
           #          :running => 25,
           #          :completed => 1237
           #        }
-          def self.counts_by_state
+          def counts_by_state
             counts = {}
             collection.aggregate([
               {
@@ -94,7 +96,6 @@ module RocketJob
             end
             counts
           end
-
         end
 
         # Set in-memory job to complete if `destroy_on_complete` and the job has been destroyed

@@ -148,11 +148,7 @@ module RocketJob
           # Scope for queued jobs that can run now
           # I.e. Queued jobs excluding scheduled jobs
           def queued_now
-            queued.or(
-              {:run_at.exists => false},
-              {:run_at => nil},
-              {:run_at.lte => Time.now}
-            )
+            queued.or({:run_at => nil}, {:run_at.lte => Time.now})
           end
 
           # DEPRECATED
