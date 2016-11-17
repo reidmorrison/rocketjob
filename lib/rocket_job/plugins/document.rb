@@ -76,7 +76,7 @@ module RocketJob
           apply_defaults
           self
         else
-          raise Mongoid::Error::DocumentNotFound, "Document match #{_id.inspect} does not exist in #{collection.name} collection"
+          raise(Mongoid::Errors::DocumentNotFound.new(self.class, id))
         end
       end
 

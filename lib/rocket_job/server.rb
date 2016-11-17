@@ -266,25 +266,23 @@ module RocketJob
           workers.shift
         else
           # Timeout waiting for worker to stop
-          begin
-            find_and_update(
-              'heartbeat.updated_at' => Time.now,
-              'heartbeat.workers'    => worker_count
-            )
-          rescue Mongoid::Errors::DocumentNotFound
-            logger.warn('Server has been destroyed. Going down hard!')
-            break
-          end
+          find_and_update(
+            'heartbeat.updated_at' => Time.now,
+            'heartbeat.workers'    => worker_count
+          )
         end
       end
 
+      logger.info 'Shutdown'
+    rescue Mongoid::Errors::DocumentNotFound
+      logger.warn('Server has been destroyed. Going down hard!')
+    rescue Exception => exc
+      logger.error('RocketJob::Server is stopping due to an exception', exc)
+    ensure
       # Logs the backtrace for each running worker
       if SemanticLogger::VERSION.to_i >= 4
         workers.each { |thread| logger.backtrace(thread: thread) }
       end
-      logger.info 'Shutdown'
-    rescue Exception => exc
-      logger.error('RocketJob::Server is stopping due to an exception', exc)
     end
 
     # Returns [Fixnum] number of workers (threads) that are alive

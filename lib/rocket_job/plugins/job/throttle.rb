@@ -43,7 +43,7 @@ module RocketJob
 
         # Throttle to add when the throttle is exceeded
         def throttle_filter
-          {:_type.nin => self.class.name}
+          {:_type.nin => [self.class.name]}
         end
 
         # Returns [Boolean] whether the throttle for this job has been exceeded
@@ -62,9 +62,13 @@ module RocketJob
 
         # Merge filter(s)
         def throttle_merge_filter(target, source)
-          source.each_key do |k, v|
-            previous  = target[k]
-            target[k] = previous ? (Array(previous) << v) : v
+          source.each_pair do |k, v|
+            target[k] =
+              if previous = target[k]
+                v.is_a?(Array) ? previous + v : v
+              else
+                v
+              end
           end
         end
 

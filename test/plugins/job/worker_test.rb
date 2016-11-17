@@ -171,23 +171,23 @@ module Plugins
           end
         end
 
-        describe '#rocket_job_active_servers' do
+        describe '#rocket_job_active_workers' do
           before do
             @job    = QuietJob.create!
             @worker = RocketJob::Server.create!(name: 'worker:123')
           end
 
           it 'should return empty hash for no active jobs' do
-            assert_equal({}, @job.rocket_job_active_servers)
+            assert_equal({}, @job.rocket_job_active_workers)
           end
 
           it 'should return active servers' do
             assert job = RocketJob::Job.rocket_job_next_job(@worker.name)
-            assert active = job.rocket_job_active_servers
+            assert active = job.rocket_job_active_workers
             assert_equal 1, active.size
-            assert active_servers = active[@worker.name]
-            assert_equal 1, active_servers.size
-            assert active_server = active_servers.first
+            assert active_workers = active[@worker.name]
+            assert_equal 1, active_workers.size
+            assert active_server = active_workers.first
             assert_equal @job.id, active_server.job.id
             assert_equal @worker.name, active_server.name
             assert_equal job.started_at, active_server.started_at

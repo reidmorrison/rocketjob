@@ -99,7 +99,7 @@ module RocketJob
     def process_available_jobs
       # Only clear out the current_filter after every `re_check_seconds`
       time = Time.now
-      if (time - @re_check_start) > re_check_seconds
+      if (time - @re_check_start) > re_check_seconds.to_f
         @recheck_start      = time
         self.current_filter = filter.dup
       end
