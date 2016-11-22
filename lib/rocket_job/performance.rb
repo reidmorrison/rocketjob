@@ -14,17 +14,12 @@ module RocketJob
       @mongo_config = 'config/mongoid.yml'
     end
 
+    # Loads the queue with jobs to be processed once the queue is loaded.
+    # Retain the first and last job for timings, all others are destroyed on completion.
     def run_test_case(count = self.count)
       raise 'Please start servers before starting the performance test' if RocketJob::Server.where(:state.in => ['running', 'paused']).count == 0
 
-      self.servers = 0
-      self.workers = 0
-      RocketJob::Server.running.each do |server|
-        next if server.zombie?
-        self.servers += 1
-        self.workers += server.heartbeat.workers
-      end
-      puts "Running: #{workers} workers, distributed across #{servers} servers"
+      count_running_workers
 
       puts 'Waiting for workers to pause'
       RocketJob::Server.pause_all
@@ -54,6 +49,9 @@ module RocketJob
       end
 
       duration = last.reload.completed_at - first.reload.started_at
+      first.destroy
+      last.destroy
+
       {count: count, duration: duration, jobs_per_second: (count.to_f / duration).to_i}
     end
 
@@ -84,6 +82,17 @@ module RocketJob
         exit 1
       end
       parser.parse! argv
+    end
+
+    def count_running_workers
+      self.servers = 0
+      self.workers = 0
+      RocketJob::Server.running.each do |server|
+        next if server.zombie?
+        self.servers += 1
+        self.workers += server.heartbeat.workers
+      end
+      puts "Running: #{workers} workers, distributed across #{servers} servers"
     end
 
   end
