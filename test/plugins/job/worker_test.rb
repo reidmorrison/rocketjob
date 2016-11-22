@@ -178,21 +178,19 @@ module Plugins
           end
 
           it 'should return empty hash for no active jobs' do
-            assert_equal({}, @job.rocket_job_active_workers)
+            assert_equal([], @job.rocket_job_active_workers)
           end
 
           it 'should return active servers' do
             assert job = RocketJob::Job.rocket_job_next_job(@worker.name)
             assert active = job.rocket_job_active_workers
             assert_equal 1, active.size
-            assert active_workers = active[@worker.name]
-            assert_equal 1, active_workers.size
-            assert active_server = active_workers.first
-            assert_equal @job.id, active_server.job.id
-            assert_equal @worker.name, active_server.name
-            assert_equal job.started_at, active_server.started_at
-            assert active_server.duration_s
-            assert active_server.duration
+            assert active_worker = active.first
+            assert_equal @job.id, active_worker.job.id
+            assert_equal @worker.name, active_worker.name
+            assert_equal job.started_at, active_worker.started_at
+            assert active_worker.duration_s
+            assert active_worker.duration
           end
         end
 
