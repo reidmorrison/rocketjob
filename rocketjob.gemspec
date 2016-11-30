@@ -22,4 +22,5 @@ Gem::Specification.new do |s|
   s.add_dependency 'mongoid', '>= 5.0'
   s.add_dependency 'semantic_logger', '>= 3.1'
   s.add_dependency 'aasm', '~> 4.3'
+  s.add_dependency 'mongo_ha', '~> 2.0'
 end

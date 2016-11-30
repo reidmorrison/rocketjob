@@ -231,30 +231,7 @@ module RocketJob
       started!
       logger.info 'RocketJob Server started'
 
-      stagger = true
-      while running? || paused?
-        SemanticLogger.silence(:info) do
-          find_and_update(
-            'heartbeat.updated_at' => Time.now,
-            'heartbeat.workers'    => worker_count
-          )
-        end
-        if paused?
-          workers.each(&:shutdown!)
-          stagger = true
-        end
-
-        # In case number of threads has been modified
-        adjust_workers(stagger)
-        stagger = false
-
-        # Stop server if shutdown indicator was set
-        if self.class.shutdown? && may_stop?
-          stop!
-        else
-          sleep Config.instance.heartbeat_seconds
-        end
-      end
+      run_workers
 
       logger.info 'Waiting for workers to stop'
       # Tell each worker to shutdown cleanly
@@ -282,6 +259,33 @@ module RocketJob
       # Logs the backtrace for each running worker
       if SemanticLogger::VERSION.to_i >= 4
         workers.each { |thread| logger.backtrace(thread: thread) }
+      end
+    end
+
+    def run_workers
+      stagger = true
+      while running? || paused?
+        SemanticLogger.silence(:info) do
+          find_and_update(
+            'heartbeat.updated_at' => Time.now,
+            'heartbeat.workers'    => worker_count
+          )
+        end
+        if paused?
+          workers.each(&:shutdown!)
+          stagger = true
+        end
+
+        # In case number of threads has been modified
+        adjust_workers(stagger)
+        stagger = false
+
+        # Stop server if shutdown indicator was set
+        if self.class.shutdown? && may_stop?
+          stop!
+        else
+          sleep Config.instance.heartbeat_seconds
+        end
       end
     end
 
@@ -319,7 +323,7 @@ module RocketJob
         worker_count = max_workers - count
         logger.info "Starting #{worker_count} workers"
         worker_count.times.each do
-          sleep (Config.instance.max_poll_seconds.to_f / max_workers) * (next_worker_id - 1) if stagger_workers
+          sleep (Config.instance.max_poll_seconds.to_f / max_workers) if stagger_workers
           return if shutdown?
           # Start worker
           begin
