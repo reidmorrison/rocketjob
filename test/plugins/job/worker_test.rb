@@ -48,7 +48,7 @@ module Plugins
           end
 
           it 'return nil when no jobs available' do
-            assert_equal nil, RocketJob::Job.rocket_job_next_job(@worker.name)
+            assert_nil RocketJob::Job.rocket_job_next_job(@worker.name)
           end
 
           it 'return the first job' do
@@ -60,7 +60,7 @@ module Plugins
           it 'Ignore future dated jobs' do
             @job.run_at = Time.now + 1.hour
             @job.save!
-            assert_equal nil, RocketJob::Job.rocket_job_next_job(@worker.name)
+            assert_nil RocketJob::Job.rocket_job_next_job(@worker.name)
           end
 
           it 'Process future dated jobs when time is now' do
@@ -74,7 +74,7 @@ module Plugins
             count           = RocketJob::Job.count
             @job.expires_at = Time.now - 100
             @job.save!
-            assert_equal nil, RocketJob::Job.rocket_job_next_job(@worker.name)
+            assert_nil RocketJob::Job.rocket_job_next_job(@worker.name)
             assert_equal count, RocketJob::Job.count
           end
         end

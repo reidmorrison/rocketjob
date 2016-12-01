@@ -59,7 +59,7 @@ class JobTest < Minitest::Test
         @job.reload
 
         assert @job.queued?
-        assert_equal nil, @job.worker_name
+        assert_nil @job.worker_name
 
         assert_equal worker_name2, @job2.worker_name
         @job2.reload

@@ -7,17 +7,15 @@ rescue LoadError
 end
 require 'yaml'
 require 'minitest/autorun'
-require 'minitest/reporters'
 require 'minitest/stub_any_instance'
 require 'awesome_print'
 require 'rocketjob'
-
-MiniTest::Reporters.use! MiniTest::Reporters::SpecReporter.new
 
 SemanticLogger.add_appender(file_name: 'test.log', formatter: :color)
 SemanticLogger.default_level = :debug
 
 RocketJob::Config.load!('test', 'test/config/mongoid.yml')
 Mongoid.logger = SemanticLogger[Mongoid]
+Mongo::Logger.logger = SemanticLogger[Mongo]
 
 #RocketJob::Job.collection.database.command(dropDatabase: 1)

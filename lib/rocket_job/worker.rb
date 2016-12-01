@@ -41,11 +41,11 @@ module RocketJob
         @shutdown = false
       end
       @name             = "#{server_name}:#{id}"
-      @thread           = Thread.new { run } unless inline
       @re_check_seconds = re_check_seconds || 60
       @re_check_start   = Time.now
       @filter           = filter || {}
       @current_filter   = @filter.dup
+      @thread           = Thread.new { run } unless inline
     end
 
     if defined?(Concurrent::JavaAtomicBoolean) || defined?(Concurrent::CAtomicBoolean)
@@ -100,7 +100,7 @@ module RocketJob
       # Only clear out the current_filter after every `re_check_seconds`
       time = Time.now
       if (time - @re_check_start) > re_check_seconds.to_f
-        @recheck_start      = time
+        @re_check_start     = time
         self.current_filter = filter.dup
       end
 

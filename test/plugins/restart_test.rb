@@ -62,7 +62,7 @@ module Plugins
           assert @job.expired?
           @job.abort!
           assert_equal 1, RestartableJob.count
-          assert_equal nil, RestartableJob.where(:id.ne => @job.id).first
+          assert_nil RestartableJob.where(:id.ne => @job.id).first
         end
       end
 
@@ -132,7 +132,7 @@ module Plugins
           assert @job.running?
           assert @job.expired?
           assert_equal 1, RestartableJob.count
-          assert_equal nil, RestartableJob.where(:id.ne => @job.id).first
+          assert_nil RestartableJob.where(:id.ne => @job.id).first
         end
       end
 
@@ -160,16 +160,16 @@ module Plugins
             assert_equal value, job2[key], "Attributes are supposed to be copied across. For #{key}"
           end
 
-          assert_equal nil, job2.start_at
-          assert_equal nil, job2.end_at
+          assert_nil job2.start_at
+          assert_nil job2.end_at
           assert_equal :queued, job2.state
           assert job2.created_at
-          assert_equal nil, job2.started_at
-          assert_equal nil, job2.completed_at
+          assert_nil job2.started_at
+          assert_nil job2.completed_at
           assert_equal 0, job2.failure_count
-          assert_equal nil, job2.worker_name
+          assert_nil job2.worker_name
           assert_equal 0, job2.percent_complete
-          assert_equal nil, job2.exception
+          assert_nil job2.exception
           refute job2.result
         end
 
@@ -186,7 +186,7 @@ module Plugins
           @job.perform_now
           assert_equal 1, RestartableJob.count
           assert job2 = RestartableJob.where(:id.ne => @job.id).first
-          assert_equal nil, job2.run_at
+          assert_nil job2.run_at
         end
       end
 

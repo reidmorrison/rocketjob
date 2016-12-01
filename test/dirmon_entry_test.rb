@@ -36,21 +36,21 @@ class DirmonEntryTest < Minitest::Test
       describe 'with a nil job_class_name' do
         it 'return nil' do
           entry = RocketJob::DirmonEntry.new
-          assert_equal(nil, entry.job_class)
+          assert_nil entry.job_class
         end
       end
 
       describe 'with an unknown job_class_name' do
         it 'return nil' do
           entry = RocketJob::DirmonEntry.new(job_class_name: 'FakeJobThatDoesNotExistAnyWhereIPromise')
-          assert_equal(nil, entry.job_class)
+          assert_nil entry.job_class
         end
       end
 
       describe 'with a valid job_class_name' do
         it 'return job class' do
           entry = RocketJob::DirmonEntry.new(job_class_name: 'RocketJob::Job')
-          assert_equal(RocketJob::Job, entry.job_class)
+          assert_equal RocketJob::Job, entry.job_class
           assert_equal 0, entry.properties.size
         end
       end
@@ -231,7 +231,7 @@ class DirmonEntryTest < Minitest::Test
           @entry.each do |file_name|
             files << file_name
           end
-          assert_equal nil, @entry.archive_directory
+          assert_nil @entry.archive_directory
           assert_equal 1, files.count
           assert_equal Pathname.new('test/files/text.txt').realpath, files.first
         end
@@ -263,7 +263,7 @@ class DirmonEntryTest < Minitest::Test
               files << file_name
             end
           end
-          assert_equal nil, @entry.archive_directory
+          assert_nil @entry.archive_directory
           assert_equal 1, files.count
           assert_equal Pathname.new('test/files/text.txt').realpath, files.first
         end
@@ -276,7 +276,7 @@ class DirmonEntryTest < Minitest::Test
               files << file_name
             end
           end
-          assert_equal nil, @entry.archive_directory
+          assert_nil @entry.archive_directory
           assert_equal 0, files.count
         end
       end

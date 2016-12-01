@@ -55,7 +55,7 @@ class DirmonJobTest < Minitest::Test
         result  = @entry.stub(:later, -> fn { started = true }) do
           @dirmon_job.send(:check_file, @entry, file, previous_size)
         end
-        assert_equal nil, result
+        assert_nil result
         assert started
       end
 

@@ -53,7 +53,7 @@ module Plugins
             @job.reload
             assert @job.data.is_a?(Hash), @job.data.class.ai
             assert_equal 'value', @job.data['key']
-            assert_equal nil, @job.worker_name
+            assert_nil @job.worker_name
           end
         end
 
