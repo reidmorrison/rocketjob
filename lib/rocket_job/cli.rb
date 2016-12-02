@@ -1,5 +1,6 @@
 require 'optparse'
 require 'semantic_logger'
+require 'mongoid'
 module RocketJob
   # Command Line Interface parser for RocketJob
   class CLI
@@ -122,6 +123,9 @@ module RocketJob
 
       # Enable SemanticLogger signal handling for this process
       SemanticLogger.add_signal_handler
+
+      Mongoid.logger       = SemanticLogger[Mongoid]
+      Mongo::Logger.logger = SemanticLogger[Mongo]
     end
 
     # Eager load files in jobs folder
