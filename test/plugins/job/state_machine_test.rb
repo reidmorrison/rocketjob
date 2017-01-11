@@ -29,7 +29,7 @@ module Plugins
             @job.reload
 
             assert @job.queued?
-            assert_equal nil, @job.worker_name
+            assert_nil @job.worker_name
           end
         end
 
@@ -43,7 +43,7 @@ module Plugins
 
             @job.requeue(worker_name)
             assert @job.queued?
-            assert_equal nil, @job.worker_name
+            assert_nil @job.worker_name
 
             @job.reload
             assert @job.running?
@@ -76,8 +76,8 @@ module Plugins
             assert @job.failed?
             assert exc = @job.exception
             assert_equal 'RocketJob::JobException', exc.class_name
-            assert_equal nil, exc.message
-            assert_equal nil, exc.worker_name
+            assert_nil exc.message
+            assert_nil exc.worker_name
             assert_equal [], exc.backtrace
           end
 
@@ -107,8 +107,8 @@ module Plugins
 
             @job.retry!
             assert @job.queued?
-            assert_equal nil, @job.worker_name
-            assert_equal nil, @job.exception
+            assert_nil @job.worker_name
+            assert_nil @job.exception
           end
         end
 

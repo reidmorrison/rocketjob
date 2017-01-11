@@ -3,14 +3,9 @@ require_relative 'test_helper'
 # Unit Test for RocketJob::Job
 class DirmonEntryTest < Minitest::Test
 
-  class OneArgumentJob < RocketJob::Job
-    def perform(arg)
-    end
-  end
-
   class WithFullFileNameJob < RocketJob::Job
     # Dirmon will store the filename in this property when starting the job
-    key :upload_file_name, String
+    field :upload_file_name, type: String
 
     def perform
       # Do something with the file name stored in :upload_file_name
@@ -33,7 +28,7 @@ class DirmonEntryTest < Minitest::Test
   describe RocketJob::DirmonEntry do
     describe '.config' do
       it 'support multiple databases' do
-        assert_equal 'test_rocketjob', RocketJob::DirmonEntry.collection.db.name
+        assert_equal 'rocketjob_test', RocketJob::DirmonEntry.collection.database.name
       end
     end
 
@@ -41,22 +36,21 @@ class DirmonEntryTest < Minitest::Test
       describe 'with a nil job_class_name' do
         it 'return nil' do
           entry = RocketJob::DirmonEntry.new
-          assert_equal(nil, entry.job_class)
+          assert_nil entry.job_class
         end
       end
 
       describe 'with an unknown job_class_name' do
         it 'return nil' do
           entry = RocketJob::DirmonEntry.new(job_class_name: 'FakeJobThatDoesNotExistAnyWhereIPromise')
-          assert_equal(nil, entry.job_class)
+          assert_nil entry.job_class
         end
       end
 
       describe 'with a valid job_class_name' do
         it 'return job class' do
           entry = RocketJob::DirmonEntry.new(job_class_name: 'RocketJob::Job')
-          assert_equal(RocketJob::Job, entry.job_class)
-          assert_equal 0, entry.arguments.size
+          assert_equal RocketJob::Job, entry.job_class
           assert_equal 0, entry.properties.size
         end
       end
@@ -90,7 +84,7 @@ class DirmonEntryTest < Minitest::Test
 
     describe '#fail!' do
       before do
-        @dirmon_entry = RocketJob::DirmonEntry.new(job_class_name: 'DirmonEntryTest::OneArgumentJob', pattern: 'test/files/**', arguments: [1])
+        @dirmon_entry = RocketJob::DirmonEntry.new(job_class_name: 'DirmonEntryTest::WithFullFileNameJob', pattern: 'test/files/**')
         @dirmon_entry.enable!
         assert @dirmon_entry.valid?, @dirmon_entry.errors.messages.ai
       end
@@ -123,7 +117,7 @@ class DirmonEntryTest < Minitest::Test
 
     describe '#validate' do
       it 'existance' do
-        assert entry = RocketJob::DirmonEntry.new(job_class_name: 'DirmonEntryTest::OneArgumentJob')
+        assert entry = RocketJob::DirmonEntry.new(job_class_name: 'DirmonEntryTest::WithFullFileNameJob')
         assert_equal false, entry.valid?
         assert_equal ["can't be blank"], entry.errors[:pattern], entry.errors.messages.ai
       end
@@ -134,52 +128,6 @@ class DirmonEntryTest < Minitest::Test
           assert_equal false, entry.valid?
           assert_equal ["can't be blank", 'job_class_name must be defined and must be derived from RocketJob::Job'], entry.errors[:job_class_name], entry.errors.messages.ai
         end
-      end
-
-      describe 'arguments' do
-        it 'allow no arguments' do
-          assert entry = RocketJob::DirmonEntry.new(
-            job_class_name: 'DirmonEntryTest::WithFullFileNameJob',
-            pattern:        'test/files/**'
-          )
-          assert entry.valid?, entry.errors.messages.ai
-        end
-
-        it 'ensure correct number of arguments' do
-          assert entry = RocketJob::DirmonEntry.new(
-            job_class_name: 'DirmonEntryTest::OneArgumentJob',
-            pattern:        'test/files/**'
-          )
-          refute entry.valid?
-          assert_equal ['There must be 1 argument(s)'], entry.errors[:arguments], entry.errors.messages.ai
-        end
-
-        it 'fail if the job name is bad' do
-          assert entry = RocketJob::DirmonEntry.new(
-            job_class_name: 'Jobs::Tests::Names::Things',
-            pattern:        'test/files/**'
-          )
-          refute entry.valid?
-          assert_equal [], entry.errors[:arguments], entry.errors.messages.ai
-        end
-      end
-
-      it 'invalid without 2 arguments' do
-        assert entry = RocketJob::DirmonEntry.new(
-          job_class_name: 'DirmonEntryTest::SumJob',
-          pattern:        'test/files/**'
-        )
-        refute entry.valid?
-        assert_equal ['There must be 2 argument(s)'], entry.errors[:arguments], entry.errors.messages.ai
-      end
-
-      it 'valid with 2 arguments' do
-        assert entry = RocketJob::DirmonEntry.new(
-          job_class_name: 'DirmonEntryTest::SumJob',
-          pattern:        'test/files/**',
-          arguments:      [1, 2]
-        )
-        assert entry.valid?, entry.errors.messages.ai
       end
     end
 
@@ -193,15 +141,11 @@ class DirmonEntryTest < Minitest::Test
         @entry        = RocketJob::DirmonEntry.new(
           pattern:           'test/files/**/*',
           job_class_name:    'RocketJob::Jobs::DirmonJob',
-          arguments:         [{}],
           properties:        {priority: 23},
           archive_directory: @archive_directory
         )
-        @job          = DirmonEntryTest::OneArgumentJob.new(
-          @entry.properties.merge(
-            arguments:  @entry.arguments,
-            properties: @entry.properties
-          )
+        @job          = DirmonEntryTest::WithFullFileNameJob.new(
+          @entry.properties
         )
         @file         = Tempfile.new('archive')
         @file_name    = @file.path
@@ -235,11 +179,6 @@ class DirmonEntryTest < Minitest::Test
       end
 
       describe '#upload_default' do
-        it 'sets full_file_name in Hash argument' do
-          @entry.send(:upload_default, @job, @pathname)
-          assert_equal @archive_real_name, @job.arguments.first[:full_file_name], @job.arguments
-        end
-
         it 'sets upload_file_name property' do
           @entry = RocketJob::DirmonEntry.new(
             pattern:           'test/files/**/*',
@@ -250,14 +189,7 @@ class DirmonEntryTest < Minitest::Test
           job = @entry.job_class.new
           @entry.send(:upload_default, job, @pathname)
           archive_real_name = @archive_path.join("#{job.id}_#{File.basename(@file_name)}").to_s
-          assert_equal archive_real_name, job.upload_file_name, job.arguments
-        end
-
-        it 'handles non hash argument and missing property' do
-          @job.arguments = [1]
-          assert_raises ArgumentError do
-            @entry.send(:upload_default, @job, @pathname)
-          end
+          assert_equal archive_real_name, job.upload_file_name
         end
       end
 
@@ -273,14 +205,18 @@ class DirmonEntryTest < Minitest::Test
 
       describe '#later' do
         it 'enqueues job' do
-          @entry.arguments = [{}]
-          job              = @entry.later(@pathname)
-          assert_equal Pathname.new(@archive_directory).join("#{job.id}_#{File.basename(@file_name)}").realdirpath.to_s, job.arguments.first[:full_file_name]
+          @entry = RocketJob::DirmonEntry.new(
+            pattern:           'test/files/**/*',
+            job_class_name:    'DirmonEntryTest::WithFullFileNameJob',
+            archive_directory: @archive_directory
+          )
+          job    = @entry.later(@pathname)
+          assert_equal Pathname.new(@archive_directory).join("#{job.id}_#{File.basename(@file_name)}").realdirpath.to_s, job.upload_file_name
           assert job.queued?
+          assert_equal 50, job.priority
         end
 
         it 'fails with bad job class name' do
-          @entry.arguments      = [{}]
           @entry.job_class_name = 'Blah'
           assert_raises ArgumentError do
             @entry.later(@pathname)
@@ -295,7 +231,7 @@ class DirmonEntryTest < Minitest::Test
           @entry.each do |file_name|
             files << file_name
           end
-          assert_equal nil, @entry.archive_directory
+          assert_nil @entry.archive_directory
           assert_equal 1, files.count
           assert_equal Pathname.new('test/files/text.txt').realpath, files.first
         end
@@ -327,7 +263,7 @@ class DirmonEntryTest < Minitest::Test
               files << file_name
             end
           end
-          assert_equal nil, @entry.archive_directory
+          assert_nil @entry.archive_directory
           assert_equal 1, files.count
           assert_equal Pathname.new('test/files/text.txt').realpath, files.first
         end
@@ -340,7 +276,7 @@ class DirmonEntryTest < Minitest::Test
               files << file_name
             end
           end
-          assert_equal nil, @entry.archive_directory
+          assert_nil @entry.archive_directory
           assert_equal 0, files.count
         end
       end

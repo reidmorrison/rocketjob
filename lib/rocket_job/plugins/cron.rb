@@ -40,9 +40,7 @@ module RocketJob
     #   include RocketJob::Plugins::Cron
     #
     #   # Set the default cron_schedule
-    #   rocket_job do |job|
-    #     job.cron_schedule = "* 1 * * * UTC"
-    #   end
+    #   self.cron_schedule = "* 1 * * * UTC"
     #
     #   def perform
     #     puts "DONE"
@@ -70,9 +68,7 @@ module RocketJob
     #   include RocketJob::Plugins::Singleton
     #
     #   # Set the default cron_schedule
-    #   rocket_job do |job|
-    #     job.cron_schedule = "* 1 * * * UTC"
-    #   end
+    #   self.cron_schedule = "* 1 * * * UTC"
     #
     #   def perform
     #     puts "DONE"
@@ -105,10 +101,7 @@ module RocketJob
       included do
         include Restart
 
-        key :cron_schedule, String
-
-        # Make cron_schedule editable for scheduled jobs
-        public_rocket_job_properties :cron_schedule
+        field :cron_schedule, type: String, class_attribute: true, user_editable: true
 
         before_create :rocket_job_set_run_at
 

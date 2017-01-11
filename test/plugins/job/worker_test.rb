@@ -19,20 +19,22 @@ module Plugins
       end
 
       class SumJob < RocketJob::Job
-        rocket_job do |job|
-          job.destroy_on_complete = false
-          job.collect_output      = true
-          job.priority            = 51
-        end
+        self.destroy_on_complete = false
+        self.collect_output      = true
+        self.priority            = 51
 
-        def perform(first, second)
+        field :first, type: Integer
+        field :second, type: Integer
+
+        def perform
           first + second
         end
       end
 
       describe RocketJob::Plugins::Job::Worker do
         before do
-          RocketJob::Job.destroy_all
+          RocketJob::Job.delete_all
+          RocketJob::Server.delete_all
         end
 
         after do
@@ -42,11 +44,11 @@ module Plugins
         describe '.rocket_job_next_job' do
           before do
             @job    = QuietJob.new
-            @worker = RocketJob::Worker.new(name: 'worker:123')
+            @worker = RocketJob::Server.new(name: 'worker:123')
           end
 
           it 'return nil when no jobs available' do
-            assert_equal nil, RocketJob::Job.rocket_job_next_job(@worker.name)
+            assert_nil RocketJob::Job.rocket_job_next_job(@worker.name)
           end
 
           it 'return the first job' do
@@ -58,7 +60,7 @@ module Plugins
           it 'Ignore future dated jobs' do
             @job.run_at = Time.now + 1.hour
             @job.save!
-            assert_equal nil, RocketJob::Job.rocket_job_next_job(@worker.name)
+            assert_nil RocketJob::Job.rocket_job_next_job(@worker.name)
           end
 
           it 'Process future dated jobs when time is now' do
@@ -72,32 +74,24 @@ module Plugins
             count           = RocketJob::Job.count
             @job.expires_at = Time.now - 100
             @job.save!
-            assert_equal nil, RocketJob::Job.rocket_job_next_job(@worker.name)
+            assert_nil RocketJob::Job.rocket_job_next_job(@worker.name)
             assert_equal count, RocketJob::Job.count
           end
         end
 
         describe '#perform_now' do
           it 'calls perform method' do
-            @job = SumJob.new(arguments: [10, 5])
+            @job = SumJob.new(first: 10, second: 5)
             assert_equal 15, @job.perform_now['result']
             assert @job.completed?, @job.attributes.ai
             assert_equal 15, @job.result['result']
           end
 
-          it 'saves exception' do
-            @job = SumJob.new(arguments: ['10', 5])
-            assert_raises TypeError do
-              @job.perform_now
-            end
-            assert @job.exception.backtrace
-            assert_equal 'TypeError', @job.exception.class_name
-            if RUBY_VERSION.to_f < 2.0
-              assert_equal "can't convert Fixnum into String", @job.exception.message
-            else
-              assert_equal 'no implicit conversion of Fixnum into String', @job.exception.message
-            end
-            assert_equal 'inline', @job.exception.worker_name
+          it 'converts type' do
+            @job = SumJob.new(first: '10', second: 5)
+            assert_equal 15, @job.perform_now['result']
+            assert @job.completed?, @job.attributes.ai
+            assert_equal 15, @job.result['result']
           end
 
           it 'silence logging when log_level is set' do
@@ -127,14 +121,14 @@ module Plugins
         describe '.perform_later' do
           it 'queues the job for processing' do
             RocketJob::Config.stub(:inline_mode, false) do
-              @job = SumJob.perform_later(1, 23)
+              @job = SumJob.perform_later(first: 1, second: 23)
             end
             assert @job.queued?
 
             # Manually run the job
             @job.perform_now
             assert @job.completed?, @job.attributes.ai
-            assert_equal 24, @job.result['result']
+            assert_equal 24, @job.result['result'], -> { @job.result.ai }
 
             assert_nil @job.worker_name
             assert @job.completed_at
@@ -150,7 +144,7 @@ module Plugins
 
           it 'runs the job immediately when inline_mode = true' do
             RocketJob::Config.stub(:inline_mode, true) do
-              @job = SumJob.perform_later(1, 23)
+              @job = SumJob.perform_later(first: 1, second: 23)
             end
 
             assert @job.completed?, @job.attributes.ai
@@ -171,9 +165,32 @@ module Plugins
 
         describe '.perform_now' do
           it 'run the job immediately' do
-            @job = SumJob.perform_now(1, 5)
+            @job = SumJob.perform_now(first: 1, second: 5)
             assert_equal true, @job.completed?
             assert_equal 6, @job.result['result']
+          end
+        end
+
+        describe '#rocket_job_active_workers' do
+          before do
+            @job    = QuietJob.create!
+            @worker = RocketJob::Server.create!(name: 'worker:123')
+          end
+
+          it 'should return empty hash for no active jobs' do
+            assert_equal([], @job.rocket_job_active_workers)
+          end
+
+          it 'should return active servers' do
+            assert job = RocketJob::Job.rocket_job_next_job(@worker.name)
+            assert active = job.rocket_job_active_workers
+            assert_equal 1, active.size
+            assert active_worker = active.first
+            assert_equal @job.id, active_worker.job.id
+            assert_equal @worker.name, active_worker.name
+            assert_equal job.started_at, active_worker.started_at
+            assert active_worker.duration_s
+            assert active_worker.duration
           end
         end
 

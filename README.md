@@ -17,11 +17,60 @@ Checkout http://rocketjob.io/
 * Questions? Join the chat room on Gitter for [rocketjob support](https://gitter.im/rocketjob/support)
 * [Report bugs](https://github.com/rocketjob/rocketjob/issues)
 
+## Upgrading to V3
+
+V3 replaces MongoMapper with Mongoid which supports the latest MongoDB Ruby client driver.
+
+### Upgrading Mongo Config file
+Replace `mongo.yml` with `mongoid.yml`.
+
+Start with the sample [mongoid.yml](https://github.com/rocketjob/rocketjob/blob/feature/mongoid/test/config/mongoid.yml).
+ 
+For more information on the new [Mongoid config file](https://docs.mongodb.com/ruby-driver/master/tutorials/5.1.0/mongoid-installation/).
+
+Note: The `rocketjob` and `rocketjob_slices` clients in the above `mongoid.yml` file are required.
+
+### Other changes
+
+* Arguments are no longer supported, use fields for defining all named arguments for a job.
+
+* Replace usages of `rocket_job do` to set default values:
+
+~~~ruby
+  rocket_job do |job|
+    job.priority = 25
+  end
+~~~
+
+With:
+
+~~~ruby
+  self.priority = 25
+~~~
+
+* Replace `key` with `field` when adding attributes to a job:
+
+~~~ruby
+  key :inquiry_defaults, Hash
+~~~
+
+With:
+
+~~~ruby
+  field :inquiry_defaults, type: Hash, default: {}
+~~~
+
+* Replace usage of `public_rocket_job_properties` with the `user_editable` option:
+
+~~~ruby
+field :priority, type: Integer, default: 50, user_editable: true
+~~~
+
 ## Ruby Support
 
 Rocket Job is tested and supported on the following Ruby platforms:
-- Ruby 2.1, 2.2, 2.3, and above
-- JRuby 1.7.23, 9.0.5 and above
+- Ruby 2.1, 2.2, 2.3, 2.4, and above
+- JRuby 9.0.5 and above
 
 ## Versioning
 

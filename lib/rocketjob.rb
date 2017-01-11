@@ -1,13 +1,12 @@
 # encoding: UTF-8
 require 'semantic_logger'
-require 'rocket_job/extensions/mongo'
-require 'mongo_ha'
-require 'mongo_mapper'
-require 'rocket_job/extensions/mongo_mapper'
+require 'mongoid'
+require 'rocket_job/extensions/mongo/logging'
 require 'rocket_job/version'
 
 # @formatter:off
 module RocketJob
+  autoload :ActiveWorker,       'rocket_job/active_worker'
   autoload :CLI,                'rocket_job/cli'
   autoload :Config,             'rocket_job/config'
   autoload :DirmonEntry,        'rocket_job/dirmon_entry'
@@ -16,6 +15,7 @@ module RocketJob
   autoload :JobException,       'rocket_job/job_exception'
   autoload :Worker,             'rocket_job/worker'
   autoload :Performance,        'rocket_job/performance'
+  autoload :Server,             'rocket_job/server'
 
   module Plugins
     module Job
@@ -25,6 +25,7 @@ module RocketJob
       autoload :Logger,         'rocket_job/plugins/job/logger'
       autoload :Model,          'rocket_job/plugins/job/model'
       autoload :Persistence,    'rocket_job/plugins/job/persistence'
+      autoload :Throttle,       'rocket_job/plugins/job/throttle'
       autoload :Worker,         'rocket_job/plugins/job/worker'
     end
     module Rufus
@@ -41,6 +42,7 @@ module RocketJob
 
   module Jobs
     autoload :DirmonJob,        'rocket_job/jobs/dirmon_job'
+    autoload :HousekeepingJob,  'rocket_job/jobs/housekeeping_job'
     autoload :SimpleJob,        'rocket_job/jobs/simple_job'
   end
 

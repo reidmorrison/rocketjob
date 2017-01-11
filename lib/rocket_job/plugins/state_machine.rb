@@ -86,13 +86,7 @@ module RocketJob
           write_attribute(attr_name, state)
 
           begin
-            if aasm_skipping_validations(name)
-              saved = save(validate: false)
-              write_attribute(attr_name, old_value) unless saved
-              saved
-            else
-              save!
-            end
+            save!
           rescue Exception => exc
             write_attribute(attr_name, old_value)
             raise(exc)
