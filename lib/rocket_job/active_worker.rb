@@ -45,7 +45,7 @@ module RocketJob
 
     # Number of seconds this server has been working on this job / slice
     def duration_s
-      Time.now - started_at
+      Time.now - (started_at || Time.now)
     end
 
     # Returns [String] the name of the server running this worker
