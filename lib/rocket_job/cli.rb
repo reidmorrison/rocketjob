@@ -32,6 +32,9 @@ module RocketJob
       rails? ? boot_rails : boot_standalone
       write_pidfile
 
+      # In case Rails did not load the Mongoid Config
+      RocketJob::Config.load!(environment, mongo_config, symmetric_encryption_config) if Mongoid::Config.clients.empty?
+
       opts               = {}
       opts[:name]        = name if name
       opts[:max_workers] = workers if workers

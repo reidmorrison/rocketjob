@@ -31,6 +31,10 @@ module RocketJob
 
       included do
         include AASM
+        # Try to make aasm lookup thread safe
+        @aasm = Concurrent::Map.new
+        # Call aasm to create default instance upfront
+        aasm
 
         # Adds a :before or :after callback to an event
         #  state_machine_add_event_callback(:start, :before, :my_method)

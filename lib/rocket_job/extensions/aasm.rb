@@ -55,3 +55,18 @@ module AASM
   end
 end
 
+# Patch to try and make AASM threadsafe
+AASM::StateMachineStore
+module AASM
+  class StateMachineStore
+    @stores = Concurrent::Map.new
+
+    def self.stores
+      @stores
+    end
+
+    def initialize
+      @machines = Concurrent::Map.new
+    end
+  end
+end

@@ -202,6 +202,19 @@ module RocketJob
       self.class.shutdown? || !running?
     end
 
+    # Scope for all zombie servers
+    def self.zombies(missed = 4)
+      dead_seconds        = Config.instance.heartbeat_seconds * missed
+      last_heartbeat_time = Time.now - dead_seconds
+      where(
+        :state.in => [:stopping, :running, :paused],
+        '$or'     => [
+          {"heartbeat.updated_at" => {'$exists' => false}},
+          {"heartbeat.updated_at" => {'$lte' => last_heartbeat_time}}
+        ]
+      )
+    end
+
     # Returns [true|false] if this server has missed at least the last 4 heartbeats
     #
     # Possible causes for a server to miss its heartbeats:
@@ -209,7 +222,7 @@ module RocketJob
     # - The server process is "hanging"
     # - The server is no longer able to communicate with the MongoDB Server
     def zombie?(missed = 4)
-      return false unless running? || stopping?
+      return false unless running? || stopping? || paused?
       return true if heartbeat.nil? || heartbeat.updated_at.nil?
       dead_seconds = Config.instance.heartbeat_seconds * missed
       (Time.now - heartbeat.updated_at) >= dead_seconds
@@ -258,7 +271,7 @@ module RocketJob
     ensure
       # Logs the backtrace for each running worker
       if SemanticLogger::VERSION.to_i >= 4
-        workers.each { |thread| logger.backtrace(thread: thread) }
+        workers.each { |worker| logger.backtrace(thread: worker.thread) }
       end
     end
 

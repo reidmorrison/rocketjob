@@ -32,7 +32,7 @@ module Plugins
 
         describe 'timezones are supported' do
           it 'handles UTC' do
-            time = Time.parse('2015-12-09 17:50:05 +0000')
+            time = Time.parse('2015-12-09 17:50:05 UTC')
             Time.stub(:now, time) do
               @job = ProcessingWindowJob.create!(processing_schedule: '* 1 * * * UTC', processing_duration: 1.hour)
             end
@@ -42,7 +42,7 @@ module Plugins
           end
 
           it 'handles Eastern' do
-            time = Time.parse('2015-12-09 17:50:05 +0000')
+            time = Time.parse('2015-12-09 17:50:05 UTC')
             Time.stub(:now, time) do
               @job = ProcessingWindowJob.create!(processing_schedule: '* 1 * * * America/New_York', processing_duration: 1.hour)
             end
@@ -55,7 +55,7 @@ module Plugins
 
       describe '#rocket_job_processing_window_active?' do
         it 'returns true when in the processing window' do
-          time   = Time.parse('2015-12-09 17:50:05 +0000')
+          time   = Time.parse('2015-12-09 17:50:05 UTC')
           @job   = ProcessingWindowJob.new(processing_schedule: '* 17 * * * UTC', processing_duration: 1.hour)
           result = Time.stub(:now, time) do
             @job.rocket_job_processing_window_active?
@@ -64,7 +64,7 @@ module Plugins
         end
 
         it 'returns false when not in the processing window' do
-          time   = Time.parse('2015-12-09 16:50:05 +0000')
+          time   = Time.parse('2015-12-09 16:50:05 UTC')
           @job   = ProcessingWindowJob.new(processing_schedule: '* 17 * * * UTC', processing_duration: 1.hour)
           result = Time.stub(:now, time) do
             @job.rocket_job_processing_window_active?
@@ -96,7 +96,7 @@ module Plugins
 
       describe 're-queue' do
         it 'if outside processing window' do
-          time = Time.parse('2015-12-09 16:50:05 +0000')
+          time = Time.parse('2015-12-09 16:50:05 UTC')
           Time.stub(:now, time) do
             @job = ProcessingWindowJob.new(processing_schedule: '* 17 * * * UTC', processing_duration: 1.hour)
             @job.perform_now
