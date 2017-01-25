@@ -1,5 +1,5 @@
 #--
-# Copyright (c) 2006-2016, John Mettraux, jmettraux@gmail.com
+# Copyright (c) 2006-2017, John Mettraux, jmettraux@gmail.com
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -32,9 +32,15 @@ module RocketJob::Plugins::Rufus
   #
   class CronLine
 
+    # The max number of years in the future or the past before giving up
+    # searching for #next_time or #previous_time respectively
+    #
+    NEXT_TIME_MAX_YEARS = 14
+
     # The string used for creating this cronline instance.
     #
     attr_reader :original
+    attr_reader :original_timezone
 
     attr_reader :seconds
     attr_reader :minutes
@@ -52,10 +58,15 @@ module RocketJob::Plugins::Rufus
       ) unless line.is_a?(String)
 
       @original = line
+      @original_timezone = nil
 
       items = line.split
 
-      @timezone = items.pop if ZoTime.is_timezone?(items.last)
+      if @timezone = RocketJob::Plugins::Rufus::ZoTime.get_tzone(items.last)
+        @original_timezone = items.pop
+      else
+        @timezone = RocketJob::Plugins::Rufus::ZoTime.get_tzone(:current)
+      end
 
       fail ArgumentError.new(
         "not a valid cronline : '#{line}'"
@@ -76,18 +87,26 @@ module RocketJob::Plugins::Rufus
           "invalid cronline: '#{line}'"
         ) if es && es.find { |e| ! e.is_a?(Fixnum) }
       end
+
+      if @days && @days.include?(0) # gh-221
+
+        fail ArgumentError.new('invalid day 0 in cronline')
+      end
     end
 
     # Returns true if the given time matches this cron line.
     #
     def matches?(time)
 
-      time = ZoTime.new(time.to_f, @timezone || ENV['TZ']).time
+      # FIXME Don't create a new ZoTime if time is already a ZoTime in same
+      #       zone ...
+      #       Wait, this seems only used in specs...
+      t = ZoTime.new(time.to_f, @timezone)
 
-      return false unless sub_match?(time, :sec, @seconds)
-      return false unless sub_match?(time, :min, @minutes)
-      return false unless sub_match?(time, :hour, @hours)
-      return false unless date_match?(time)
+      return false unless sub_match?(t, :sec, @seconds)
+      return false unless sub_match?(t, :min, @minutes)
+      return false unless sub_match?(t, :hour, @hours)
+      return false unless date_match?(t)
       true
     end
 
@@ -118,78 +137,90 @@ module RocketJob::Plugins::Rufus
     #
     # (Thanks to K Liu for the note and the examples)
     #
-    def next_time(from=Time.now)
+    def next_time(from=ZoTime.now)
 
-      time = nil
-      zotime = ZoTime.new(from.to_i + 1, @timezone || ENV['TZ'])
+      nt = nil
+      zt = ZoTime.new(from.to_i + 1, @timezone)
+      maxy = from.year + NEXT_TIME_MAX_YEARS
 
       loop do
 
-        time = zotime.time
+        nt = zt.dup
 
-        unless date_match?(time)
-          zotime.add((24 - time.hour) * 3600 - time.min * 60 - time.sec)
+        fail RangeError.new(
+          "failed to reach occurrence within " +
+            "#{NEXT_TIME_MAX_YEARS} years for '#{original}'"
+        ) if nt.year > maxy
+
+        unless date_match?(nt)
+          zt.add((24 - nt.hour) * 3600 - nt.min * 60 - nt.sec)
           next
         end
-        unless sub_match?(time, :hour, @hours)
-          zotime.add((60 - time.min) * 60 - time.sec)
+        unless sub_match?(nt, :hour, @hours)
+          zt.add((60 - nt.min) * 60 - nt.sec)
           next
         end
-        unless sub_match?(time, :min, @minutes)
-          zotime.add(60 - time.sec)
+        unless sub_match?(nt, :min, @minutes)
+          zt.add(60 - nt.sec)
           next
         end
-        unless sub_match?(time, :sec, @seconds)
-          zotime.add(next_second(time))
+        unless sub_match?(nt, :sec, @seconds)
+          zt.add(next_second(nt))
           next
         end
 
         break
       end
 
-      time
+      nt
     end
 
     # Returns the previous time the cronline matched. It's like next_time, but
     # for the past.
     #
-    def previous_time(from=Time.now)
+    def previous_time(from=ZoTime.now)
 
-      time = nil
-      zotime = ZoTime.new(from.to_i - 1, @timezone || ENV['TZ'])
+      pt = nil
+      zt = ZoTime.new(from.to_i - 1, @timezone)
+      miny = from.year - NEXT_TIME_MAX_YEARS
 
       loop do
 
-        time = zotime.time
+        pt = zt.dup
 
-        unless date_match?(time)
-          zotime.substract(time.hour * 3600 + time.min * 60 + time.sec + 1)
+        fail RangeError.new(
+          "failed to reach occurrence within " +
+            "#{NEXT_TIME_MAX_YEARS} years for '#{original}'"
+        ) if pt.year < miny
+
+        unless date_match?(pt)
+          zt.substract(pt.hour * 3600 + pt.min * 60 + pt.sec + 1)
           next
         end
-        unless sub_match?(time, :hour, @hours)
-          zotime.substract(time.min * 60 + time.sec + 1)
+        unless sub_match?(pt, :hour, @hours)
+          zt.substract(pt.min * 60 + pt.sec + 1)
           next
         end
-        unless sub_match?(time, :min, @minutes)
-          zotime.substract(time.sec + 1)
+        unless sub_match?(pt, :min, @minutes)
+          zt.substract(pt.sec + 1)
           next
         end
-        unless sub_match?(time, :sec, @seconds)
-          zotime.substract(prev_second(time))
+        unless sub_match?(pt, :sec, @seconds)
+          zt.substract(prev_second(pt))
           next
         end
 
         break
       end
 
-      time
+      pt
     end
 
     # Returns an array of 6 arrays (seconds, minutes, hours, days,
     # months, weekdays).
-    # This method is used by the cronline unit tests.
+    # This method is mostly used by the cronline specs.
     #
-    def to_array
+    def to_a
 
       [
         toa(@seconds),
@@ -199,9 +230,10 @@ module RocketJob::Plugins::Rufus
         toa(@months),
         toa(@weekdays),
         toa(@monthdays),
-        @timezone
+        @timezone.name
       ]
     end
+    alias to_array to_a
 
     # Returns a quickly computed approximation of the frequency for this
     # cron line.
@@ -261,8 +293,10 @@ module RocketJob::Plugins::Rufus
         t1 = next_time(t0)
         d = t1 - t0
         delta = d if d < delta
-
-        break if @months == nil && t1.month == 2
+        break if @months.nil? && t1.month == 2
+        break if @months.nil? && @days.nil? && t1.day == 2
+        break if @months.nil? && @days.nil? && @hours.nil? && t1.hour == 1
+        break if @months.nil? && @days.nil? && @hours.nil? && @minutes.nil? && t1.min == 1
         break if t1.year >= 2001
 
         t0 = t1
@@ -312,39 +346,38 @@ module RocketJob::Plugins::Rufus
 
     WEEKDAYS = %w[ sun mon tue wed thu fri sat ]
     DAY_S = 24 * 3600
-    WEEK_S = 7 * DAY_S
 
     def parse_weekdays(item)
 
       return nil if item == '*'
 
-      items = item.downcase.split(',')
-
       weekdays = nil
       monthdays = nil
 
-      items.each do |it|
+      item.downcase.split(',').each do |it|
 
-        if m = it.match(/^(.+)#(l|-?[12345])$/)
+        WEEKDAYS.each_with_index { |a, i| it.gsub!(/#{a}/, i.to_s) }
+
+        it = it.gsub(/([^#])l/, '\1#-1')
+        # "5L" == "5#-1" == the last Friday
+
+        if m = it.match(/\A(.+)#(l|-?[12345])\z/)
 
           fail ArgumentError.new(
             "ranges are not supported for monthdays (#{it})"
           ) if m[1].index('-')
 
-          expr = it.gsub(/#l/, '#-1')
+          it = it.gsub(/#l/, '#-1')
 
-          (monthdays ||= []) << expr
+          (monthdays ||= []) << it
 
         else
 
-          expr = it.dup
-          WEEKDAYS.each_with_index { |a, i| expr.gsub!(/#{a}/, i.to_s) }
-
           fail ArgumentError.new(
-            "invalid weekday expression (#{it})"
-          ) if expr !~ /^0*[0-7](-0*[0-7])?$/
+            "invalid weekday expression (#{item})"
+          ) if it !~ /\A0*[0-7](-0*[0-7])?\z/
 
-          its = expr.index('-') ? parse_range(expr, 0, 7) : [ Integer(expr) ]
+          its = it.index('-') ? parse_range(it, 0, 7) : [ Integer(it) ]
           its = its.collect { |i| i == 7 ? 0 : i }
 
           (weekdays ||= []).concat(its)
@@ -371,7 +404,7 @@ module RocketJob::Plugins::Rufus
       Set.new(r)
     end
 
-    RANGE_REGEX = /^(\*|-?\d{1,2})(?:-(-?\d{1,2}))?(?:\/(\d{1,2}))?$/
+    RANGE_REGEX = /\A(\*|-?\d{1,2})(?:-(-?\d{1,2}))?(?:\/(\d{1,2}))?\z/
 
     def parse_range(item, min, max)
 
@@ -409,6 +442,10 @@ module RocketJob::Plugins::Rufus
         "#{item.inspect} is not in range #{min}..#{max}"
       ) if sta < min || edn > max
 
+      fail ArgumentError.new(
+        "#{item.inspect} increment must be greater than zero"
+      ) if inc == 0
+
       r = []
       val = sta
 
@@ -425,11 +462,13 @@ module RocketJob::Plugins::Rufus
       r.uniq
     end
 
+    # FIXME: Eventually split into day_match?, hour_match? and monthdays_match?o
+    #
     def sub_match?(time, accessor, values)
 
-      value = time.send(accessor)
-
       return true if values.nil?
+
+      value = time.send(accessor)
 
       if accessor == :day
 
@@ -444,48 +483,37 @@ module RocketJob::Plugins::Rufus
         return true if value == 0 && values.include?(24)
       end
 
+      if accessor == :monthdays
+
+        return true if (values & value).any?
+      end
+
       values.include?(value)
     end
 
-    def monthday_match?(date, values)
+    #    def monthday_match?(zt, values)
+    #
+    #      return true if values.nil?
+    #
+    #      today_values = monthdays(zt)
+    #
+    #      (today_values & values).any?
+    #    end
 
-      return true if values.nil?
+    def date_match?(zt)
 
-      today_values = monthdays(date)
+      return false unless sub_match?(zt, :day, @days)
+      return false unless sub_match?(zt, :month, @months)
 
-      (today_values & values).any?
-    end
+      return true if (
+      (@weekdays && @monthdays) &&
+        (sub_match?(zt, :wday, @weekdays) ||
+          sub_match?(zt, :monthdays, @monthdays)))
 
-    def date_match?(date)
+      return false unless sub_match?(zt, :wday, @weekdays)
+      return false unless sub_match?(zt, :monthdays, @monthdays)
 
-      return false unless sub_match?(date, :day, @days)
-      return false unless sub_match?(date, :month, @months)
-      return false unless sub_match?(date, :wday, @weekdays)
-      return false unless monthday_match?(date, @monthdays)
       true
-    end
-
-    def monthdays(date)
-
-      pos = 1
-      d = date.dup
-
-      loop do
-        d = d - WEEK_S
-        break if d.month != date.month
-        pos = pos + 1
-      end
-
-      neg = -1
-      d = date.dup
-
-      loop do
-        d = d + WEEK_S
-        break if d.month != date.month
-        neg = neg - 1
-      end
-
-      [ "#{WEEKDAYS[date.wday]}##{pos}", "#{WEEKDAYS[date.wday]}##{neg}" ]
     end
   end
 end

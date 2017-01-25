@@ -1,5 +1,5 @@
 #--
-# Copyright (c) 2006-2016, John Mettraux, jmettraux@gmail.com
+# Copyright (c) 2006-2017, John Mettraux, jmettraux@gmail.com
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -23,186 +23,79 @@
 #++
 
 module RocketJob::Plugins::Rufus
-
-  TIMEZONES = %w[
-GB NZ UCT EET CET PRC ROC WET GMT EST ROK UTC MST HST MET Zulu Cuba Iran W-SU
-Eire GMT0 Libya Japan Egypt GMT+0 GMT-0 Israel Poland Navajo Turkey GB-Eire
-Iceland PST8PDT Etc/UCT CST6CDT NZ-CHAT MST7MDT Jamaica EST5EDT Etc/GMT Etc/UTC
-US/Samoa Etc/GMT0 Portugal Hongkong Etc/Zulu Singapore Asia/Baku Etc/GMT-9
-Etc/GMT+1 Etc/GMT+0 Asia/Aden Etc/GMT+2 Etc/GMT+3 Etc/GMT+4 Etc/GMT+5 Etc/GMT+6
-Etc/GMT+7 Etc/GMT+8 Etc/GMT+9 Etc/GMT-0 Etc/GMT-1 Universal Asia/Dili Greenwich
-Asia/Gaza Etc/GMT-8 Etc/GMT-7 US/Alaska Asia/Oral Etc/GMT-6 Etc/GMT-5 Etc/GMT-4
-Asia/Hovd Etc/GMT-3 US/Hawaii Etc/GMT-2 Kwajalein Asia/Omsk Asia/Macao
-Etc/GMT-14 Asia/Kabul US/Central Etc/GMT-13 US/Arizona Asia/Macau Asia/Qatar
-Asia/Seoul Asia/Tokyo Asia/Dubai US/Pacific Etc/GMT-12 Etc/GMT-11 Etc/GMT-10
-Asia/Dhaka Asia/Dacca Asia/Chita Etc/GMT+12 Etc/GMT+10 Asia/Amman Asia/Aqtau
-Etc/GMT+11 US/Eastern Asia/Thimbu Asia/Brunei Asia/Tehran Asia/Beirut
-Europe/Rome Europe/Riga Brazil/Acre Brazil/East Europe/Oslo Brazil/West
-Africa/Lome Asia/Taipei Asia/Saigon Asia/Riyadh Asia/Aqtobe Asia/Anadyr
-Europe/Kiev Asia/Almaty Africa/Juba Pacific/Yap US/Aleutian Asia/Muscat
-US/Mountain Asia/Harbin Asia/Hebron Asia/Manila Asia/Kuwait Asia/Urumqi
-US/Michigan Indian/Mahe SystemV/EST5 Asia/Kashgar Indian/Cocos Asia/Jakarta
-Asia/Kolkata Asia/Kuching America/Atka Asia/Irkutsk Pacific/Apia Asia/Magadan
-Africa/Dakar America/Lima Pacific/Fiji Pacific/Guam Europe/Vaduz Pacific/Niue
-Asia/Nicosia Africa/Ceuta Pacific/Truk America/Adak Pacific/Wake Africa/Tunis
-Africa/Cairo Asia/Colombo SystemV/AST4 SystemV/CST6 Asia/Karachi Asia/Rangoon
-SystemV/MST7 Asia/Baghdad Europe/Malta Africa/Lagos Europe/Minsk SystemV/PST8
-Canada/Yukon Asia/Tbilisi America/Nome Asia/Bahrain Africa/Accra Europe/Paris
-Asia/Bangkok Asia/Bishkek Asia/Thimphu SystemV/YST9 Asia/Yerevan Asia/Yakutsk
-Europe/Sofia Asia/Ust-Nera Australia/ACT Australia/LHI Europe/Tirane
-Asia/Tel_Aviv Australia/NSW Africa/Luanda Asia/Tashkent Africa/Lusaka
-Asia/Shanghai Africa/Malabo Asia/Sakhalin Africa/Maputo Africa/Maseru
-SystemV/HST10 Africa/Kigali Africa/Niamey Pacific/Samoa America/Sitka
-Pacific/Palau Pacific/Nauru Pacific/Efate Asia/Makassar Pacific/Chuuk
-Africa/Harare Africa/Douala America/Aruba America/Thule America/Bahia
-America/Jujuy America/Belem Asia/Katmandu America/Boise Indian/Comoro
-Indian/Chagos Asia/Jayapura Europe/Zurich Asia/Istanbul Europe/Zagreb
-Etc/Greenwich Europe/Warsaw Europe/Vienna Etc/Universal Asia/Dushanbe
-Europe/Athens Europe/Berlin Africa/Bissau Asia/Damascus Africa/Banjul
-Europe/Dublin Africa/Bangui Africa/Bamako Europe/Jersey Africa/Asmera
-Europe/Lisbon Africa/Asmara Europe/London Asia/Ashgabat Asia/Calcutta
-Europe/Madrid Europe/Monaco Europe/Moscow Europe/Prague Europe/Samara
-Europe/Skopje Asia/Khandyga Canada/Pacific Africa/Abidjan America/Manaus
-Asia/Chongqing Asia/Chungking Africa/Algiers America/Maceio US/Pacific-New
-Africa/Conakry America/La_Paz America/Juneau America/Nassau America/Inuvik
-Europe/Andorra Africa/Kampala Asia/Ashkhabad Asia/Hong_Kong America/Havana
-Canada/Eastern Europe/Belfast Canada/Central Australia/West Asia/Jerusalem
-Africa/Mbabane Asia/Kamchatka America/Virgin America/Guyana Asia/Kathmandu
-Mexico/General America/Panama Europe/Nicosia America/Denver Europe/Tallinn
-Africa/Nairobi America/Dawson Europe/Vatican Europe/Vilnius America/Cuiaba
-Africa/Tripoli Pacific/Wallis Atlantic/Faroe Pacific/Tarawa Pacific/Tahiti
-Pacific/Saipan Pacific/Ponape America/Cayman America/Cancun Asia/Pontianak
-Asia/Pyongyang Asia/Vientiane Asia/Qyzylorda Pacific/Noumea America/Bogota
-Pacific/Midway Pacific/Majuro Asia/Samarkand Indian/Mayotte Pacific/Kosrae
-Asia/Singapore Indian/Reunion America/Belize America/Regina America/Recife
-Pacific/Easter Mexico/BajaSur America/Merida Pacific/Chatham Pacific/Fakaofo
-Pacific/Gambier America/Rosario Asia/Ulan_Bator Indian/Maldives Pacific/Norfolk
-America/Antigua Asia/Phnom_Penh America/Phoenix America/Caracas America/Cayenne
-Atlantic/Azores Pacific/Pohnpei Atlantic/Canary America/Chicago Atlantic/Faeroe
-Africa/Windhoek America/Cordoba America/Creston Africa/Timbuktu America/Curacao
-Africa/Sao_Tome Africa/Ndjamena SystemV/AST4ADT Europe/Uzhgorod Europe/Tiraspol
-SystemV/CST6CDT Africa/Monrovia America/Detroit Europe/Sarajevo Australia/Eucla
-America/Tijuana America/Toronto America/Godthab America/Grenada Europe/Istanbul
-America/Ojinaga America/Tortola Australia/Perth Europe/Helsinki Australia/South
-Europe/Guernsey SystemV/EST5EDT Europe/Chisinau SystemV/MST7MDT Europe/Busingen
-Europe/Budapest Europe/Brussels America/Halifax America/Mendoza America/Noronha
-America/Nipigon Canada/Atlantic America/Yakutat SystemV/PST8PDT SystemV/YST9YDT
-Canada/Mountain Africa/Kinshasa Africa/Khartoum Africa/Gaborone Africa/Freetown
-America/Iqaluit America/Jamaica US/East-Indiana Africa/El_Aaiun America/Knox_IN
-Africa/Djibouti Africa/Blantyre America/Moncton America/Managua Asia/Choibalsan
-America/Marigot Australia/North Europe/Belgrade America/Resolute
-America/Mazatlan Pacific/Funafuti Pacific/Auckland Pacific/Honolulu
-Pacific/Johnston America/Miquelon America/Santarem Mexico/BajaNorte
-America/Santiago Antarctica/Troll America/Asuncion America/Atikokan
-America/Montreal America/Barbados Africa/Bujumbura Pacific/Pitcairn
-Asia/Ulaanbaatar Indian/Mauritius America/New_York Antarctica/Syowa
-America/Shiprock Indian/Kerguelen Asia/Novosibirsk America/Anguilla
-Indian/Christmas Asia/Vladivostok Asia/Ho_Chi_Minh Antarctica/Davis
-Atlantic/Bermuda Europe/Amsterdam Antarctica/Casey America/St_Johns
-Atlantic/Madeira America/Winnipeg America/St_Kitts Europe/Volgograd
-Brazil/DeNoronha Europe/Bucharest Africa/Mogadishu America/St_Lucia
-Atlantic/Stanley Europe/Stockholm Australia/Currie Europe/Gibraltar
-Australia/Sydney Asia/Krasnoyarsk Australia/Darwin America/Dominica
-America/Edmonton America/Eirunepe Europe/Podgorica America/Ensenada
-Europe/Ljubljana Australia/Hobart Europe/Mariehamn Africa/Lubumbashi
-America/Goose_Bay Europe/Luxembourg America/Menominee America/Glace_Bay
-America/Fortaleza Africa/Nouakchott America/Matamoros Pacific/Galapagos
-America/Guatemala Pacific/Kwajalein Pacific/Marquesas America/Guayaquil
-Asia/Kuala_Lumpur Europe/San_Marino America/Monterrey Europe/Simferopol
-America/Araguaina Antarctica/Vostok Europe/Copenhagen America/Catamarca
-Pacific/Pago_Pago America/Sao_Paulo America/Boa_Vista America/St_Thomas
-Chile/Continental America/Vancouver Africa/Casablanca Europe/Bratislava
-Pacific/Enderbury Pacific/Rarotonga Europe/Zaporozhye US/Indiana-Starke
-Antarctica/Palmer Asia/Novokuznetsk Africa/Libreville America/Chihuahua
-America/Anchorage Pacific/Tongatapu Antarctica/Mawson Africa/Porto-Novo
-Asia/Yekaterinburg America/Paramaribo America/Hermosillo Atlantic/Jan_Mayen
-Antarctica/McMurdo America/Costa_Rica Antarctica/Rothera America/Grand_Turk
-Atlantic/Reykjavik Atlantic/St_Helena Australia/Victoria Chile/EasterIsland
-Asia/Ujung_Pandang Australia/Adelaide America/Montserrat America/Porto_Acre
-Africa/Brazzaville Australia/Brisbane America/Kralendijk America/Montevideo
-America/St_Vincent America/Louisville Australia/Canberra Australia/Tasmania
-Europe/Isle_of_Man Europe/Kaliningrad Africa/Ouagadougou America/Rio_Branco
-Pacific/Kiritimati Africa/Addis_Ababa America/Metlakatla America/Martinique
-Asia/Srednekolymsk America/Guadeloupe America/Fort_Wayne Australia/Lindeman
-America/Whitehorse Arctic/Longyearbyen America/Pangnirtung America/Mexico_City
-America/Los_Angeles America/Rainy_River Atlantic/Cape_Verde Pacific/Guadalcanal
-Indian/Antananarivo America/El_Salvador Australia/Lord_Howe Africa/Johannesburg
-America/Tegucigalpa Canada/Saskatchewan America/Thunder_Bay Canada/Newfoundland
-America/Puerto_Rico America/Yellowknife Australia/Melbourne America/Porto_Velho
-Australia/Queensland Australia/Yancowinna America/Santa_Isabel
-America/Blanc-Sablon America/Scoresbysund America/Danmarkshavn
-Pacific/Port_Moresby Antarctica/Macquarie America/Buenos_Aires
-Africa/Dar_es_Salaam America/Campo_Grande America/Dawson_Creek
-America/Indianapolis Pacific/Bougainville America/Rankin_Inlet
-America/Indiana/Knox America/Lower_Princes America/Coral_Harbour
-America/St_Barthelemy Australia/Broken_Hill America/Cambridge_Bay
-America/Indiana/Vevay America/Swift_Current America/Port_of_Spain
-Antarctica/South_Pole America/Santo_Domingo Atlantic/South_Georgia
-America/Port-au-Prince America/Bahia_Banderas America/Indiana/Winamac
-America/Indiana/Marengo America/Argentina/Jujuy America/Argentina/Salta
-Canada/East-Saskatchewan America/Indiana/Vincennes America/Argentina/Tucuman
-America/Argentina/Ushuaia Antarctica/DumontDUrville America/Indiana/Tell_City
-America/Argentina/Mendoza America/Argentina/Cordoba America/Indiana/Petersburg
-America/Argentina/San_Luis America/Argentina/San_Juan America/Argentina/La_Rioja
-America/North_Dakota/Center America/Kentucky/Monticello
-America/North_Dakota/Beulah America/Kentucky/Louisville
-America/Argentina/Catamarca America/Indiana/Indianapolis
-America/North_Dakota/New_Salem America/Argentina/Rio_Gallegos
-America/Argentina/Buenos_Aires America/Argentina/ComodRivadavia
-]
-  TIMEZONEs = TIMEZONES.collect(&:downcase)
-
   #
   # Zon{ing|ed}Time, whatever.
   #
   class ZoTime
 
-    attr_accessor :seconds
-    attr_accessor :zone
+    attr_reader :seconds
+    attr_reader :zone
 
     def initialize(s, zone)
 
       @seconds = s.to_f
-      @zone = zone
+      @zone = self.class.get_tzone(zone || :current)
+
+      fail ArgumentError.new(
+        "cannot determine timezone from #{zone.inspect}" +
+          " (etz:#{ENV['TZ'].inspect},tnz:#{Time.now.zone.inspect}," +
+          "tzid:#{defined?(TZInfo::Data).inspect})"
+      ) unless @zone
+
+      @time = nil # cache for #to_time result
     end
 
-    def time
+    def seconds=(f)
 
-      in_zone do
+      @time = nil
+      @seconds = f
+    end
 
-        t = Time.at(@seconds)
+    def zone=(z)
 
-        #if t.isdst
-        #  t1 = Time.at(@seconds + 3600)
-        #  t = t1 if t.zone != t1.zone && t.hour == t1.hour && t.min == t1.min
-        #    # ambiguous TZ (getting out of DST)
-        #else
-        #  t.hour # force t to compute itself
-        #end
-        #
-        # jump out of DST as soon as possible, jumps 1h as seen from UTC
-
-        t.hour # force t to compute itself
-        #
-        # stay in DST as long as possible, no jump seen from UTC
-
-        t
-      end
+      @time = nil
+      @zone = self.class.get_tzone(zone || :current)
     end
 
     def utc
 
-      time.utc
+      Time.utc(1970, 1, 1) + @seconds
     end
 
-    def add(s)
+    # Returns a Ruby Time instance.
+    #
+    # Warning: the timezone of that Time instance will be UTC.
+    #
+    def to_time
 
-      @seconds += s.to_f
+      @time ||= begin; u = utc; @zone.period_for_utc(u).to_local(u); end
     end
 
-    def substract(s)
+    %w[
+      year month day wday hour min sec usec asctime
+    ].each do |m|
+      define_method(m) { to_time.send(m) }
+    end
+    def iso8601(fraction_digits=0); to_time.iso8601(fraction_digits); end
 
-      @seconds -= s.to_f
+    def ==(o)
+
+      o.is_a?(ZoTime) && o.seconds == @seconds && o.zone == @zone
+    end
+    #alias eq? == # FIXME see Object#== (ri)
+
+    def >(o); @seconds > _to_f(o); end
+    def >=(o); @seconds >= _to_f(o); end
+    def <(o); @seconds < _to_f(o); end
+    def <=(o); @seconds <= _to_f(o); end
+    def <=>(o); @seconds <=> _to_f(o); end
+
+    alias getutc utc
+    alias getgm utc
+
+    def to_i
+
+      @seconds.to_i
     end
 
     def to_f
@@ -210,82 +103,372 @@ America/Argentina/Buenos_Aires America/Argentina/ComodRivadavia
       @seconds
     end
 
-    #DELTA_TZ_REX = /^[+-][0-1][0-9]:?[0-5][0-9]$/
+    def is_dst?
 
-    def self.envtzable?(s)
+      @zone.period_for_utc(utc).std_offset != 0
+    end
+    alias isdst is_dst?
 
-      TIMEZONES.include?(s)
+    def utc_offset
+
+      #@zone.period_for_utc(utc).utc_offset
+      #@zone.period_for_utc(utc).utc_total_offset
+      #@zone.period_for_utc(utc).std_offset
+      @zone.period_for_utc(utc).utc_offset
+    end
+
+    def strftime(format)
+
+      format = format.gsub(/%(\/?Z|:{0,2}z)/) { |f| strfz(f) }
+
+      to_time.strftime(format)
+    end
+
+    def add(t); @time = nil; @seconds += t.to_f; end
+    def substract(t); @time = nil; @seconds -= t.to_f; end
+
+    def +(t); inc(t, 1); end
+    def -(t); inc(t, -1); end
+
+    WEEK_S = 7 * 24 * 3600
+
+    def monthdays
+
+      date = to_time
+
+      pos = 1
+      d = self.dup
+
+      loop do
+        d.add(-WEEK_S)
+        break if d.month != date.month
+        pos = pos + 1
+      end
+
+      neg = -1
+      d = self.dup
+
+      loop do
+        d.add(WEEK_S)
+        break if d.month != date.month
+        neg = neg - 1
+      end
+
+      [ "#{date.wday}##{pos}", "#{date.wday}##{neg}" ]
+    end
+
+    def to_s
+
+      strftime('%Y-%m-%d %H:%M:%S %z')
+    end
+
+    def to_debug_s
+
+      uo = self.utc_offset
+      uos = uo < 0 ? '-' : '+'
+      uo = uo.abs
+      uoh, uom = [ uo / 3600, uo % 3600 ]
+
+      [
+        'zt',
+        self.strftime('%Y-%m-%d %H:%M:%S'),
+        "%s%02d:%02d" % [ uos, uoh, uom ],
+        "dst:#{self.isdst}"
+      ].join(' ')
+    end
+
+    # Debug current time by showing local time / delta / utc time
+    # for example: "0120-7(0820)"
+    #
+    def to_utc_comparison_s
+
+      per = @zone.period_for_utc(utc)
+      off = per.utc_total_offset
+
+      off = off / 3600
+      off = off >= 0 ? "+#{off}" : off.to_s
+
+      strftime('%H%M') + off + utc.strftime('(%H%M)')
+    end
+
+    def to_time_s
+
+      strftime("%H:%M:%S.#{'%06d' % usec}")
+    end
+
+    def self.now(zone=nil)
+
+      ZoTime.new(Time.now.to_f, zone)
+    end
+
+    # https://en.wikipedia.org/wiki/ISO_8601
+    # Postel's law applies
+    #
+    def self.extract_iso8601_zone(s)
+
+      m = s.match(
+        /[0-2]\d(?::?[0-6]\d(?::?[0-6]\d))?\s*([+-]\d\d(?::?\d\d)?)\s*\z/)
+      return nil unless m
+
+      zs = m[1].split(':')
+      zs << '00' if zs.length < 2
+
+      zh = zs[0].to_i.abs
+
+      return nil if zh > 24
+      return nil if zh == 24 && zs[1].to_i != 0
+
+      zs.join(':')
     end
 
     def self.parse(str, opts={})
 
       if defined?(::Chronic) && t = ::Chronic.parse(str, opts)
-        return ZoTime.new(t, ENV['TZ'])
+        return ZoTime.new(t, nil)
       end
+
+      #rold = RUBY_VERSION < '1.9.0'
+      #rold = RUBY_VERSION < '2.0.0'
 
       begin
         DateTime.parse(str)
       rescue
-        fail ArgumentError, "no time information in #{o.inspect}"
-      end if RUBY_VERSION < '1.9.0'
+        fail ArgumentError, "no time information in #{str.inspect}"
+      end #if rold
+      #
+      # is necessary since Time.parse('xxx') in Ruby < 1.9 yields `now`
 
       zone = nil
 
       s =
-        str.gsub(/\S+/) { |m|
-          if envtzable?(m)
-            zone ||= m
+        str.gsub(/\S+/) do |w|
+          if z = get_tzone(w)
+            zone ||= z
             ''
           else
-            m
+            w
           end
-        }
+        end
 
-      return nil unless zone.nil? || is_timezone?(zone)
+      local = Time.parse(s)
+      izone = extract_iso8601_zone(s)
 
-      zt = ZoTime.new(0, zone || ENV['TZ'])
-      zt.in_zone { zt.seconds = Time.parse(s).to_f }
+      zone ||=
+        if s.match(/\dZ\b/)
+          get_tzone('Zulu')
+          #elsif rold && izone
+        elsif izone
+          get_tzone(izone)
+        elsif local.zone.nil? && izone
+          get_tzone(local.strftime('%:z'))
+        else
+          get_tzone(:local)
+        end
 
-      zt.seconds == nil ? nil : zt
+      secs =
+        #if rold && izone
+        if izone
+          local.to_f
+        else
+          zone.period_for_local(local).to_utc(local).to_f
+        end
+
+      ZoTime.new(secs, zone)
     end
 
-    def self.is_timezone?(str)
+    def self.get_tzone(str)
+      return str if str.is_a?(::TZInfo::Timezone)
 
-      return false if str == nil
-      return false if str == '*'
+      # discard quickly when it's certainly not a timezone
 
-      return false if str.index('#')
-      # "sun#2", etc... On OSX would go all the way to true
+      return nil if str == nil
+      return nil if str == '*'
 
-      return true if Time.zone_offset(str)
+      # ok, it's a timezone then
 
-      return !! (::TZInfo::Timezone.get(str) rescue nil) if defined?(::TZInfo)
+      ostr = str
+      str = ENV['TZ'] || Time.now.zone if str == :current || str == :local
 
-      return true if TIMEZONES.include?(str)
-      return true if TIMEZONEs.include?(str)
+      # utc_offset
 
-      t = ZoTime.new(0, str).time
+      if str.is_a?(Numeric)
+        i = str.to_i
+        sn = i < 0 ? '-' : '+'; i = i.abs
+        hr = i / 3600; mn = i % 3600; sc = i % 60
+        str = (sc > 0 ? "%s%02d:%02d:%02d" : "%s%02d:%02d") % [ sn, hr, mn, sc ]
+      end
 
-      return false if t.zone == ''
-      return false if t.zone == 'UTC'
-      return false if t.utc_offset == 0 && str.start_with?(t.zone)
-      # 3 common fallbacks...
+      return nil if str.nil? || str.index('#')
+      # counters "sun#2", etc... On OSX would go all the way to true
 
-      return false if RUBY_PLATFORM.include?('java') && ! envtzable?(str)
+      # vanilla time zones
 
-      true
+      z = (::TZInfo::Timezone.get(str) rescue nil)
+      return z if z
+
+      # time zone abbreviations
+
+      if str.match(/\A[A-Z0-9-]{3,6}\z/)
+
+        toff = Time.now.utc_offset
+        toff = nil if str != Time.now.zone
+
+        twin = Time.utc(Time.now.year, 1, 1) # winter
+        tsum = Time.utc(Time.now.year, 7, 1) # summer
+
+        z =
+          ::TZInfo::Timezone.all.find do |tz|
+
+            pwin = tz.period_for_utc(twin)
+            psum = tz.period_for_utc(tsum)
+
+            if toff
+              (pwin.abbreviation.to_s == str && pwin.utc_offset == toff) ||
+                (psum.abbreviation.to_s == str && psum.utc_offset == toff)
+            else
+              # returns the first tz with the given abbreviation, almost useless
+              # favour fully named zones...
+              pwin.abbreviation.to_s == str ||
+                psum.abbreviation.to_s == str
+            end
+          end
+        return z if z
+      end
+
+      # some time zone aliases
+
+      return ::TZInfo::Timezone.get('Zulu') if %w[ Z ].include?(str)
+
+      # custom timezones, no DST, just an offset, like "+08:00" or "-01:30"
+
+      tz = (@custom_tz_cache ||= {})[str]
+      return tz if tz
+
+      if m = str.match(/\A([+-][0-1][0-9]):?([0-5][0-9])\z/)
+
+        hr = m[1].to_i
+        mn = m[2].to_i
+
+        hr = nil if hr.abs > 11
+        hr = nil if mn > 59
+        mn = -mn if hr && hr < 0
+
+        return (
+        @custom_tz_cache[str] =
+          begin
+            tzi = TZInfo::TransitionDataTimezoneInfo.new(str)
+            tzi.offset(str, hr * 3600 + mn * 60, 0, str)
+            tzi.create_timezone
+          end
+        ) if hr
+      end
+
+      # last try with ENV['TZ']
+
+      z =
+        (ostr == :local || ostr == :current) &&
+          (::TZInfo::Timezone.get(ENV['TZ']) rescue nil)
+      return z if z
+
+      # so it's not a timezone.
+
+      nil
     end
 
-    def in_zone(&block)
+    def self.local_tzone
 
-      current_timezone = ENV['TZ']
-      ENV['TZ'] = @zone
+      get_tzone(:local)
+    end
 
-      block.call
+    def self.make(o)
 
-    ensure
+      zt =
+        case o
+        when Time
+          ZoTime.new(o.to_f, o.zone)
+        when Date
+          t =
+            o.respond_to?(:to_time) ?
+              o.to_time :
+              Time.parse(o.strftime('%Y-%m-%d %H:%M:%S'))
+          ZoTime.new(t.to_f, t.zone)
+        when String
+          Rufus::Scheduler.parse_in(o, :no_error => true) || self.parse(o)
+        else
+          o
+        end
 
-      ENV['TZ'] = current_timezone
+      zt = ZoTime.new(Time.now.to_f + zt, nil) if zt.is_a?(Numeric)
+
+      fail ArgumentError.new(
+        "cannot turn #{o.inspect} to a ZoTime instance"
+      ) unless zt.is_a?(ZoTime)
+
+      zt
+    end
+
+    #    def in_zone(&block)
+    #
+    #      current_timezone = ENV['TZ']
+    #      ENV['TZ'] = @zone
+    #
+    #      block.call
+    #
+    #    ensure
+    #
+    #      ENV['TZ'] = current_timezone
+    #    end
+
+    protected
+
+    def inc(t, dir)
+
+      if t.is_a?(Numeric)
+        nt = self.dup
+        nt.seconds += dir * t.to_f
+        nt
+      elsif t.respond_to?(:to_f)
+        @seconds + dir * t.to_f
+      else
+        fail ArgumentError.new(
+          "cannot call ZoTime #- or #+ with arg of class #{t.class}")
+      end
+    end
+
+    def _to_f(o)
+
+      fail ArgumentError(
+        "comparison of ZoTime with #{o.inspect} failed"
+      ) unless o.is_a?(ZoTime) || o.is_a?(Time)
+
+      o.to_f
+    end
+
+    def strfz(code)
+
+      return @zone.name if code == '%/Z'
+
+      per = @zone.period_for_utc(utc)
+
+      return per.abbreviation.to_s if code == '%Z'
+
+      off = per.utc_total_offset
+      #
+      sn = off < 0 ? '-' : '+'; off = off.abs
+      hr = off / 3600
+      mn = (off % 3600) / 60
+      sc = 0
+
+      fmt =
+        if code == '%z'
+          "%s%02d%02d"
+        elsif code == '%:z'
+          "%s%02d:%02d"
+        else
+          "%s%02d:%02d:%02d"
+        end
+
+      fmt % [ sn, hr, mn, sc ]
     end
   end
 end
