@@ -271,7 +271,7 @@ module RocketJob
     ensure
       # Logs the backtrace for each running worker
       if SemanticLogger::VERSION.to_i >= 4
-        workers.each { |worker| logger.backtrace(thread: worker.thread) }
+        workers.each { |worker| logger.backtrace(thread: worker.thread) if worker.thread && worker.alive? }
       end
     end
 

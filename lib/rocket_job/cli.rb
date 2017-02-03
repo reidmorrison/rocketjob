@@ -70,6 +70,7 @@ module RocketJob
         logger.measure_info('Eager loaded Rails and all Engines') do
           Rails.application.eager_load!
           Rails::Engine.subclasses.each(&:eager_load!)
+          self.class.eager_load_jobs(File.expand_path('jobs', File.dirname(__FILE__)))
         end
       end
     end
@@ -96,6 +97,7 @@ module RocketJob
 
       logger.info "Rails not detected. Running standalone: #{environment}"
       RocketJob::Config.load!(environment, mongo_config, symmetric_encryption_config)
+      self.class.eager_load_jobs(File.expand_path('jobs', File.dirname(__FILE__)))
       self.class.eager_load_jobs
     end
 
@@ -136,7 +138,7 @@ module RocketJob
       Pathname.glob("#{path}/**/*.rb").each do |path|
         next if path.directory?
         logger.debug "Loading #{path.to_s}"
-        load path.expand_path.to_s
+        require path.expand_path.to_s
       end
     end
 
