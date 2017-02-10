@@ -27,7 +27,7 @@ module RocketJob
     # Requeues all jobs for which the workers have disappeared
     def self.requeue_zombies
       all.each do |active_worker|
-        next if !active_worker.zombie? || !active_worker.job.may_requeue?
+        next if !active_worker.zombie? || !active_worker.job.may_requeue?(active_worker.server_name)
         active_worker.job.requeue!(active_worker.server_name)
       end
     end
