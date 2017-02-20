@@ -1,4 +1,3 @@
-# encoding: UTF-8
 require 'thread'
 require 'active_support/concern'
 require 'aasm'
