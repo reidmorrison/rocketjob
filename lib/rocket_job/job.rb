@@ -1,4 +1,3 @@
-# encoding: UTF-8
 module RocketJob
   # The base job from which all jobs are created
   class Job

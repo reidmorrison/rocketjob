@@ -1,4 +1,3 @@
-# encoding: UTF-8
 require 'active_support/concern'
 
 module RocketJob
@@ -46,18 +45,33 @@ module RocketJob
 
         # Copy across run_at for future dated jobs
         attrs['run_at'] = run_at if run_at && (run_at > Time.now)
-        # Allow Singleton to prevent the creation of a new job if one is already running
-        job             = self.class.create(attrs)
-        if job.persisted?
-          logger.info("Started a new job instance: #{job.id}")
-        else
-          logger.info('New job instance not started since one is already active')
-        end
+
+        rocket_job_restart_create(attrs)
       end
 
       def rocket_job_restart_abort
         new_record? ? abort : abort!
       end
+
+      # Allow Singleton to prevent the creation of a new job if one is already running
+      # Retry since the delete may not have persisted to disk yet.
+      def rocket_job_restart_create(attrs, retry_limit = 3, sleep_interval = 0.1)
+        count = 0
+        while count < retry_limit
+          job = self.class.create(attrs)
+          if job.persisted?
+            logger.info("Started a new job instance: #{job.id}")
+            return true
+          else
+            logger.info('Job already active, retrying after a short sleep')
+            sleep(sleep_interval)
+          end
+          count += 1
+        end
+        logger.warn('New job instance not started since one is already active')
+        false
+      end
+
 
     end
   end

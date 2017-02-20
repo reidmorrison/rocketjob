@@ -1,5 +1,4 @@
 require 'yaml'
-# encoding: UTF-8
 module RocketJob
   # Centralized Configuration for Rocket Jobs
   class Config
