@@ -76,7 +76,7 @@ module RocketJob
 
             event :requeue do
               transitions from: :running, to: :queued,
-                if:             -> server_name { worker_name.start_with?(server_name) },
+                if:             -> server_name { worker_name.to_s.start_with?(server_name) },
                 after:          :rocket_job_clear_started_at
             end
           end

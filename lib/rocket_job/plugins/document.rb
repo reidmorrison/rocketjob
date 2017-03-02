@@ -41,7 +41,7 @@ module RocketJob
             if options.has_key?(:default)
               public_send("#{name}=", options[:default])
             end
-            options[:default] = lambda { self.class.public_send(name) }
+            options[:default] = lambda { public_send(name) }
           end
           super(name, options)
         end

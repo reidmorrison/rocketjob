@@ -50,7 +50,7 @@ module RocketJob
 
     # Returns [String] the name of the server running this worker
     def server_name
-      if match = name.match(/(.*:.*):.*/)
+      if match = name.to_s.match(/(.*:.*):.*/)
         match[1]
       else
         name
