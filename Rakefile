@@ -1,3 +1,7 @@
+# Setup bundler to avoid having to run bundle exec all the time.
+require 'rubygems'
+require 'bundler/setup'
+
 require 'rake/testtask'
 require_relative 'lib/rocket_job/version'
 
@@ -18,4 +22,10 @@ Rake::TestTask.new(:test) do |t|
   t.warning = false
 end
 
-task default: :test
+# By default run tests against all appraisals
+if !ENV["APPRAISAL_INITIALIZED"] && !ENV["TRAVIS"]
+  require 'appraisal'
+  task default: :appraisal
+else
+  task default: :test
+end
