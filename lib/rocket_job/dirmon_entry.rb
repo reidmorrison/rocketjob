@@ -78,7 +78,7 @@ module RocketJob
     #          -> :failed   -> :active
     #                       -> :disabled
     #          -> :disabled -> :active
-    aasm column: :state do
+    aasm column: :state, whiny_persistence: true do
       # DirmonEntry is `pending` until it is approved
       state :pending, initial: true
 
@@ -236,7 +236,7 @@ module RocketJob
           next if file_name.include?(self.class.default_archive_directory)
 
           # Security check?
-          if (whitelist_paths.size > 0) && whitelist_paths.none? { |whitepath| file_name.start_with?(whitepath) }
+          if (whitelist_paths.size > 0) && whitelist_paths.none? { |whitepath| file_name.to_s.start_with?(whitepath) }
             logger.error "Skipping file: #{file_name} since it is not in any of the whitelisted paths: #{whitelist_paths.join(', ')}"
             next
           end

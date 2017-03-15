@@ -19,7 +19,7 @@ module RocketJob
           #                       -> :aborted
           #                       -> :queued (when a worker dies)
           #           -> :aborted
-          aasm column: :state do
+          aasm column: :state, whiny_persistence: true do
             # Job has been created and is queued for processing ( Initial state )
             state :queued, initial: true
 
@@ -76,7 +76,7 @@ module RocketJob
 
             event :requeue do
               transitions from: :running, to: :queued,
-                if:             -> server_name { worker_name.to_s.start_with?(server_name) },
+                if:             -> server_name { worker_on_server?(server_name) },
                 after:          :rocket_job_clear_started_at
             end
           end

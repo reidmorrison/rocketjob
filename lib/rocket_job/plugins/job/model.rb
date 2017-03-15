@@ -253,6 +253,12 @@ module RocketJob
           h
         end
 
+        # Returns [Boolean] whether the worker runs on a particular server.
+        def worker_on_server?(server_name)
+          return false unless worker_name.present? && server_name.present?
+          worker_name.start_with?(server_name)
+        end
+
       end
     end
   end

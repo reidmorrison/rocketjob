@@ -12,7 +12,7 @@ module Plugins
       field :state, type: String
       validates_presence_of :name, :state
 
-      aasm column: :state do
+      aasm column: :state, whiny_persistence: true do
         state :pending, initial: true
         state :enabled
 
@@ -31,19 +31,23 @@ module Plugins
         @doc.destroy if @doc && !@doc.new_record?
       end
 
-      describe '#aasm_write_state' do
+      describe '#create!' do
         it 'raises an exception when a validation fails on create!' do
           assert_raises Mongoid::Errors::Validations do
             @doc = Test.create!
           end
         end
+      end
 
+      describe '#save!' do
         it 'raises an exception when a validation fails on save' do
           assert_raises Mongoid::Errors::Validations do
             @doc.save!
           end
         end
+      end
 
+      describe '#transition!' do
         it 'raises an exception when a validation fails on state transition with save' do
           assert_raises Mongoid::Errors::Validations do
             @doc.enable!
@@ -51,12 +55,13 @@ module Plugins
           assert @doc.pending?
           refute @doc.valid?
         end
+      end
 
+      describe '#transition' do
         it 'does not raise an exception when a validation fails on state transition without save' do
           @doc.enable
           assert @doc.enabled?
         end
-
       end
 
     end

@@ -61,7 +61,7 @@ module RocketJob
     # States
     #   :starting -> :running -> :paused
     #                         -> :stopping
-    aasm column: :state do
+    aasm column: :state, whiny_persistence: true do
       state :starting, initial: true
       state :running
       state :paused

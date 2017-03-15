@@ -169,7 +169,7 @@ module RocketJob
 
         # Returns [Hash<String:[Array<ActiveWorker>]>] All servers actively working on this job
         def rocket_job_active_workers(server_name = nil)
-          return [] if !running? || (server_name && !worker_name.start_with(server_name))
+          return [] if !running? || (server_name && !worker_on_server?(server_name))
           [ActiveWorker.new(worker_name, started_at, self)]
         end
 

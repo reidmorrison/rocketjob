@@ -39,7 +39,10 @@ module RocketJob::Plugins::Rufus
       fail ArgumentError.new(
         "cannot determine timezone from #{zone.inspect}" +
           " (etz:#{ENV['TZ'].inspect},tnz:#{Time.now.zone.inspect}," +
-          "tzid:#{defined?(TZInfo::Data).inspect})"
+          "tzid:#{defined?(TZInfo::Data).inspect})\n" +
+          "Try setting `ENV['TZ'] = 'Continent/City'` in your script " +
+          "(see https://en.wikipedia.org/wiki/List_of_tz_database_time_zones)" +
+          (defined?(TZInfo::Data) ? '' : " and adding 'tzinfo-data' to your gems")
       ) unless @zone
 
       @time = nil # cache for #to_time result
@@ -277,6 +280,7 @@ module RocketJob::Plugins::Rufus
     end
 
     def self.get_tzone(str)
+
       return str if str.is_a?(::TZInfo::Timezone)
 
       # discard quickly when it's certainly not a timezone
@@ -284,10 +288,19 @@ module RocketJob::Plugins::Rufus
       return nil if str == nil
       return nil if str == '*'
 
+      ostr = str
+      str = :current if str == :local
+
+      # use Rails' zone by default if Rails is present
+
+      return Time.zone.tzinfo if (
+      ENV['TZ'].nil? && str == :current &&
+        Time.respond_to?(:zone) && Time.zone.respond_to?(:tzinfo)
+      )
+
       # ok, it's a timezone then
 
-      ostr = str
-      str = ENV['TZ'] || Time.now.zone if str == :current || str == :local
+      str = ENV['TZ'] || Time.now.zone if str == :current
 
       # utc_offset
 
@@ -298,7 +311,7 @@ module RocketJob::Plugins::Rufus
         str = (sc > 0 ? "%s%02d:%02d:%02d" : "%s%02d:%02d") % [ sn, hr, mn, sc ]
       end
 
-      return nil if str.nil? || str.index('#')
+      return nil if str.index('#')
       # counters "sun#2", etc... On OSX would go all the way to true
 
       # vanilla time zones
@@ -363,16 +376,52 @@ module RocketJob::Plugins::Rufus
         ) if hr
       end
 
-      # last try with ENV['TZ']
+      # try with ENV['TZ']
 
-      z =
-        (ostr == :local || ostr == :current) &&
-          (::TZInfo::Timezone.get(ENV['TZ']) rescue nil)
+      z = ostr == :current && (::TZInfo::Timezone.get(ENV['TZ']) rescue nil)
+      return z if z
+
+      # ask the system
+
+      z = ostr == :current && (debian_tz || centos_tz || osx_tz)
       return z if z
 
       # so it's not a timezone.
 
       nil
+    end
+
+    def self.debian_tz
+
+      path = '/etc/timezone'
+
+      File.exist?(path) &&
+        (::TZInfo::Timezone.get(File.read(path).strip) rescue nil)
+    end
+
+    def self.centos_tz
+
+      path = '/etc/sysconfig/clock'
+
+      File.open(path, 'rb') do |f|
+        until f.eof?
+          m = f.readline.match(/ZONE="([^"]+)"/)
+          return (::TZInfo::Timezone.get(m[1]) rescue nil) if m
+        end
+      end if File.exist?(path)
+
+      nil
+    end
+
+    def self.osx_tz
+
+      path = '/etc/localtime'
+
+      return nil unless File.exist?(path)
+
+      ::TZInfo::Timezone.get(
+        File.readlink(path).split('/')[4..-1].join('/')
+      ) rescue nil
     end
 
     def self.local_tzone
