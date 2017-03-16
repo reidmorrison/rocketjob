@@ -43,30 +43,30 @@ module Plugins
 
         describe '.rocket_job_next_job' do
           before do
-            @job    = QuietJob.new
-            @worker = RocketJob::Server.new(name: 'worker:123')
+            @job         = QuietJob.new
+            @worker_name = 'worker:123'
           end
 
           it 'return nil when no jobs available' do
-            assert_nil RocketJob::Job.rocket_job_next_job(@worker.name)
+            assert_nil RocketJob::Job.rocket_job_next_job(@worker_name)
           end
 
           it 'return the first job' do
             @job.save!
-            assert job = RocketJob::Job.rocket_job_next_job(@worker.name), 'Failed to find job'
+            assert job = RocketJob::Job.rocket_job_next_job(@worker_name), 'Failed to find job'
             assert_equal @job.id, job.id
           end
 
           it 'Ignore future dated jobs' do
             @job.run_at = Time.now + 1.hour
             @job.save!
-            assert_nil RocketJob::Job.rocket_job_next_job(@worker.name)
+            assert_nil RocketJob::Job.rocket_job_next_job(@worker_name)
           end
 
           it 'Process future dated jobs when time is now' do
             @job.run_at = Time.now
             @job.save!
-            assert job = RocketJob::Job.rocket_job_next_job(@worker.name), 'Failed to find future job'
+            assert job = RocketJob::Job.rocket_job_next_job(@worker_name), 'Failed to find future job'
             assert_equal @job.id, job.id
           end
 
@@ -74,7 +74,7 @@ module Plugins
             count           = RocketJob::Job.count
             @job.expires_at = Time.now - 100
             @job.save!
-            assert_nil RocketJob::Job.rocket_job_next_job(@worker.name)
+            assert_nil RocketJob::Job.rocket_job_next_job(@worker_name)
             assert_equal count, RocketJob::Job.count
           end
         end
@@ -173,8 +173,8 @@ module Plugins
 
         describe '#rocket_job_active_workers' do
           before do
-            @job    = QuietJob.create!
-            @worker = RocketJob::Server.create!(name: 'worker:123')
+            @job         = QuietJob.create!
+            @worker_name = 'worker:123'
           end
 
           it 'should return empty hash for no active jobs' do
@@ -182,12 +182,12 @@ module Plugins
           end
 
           it 'should return active servers' do
-            assert job = RocketJob::Job.rocket_job_next_job(@worker.name)
+            assert job = RocketJob::Job.rocket_job_next_job(@worker_name)
             assert active = job.rocket_job_active_workers
             assert_equal 1, active.size
             assert active_worker = active.first
             assert_equal @job.id, active_worker.job.id
-            assert_equal @worker.name, active_worker.name
+            assert_equal @worker_name, active_worker.name
             assert_equal job.started_at, active_worker.started_at
             assert active_worker.duration_s
             assert active_worker.duration
