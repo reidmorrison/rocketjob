@@ -16,7 +16,7 @@ module Plugins
 
       describe RocketJob::Plugins::Job::Throttle do
         before do
-          ThrottleJob.delete_all
+          RocketJob::Job.delete_all
         end
 
         describe '#throttle_exceeded?' do
@@ -69,7 +69,7 @@ module Plugins
             ThrottleJob.create!(state: :complete)
             ThrottleJob.create!(state: :paused)
             assert job = RocketJob::Job.rocket_job_next_job(@worker_name), -> { ThrottleJob.all.to_a.ai }
-            assert_equal @job.id, job.id
+            assert_equal @job.id, job.id, -> { ThrottleJob.all.to_a.ai }
           end
 
           it 'return nil when other jobs are running' do
