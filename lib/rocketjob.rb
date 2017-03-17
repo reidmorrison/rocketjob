@@ -18,14 +18,15 @@ module RocketJob
 
   module Plugins
     module Job
-      autoload :Callbacks,      'rocket_job/plugins/job/callbacks'
-      autoload :Defaults,       'rocket_job/plugins/job/defaults'
-      autoload :StateMachine,   'rocket_job/plugins/job/state_machine'
-      autoload :Logger,         'rocket_job/plugins/job/logger'
-      autoload :Model,          'rocket_job/plugins/job/model'
-      autoload :Persistence,    'rocket_job/plugins/job/persistence'
-      autoload :Throttle,       'rocket_job/plugins/job/throttle'
-      autoload :Worker,         'rocket_job/plugins/job/worker'
+      autoload :Callbacks,           'rocket_job/plugins/job/callbacks'
+      autoload :Defaults,            'rocket_job/plugins/job/defaults'
+      autoload :StateMachine,        'rocket_job/plugins/job/state_machine'
+      autoload :Logger,              'rocket_job/plugins/job/logger'
+      autoload :Model,               'rocket_job/plugins/job/model'
+      autoload :Persistence,         'rocket_job/plugins/job/persistence'
+      autoload :Throttle,            'rocket_job/plugins/job/throttle'
+      autoload :ThrottleRunningJobs, 'rocket_job/plugins/job/throttle_running_jobs'
+      autoload :Worker,              'rocket_job/plugins/job/worker'
     end
     module Rufus
       autoload :CronLine,       'rocket_job/plugins/rufus/cron_line'

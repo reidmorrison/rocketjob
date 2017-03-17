@@ -56,10 +56,8 @@ module RocketJob
               when job.expired?
                 job.rocket_job_fail_on_exception!(worker_name) { job.destroy }
                 logger.info "Destroyed expired job #{job.class.name}, id:#{job.id}"
-              when job.throttle_exceeded?
-                logger.debug { "Throttle exceeded with job #{job.class.name}, id:#{job.id}" }
-                # Add jobs filter to the current filter
-                job.throttle_merge_filter(filter, job.throttle_filter)
+              when new_filter = job.send(:rocket_job_evaluate_throttles)
+                rocket_job_merge_filter(filter, new_filter)
                 # Restore retrieved job so that other workers can process it later
                 job.set(worker_name: nil, state: :queued)
               else
@@ -78,6 +76,20 @@ module RocketJob
             where(:state.in => [:running, :paused, :failed]).each do |job|
               job.requeue!(server_name) if job.may_requeue?(server_name)
             end
+          end
+
+          private
+
+          def rocket_job_merge_filter(target, source)
+            source.each_pair do |k, v|
+              target[k] =
+                if previous = target[k]
+                  v.is_a?(Array) ? previous + v : v
+                else
+                  v
+                end
+            end
+            target
           end
         end
 

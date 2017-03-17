@@ -19,18 +19,18 @@ module Plugins
           RocketJob::Job.delete_all
         end
 
-        describe '#throttle_exceeded?' do
+        describe '#throttle_running_jobs_exceeded??' do
           it 'does not exceed throttle when no other jobs are running' do
             ThrottleJob.create!
             job = ThrottleJob.new
-            refute job.throttle_exceeded?
+            refute job.send(:throttle_running_jobs_exceeded?)
           end
 
           it 'exceeds throttle when other jobs are running' do
             job1 = ThrottleJob.new
             job1.start!
             job2 = ThrottleJob.new
-            assert job2.throttle_exceeded?
+            assert job2.send(:throttle_running_jobs_exceeded?)
           end
 
           it 'excludes paused jobs' do
@@ -38,7 +38,7 @@ module Plugins
             job1.start
             job1.pause!
             job2 = ThrottleJob.new
-            refute job2.throttle_exceeded?
+            refute job2.send(:throttle_running_jobs_exceeded?)
           end
 
           it 'excludes failed jobs' do
@@ -46,7 +46,7 @@ module Plugins
             job1.start
             job1.fail!
             job2 = ThrottleJob.new
-            refute job2.throttle_exceeded?
+            refute job2.send(:throttle_running_jobs_exceeded?)
           end
         end
 
