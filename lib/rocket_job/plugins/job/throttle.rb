@@ -43,10 +43,10 @@ module RocketJob
           #   filter: [Symbol|Proc]
           #     Name of method to call to return the filter when the throttle has been exceeded.
           #     Or, a block that will return the filter.
-          #     Default: :throttle_class_filter (Throttle all jobs of this class)
+          #     Default: :throttle_filter_class (Throttle all jobs of this class)
           #
           # Note: LIFO: The last throttle to be defined is executed first.
-          def define_throttle(method, filter: :throttle_class_filter)
+          def define_throttle(method, filter: :throttle_filter_class)
             raise(ArgumentError, "Filter for #{method} must be a Symbol or Proc") unless filter.is_a?(Symbol) || filter.is_a?(Proc)
 
             rocket_job_throttles.unshift(ThrottleDefinition.new(method, filter))
@@ -56,11 +56,16 @@ module RocketJob
         # Default throttle to use when the throttle is exceeded.
         # When the throttle has been exceeded all jobs of this class will be ignored until the
         # next refresh. `RocketJob::Config::re_check_seconds` which by default is 60 seconds.
-        def throttle_class_filter
+        def throttle_filter_class
           {:_type.nin => [self.class.name]}
         end
 
-        # Merge filter(s)
+        # Filter out only this instance of the job.
+        # When the throttle has been exceeded this job will be ignored by this server until the next refresh.
+        # `RocketJob::Config::re_check_seconds` which by default is 60 seconds.
+        def throttle_filter_id
+          {:id.nin => [id]}
+        end
 
         private
 
@@ -71,7 +76,7 @@ module RocketJob
           rocket_job_throttles.each do |throttle|
             # Throttle exceeded?
             if send(throttle.method)
-              logger.debug { "Throttle: #{throttle.method} has been exceeded. Filtering all #{self.class.name} jobs" }
+              logger.debug { "Throttle: #{throttle.method} has been exceeded. #{self.class.name}:#{id}" }
               filter = throttle.filter
               return filter.is_a?(Proc) ? filter.call(self) : send(filter)
             end
