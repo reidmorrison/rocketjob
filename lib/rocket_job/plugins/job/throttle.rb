@@ -37,7 +37,7 @@ module RocketJob
           # Add a new throttle.
           #
           # Parameters:
-          #   method: [Symbol]
+          #   method_name: [Symbol]
           #     Name of method to call to evaluate whether a throttle has been exceeded.
           #     Note: Must return true or false.
           #   filter: [Symbol|Proc]
@@ -46,10 +46,16 @@ module RocketJob
           #     Default: :throttle_filter_class (Throttle all jobs of this class)
           #
           # Note: LIFO: The last throttle to be defined is executed first.
-          def define_throttle(method, filter: :throttle_filter_class)
-            raise(ArgumentError, "Filter for #{method} must be a Symbol or Proc") unless filter.is_a?(Symbol) || filter.is_a?(Proc)
+          def define_throttle(method_name, filter: :throttle_filter_class)
+            raise(ArgumentError, "Filter for #{method_name} must be a Symbol or Proc") unless filter.is_a?(Symbol) || filter.is_a?(Proc)
+            raise(ArgumentError, "Cannot define #{method_name} twice, undefine previous throttle first") if rocket_job_throttles.find { |throttle| throttle.method_name == method_name}
 
-            rocket_job_throttles.unshift(ThrottleDefinition.new(method, filter))
+            rocket_job_throttles.unshift(ThrottleDefinition.new(method_name, filter))
+          end
+
+          # Undefine a previously defined throttle
+          def undefine_throttle(method_name)
+            rocket_job_throttles.delete_if { |throttle| throttle.method_name }
           end
         end
 
@@ -69,14 +75,14 @@ module RocketJob
 
         private
 
-        ThrottleDefinition = Struct.new(:method, :filter)
+        ThrottleDefinition = Struct.new(:method_name, :filter)
 
         # Returns the matching filter, or nil if no throttles were triggered.
         def rocket_job_evaluate_throttles
           rocket_job_throttles.each do |throttle|
             # Throttle exceeded?
-            if send(throttle.method)
-              logger.debug { "Throttle: #{throttle.method} has been exceeded. #{self.class.name}:#{id}" }
+            if send(throttle.method_name)
+              logger.debug { "Throttle: #{throttle.method_name} has been exceeded. #{self.class.name}:#{id}" }
               filter = throttle.filter
               return filter.is_a?(Proc) ? filter.call(self) : send(filter)
             end

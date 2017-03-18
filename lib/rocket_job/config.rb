@@ -15,9 +15,7 @@ module RocketJob
       end
     end
 
-    # Useful for Testing, not recommended elsewhere.
-    # When enabled all calls to `perform_later` will be redirected to `perform_now`.
-    # Also, exceptions will be raised instead of failing the job.
+    # DEPRECATED
     cattr_accessor(:inline_mode) { false }
 
     store_in collection: 'rocket_job.configs'

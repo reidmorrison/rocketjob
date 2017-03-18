@@ -8,25 +8,14 @@ module RocketJob
         extend ActiveSupport::Concern
 
         module ClassMethods
-          # Run this job later
-          #
-          # Saves it to the database for processing later by workers
-          def perform_later(args, &block)
-            if RocketJob::Config.inline_mode
-              perform_now(args, &block)
-            else
-              job = new(args)
-              block.call(job) if block
-              job.save!
-              job
-            end
-          end
-
           # Run this job now.
           #
           # The job is not saved to the database since it is processed entriely in memory
           # As a result before_save and before_destroy callbacks will not be called.
           # Validations are still called however prior to calling #perform
+          #
+          # Note:
+          # - Only batch throttles are checked when perform_now is called.
           def perform_now(args, &block)
             job = new(args)
             block.call(job) if block
@@ -75,6 +64,18 @@ module RocketJob
             # Need to requeue paused, failed since user may have transitioned job before it finished
             where(:state.in => [:running, :paused, :failed]).each do |job|
               job.requeue!(server_name) if job.may_requeue?(server_name)
+            end
+          end
+
+          # DEPRECATED
+          def perform_later(args, &block)
+            if RocketJob::Config.inline_mode
+              perform_now(args, &block)
+            else
+              job = new(args)
+              block.call(job) if block
+              job.save!
+              job
             end
           end
 
