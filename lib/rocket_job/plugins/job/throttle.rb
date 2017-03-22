@@ -20,7 +20,7 @@ module RocketJob
       #
       #     # Returns true if the MySQL slave delay exceeds 5 minutes
       #     def mysql_throttle_exceeded?
-      #       status        = ActiveRecord::Base.connection.connection.select_one('show slave status')
+      #       status        = ActiveRecord::Base.connection.select_one('show slave status')
       #       seconds_delay = Hash(status)['Seconds_Behind_Master'].to_i
       #       seconds_delay >= 300
       #     end
