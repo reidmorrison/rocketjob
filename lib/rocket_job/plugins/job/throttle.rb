@@ -45,17 +45,22 @@ module RocketJob
           #     Or, a block that will return the filter.
           #     Default: :throttle_filter_class (Throttle all jobs of this class)
           #
-          # Note: LIFO: The last throttle to be defined is executed first.
+          # Note: Throttles are executed in the order they are defined.
           def define_throttle(method_name, filter: :throttle_filter_class)
             raise(ArgumentError, "Filter for #{method_name} must be a Symbol or Proc") unless filter.is_a?(Symbol) || filter.is_a?(Proc)
-            raise(ArgumentError, "Cannot define #{method_name} twice, undefine previous throttle first") if rocket_job_throttles.find { |throttle| throttle.method_name == method_name}
+            raise(ArgumentError, "Cannot define #{method_name} twice, undefine previous throttle first") if has_throttle?(method_name)
 
-            rocket_job_throttles.unshift(ThrottleDefinition.new(method_name, filter))
+            self.rocket_job_throttles += [ThrottleDefinition.new(method_name, filter)]
           end
 
           # Undefine a previously defined throttle
           def undefine_throttle(method_name)
             rocket_job_throttles.delete_if { |throttle| throttle.method_name }
+          end
+
+          # Has a throttle been defined?
+          def has_throttle?(method_name)
+            rocket_job_throttles.find { |throttle| throttle.method_name == method_name }
           end
         end
 

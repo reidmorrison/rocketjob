@@ -19,6 +19,23 @@ module Plugins
           RocketJob::Job.delete_all
         end
 
+        describe '.has_throttle?' do
+          it 'defines the running jobs throttle' do
+            assert ThrottleJob.has_throttle?(:throttle_running_jobs_exceeded?), ThrottleJob.rocket_job_throttles
+            refute ThrottleJob.has_throttle?(:blah?), ThrottleJob.rocket_job_throttles
+          end
+        end
+
+        describe '.undefine_throttle' do
+          it 'undefines the running jobs throttle' do
+            assert ThrottleJob.has_throttle?(:throttle_running_jobs_exceeded?), ThrottleJob.rocket_job_throttles
+            ThrottleJob.undefine_throttle(:throttle_running_jobs_exceeded?)
+            refute ThrottleJob.has_throttle?(:throttle_running_jobs_exceeded?), ThrottleJob.rocket_job_throttles
+            ThrottleJob.define_throttle(:throttle_running_jobs_exceeded?)
+            assert ThrottleJob.has_throttle?(:throttle_running_jobs_exceeded?), ThrottleJob.rocket_job_throttles
+          end
+        end
+
         describe '#throttle_running_jobs_exceeded??' do
           it 'does not exceed throttle when no other jobs are running' do
             ThrottleJob.create!
