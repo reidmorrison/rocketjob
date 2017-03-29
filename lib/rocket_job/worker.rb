@@ -102,7 +102,7 @@ module RocketJob
         job = Job.rocket_job_next_job(name, current_filter)
         break unless job
 
-        logger.fast_tag("job:#{job.id}") do
+        SemanticLogger.named_tagged(job: job.id.to_s) do
           unless job.rocket_job_work(self, false, current_filter)
             processed = true
           end
