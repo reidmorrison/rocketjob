@@ -43,9 +43,10 @@ module RocketJob
       self.priority = 40
 
       # Number of seconds between directory scans. Default 5 mins
-      field :check_seconds, type: Float, default: 300.0
+      field :check_seconds, type: Float, default: 300.0, copy_on_restart: true
+
       # Hash[file_name, size]
-      field :previous_file_names, type: Hash, default: {}
+      field :previous_file_names, type: Hash, default: {}, copy_on_restart: true
 
       before_create :set_run_at
 

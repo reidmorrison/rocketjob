@@ -49,7 +49,7 @@ module RocketJob
 
         # Maximum number of times to retry this job
         # 25 is approximately 3 weeks of retries
-        field :max_retries, type: Integer, default: 25, class_attribute: true, user_editable: true
+        field :max_retries, type: Integer, default: 25, class_attribute: true, user_editable: true, copy_on_restart: true
 
         # List of times when this job failed
         field :failed_times, type: Array, default: []

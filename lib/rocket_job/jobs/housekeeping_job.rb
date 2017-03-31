@@ -36,11 +36,11 @@ module RocketJob
 
       # Retention intervals in seconds
       # Set to nil to not
-      field :aborted_retention, type: Integer, default: 7.days
-      field :completed_retention, type: Integer, default: 7.days
-      field :failed_retention, type: Integer, default: 14.days
-      field :paused_retention, type: Integer
-      field :queued_retention, type: Integer
+      field :aborted_retention, type: Integer, default: 7.days, user_editable: true, copy_on_restart: true
+      field :completed_retention, type: Integer, default: 7.days, user_editable: true, copy_on_restart: true
+      field :failed_retention, type: Integer, default: 14.days, user_editable: true, copy_on_restart: true
+      field :paused_retention, type: Integer, user_editable: true, copy_on_restart: true
+      field :queued_retention, type: Integer, user_editable: true, copy_on_restart: true
 
       def perform
         RocketJob::Job.aborted.where(created_at: {'$lte' => aborted_retention.seconds.ago}).destroy_all if aborted_retention

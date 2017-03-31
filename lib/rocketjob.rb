@@ -2,6 +2,7 @@ require 'semantic_logger'
 require 'mongoid'
 require 'rocket_job/extensions/mongo/logging'
 require 'rocket_job/version'
+require 'rocket_job'
 
 # @formatter:off
 module RocketJob
@@ -46,29 +47,6 @@ module RocketJob
     autoload :HousekeepingJob,  'rocket_job/jobs/housekeeping_job'
     autoload :SimpleJob,        'rocket_job/jobs/simple_job'
   end
-
-  # @formatter:on
-  # Returns a human readable duration from the supplied [Float] number of seconds
-  def self.seconds_as_duration(seconds)
-    return nil unless seconds
-    if seconds >= 86400.0 # 1 day
-      "#{(seconds / 86400).to_i}d #{Time.at(seconds).strftime('%-Hh %-Mm')}"
-    elsif seconds >= 3600.0 # 1 hour
-      Time.at(seconds).strftime('%-Hh %-Mm')
-    elsif seconds >= 60.0 # 1 minute
-      Time.at(seconds).strftime('%-Mm %-Ss')
-    elsif seconds >= 1.0 # 1 second
-      "#{'%.3f' % seconds}s"
-    else
-      duration = seconds * 1000
-      if defined? JRuby
-        "#{duration.to_i}ms"
-      else
-        duration < 10.0 ? "#{'%.3f' % duration}ms" : "#{'%.1f' % duration}ms"
-      end
-    end
-  end
-
 end
 
 # Add Active Job adapter for Rails

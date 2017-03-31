@@ -6,9 +6,6 @@ module Plugins
     class RestartableJob < RocketJob::Job
       include RocketJob::Plugins::Restart
 
-      # Ensure a new start_at and end_at is generated every time this job is restarted
-      self.rocket_job_restart_excludes += %w(start_at end_at)
-
       field :start_at, type: Date
       field :end_at, type: Date
 
@@ -153,11 +150,14 @@ module Plugins
           assert job2 = RestartableJob.where(:id.ne => @job.id).first
           assert job2.queued?, job2.attributes.ai
 
+          assert RestartableJob.rocket_job_restart_attributes.include?(:priority)
+          assert RestartableJob.rocket_job_restart_attributes.exclude?(:start_at)
+          assert RestartableJob.rocket_job_restart_attributes.exclude?(:end_at)
+          assert RestartableJob.rocket_job_restart_attributes.exclude?(:run_at)
+
           # Copy across all attributes, except
-          job2.attributes.each_pair do |key, value|
-            refute_equal 'start_at', key, "Should not include start_at in retried job. #{job2.attributes.inspect}"
-            next if RestartableJob.rocket_job_restart_excludes.include?(key)
-            assert_equal value, job2[key], "Attributes are supposed to be copied across. For #{key}"
+          RestartableJob.rocket_job_restart_attributes.each do |key|
+            assert_equal @job.send(key).to_s, job2.send(key).to_s, "Attributes are supposed to be copied across. For #{key}"
           end
 
           assert_nil job2.start_at
@@ -171,22 +171,6 @@ module Plugins
           assert_equal 0, job2.percent_complete
           assert_nil job2.exception
           refute job2.result
-        end
-
-        it 'copies run_at when it is in the future' do
-          @job = RestartableJob.create!(run_at: Time.now + 1.day, destroy_on_complete: true)
-          @job.perform_now
-          assert_equal 1, RestartableJob.count
-          assert job2 = RestartableJob.where(:id.ne => @job.id).first
-          assert job2.run_at, job2.attributes.ai
-        end
-
-        it 'does not copy run_at when it is in the past' do
-          @job = RestartableJob.create!(run_at: Time.now - 1.day, destroy_on_complete: true)
-          @job.perform_now
-          assert_equal 1, RestartableJob.count
-          assert job2 = RestartableJob.where(:id.ne => @job.id).first
-          assert_nil job2.run_at
         end
       end
 

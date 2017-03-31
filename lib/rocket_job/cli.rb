@@ -27,6 +27,7 @@ module RocketJob
     # Run a RocketJob::Server from the command line
     def run
       Thread.current.name = 'rocketjob main'
+      RocketJob.server!
       setup_environment
       setup_logger
       rails? ? boot_rails : boot_standalone
@@ -53,6 +54,7 @@ module RocketJob
     # Returns [true|false] whether Rails is present
     def boot_rails
       logger.info "Loading Rails environment: #{environment}"
+      RocketJob.rails!
 
       boot_file = Pathname.new(directory).join('config/environment.rb').expand_path
       require(boot_file.to_s)

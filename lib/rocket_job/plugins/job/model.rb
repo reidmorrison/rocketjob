@@ -8,13 +8,22 @@ module RocketJob
         extend ActiveSupport::Concern
 
         included do
+          # Fields that are end user editable.
+          # For example are editable in Rocket Job Mission Control.
+          class_attribute :user_editable_fields, instance_accessor: false
+          self.user_editable_fields = []
+
+          # Attributes to include when copying across the attributes to a new instance on restart.
+          class_attribute :rocket_job_restart_attributes
+          self.rocket_job_restart_attributes = []
+
           #
           # User definable attributes
           #
           # The following attributes are set when the job is created
 
           # Description for this job instance
-          field :description, type: String, class_attribute: true, user_editable: true
+          field :description, type: String, class_attribute: true, user_editable: true, copy_on_restart: true
 
           # Priority of this job as it relates to other jobs [1..100]
           #   1: Highest Priority
@@ -27,10 +36,10 @@ module RocketJob
           # In RocketJob Pro, if a SlicedJob is running and a higher priority job
           # arrives, then the current job will complete the current slices and process
           # the new higher priority job
-          field :priority, type: Integer, default: 50, class_attribute: true, user_editable: true
+          field :priority, type: Integer, default: 50, class_attribute: true, user_editable: true, copy_on_restart: true
 
           # When the job completes destroy it from both the database and the UI
-          field :destroy_on_complete, type: Boolean, default: true, class_attribute: true
+          field :destroy_on_complete, type: Boolean, default: true, class_attribute: true, user_editable: true, copy_on_restart: true
 
           # Whether to store the results from this job
           field :collect_output, type: Boolean, default: false, class_attribute: true
@@ -39,13 +48,13 @@ module RocketJob
           field :run_at, type: Time
 
           # If a job has not started by this time, destroy it
-          field :expires_at, type: Time
+          field :expires_at, type: Time, copy_on_restart: true
 
           # Raise or lower the log level when calling the job
           # Can be used to reduce log noise, especially during high volume calls
           # For debugging a single job can be logged at a low level such as :trace
           #   Levels supported: :trace, :debug, :info, :warn, :error, :fatal
-          field :log_level, type: Symbol, class_attribute: true, user_editable: true
+          field :log_level, type: Symbol, class_attribute: true, user_editable: true, copy_on_restart: true
 
           #
           # Read-only attributes
@@ -148,6 +157,40 @@ module RocketJob
           # I.e. Queued jobs excluding scheduled jobs
           def queued_now
             queued.or({:run_at => nil}, {:run_at.lte => Time.now})
+          end
+
+          # Defines all the fields that are accessible on the Document
+          # For each field that is defined, a getter and setter will be
+          # added as an instance method to the Document.
+          #
+          # @example Define a field.
+          #   field :score, :type => Integer, :default => 0
+          #
+          # @param [ Symbol ] name The name of the field.
+          # @param [ Hash ] options The options to pass to the field.
+          #
+          # @option options [ Class ] :type The type of the field.
+          # @option options [ String ] :label The label for the field.
+          # @option options [ Object, Proc ] :default The field's default
+          # @option options [ Boolean ] :class_attribute Keep the fields default in a class_attribute
+          # @option options [ Boolean ] :user_editable Field can be edited by end users in RJMC
+          #
+          # @return [ Field ] The generated field
+          def field(name, options)
+            if options.delete(:user_editable) == true
+              self.user_editable_fields += [name.to_sym] unless user_editable_fields.include?(name.to_sym)
+            end
+            if options.delete(:class_attribute) == true
+              class_attribute(name, instance_accessor: false)
+              if options.has_key?(:default)
+                public_send("#{name}=", options[:default])
+              end
+              options[:default] = lambda { self.class.public_send(name) }
+            end
+            if options.delete(:copy_on_restart) == true
+              self.rocket_job_restart_attributes += [name.to_sym] unless rocket_job_restart_attributes.include?(name.to_sym)
+            end
+            super(name, options)
           end
 
           # DEPRECATED

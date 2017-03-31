@@ -100,7 +100,7 @@ module RocketJob
       included do
         include Restart
 
-        field :cron_schedule, type: String, class_attribute: true, user_editable: true
+        field :cron_schedule, type: String, class_attribute: true, user_editable: true, copy_on_restart: true
 
         before_create :rocket_job_set_run_at
 

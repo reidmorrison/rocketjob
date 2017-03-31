@@ -3,49 +3,92 @@ require 'active_support/concern'
 module RocketJob
   module Plugins
     # Automatically starts a new instance of this job anytime it fails, aborts, or completes.
-    # Failed jobs are aborted so that they cannot be restarted.
-    # On destroy this job is destroyed without starting a new copy. Abort the job first to get
-    # it to start a new instance before destroying.
-    # Include RocketJob::Plugins::Singleton to prevent multiple copies of a job from running at
-    # the same time.
     #
-    # Note:
-    # - The job will not be restarted if:
-    #   - A validation fails after cloning this job.
+    # Notes:
+    # * Restartable jobs automatically abort if they fail. This prevents the failed job from being retried.
+    #   - To disable this behavior, add the following line after including this plugin:
+    #        skip_callback(:fail, :after, :rocket_job_restart_abort)
+    # * On destroy this job is destroyed without starting a new instance.
+    # * On Abort a new instance is created.
+    # * Include `RocketJob::Plugins::Singleton` to prevent multiple copies of a job from running at
+    #   the same time.
+    # * The job will not be restarted if:
+    #   - A validation fails after creating the new instance of this job.
     #   - The job has expired.
+    # * Only the fields that have `copy_on_restart: true` will be passed onto the new instance of this job.
+    #
+    # Example:
+    #
+    # class RestartableJob < RocketJob::Job
+    #   include RocketJob::Plugins::Restart
+    #
+    #   # Retain the completed job under the completed tab in Rocket Job Mission Control.
+    #   self.destroy_on_complete = false
+    #
+    #   # Will be copied to the new job on restart.
+    #   field :limit, type: Integer, copy_on_restart: true
+    #
+    #   # Will _not_ be copied to the new job on restart.
+    #   field :list, type: Array, default: [1,2,3]
+    #
+    #   # Set run_at every time a new instance of the job is created.
+    #   after_initialize set_run_at, if: :new_record?
+    #
+    #   def perform
+    #     puts "The limit is #{limit}"
+    #     puts "The list is #{list}"
+    #     'DONE'
+    #   end
+    #
+    #   private
+    #
+    #   # Run this job in 30 minutes.
+    #   def set_run_at
+    #     self.run_at = 30.minutes.from_now
+    #   end
+    # end
+    #
+    # job = RestartableJob.create!(limit: 10, list: [4,5,6])
+    # job.reload.state
+    # # => :queued
+    #
+    # job.limit
+    # # => 10
+    #
+    # job.list
+    # # => [4,5,6]
+    #
+    # # Wait 30 minutes ...
+    #
+    # job.reload.state
+    # # => :completed
+    #
+    # # A new instance was automatically created.
+    # job2 = RestartableJob.last
+    # job2.state
+    # # => :queued
+    #
+    # job2.limit
+    # # => 10
+    #
+    # job2.list
+    # # => [1,2,3]
     module Restart
       extend ActiveSupport::Concern
 
       included do
-        # Attributes to exclude when copying across the attributes to the new instance
-        class_attribute :rocket_job_restart_excludes
-        self.rocket_job_restart_excludes = %w(_id state created_at started_at completed_at failure_count worker_name percent_complete exception result run_at record_count sub_state)
-
         after_abort :rocket_job_restart_new_instance
         after_complete :rocket_job_restart_new_instance
         after_fail :rocket_job_restart_abort
-      end
-
-      module ClassMethods
-        def field(name, options)
-          if options.delete(:copy_on_restart) == false
-            self.rocket_job_restart_excludes += [name.to_sym] unless rocket_job_restart_excludes.include?(name.to_sym)
-          end
-          super(name, options)
-        end
       end
 
       private
 
       # Run again in the future, even if this run fails with an exception
       def rocket_job_restart_new_instance
+        logger.info('Job has expired. Not creating a new instance.')
         return if expired?
-        attrs = attributes.dup
-        rocket_job_restart_excludes.each { |attr| attrs.delete(attr) }
-
-        # Copy across run_at for future dated jobs
-        attrs['run_at'] = run_at if run_at && (run_at > Time.now)
-
+        attrs = rocket_job_restart_attributes.reduce({}) { |attrs, attr| attrs[attr] = send(attr); attrs }
         rocket_job_restart_create(attrs)
       end
 
@@ -60,7 +103,7 @@ module RocketJob
         while count < retry_limit
           job = self.class.create(attrs)
           if job.persisted?
-            logger.info("Started a new job instance: #{job.id}")
+            logger.info("Created a new job instance: #{job.id}")
             return true
           else
             logger.info('Job already active, retrying after a short sleep')
@@ -71,7 +114,6 @@ module RocketJob
         logger.warn('New job instance not started since one is already active')
         false
       end
-
 
     end
   end
