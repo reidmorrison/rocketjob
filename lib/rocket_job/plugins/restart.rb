@@ -6,8 +6,9 @@ module RocketJob
     #
     # Notes:
     # * Restartable jobs automatically abort if they fail. This prevents the failed job from being retried.
-    #   - To disable this behavior, add the following line after including this plugin:
-    #        skip_callback(:fail, :after, :rocket_job_restart_abort)
+    #   - To disable this behavior, add the following empty method:
+    #        def rocket_job_restart_abort
+    #        end
     # * On destroy this job is destroyed without starting a new instance.
     # * On Abort a new instance is created.
     # * Include `RocketJob::Plugins::Singleton` to prevent multiple copies of a job from running at

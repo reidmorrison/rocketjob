@@ -2,7 +2,7 @@ require 'semantic_logger'
 require 'mongoid'
 require 'rocket_job/extensions/mongo/logging'
 require 'rocket_job/version'
-require 'rocket_job'
+require 'rocket_job/rocket_job'
 
 # @formatter:off
 module RocketJob
