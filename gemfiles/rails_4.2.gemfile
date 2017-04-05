@@ -2,13 +2,13 @@
 
 source "https://rubygems.org"
 
+gem "activemodel", "~> 4.2.0"
 gem "rake"
 gem "minitest"
 gem "minitest-stub_any_instance"
 gem "awesome_print"
 gem "rubyzip", :platform => :ruby
 gem "appraisal"
-gem "activemodel", "~> 4.2.0"
 gem "mongoid", "~> 5.0"
 
 gemspec :path => "../"
