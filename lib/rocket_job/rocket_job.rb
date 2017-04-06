@@ -1,19 +1,19 @@
 module RocketJob
   # Whether the current process is running inside a Rocket Job server process.
   def self.server?
-    server
+    @server
   end
 
   # When running inside a Rocket Job server process, returns
   # true when Rails has been initialized.
   def self.rails?
-    rails
+    @rails
   end
 
   # When running inside a Rocket Job server process, returns
   # true when running standalone.
   def self.standalone?
-    !rails
+    !@rails
   end
 
   # Returns a human readable duration from the supplied [Float] number of seconds

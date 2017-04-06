@@ -1,6 +1,7 @@
 require 'optparse'
 require 'semantic_logger'
 require 'mongoid'
+require 'rocketjob'
 module RocketJob
   # Command Line Interface parser for RocketJob
   class CLI
@@ -153,7 +154,7 @@ module RocketJob
         o.on('-w', '--workers COUNT', 'Number of workers (threads) to start') do |arg|
           @workers = arg.to_i
         end
-        o.on('-t', '--threads COUNT', 'Deprecated') do |arg|
+        o.on('-t', '--threads COUNT', 'DEPRECATED') do |arg|
           warn '-t and --threads are deprecated, use -w or --workers'
           @workers = arg.to_i
         end
