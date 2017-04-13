@@ -87,8 +87,10 @@ module RocketJob
 
       # Run again in the future, even if this run fails with an exception
       def rocket_job_restart_new_instance
-        logger.info('Job has expired. Not creating a new instance.')
-        return if expired?
+        if expired?
+          logger.info('Job has expired. Not creating a new instance.')
+          return
+        end
         attrs = rocket_job_restart_attributes.reduce({}) { |attrs, attr| attrs[attr] = send(attr); attrs }
         rocket_job_restart_create(attrs)
       end
@@ -112,7 +114,7 @@ module RocketJob
           end
           count += 1
         end
-        logger.warn('New job instance not started since one is already active')
+        logger.warn("New job instance not started: #{job.errors.messages.join(', ')}")
         false
       end
 

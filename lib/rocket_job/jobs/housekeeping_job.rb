@@ -30,12 +30,15 @@ module RocketJob
       include RocketJob::Plugins::Singleton
 
       self.priority      = 25
-      self.description   = 'Cleans out historical jobs'
-      # Runs hourly on the hour
-      self.cron_schedule = '0 * * * * America/New_York'
+      self.description   = 'Cleans out historical jobs, and zombie servers.'
+      # Runs every 15 minutes
+      self.cron_schedule = '*/15 * * * * UTC'
 
-      # Retention intervals in seconds
-      # Set to nil to not
+      # Whether to destroy zombie servers automatically
+      field :destroy_zombies, type: Boolean, default: true, user_editable: true, copy_on_restart: true
+
+      # Retention intervals in seconds.
+      # Set to nil to retain everything.
       field :aborted_retention, type: Integer, default: 7.days, user_editable: true, copy_on_restart: true
       field :completed_retention, type: Integer, default: 7.days, user_editable: true, copy_on_restart: true
       field :failed_retention, type: Integer, default: 14.days, user_editable: true, copy_on_restart: true
@@ -43,6 +46,8 @@ module RocketJob
       field :queued_retention, type: Integer, user_editable: true, copy_on_restart: true
 
       def perform
+        RocketJob::Server.destroy_zombies if destroy_zombies
+
         RocketJob::Job.aborted.where(created_at: {'$lte' => aborted_retention.seconds.ago}).destroy_all if aborted_retention
         RocketJob::Job.completed.where(created_at: {'$lte' => completed_retention.seconds.ago}).destroy_all if completed_retention
         RocketJob::Job.failed.where(created_at: {'$lte' => failed_retention.seconds.ago}).destroy_all if failed_retention

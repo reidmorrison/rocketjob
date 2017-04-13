@@ -92,8 +92,8 @@ module RocketJob
     # Requeue any jobs being worked by this server when it is destroyed
     before_destroy :requeue_jobs
 
-    # Destroy's all instances of zombie server and requeue any jobs still "running"
-    # on those servers
+    # Destroy's all instances of zombie servers and requeues any jobs still "running"
+    # on those servers.
     def self.destroy_zombies
       count = 0
       each do |server|
