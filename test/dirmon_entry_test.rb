@@ -13,15 +13,15 @@ class DirmonEntryTest < Minitest::Test
   end
 
   class SumJob < RocketJob::Job
-    @@result = nil
+    @result = nil
 
     # For temp test data
     def self.result
-      @@result
+      @result
     end
 
     def perform(a, b)
-      @@result = a + b
+      @result = a + b
     end
   end
 

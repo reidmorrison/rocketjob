@@ -147,7 +147,7 @@ module RocketJob
     #
     # Returns [Array<String>] a copy of the whitelisted paths
     def self.whitelist_paths
-      @@whitelist_paths.dup
+      @whitelist_paths.dup
     end
 
     # Add a path to the whitelist
@@ -155,8 +155,8 @@ module RocketJob
     def self.add_whitelist_path(path)
       # Confirms that path exists
       path = Pathname.new(path).realpath.to_s
-      @@whitelist_paths << path
-      @@whitelist_paths.uniq!
+      @whitelist_paths << path
+      @whitelist_paths.uniq!
       path
     end
 
@@ -165,8 +165,8 @@ module RocketJob
     def self.delete_whitelist_path(path)
       # Confirms that path exists
       path = Pathname.new(path).realpath.to_s
-      @@whitelist_paths.delete(path)
-      @@whitelist_paths.uniq!
+      @whitelist_paths.delete(path)
+      @whitelist_paths.uniq!
       path
     end
 
@@ -205,7 +205,7 @@ module RocketJob
     # to #upload, and does not have an `archive_directory` specified in this entry
     cattr_accessor :default_archive_directory
 
-    @@default_archive_directory = '_archive'.freeze
+    @default_archive_directory = '_archive'.freeze
 
     # Returns [Pathname] the archive_directory if set, otherwise the default_archive_directory
     # Creates the archive directory if one is set
@@ -266,7 +266,7 @@ module RocketJob
       end
     end
 
-    @@whitelist_paths = Concurrent::Array.new
+    @whitelist_paths = Concurrent::Array.new
 
     # Returns the Job to be queued
     def job_class
@@ -294,7 +294,7 @@ module RocketJob
 
     # Instance method to return whitelist paths
     def whitelist_paths
-      @@whitelist_paths
+      @whitelist_paths
     end
 
     # Upload the file to the job

@@ -159,27 +159,27 @@ module RocketJob
     if defined?(Concurrent::JavaAtomicBoolean) || defined?(Concurrent::CAtomicBoolean)
       # Returns [true|false] whether the shutdown indicator has been set for this server process
       def self.shutdown?
-        @@shutdown.value
+        @shutdown.value
       end
 
       # Set shutdown indicator for this server process
       def self.shutdown!
-        @@shutdown.make_true
+        @shutdown.make_true
       end
 
-      @@shutdown = Concurrent::AtomicBoolean.new(false)
+      @shutdown = Concurrent::AtomicBoolean.new(false)
     else
       # Returns [true|false] whether the shutdown indicator has been set for this server process
       def self.shutdown?
-        @@shutdown
+        @shutdown
       end
 
       # Set shutdown indicator for this server process
       def self.shutdown!
-        @@shutdown = true
+        @shutdown = true
       end
 
-      @@shutdown = false
+      @shutdown = false
     end
 
     # Run the server process

@@ -7,7 +7,7 @@ module RocketJob
     # Returns the single instance of the Rocket Job Configuration for this site
     # in a thread-safe way
     def self.instance
-      @@instance ||= begin
+      @instance ||= begin
         first || create
       rescue StandardError
         # In case another process has already created the first document
