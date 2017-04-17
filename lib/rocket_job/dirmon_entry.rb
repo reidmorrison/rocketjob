@@ -146,8 +146,8 @@ module RocketJob
     # Default: [] ==> Do not enforce whitelists
     #
     # Returns [Array<String>] a copy of the whitelisted paths
-    def self.whitelist_paths
-      @whitelist_paths.dup
+    def self.get_whitelist_paths
+      self.whitelist_paths.dup
     end
 
     # Add a path to the whitelist
@@ -155,8 +155,8 @@ module RocketJob
     def self.add_whitelist_path(path)
       # Confirms that path exists
       path = Pathname.new(path).realpath.to_s
-      @whitelist_paths << path
-      @whitelist_paths.uniq!
+      self.whitelist_paths << path
+      self.whitelist_paths.uniq!
       path
     end
 
@@ -165,8 +165,8 @@ module RocketJob
     def self.delete_whitelist_path(path)
       # Confirms that path exists
       path = Pathname.new(path).realpath.to_s
-      @whitelist_paths.delete(path)
-      @whitelist_paths.uniq!
+      self.whitelist_paths.delete(path)
+      self.whitelist_paths.uniq!
       path
     end
 
@@ -203,9 +203,9 @@ module RocketJob
 
     # The default archive directory that is used when the job being queued does not respond
     # to #upload, and does not have an `archive_directory` specified in this entry
-    cattr_accessor :default_archive_directory
+    class_attribute :default_archive_directory
 
-    @default_archive_directory = '_archive'.freeze
+    self.default_archive_directory = '_archive'.freeze
 
     # Returns [Pathname] the archive_directory if set, otherwise the default_archive_directory
     # Creates the archive directory if one is set
@@ -266,8 +266,6 @@ module RocketJob
       end
     end
 
-    @whitelist_paths = Concurrent::Array.new
-
     # Returns the Job to be queued
     def job_class
       return if job_class_name.nil?
@@ -292,10 +290,8 @@ module RocketJob
 
     private
 
-    # Instance method to return whitelist paths
-    def whitelist_paths
-      @whitelist_paths
-    end
+    class_attribute :whitelist_paths
+    self.whitelist_paths = Concurrent::Array.new
 
     # Upload the file to the job
     def upload_file(job, pathname)
