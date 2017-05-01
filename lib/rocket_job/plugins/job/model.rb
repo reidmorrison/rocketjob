@@ -39,7 +39,7 @@ module RocketJob
           field :priority, type: Integer, default: 50, class_attribute: true, user_editable: true, copy_on_restart: true
 
           # When the job completes destroy it from both the database and the UI
-          field :destroy_on_complete, type: Boolean, default: true, class_attribute: true, user_editable: true, copy_on_restart: true
+          field :destroy_on_complete, type: Boolean, default: true, class_attribute: true, copy_on_restart: true
 
           # Whether to store the results from this job
           field :collect_output, type: Boolean, default: false, class_attribute: true

@@ -187,15 +187,7 @@ module RocketJob
     #   # => {}
     def self.counts_by_state
       counts = {}
-      collection.aggregate([
-        {
-          '$group' => {
-            _id:   '$state',
-            count: {'$sum' => 1}
-          }
-        }
-      ]
-      ).each do |result|
+      collection.aggregate([{'$group' => {_id: '$state', count: {'$sum' => 1}}}]).each do |result|
         counts[result['_id'].to_sym] = result['count']
       end
       counts
@@ -229,14 +221,20 @@ module RocketJob
         # Case insensitive filename matching
         Pathname.glob(pattern, File::FNM_CASEFOLD).each do |pathname|
           next if pathname.directory?
-          pathname  = pathname.realpath
+          pathname = begin
+            pathname.realpath
+          rescue Errno::ENOENT
+            logger.warn("Unable to expand the realpath for #{pathname.inspect}. Skipping file.")
+            next
+          end
+
           file_name = pathname.to_s
 
           # Skip archive directories
           next if file_name.include?(self.class.default_archive_directory)
 
           # Security check?
-          if (whitelist_paths.size > 0) && whitelist_paths.none? { |whitepath| file_name.to_s.start_with?(whitepath) }
+          if (whitelist_paths.size > 0) && whitelist_paths.none? {|whitepath| file_name.to_s.start_with?(whitepath)}
             logger.error "Skipping file: #{file_name} since it is not in any of the whitelisted paths: #{whitelist_paths.join(', ')}"
             next
           end
