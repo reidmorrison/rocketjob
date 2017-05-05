@@ -13,7 +13,7 @@ Gem::Specification.new do |s|
   s.homepage              = 'http://rocketjob.io'
   s.summary               = "Ruby's missing batch system."
   s.executables           = ['rocketjob', 'rocketjob_perf']
-  s.files                 = Dir['lib/**/*', 'bin/*', 'LICENSE.txt', 'Rakefile', 'README.md']
+  s.files                 = Dir['lib/**/*', 'bin/*', 'LICENSE.txt', 'README.md']
   s.test_files            = Dir['test/**/*']
   s.license               = 'Apache-2.0'
   s.has_rdoc              = true

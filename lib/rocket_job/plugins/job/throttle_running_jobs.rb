@@ -38,7 +38,8 @@ module RocketJob
         def throttle_running_jobs_exceeded?
           throttle_running_jobs &&
             (throttle_running_jobs != 0) &&
-              (self.class.running.where(:id.ne => id).count >= throttle_running_jobs)
+              # Cannot use class since it will include instances of parent job classes.
+              (RocketJob::Job.running.where('_type' => self.class.name, :id.ne => id).count >= throttle_running_jobs)
         end
       end
     end

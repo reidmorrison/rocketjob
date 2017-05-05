@@ -13,15 +13,6 @@ end
 class User < ActiveRecord::Base
 end
 
-# Initialize the database connection
-# config_file = File.join(File.dirname(__FILE__), 'config', 'database.yml')
-# raise 'database config not found. Create a config file at: test/config/database.yml' unless File.exist? config_file
-#
-# cfg = YAML.load(ERB.new(File.new(config_file).read).result)['test']
-# raise("Environment 'test' not defined in test/config/database.yml") unless cfg
-#
-# User.establish_connection(cfg)
-
 module Plugins
   module Job
     class TransactionTest < Minitest::Test
@@ -60,7 +51,7 @@ module Plugins
           @job.destroy if @job && !@job.new_record?
         end
 
-        describe '.around_perform' do
+        describe '#rocket_job_transaction' do
           it 'is registered' do
             assert CommitTransactionJob.send(:get_callbacks, :perform).find {|c| c.filter == :rocket_job_transaction}
             assert RollbackTransactionJob.send(:get_callbacks, :perform).find {|c| c.filter == :rocket_job_transaction}
@@ -73,8 +64,19 @@ module Plugins
             assert_equal 0, User.count
             job = CommitTransactionJob.new(login: 'Success')
             job.perform_now
+            assert job.completed?
             assert_equal 1, User.count
             assert_equal 'Success', User.first.login
+          end
+
+          it 'rolls back on exception' do
+            assert_equal 0, User.count
+            job = RollbackTransactionJob.new(login: 'Bad')
+            assert_raises RuntimeError do
+              job.perform_now
+            end
+            assert job.failed?
+            assert_equal 0, User.count
           end
         end
 
