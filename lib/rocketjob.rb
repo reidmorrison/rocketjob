@@ -40,6 +40,7 @@ module RocketJob
     autoload :Restart,          'rocket_job/plugins/restart'
     autoload :Singleton,        'rocket_job/plugins/singleton'
     autoload :StateMachine,     'rocket_job/plugins/state_machine'
+    autoload :Transaction,      'rocket_job/plugins/transaction'
   end
 
   module Jobs

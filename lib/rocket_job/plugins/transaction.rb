@@ -2,7 +2,7 @@ require 'active_support/concern'
 
 module RocketJob
   module Plugins
-    # Perform under a single Active Record transaction / unit or work.
+    # Wraps every #perform call with an Active Record transaction / unit or work.
     #
     # If the perform raises an exception it will cause any database changes to be rolled back.
     #
@@ -23,14 +23,19 @@ module RocketJob
     #       Audit.create!(table: 'user', description: 'Changed age to 21')
     #     end
     #   end
+    #
+    # Performance
+    # - On Ruby (MRI) an empty transaction block call takes about 1ms.
+    # - On JRuby an empty transaction block call takes about 55ms.
+    #
+    # Note:
+    # - This plugin will only be activated if ActiveRecord has been loaded first.
     module Transaction
       extend ActiveSupport::Concern
 
       included do
-        if respond_to?(:around_slice)
-          around_slice :rocket_job_transaction
-        else
-          around_perform :rocket_job_transaction
+        if defined?(ActiveRecord::Base)
+          respond_to?(:around_slice) ? around_slice(:rocket_job_transaction) : around_perform(:rocket_job_transaction)
         end
       end
 

@@ -16,10 +16,11 @@ module RocketJob
       #   end
       #
       # Notes:
-      # - The actual number will be around this value, it can go over slightly and
-      #   can drop depending on check interval can drop slightly below this value.
-      # - By avoiding hard locks and counters performance can be maintained while still
-      #   supporting good enough quantity throttling.
+      # - The number of running jobs will not exceed this value.
+      # - It may appear that a job is running briefly over this limit, but then is immediately back into queued state.
+      #   This is expected behavior and is part of the check to ensure this value is not exceeded.
+      #   The worker grabs the job and only then verifies the throttle, this is to prevent any other worker
+      #   from attempting to grab the job, which would have exceeded the throttle.
       module ThrottleRunningJobs
         extend ActiveSupport::Concern
 

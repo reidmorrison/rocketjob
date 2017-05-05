@@ -26,3 +26,5 @@
 Gemfile.lock
 gemfiles/*.lock
 /docs/_site
+
+*.sqlite3

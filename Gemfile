@@ -2,7 +2,8 @@ source 'https://rubygems.org'
 
 gemspec
 
-gem 'activemodel', '~> 5.1.0.rc1'
+gem 'sqlite3'
+gem 'activerecord', '~> 5.1'
 
 gem 'rake'
 gem 'minitest'
