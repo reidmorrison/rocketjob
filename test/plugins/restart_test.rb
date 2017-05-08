@@ -16,11 +16,26 @@ module Plugins
       end
     end
 
+    class RestartablePausableJob < RocketJob::Job
+      include RocketJob::Plugins::Restart
+
+      field :start_at, type: Date
+      field :end_at, type: Date
+
+      # Job will reload itself during process to check if it was paused.
+      self.pausable = true
+
+      def perform
+        self.start_at = Date.today
+        self.end_at   = Date.today
+        'DONE'
+      end
+    end
+
     describe RocketJob::Plugins::Restart do
       before do
-        # destroy_all could create new instances
         RestartableJob.delete_all
-        assert_equal 0, RestartableJob.count
+        RestartablePausableJob.delete_all
       end
 
       after do
@@ -89,12 +104,12 @@ module Plugins
       end
 
       describe '#pause' do
-        it 'does not enqueues a new job when paused' do
-          @job = RestartableJob.new
+        it 'does not enqueue a new job when paused' do
+          @job = RestartablePausableJob.new
           @job.start
           @job.pause!
           assert @job.paused?
-          assert_equal 1, RestartableJob.count
+          assert_equal 1, RestartablePausableJob.count
         end
       end
 
@@ -115,7 +130,7 @@ module Plugins
         end
 
         it 'aborts from paused' do
-          @job = RestartableJob.new
+          @job = RestartablePausableJob.new
           @job.start
           @job.pause
           assert @job.paused?

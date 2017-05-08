@@ -58,12 +58,14 @@ module RocketJob
             end
 
             event :pause do
-              transitions from: :running, to: :paused
+              transitions from: :running, to: :paused, if: :pausable?
+              # All jobs are pausable prior to starting the job.
               transitions from: :queued, to: :paused
             end
 
             event :resume do
-              transitions from: :paused, to: :running, if: -> { started_at }
+              transitions from: :paused, to: :running, if: -> { pausable? && started_at }
+              # All jobs paused before processing started are pausable.
               transitions from: :paused, to: :queued, unless: -> { started_at }
             end
 
@@ -81,6 +83,10 @@ module RocketJob
             end
           end
           # @formatter:on
+
+          # By default all jobs are not pausable / resumable
+          class_attribute(:pausable)
+          self.pausable = false
 
           # Define a before and after callback method for each event
           state_machine_define_event_callbacks(*aasm.state_machine.events.keys)
