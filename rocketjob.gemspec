@@ -20,6 +20,6 @@ Gem::Specification.new do |s|
   s.required_ruby_version = '>= 2.1'
   s.add_dependency 'concurrent-ruby', '~> 1.0'
   s.add_dependency 'mongoid', '>= 5.0'
-  s.add_dependency 'semantic_logger', '>= 3.1'
+  s.add_dependency 'semantic_logger', '~> 4.1'
   s.add_dependency 'aasm', '~> 4.12'
 end
