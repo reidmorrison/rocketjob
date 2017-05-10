@@ -31,7 +31,7 @@ module Plugins
             @job.perform_now
           end
 
-          assert @job.queued?, -> {@job.attributes.ai}
+          assert @job.queued?, -> { @job.attributes.ai }
 
           # Includes failure time
           assert_equal 1, @job.rocket_job_failure_count
@@ -50,7 +50,7 @@ module Plugins
             assert_raises RuntimeError do
               @job.perform_now
             end
-            assert @job.queued?, -> {@job.attributes.ai}
+            assert @job.queued?, -> { @job.attributes.ai }
             assert_equal (i + 1), @job.rocket_job_failure_count
           end
 
@@ -58,7 +58,7 @@ module Plugins
 
           # Should succeed on the 6th attempt
           @job.perform_now
-          assert @job.completed?, -> {@job.attributes.ai}
+          assert @job.completed?, -> { @job.attributes.ai }
           assert_equal 5, @job.rocket_job_failure_count
         end
 
@@ -70,7 +70,7 @@ module Plugins
             assert_raises RuntimeError do
               @job.perform_now
             end
-            assert @job.queued?, -> {@job.attributes.ai}
+            assert @job.queued?, -> { @job.attributes.ai }
             assert_equal (i + 1), @job.rocket_job_failure_count
           end
 
@@ -80,7 +80,7 @@ module Plugins
             @job.perform_now
           end
 
-          assert @job.failed?, -> {@job.attributes.ai}
+          assert @job.failed?, -> { @job.attributes.ai }
         end
       end
 

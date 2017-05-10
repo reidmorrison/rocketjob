@@ -53,9 +53,9 @@ module Plugins
 
         describe '#rocket_job_transaction' do
           it 'is registered' do
-            assert CommitTransactionJob.send(:get_callbacks, :perform).find {|c| c.filter == :rocket_job_transaction}
-            assert RollbackTransactionJob.send(:get_callbacks, :perform).find {|c| c.filter == :rocket_job_transaction}
-            refute RocketJob::Job.send(:get_callbacks, :perform).find {|c| c.filter == :rocket_job_transaction}
+            assert CommitTransactionJob.send(:get_callbacks, :perform).find { |c| c.filter == :rocket_job_transaction }
+            assert RollbackTransactionJob.send(:get_callbacks, :perform).find { |c| c.filter == :rocket_job_transaction }
+            refute RocketJob::Job.send(:get_callbacks, :perform).find { |c| c.filter == :rocket_job_transaction }
           end
         end
 

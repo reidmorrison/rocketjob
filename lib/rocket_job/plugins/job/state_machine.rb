@@ -77,9 +77,9 @@ module RocketJob
             end
 
             event :requeue do
-              transitions from: :running, to: :queued,
-                if:             -> server_name { worker_on_server?(server_name) },
-                after:          :rocket_job_clear_started_at
+              transitions from:  :running, to: :queued,
+                          if:    -> server_name { worker_on_server?(server_name) },
+                          after: :rocket_job_clear_started_at
             end
           end
           # @formatter:on

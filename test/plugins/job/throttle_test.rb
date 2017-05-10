@@ -86,15 +86,15 @@ module Plugins
             ThrottleJob.create!(state: :failed)
             ThrottleJob.create!(state: :complete)
             ThrottleJob.create!(state: :paused)
-            assert job = RocketJob::Job.rocket_job_next_job(@worker_name), -> {ThrottleJob.all.to_a.ai}
-            assert_equal @job.id, job.id, -> {ThrottleJob.all.to_a.ai}
+            assert job = RocketJob::Job.rocket_job_next_job(@worker_name), -> { ThrottleJob.all.to_a.ai }
+            assert_equal @job.id, job.id, -> { ThrottleJob.all.to_a.ai }
           end
 
           it 'return nil when other jobs are running' do
             ThrottleJob.create!
             @job = ThrottleJob.new
             @job.start!
-            assert_nil RocketJob::Job.rocket_job_next_job(@worker_name), -> {ThrottleJob.all.to_a.ai}
+            assert_nil RocketJob::Job.rocket_job_next_job(@worker_name), -> { ThrottleJob.all.to_a.ai }
           end
 
           it 'add job to filter when other jobs are running' do
@@ -102,7 +102,7 @@ module Plugins
             @job = ThrottleJob.new
             @job.start!
             filter = {}
-            assert_nil RocketJob::Job.rocket_job_next_job(@worker_name, filter), -> {ThrottleJob.all.to_a.ai}
+            assert_nil RocketJob::Job.rocket_job_next_job(@worker_name, filter), -> { ThrottleJob.all.to_a.ai }
             assert_equal 1, filter.size
           end
         end

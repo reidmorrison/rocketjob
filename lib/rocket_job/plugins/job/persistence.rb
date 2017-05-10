@@ -70,14 +70,15 @@ module RocketJob
           #        }
           def counts_by_state
             counts = {}
-            collection.aggregate([
-              {
-                '$group' => {
-                  _id:   '$state',
-                  count: {'$sum' => 1}
+            collection.aggregate(
+              [
+                {
+                  '$group' => {
+                    _id:   '$state',
+                    count: {'$sum' => 1}
+                  }
                 }
-              }
-            ]
+              ]
             ).each do |result|
               counts[result['_id'].to_sym] = result['count']
             end

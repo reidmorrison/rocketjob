@@ -7,8 +7,8 @@ module RocketJob
   class CLI
     include SemanticLogger::Loggable
     attr_accessor :name, :workers, :environment, :pidfile, :directory, :quiet,
-      :log_level, :log_file, :mongo_config, :symmetric_encryption_config,
-      :filter
+                  :log_level, :log_file, :mongo_config, :symmetric_encryption_config,
+                  :filter
 
     def initialize(argv)
       @name                        = nil

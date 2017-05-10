@@ -21,6 +21,7 @@
 #
 # Made in Japan.
 #++
+#@formatter:off
 
 module RocketJob::Plugins::Rufus
   #
