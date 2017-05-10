@@ -38,6 +38,7 @@ module RocketJob
     autoload :Document,         'rocket_job/plugins/document'
     autoload :ProcessingWindow, 'rocket_job/plugins/processing_window'
     autoload :Restart,          'rocket_job/plugins/restart'
+    autoload :Retry,            'rocket_job/plugins/retry'
     autoload :Singleton,        'rocket_job/plugins/singleton'
     autoload :StateMachine,     'rocket_job/plugins/state_machine'
     autoload :Transaction,      'rocket_job/plugins/transaction'

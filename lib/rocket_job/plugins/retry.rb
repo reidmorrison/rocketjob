@@ -25,7 +25,7 @@ module RocketJob
     #   include RocketJob::Plugins::Retry
     #
     #   # Set the default retry_count
-    #   self.max_retries = 3
+    #   self.retry_limit = 3
     #
     #   def perform
     #     puts "DONE"
@@ -36,10 +36,10 @@ module RocketJob
     # MyJob.create!
     #
     # # Replace the default retry_count
-    # MyCronJob.create!(max_retries: 10)
+    # MyCronJob.create!(retry_limit: 10)
     #
     # # Disable retries for this job instance
-    # MyCronJob.create!(max_retries: 0)
+    # MyCronJob.create!(retry_limit: 0)
     #
     module Retry
       extend ActiveSupport::Concern
@@ -49,17 +49,21 @@ module RocketJob
 
         # Maximum number of times to retry this job
         # 25 is approximately 3 weeks of retries
-        field :max_retries, type: Integer, default: 25, class_attribute: true, user_editable: true, copy_on_restart: true
+        field :retry_limit, type: Integer, default: 25, class_attribute: true, user_editable: true, copy_on_restart: true
 
         # List of times when this job failed
-        field :failed_times, type: Array, default: []
+        field :failed_at_list, type: Array, default: []
 
-        validates_presence_of :max_retries
+        validates_presence_of :retry_limit
       end
 
-      # Returns [true|false] whether this job will be automatically retried on failure
+      # Returns [true|false] whether this job should be retried on failure.
       def rocket_job_retry_on_fail?
-        failure_count > max_retries
+        rocket_job_failure_count < retry_limit
+      end
+
+      def rocket_job_failure_count
+        failed_at_list.size
       end
 
       private
@@ -73,8 +77,8 @@ module RocketJob
 
         now         = Time.now
         self.run_at = now + delay_seconds
-        self.failed_times << now
-        new_record? ? retry : retry!
+        self.failed_at_list << now
+        new_record? ? self.retry : self.retry!
       end
 
       # Prevent exception from being cleared on retry
@@ -85,9 +89,9 @@ module RocketJob
       end
 
       # Returns [Time] when to retry this job at
-      # Same basic formula as Sidekiq and Delayed Job
+      # Same basic formula as Delayed Job
       def rocket_job_retry_seconds_to_delay
-        (failure_count ** 4) + 15 + (rand(30)*(failure_count+1))
+        (rocket_job_failure_count ** 4) + 15 + (rand(30) * (rocket_job_failure_count + 1))
       end
 
     end
