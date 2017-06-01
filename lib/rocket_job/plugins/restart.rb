@@ -114,7 +114,7 @@ module RocketJob
           end
           count += 1
         end
-        logger.warn("New job instance not started: #{job.errors.messages.join(', ')}")
+        logger.warn("New job instance not started: #{job.errors.messages.inspect}")
         false
       end
 

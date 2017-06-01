@@ -16,8 +16,8 @@ module RocketJob
     def self.all(server_name = nil)
       servers = []
       # Need paused, failed or aborted since servers may still be working on active slices
-      query   = RocketJob::Job.where(:state.in => [:running, :paused, :failed, :aborted])
-      query   = query.where(worker_name: /\A#{server_name}/) if server_name
+      query = RocketJob::Job.where(:state.in => [:running, :paused, :failed, :aborted])
+      query = query.where(worker_name: /\A#{server_name}/) if server_name
       query.each do |job|
         servers += job.rocket_job_active_workers
       end
