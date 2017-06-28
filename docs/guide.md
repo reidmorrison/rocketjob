@@ -307,7 +307,7 @@ Callbacks can be used to insert "middleware" into specific job classes, or for a
 The `after_fail` callback can be used to automatically retry failed jobs. For example, retry the job again
 in 10 minutes, or retry immediately for up to 3 times, etc...
 
-For more details on callbacks, see the [Mongoid Callbacks Documentation](https://docs.mongodb.com/ruby-driver/master/tutorials/5.1.0/mongoid-callbacks/).
+For more details on callbacks, see the [Mongoid Callbacks Documentation](https://docs.mongodb.com/mongoid/master/tutorials/mongoid-callbacks).
 
 ### Validations
 
