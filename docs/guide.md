@@ -307,7 +307,7 @@ Callbacks can be used to insert "middleware" into specific job classes, or for a
 The `after_fail` callback can be used to automatically retry failed jobs. For example, retry the job again
 in 10 minutes, or retry immediately for up to 3 times, etc...
 
-For more details on callbacks, see the [Mongoid Callbacks Documentation](https://docs.mongodb.com/ruby-driver/master/tutorials/5.1.0/mongoid-callbacks/).
+For more details on callbacks, see the [Mongoid Callbacks Documentation](https://docs.mongodb.com/mongoid/master/tutorials/mongoid-callbacks).
 
 ### Validations
 
@@ -460,16 +460,16 @@ Each worker is completely independent of each other so that it can run as fast a
 Concurrency Notes:
 
 * Avoid modifying any global variables since they could be accessed by 2 worker threads at the same time.
-    * Only update instance variables, or use [Sync Attr][5].
+    * Only update instance variables, or use [Sync Attr][2].
     * Verify that any cache being used is thread-safe.
-* To lazy load class variables use [Sync Attr][5].
+* To lazy load class variables use [Sync Attr][2].
     * For example, loading configuration files etc.
 
 ### Architecture
 
-RocketJob uses [MongoDB][6] to do "in-place" processing of a job. A job is only created
-once and stored entirely as a single document in [MongoDB][6]. [MongoDB][6] is highly concurrent,
-allowing all CPU's to be used if needed to scale out workers. [MongoDB][6] is not
+RocketJob uses [MongoDB][3] to do "in-place" processing of a job. A job is only created
+once and stored entirely as a single document in [MongoDB][3]. [MongoDB][3] is highly concurrent,
+allowing all CPU's to be used if needed to scale out workers. [MongoDB][3] is not
 only memory resident for performance, it can also write older data to disk, or
 when there is not enough physical memory to hold all of the data.
 
@@ -485,7 +485,7 @@ interface, without having to update some other data store since the job only liv
 in one place.
 
 The single document approach for the job is possible due to a very efficient
-modify-in-place feature in [MongoDB][6] called [`find_and_modify`](http://docs.mongodb.org/manual/reference/command/findAndModify/)
+modify-in-place feature in [MongoDB][3] called [`find_and_modify`](http://docs.mongodb.org/manual/reference/command/findAndModify/)
 that allows jobs to be efficiently assigned to any one of hundreds of available
 workers without the locking issues that befall relational databases.
 
@@ -517,6 +517,6 @@ ActiveRecord MySQL reads to multiple slave servers.
 
 [0]: http://rocketjob.io
 [1]: https://github.com/rocketjob/rocketjob_mission_control
-[4]: http://rocketjob.io/pro
-[5]: https://github.com/reidmorrison/sync_attr
+[2]: https://github.com/reidmorrison/sync_attr
+[3]: https://www.mongodb.com
 
