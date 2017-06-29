@@ -54,6 +54,22 @@ module Plugins
 
       end
 
+      describe '#save' do
+        it 'updates run_at for a new record' do
+          @job = CronJob.create!(cron_schedule: '* 1 * * *')
+          assert @job.run_at
+        end
+
+        it 'updates run_at for a modified record' do
+          @job = CronJob.create!(cron_schedule: '* 1 * * * UTC')
+          assert run_at = @job.run_at
+          @job.cron_schedule = '* 2 * * * UTC'
+          assert_equal run_at, @job.run_at
+          @job.save!
+          assert run_at < @job.run_at
+        end
+      end
+
       describe '#valid?' do
         it 'fails on missing cron schedule' do
           @job = CronJob.new

@@ -32,6 +32,8 @@ module RocketJob
     # - The job will not be restarted if:
     #   - A validation fails after cloning this job.
     #   - The job has expired.
+    # - Any time the `cron_schedule` is changed, the `run_at` is automatically set before saving the changes.
+    #   - However, if the `run_at` is explicitly set then it will not be overriden.
     #
     # Example:
     #
@@ -102,7 +104,7 @@ module RocketJob
 
         field :cron_schedule, type: String, class_attribute: true, user_editable: true, copy_on_restart: true
 
-        before_create :rocket_job_set_run_at
+        before_save :rocket_job_set_run_at
 
         validates_presence_of :cron_schedule
         validates_each :cron_schedule do |record, attr, value|
@@ -117,7 +119,9 @@ module RocketJob
       private
 
       def rocket_job_set_run_at
-        self.run_at = RocketJob::Plugins::Rufus::CronLine.new(cron_schedule).next_time
+        if cron_schedule_changed? && !run_at_changed?
+          self.run_at = RocketJob::Plugins::Rufus::CronLine.new(cron_schedule).next_time
+        end
       end
 
     end
