@@ -116,12 +116,20 @@ module RocketJob
         end
       end
 
+      # Returns [Time] the next time this job will be scheduled to run at.
+      #
+      # Parameters
+      #   time: [Time]
+      #     The next time as of this time.
+      #     Default: Time.now
+      def rocket_job_cron_next_time(time = Time.now)
+        RocketJob::Plugins::Rufus::CronLine.new(cron_schedule).next_time(time)
+      end
+
       private
 
       def rocket_job_set_run_at
-        if cron_schedule_changed? && !run_at_changed?
-          self.run_at = RocketJob::Plugins::Rufus::CronLine.new(cron_schedule).next_time
-        end
+        self.run_at = rocket_job_cron_next_time if cron_schedule_changed? && !run_at_changed?
       end
 
     end
