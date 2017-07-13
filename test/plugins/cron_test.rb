@@ -71,10 +71,9 @@ module Plugins
       end
 
       describe '#valid?' do
-        it 'fails on missing cron schedule' do
+        it 'allows missing cron schedule' do
           @job = CronJob.new
-          refute @job.valid?
-          assert_equal "can't be blank", @job.errors.messages[:cron_schedule].first
+          assert @job.valid?
         end
 
         it 'fails on bad cron schedule' do
@@ -86,6 +85,61 @@ module Plugins
         it 'passes on valid cron schedule' do
           @job = CronJob.new(cron_schedule: '* 1 * * *')
           assert @job.valid?
+        end
+      end
+
+      describe '#fail' do
+        describe 'with cron_schedule' do
+          let :job do
+            job = CronJob.create!(cron_schedule: '* 1 * * *')
+            job.start
+            job.fail
+            job
+          end
+
+          it 'allows current cron job instance to fail' do
+            assert job.failed?
+          end
+
+          it 'clears out cron_schedule' do
+            refute job.cron_schedule
+          end
+
+          it 'retains run_at' do
+            assert job.run_at
+          end
+
+          it 'schedules a new instance' do
+            assert_equal 0, CronJob.count
+            job
+            assert_equal 2, CronJob.count
+            assert scheduled_job = CronJob.last
+            assert scheduled_job.queued?
+            assert_equal '* 1 * * *', scheduled_job.cron_schedule
+          end
+        end
+
+        describe 'without cron_schedule' do
+          let :job do
+            job = CronJob.create!
+            job.start
+            job.fail
+            job
+          end
+
+          it 'allows current cron job instance to fail' do
+            assert job.failed?
+          end
+
+          it 'has no cron_schedule' do
+            refute job.cron_schedule
+          end
+
+          it 'does not schedule a new instance' do
+            assert_equal 0, CronJob.count
+            job
+            assert_equal 1, CronJob.count
+          end
         end
       end
 

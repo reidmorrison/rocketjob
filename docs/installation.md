@@ -373,6 +373,32 @@ bin/rails s
 
 Open a browser and navigate to the local [Rocket Job Mission Control](http://localhost:3000)
 
+### Capistrano Recipe
+
+Below is an example Capistrano recipe that can be used to start or stop Rocket Job servers:
+
+~~~ruby
+# ====================================
+# Rocket Job Server Tasks
+# ====================================
+namespace :rocketjob do
+  desc 'Start a rocket_job server. optional arg: HOSTFILTER=server1,server2 --count 2 --filter "DirmonJob|WeeklyReportJob"'
+  task :start do |t, args|
+    count   = (ENV['count'] || 1).to_i
+    filter  = "--filter #{ENV['filter']}" if ENV['filter']
+    workers = "--workers #{ENV['workers']}" if ENV['workers']
+    count.times do
+      run "cd #{component_path} && nohup bin/rocketjob --quiet #{filter} #{workers} >> #{component_path}/log/rocketjob.log 2>&1 & sleep 2"
+    end
+  end
+
+  desc 'Stop all rocket_job servers on a host. optional arg: HOSTFILTER=server1,server2'
+  task :stop do |t, args|
+    run 'pkill -u rails -f bin/rocketjob'
+  end
+end
+~~~
+
 ### [Next: Guide ==>](guide.html)
 
 [0]: http://rocketjob.io

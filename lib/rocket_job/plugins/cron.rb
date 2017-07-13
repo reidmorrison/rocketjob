@@ -28,14 +28,21 @@ module RocketJob
     # will only run once those jobs have completed, or their priority lowered. Additionally, while the
     # job is queued no additional instances will be enqueued, even if the next cron interval has been reached.
     #
-    # Note:
+    # Notes:
     # - The job will not be restarted if:
     #   - A validation fails after cloning this job.
     #   - The job has expired.
     # - Any time the `cron_schedule` is changed, the `run_at` is automatically set before saving the changes.
-    #   - However, if the `run_at` is explicitly set then it will not be overriden.
+    #   - However, if the `run_at` is explicitly set then it will not be overridden.
+    # - `cron_schedule` is not a required field so that the same job class
+    #   - can be scheduled to run at regular intervals,
+    #   - and run on an ad-hoc basis with custom values.
+    # - On job failure
+    #   - a new future instance is created immediately.
+    #   - the current instance is marked as failed and its cron schedule is set to nil.
+    #     - Prevents the failed instance from creating a new future instance when it completes.
     #
-    # Example:
+    # Example, schedule the job to run at regular intervals:
     #
     # class MyCronJob < RocketJob::Job
     #   include RocketJob::Plugins::Cron
@@ -48,19 +55,41 @@ module RocketJob
     #   end
     # end
     #
-    # # Queue the job for processing using the default cron_schedule specified above
+    # # Queue the job for processing using the default cron_schedule specified above.
     # MyCronJob.create!
     #
-    # # Set the cron schedule:
-    # MyCronJob.create!(cron_schedule: '* 1 * * * America/New_York')
+    #
+    # Example, a job that can run at regular intervals, and can be run for ad-hoc reporting etc.:
+    #
+    # class ReportJob < RocketJob::Job
+    #   # Do not set a default cron_schedule so that the job can also be used for ad-hoc work.
+    #   include RocketJob::Plugins::Cron
+    #
+    #   field :start_date, type: Date
+    #   field :end_date,   type: Date
+    #
+    #   def perform
+    #     # Uses `scheduled_at` to take into account any possible delays.
+    #     self.start_at ||= scheduled_at.beginning_of_week.to_date
+    #     self.end_at   ||= scheduled_at.end_of_week.to_date
+    #
+    #     puts "Running report, starting at #{start_date}, ending at #{end_date}"
+    #   end
+    # end
+    #
+    # # Queue the job for processing using a cron_schedule.
+    # # On completion the job will create a new instance to run at a future date.
+    # ReportJob.create!(cron_schedule: '* 1 * * * America/New_York')
+    #
+    # # Queue the job for processing outside of the above cron schedule.
+    # # On completion the job will _not_ create a new instance to run at a future date.
+    # job = ReportJob.create!(start_date: 30.days.ago, end_date: 10.days.ago)
     #
     #
-    # Note:
+    # To prevent multiple instances of the job from running at the same time, add the singleton plug-in:
+    #   include RocketJob::Plugins::Singleton
     #
-    # To prevent multiple instances of the job from running at the same time,
-    # add: "include RocketJob::Plugins::Singleton"
-    #
-    # Example: Only allow one instance of the cron job to run at a time:
+    # Example: Only allow one instance of this job to be active at the same time (running, queued, scheduled, or failed):
     #
     # class MyCronJob < RocketJob::Job
     #   # Add `cron_schedule`
@@ -106,14 +135,45 @@ module RocketJob
 
         before_save :rocket_job_set_run_at
 
-        validates_presence_of :cron_schedule
         validates_each :cron_schedule do |record, attr, value|
           begin
-            RocketJob::Plugins::Rufus::CronLine.new(value)
+            RocketJob::Plugins::Rufus::CronLine.new(value) if value
           rescue ArgumentError => exc
             record.errors.add(attr, exc.message)
           end
         end
+
+        private
+
+        # Prevent auto restart if this job does not have a cron schedule.
+        # Overrides: RocketJob::Plugins::Restart#rocket_job_restart_new_instance
+        def rocket_job_restart_new_instance
+          return unless cron_schedule
+          super
+        end
+
+        # On failure:
+        # - create a new instance scheduled to run in the future.
+        # - clear out the `cron_schedule` so this instance will not schedule another instance to run on completion.
+        # Overrides: RocketJob::Plugins::Restart#rocket_job_restart_abort
+        def rocket_job_restart_abort
+          return unless cron_schedule
+          rocket_job_restart_new_instance
+          self.cron_schedule = nil
+        end
+      end
+
+      # Returns [Time] at which this job was intended to run at.
+      #
+      # Takes into account any delays that could occur.
+      # Recommended to use this Time instead of Time.now in the `#perform` since the job could run outside its
+      # intended window. Especially if a failed job is only retried quite sometime later.
+      #
+      # Notes:
+      # * When `cron_schedule` is set, this would be the `run_at` time, otherwise it is the `created_at` time
+      #   since that would be the intended time for which this job is running.
+      def scheduled_at
+        run_at || created_at
       end
 
       # Returns [Time] the next time this job will be scheduled to run at.
@@ -129,6 +189,7 @@ module RocketJob
       private
 
       def rocket_job_set_run_at
+        return unless cron_schedule
         self.run_at = rocket_job_cron_next_time if cron_schedule_changed? && !run_at_changed?
       end
 

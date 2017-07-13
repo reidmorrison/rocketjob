@@ -21,7 +21,7 @@ module RocketJob
           logger.info('Start #perform')
           logger.measure_info(
             'Completed #perform',
-            metric:             "RocketJob/#{self.class.name}/perform",
+            metric:             "#{self.class.name}/perform",
             log_exception:      :full,
             on_exception_level: :error,
             silence:            log_level,
