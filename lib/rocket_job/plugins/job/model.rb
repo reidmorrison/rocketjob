@@ -302,6 +302,16 @@ module RocketJob
           worker_name.start_with?(server_name)
         end
 
+        # Returns [Array<String>] names of workers currently working this job.
+        def worker_names
+          running? && worker_name.present? ? [worker_name] : []
+        end
+
+        # Returns [Integer] the number of workers currently working on this job.
+        def worker_count
+          running? && worker_name.present? ? 1 : 0
+        end
+
       end
     end
   end

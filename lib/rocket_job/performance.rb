@@ -1,5 +1,6 @@
 require 'csv'
 require 'yaml'
+require 'optparse'
 module RocketJob
   class Performance
     attr_accessor :count, :servers, :workers, :version, :ruby, :environment, :mongo_config
