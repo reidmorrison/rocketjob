@@ -45,7 +45,7 @@ module RocketJob
           field :collect_output, type: Boolean, default: false, class_attribute: true
 
           # Run this job no earlier than this time
-          field :run_at, type: Time
+          field :run_at, type: Time, user_editable: true
 
           # If a job has not started by this time, destroy it
           field :expires_at, type: Time, copy_on_restart: true
@@ -245,6 +245,22 @@ module RocketJob
           queued? && run_at.present? && (run_at > Time.now)
         end
 
+        # Return [true|false] whether this job is sleeping.
+        # I.e. No workers currently working on this job even if it is running.
+        def sleeping?
+          running? && (worker_count == 0)
+        end
+
+        # Returns [Integer] the number of workers currently working on this job.
+        def worker_count
+          running? && worker_name.present? ? 1 : 0
+        end
+
+        # Returns [Array<String>] names of workers currently working this job.
+        def worker_names
+          running? && worker_name.present? ? [worker_name] : []
+        end
+
         # Returns [Hash] status of this job
         def as_json
           attrs = serializable_hash(methods: [:seconds, :duration])
@@ -300,16 +316,6 @@ module RocketJob
         def worker_on_server?(server_name)
           return false unless worker_name.present? && server_name.present?
           worker_name.start_with?(server_name)
-        end
-
-        # Returns [Array<String>] names of workers currently working this job.
-        def worker_names
-          running? && worker_name.present? ? [worker_name] : []
-        end
-
-        # Returns [Integer] the number of workers currently working on this job.
-        def worker_count
-          running? && worker_name.present? ? 1 : 0
         end
 
       end

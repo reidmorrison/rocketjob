@@ -2,6 +2,7 @@ require 'optparse'
 require 'semantic_logger'
 require 'mongoid'
 require 'rocketjob'
+require 'rocket_job/extensions/mongoid/factory'
 module RocketJob
   # Command Line Interface parser for RocketJob
   class CLI
@@ -35,7 +36,7 @@ module RocketJob
       write_pidfile
 
       # In case Rails did not load the Mongoid Config
-      RocketJob::Config.load!(environment, mongo_config, symmetric_encryption_config) if Mongoid::Config.clients.empty?
+      RocketJob::Config.load!(environment, mongo_config, symmetric_encryption_config) if ::Mongoid::Config.clients.empty?
 
       opts               = {}
       opts[:name]        = name if name
@@ -132,8 +133,8 @@ module RocketJob
       # Enable SemanticLogger signal handling for this process
       SemanticLogger.add_signal_handler
 
-      Mongoid.logger       = SemanticLogger[Mongoid]
-      Mongo::Logger.logger = SemanticLogger[Mongo]
+      ::Mongoid.logger       = SemanticLogger[::Mongoid]
+      ::Mongo::Logger.logger = SemanticLogger[::Mongo]
     end
 
     # Eager load files in jobs folder
