@@ -11,10 +11,19 @@ module Plugins
       end
     end
 
+    class FailOnceCronJob < RocketJob::Job
+      include RocketJob::Plugins::Cron
+
+      def perform
+        raise 'oh no' if failure_count == 0
+      end
+    end
+
     describe RocketJob::Plugins::Cron do
       before do
         # destroy_all could create new instances
         CronJob.delete_all
+        FailOnceCronJob.delete_all
         assert_equal 0, CronJob.count
       end
 
@@ -91,9 +100,12 @@ module Plugins
       describe '#fail' do
         describe 'with cron_schedule' do
           let :job do
-            job = CronJob.create!(cron_schedule: '* 1 * * *')
+            job = FailOnceCronJob.create!(cron_schedule: '* 1 * * *')
             job.start
-            job.fail
+            assert_raises RuntimeError do
+              job.perform_now
+            end
+            job.reload
             job
           end
 
@@ -110,12 +122,20 @@ module Plugins
           end
 
           it 'schedules a new instance' do
-            assert_equal 0, CronJob.count
+            assert_equal 0, FailOnceCronJob.count
             job
-            assert_equal 2, CronJob.count
-            assert scheduled_job = CronJob.last
+            assert_equal 2, FailOnceCronJob.count
+            assert scheduled_job = FailOnceCronJob.last
             assert scheduled_job.queued?
             assert_equal '* 1 * * *', scheduled_job.cron_schedule
+          end
+
+          it 'restarts on retry' do
+            job.retry!
+            job.perform_now
+            assert job.completed?
+            assert_equal 1, FailOnceCronJob.count, -> { FailOnceCronJob.all.to_a.collect(&:state).to_s }
+            assert_equal 1, FailOnceCronJob.queued.count
           end
         end
 

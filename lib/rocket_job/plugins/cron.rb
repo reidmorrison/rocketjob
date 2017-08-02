@@ -159,7 +159,7 @@ module RocketJob
         def rocket_job_restart_abort
           return unless cron_schedule
           rocket_job_restart_new_instance
-          self.cron_schedule = nil
+          update_attribute(:cron_schedule, nil)
         end
       end
 
