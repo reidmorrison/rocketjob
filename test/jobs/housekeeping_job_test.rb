@@ -16,25 +16,39 @@ class HousekeepingJobTest < Minitest::Test
 
     describe 'job retention' do
       before do
-        job = HousekeepingJobTest::TestJob.new(created_at: 2.days.ago)
-        job.abort!
-        job = HousekeepingJobTest::TestJob.new(created_at: 8.days.ago)
-        job.abort!
+        job = HousekeepingJobTest::TestJob.new
+        Time.stub(:now, 2.days.ago) do
+          job.abort!
+        end
+        job = HousekeepingJobTest::TestJob.new
+        Time.stub(:now, 8.days.ago) do
+          job.abort!
+        end
 
-        job = HousekeepingJobTest::TestJob.new(created_at: 2.days.ago)
-        job.perform_now
-        job.save!
-        job = HousekeepingJobTest::TestJob.new(created_at: 8.days.ago)
-        job.perform_now
-        job.save!
+        job = HousekeepingJobTest::TestJob.new
+        Time.stub(:now, 2.days.ago) do
+          job.perform_now
+          job.save!
+        end
+        job = HousekeepingJobTest::TestJob.new
+        Time.stub(:now, 8.days.ago) do
+          job.perform_now
+          job.save!
+        end
 
-        job = HousekeepingJobTest::TestJob.new(created_at: 2.days.ago)
-        job.fail!
-        job = HousekeepingJobTest::TestJob.new(created_at: 15.days.ago)
-        job.fail!
+        job = HousekeepingJobTest::TestJob.new
+        Time.stub(:now, 2.days.ago) do
+          job.fail!
+        end
+        job = HousekeepingJobTest::TestJob.new
+        Time.stub(:now, 15.days.ago) do
+          job.fail!
+        end
 
-        job = HousekeepingJobTest::TestJob.new(created_at: 400.days.ago)
-        job.pause!
+        job = HousekeepingJobTest::TestJob.new
+        Time.stub(:now, 400.days.ago) do
+          job.pause!
+        end
         job = HousekeepingJobTest::TestJob.new
         job.pause!
 
