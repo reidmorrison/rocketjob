@@ -69,7 +69,7 @@ Add the `rocketjob` and `rocketjob_slices` clients as per the example below to e
 development:
   clients:
     default: &default_development
-      uri: mongodb://localhost:27017/rocketjob_development
+      uri: mongodb://127.0.0.1:27017/rocketjob_development
       options:
         <<: *client_options
         write:
@@ -207,7 +207,7 @@ mongoid_options: &mongoid_options
 development:
   clients:
     default: &default_development
-      uri: mongodb://localhost:27017/rocketjob_development
+      uri: mongodb://127.0.0.1:27017/rocketjob_development
       options:
         <<: *client_options
         write:
@@ -224,7 +224,7 @@ development:
 test:
   clients:
     default: &default_test
-      uri: mongodb://localhost:27017/rocketjob_test
+      uri: mongodb://127.0.0.1:27017/rocketjob_test
       options:
         <<: *client_options
         write:
@@ -360,7 +360,7 @@ Add the `rocketjob` and `rocketjob_slices` clients as per the example below to e
 development:
   clients:
     default: &default_development
-      uri: mongodb://localhost:27017/rocketjob_development
+      uri: mongodb://127.0.0.1:27017/rocketjob_development
       options:
         <<: *client_options
         write:

@@ -10,8 +10,6 @@ module RocketJob
         included do
           # Store all job types in this collection
           store_in collection: 'rocket_job.jobs'
-
-          after_initialize :remove_arguments
         end
 
         module ClassMethods
@@ -111,13 +109,6 @@ module RocketJob
             end
             self
           end
-        end
-
-        private
-
-        # Remove old style arguments that were stored as an array
-        def remove_arguments
-          attributes.delete('arguments') unless respond_to?('arguments='.to_sym)
         end
 
       end
