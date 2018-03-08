@@ -3,8 +3,6 @@ layout: default
 ---
 ## Batch Processing
 
-* Batch processing is available as part of Rocket Job Pro.
-
 Regular jobs run on a single worker. In order to scale up and use all available workers
 it is necessary to break up the input data into "slices" so that different parts of the job
 can be processed in parallel.
@@ -22,6 +20,8 @@ lines then this job will contain only 10,000 slices.
 A running batch Job will be interrupted if a new job with a higher priority is queued for
 processing.  This allows low priority jobs to use all available resources until a higher
 priority job arrives, and then to resume processing once the higher priority job is complete.
+
+Batch processing is available as part of [Rocket Job Pro][2].
 
 ~~~ruby
 class ReverseJob < RocketJob::Job
@@ -428,10 +428,6 @@ class MultiFileJobTest < ActiveSupport::TestCase
   end
 end
 ~~~
-
-
-
-### [Next: Directory Monitor ==>](dirmon.html)
 
 [0]: http://rocketjob.io
 [1]: mission_control.html

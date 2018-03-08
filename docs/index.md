@@ -160,8 +160,6 @@ Queue the job for processing:
 ImportJob.create!(file_name: 'file.csv')
 ~~~
 
-### [Next: Web UI ==>](mission_control.html)
-
 [0]: http://rocketjob.io
 [1]: mission_control.html
 [2]: http://rocketjob.github.io/semantic_logger

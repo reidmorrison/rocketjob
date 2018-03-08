@@ -56,5 +56,3 @@ Run the following from an application console:
 ~~~ruby
 RocketJob::Jobs::DirmonJob.create!
 ~~~
-
-### [Next: Rocket Job Pro ==>](pro.html)

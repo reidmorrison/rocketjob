@@ -118,6 +118,4 @@ The workers can be resumed later by selecting `Resume All`.
 
 To shutdown all workers via Rocket Job Web Interface, click on `Actions` and select `Stop All`.
 
-### [Next: Compare ==>](compare.html)
-
 [0]: http://rocketjob.io

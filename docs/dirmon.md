@@ -131,8 +131,6 @@ If an exception occurs while running `DirmonJob`, a failed job instance will rem
 in the job list for problem determination. The failed job cannot be restarted and
 should be destroyed when no longer needed.
 
-### [Next: Support ==>](support.html)
-
 [0]: http://rocketjob.io
 [1]: https://github.com/rocketjob/rocketjob_mission_control
 [2]: http://rocketjob.github.io/semantic_logger

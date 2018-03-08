@@ -1273,8 +1273,6 @@ MyJob.create!(file_name: 'abc.csv')
 
 * [API Reference](http://www.rubydoc.info/gems/rocketjob/)
 
-### [Next: Batch Processing ==>](batch.html)
-
 [0]: http://rocketjob.io
 [1]: mission_control.html
 [2]: https://github.com/reidmorrison/sync_attr

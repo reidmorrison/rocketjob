@@ -412,8 +412,6 @@ namespace :rocketjob do
 end
 ~~~
 
-### [Next: Guide ==>](guide.html)
-
 [0]: http://rocketjob.io
 [1]: mission_control.html
 [2]: http://rocketjob.github.io/semantic_logger
