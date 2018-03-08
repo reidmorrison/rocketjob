@@ -4,7 +4,7 @@ require 'mongoid'
 require 'rocketjob'
 require 'rocket_job/extensions/mongoid/factory'
 module RocketJob
-  # Command Line Interface parser for RocketJob
+  # Command Line Interface parser for Rocket Job
   class CLI
     include SemanticLogger::Loggable
     attr_accessor :name, :workers, :environment, :pidfile, :directory, :quiet,

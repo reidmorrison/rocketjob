@@ -2,13 +2,13 @@
 layout: default
 ---
 
-## Rocket Job Web UI
+## Rocket Job Web Interface
 
-[Rocket Job Mission Control][1] is the web interface for managing and monitoring [Rocket Job][0].
+The Rocket Job Web Interface is used for managing and monitoring [Rocket Job][0].
 
 ![Screen shot](images/rjmc_running.png)
 
-[Rocket Job Mission Control][1] first opens with the list of running jobs in the system, listed in reverse chronological order.
+Rocket Job Web Interface first opens with the list of running jobs in the system, listed in reverse chronological order.
 I.e. With the newest job at the top.
 
 Each job entry in the list includes:
@@ -31,12 +31,12 @@ Each job entry in the list includes:
 * Retry failed jobs
 * Abort, or fail queued or running jobs
 * Destroy a completed or aborted job
-* By separating [Rocket Job Mission Control][1] into a separate gem means it does not
+* By separating Rocket Job Web Interface into a separate gem means it does not
   have to be loaded everywhere [Rocket Job][0] jobs are defined or run.
 
 ### Managing Jobs
 
-Select a job in [Rocket Job Mission Control][1] to see more details about the status of that job:
+Select a job in Rocket Job Web Interface to see more details about the status of that job:
 
 ![Screen shot](images/rjmc_job_running.png)
 
@@ -116,9 +116,8 @@ Each worker can be managed individually, or to pause all current work, select `P
 
 The workers can be resumed later by selecting `Resume All`.
 
-To shutdown all workers via [Rocket Job Mission Control][1], click on `Actions` and select `Stop All`.
+To shutdown all workers via Rocket Job Web Interface, click on `Actions` and select `Stop All`.
 
 ### [Next: Compare ==>](compare.html)
 
 [0]: http://rocketjob.io
-[1]: https://github.com/rocketjob/rocketjob_mission_control

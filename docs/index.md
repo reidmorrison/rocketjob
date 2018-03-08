@@ -4,21 +4,11 @@ layout: default
 
 <table border="0" width="100%">
   <tr>
-    <td align="center" width="60%"><a>Cost: $0</a></td>
-    <td>
-      Free.
-      <ul>
-        <li>Open Source.</li>
-        <li>Community support.</li>
-      </ul>
-    </td>
-  </tr>
-  <tr>
     <td align="center" width="60%"><img src="images/rjmc_running.png" alt="Running"></td>
     <td>
       Monitoring.
       <ul>
-        <li>Web Interface - Rocket Job Mission Control.</li>
+        <li>Web Interface - Rocket Job Web Interface.</li>
         <li>Monitor and manage every job in the system.</li>
         <li>View current status.</li>
       </ul>
@@ -42,7 +32,7 @@ layout: default
   </tr>
   <tr>
     <td>
-<div class="highlighter-rouge"><pre class="highlight"><code><span class="k">class</span> <span class="nc">Job</span> <span class="o">&lt;</span> <span class="no">RocketJob</span><span class="o">::</span><span class="no">Job</span>
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="k">class</span> <span class="nc">Job</span> <span class="o">&lt;</span> <span class="no">Rocket Job</span><span class="o">::</span><span class="no">Job</span>
   <span class="n">key</span> <span class="ss">:login</span><span class="p">,</span> <span class="no">String</span>
   <span class="n">key</span> <span class="ss">:count</span><span class="p">,</span> <span class="no">Integer</span>
 
@@ -61,7 +51,7 @@ layout: default
   </tr>
   <tr>
     <td>
-<div class="highlighter-rouge"><pre class="highlight"><code><span class="k">class</span> <span class="nc">MyJob</span> <span class="o">&lt;</span> <span class="no">RocketJob</span><span class="o">::</span><span class="no">Job</span>
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="k">class</span> <span class="nc">MyJob</span> <span class="o">&lt;</span> <span class="no">Rocket Job</span><span class="o">::</span><span class="no">Job</span>
   <span class="n">after_start</span> <span class="ss">:email_started</span>
 
   <span class="k">def</span> <span class="nf">perform</span>

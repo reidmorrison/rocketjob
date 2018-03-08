@@ -23,7 +23,7 @@ module RocketJob
     # class RestartableJob < RocketJob::Job
     #   include RocketJob::Plugins::Restart
     #
-    #   # Retain the completed job under the completed tab in Rocket Job Mission Control.
+    #   # Retain the completed job under the completed tab in Rocket Job Web Interface.
     #   self.destroy_on_complete = false
     #
     #   # Will be copied to the new job on restart.

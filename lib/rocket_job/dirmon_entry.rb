@@ -8,7 +8,7 @@ module RocketJob
 
     store_in collection: 'rocket_job.dirmon_entries'
 
-    # User defined name used to identify this DirmonEntry in Mission Control
+    # User defined name used to identify this DirmonEntry in the Web Interface.
     field :name, type: String
 
     # Pattern for finding files
@@ -294,7 +294,7 @@ module RocketJob
     # Upload the file to the job
     def upload_file(job, pathname)
       if job.respond_to?(:upload)
-        # With RocketJob Pro the file can be uploaded directly into the Job itself
+        # With Rocket Job Pro the file can be uploaded directly into the Job itself
         job.upload(pathname.to_s)
         archive_directory ? archive_file(job, pathname) : pathname.unlink
       else

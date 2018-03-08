@@ -9,7 +9,7 @@ module RocketJob
 
         included do
           # Fields that are end user editable.
-          # For example are editable in Rocket Job Mission Control.
+          # For example are editable in Rocket Job Web Interface.
           class_attribute :user_editable_fields, instance_accessor: false
           self.user_editable_fields = []
 

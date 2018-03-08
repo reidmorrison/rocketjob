@@ -4,7 +4,7 @@ module RocketJob
   # Worker
   #
   # A worker runs on a single operating system thread
-  # Is usually started under a RocketJob server process.
+  # Is usually started under a Rocket Job server process.
   class Worker
     include SemanticLogger::Loggable
     include ActiveSupport::Callbacks

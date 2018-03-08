@@ -242,7 +242,7 @@ module RocketJob
       logger.info "Using MongoDB Database: #{RocketJob::Job.collection.database.name}"
       build_heartbeat(updated_at: Time.now, workers: 0)
       started!
-      logger.info 'RocketJob Server started'
+      logger.info 'Rocket Job Server started'
 
       run_workers
 

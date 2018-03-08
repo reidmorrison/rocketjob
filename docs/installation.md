@@ -106,12 +106,12 @@ Or, if you have generated bundler bin stubs:
 bin/rocketjob
 ~~~
 
-### Installing RocketJob Mission Control (Web Interface)
+### Installing the Rocket Job Web Interface (Web Interface)
 
-[Rocket Job Mission Control][1] is the web interface for [Rocket Job][0].
+[Rocket Job Web Interface][1] is the web interface for [Rocket Job][0].
 It is a rails engine that can be added to any existing Rails 4 or Rails 5 rails application.
 
-Add the [Rocket Job Mission Control][1] gem to your Gemfile
+Add the [Rocket Job Web Interface][1] gem to your Gemfile
 
 ~~~ruby
 gem 'rocketjob_mission_control', '~> 3.0'
@@ -135,13 +135,13 @@ Start the Rails server:
 bin/rails s
 ~~~
 
-Open a browser and navigate to the local [Rocket Job Mission Control](http://localhost:3000/rocketjob)
+Open a browser and navigate to the local [Rocket Job Web Interface](http://localhost:3000/rocketjob)
 
 ## Standalone Installation
 
 When running stand-alone without Rails.
 
-Create directories to hold the standalone RocketJob jobs and configuration:
+Create directories to hold the standalone Rocket Job jobs and configuration:
 
 ~~~
 mkdir standalone
@@ -307,8 +307,8 @@ HELLO WORLD
 
 ### Standalone Rocket Job Web Interface
 
-[Rocket Job Mission Control][1] is the web interface for [Rocket Job][0].
-In order to install [Rocket Job Mission Control][1] in a stand-alone environment, we need to
+[Rocket Job Web Interface][1] is the web interface for [Rocket Job][0].
+In order to install [Rocket Job Web Interface][1] in a stand-alone environment, we need to
 host it in a "shell" rails application as follows:
 
 Create shell application:
@@ -378,13 +378,13 @@ development:
 The `rocketjob` and `rocketjob_slices` clients above can be changed to point to separate
 database in production to spread load or to improve performance.
 
-Start the stand-alone [Rocket Job Mission Control][1]:
+Start the stand-alone [Rocket Job Web Interface][1]:
 
 ~~~
 bin/rails s
 ~~~
 
-Open a browser and navigate to the local [Rocket Job Mission Control](http://localhost:3000)
+Open a browser and navigate to the local [Rocket Job Web Interface](http://localhost:3000)
 
 ### Capistrano Recipe
 

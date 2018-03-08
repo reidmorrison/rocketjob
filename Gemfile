@@ -2,7 +2,8 @@ source 'https://rubygems.org'
 
 gemspec
 
-gem 'activerecord', '~> 5.1'
+gem 'activerecord', '~> 4.2.0'
+gem 'mongoid', '~> 5.0'
 
 gem 'rake'
 gem 'minitest'

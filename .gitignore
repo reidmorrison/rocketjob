@@ -28,3 +28,4 @@ gemfiles/*.lock
 /docs/_site
 
 *.sqlite3
+.rakeTasks

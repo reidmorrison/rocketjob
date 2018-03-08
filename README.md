@@ -17,6 +17,33 @@ Checkout http://rocketjob.io/
 * Questions? Join the chat room on Gitter for [rocketjob support](https://gitter.im/rocketjob/support)
 * [Report bugs](https://github.com/rocketjob/rocketjob/issues)
 
+## Contributing to the documentation
+
+To contribute to the documentation it is as easy as forking the repository
+and then editing the markdown pages directly via the github web interface.
+
+For more complex documentation changes checkout the source code locally.
+
+#### Local checkout
+
+* Fork the repository in github.
+* Checkout your fork of the source code locally.
+* Install Jekyll
+~~~
+    cd docs
+    bundle update
+~~~
+* Run Jekyll web server:
+~~~
+    jekyll serve
+~~~
+* Open a web browser to view the local documentation:
+    [http://127.0.0.1:4000](http://127.0.0.1:4000)
+* Edit the files in the `/docs` folder.
+* Refresh the page to see the changes.
+
+Once the changes are complete, submit a github pull request.
+
 ## Upgrading to V3
 
 V3 replaces MongoMapper with Mongoid which supports the latest MongoDB Ruby client driver.
