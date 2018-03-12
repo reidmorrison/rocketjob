@@ -279,6 +279,18 @@ class DirmonEntryTest < Minitest::Test
           assert_nil @entry.archive_directory
           assert_equal 0, files.count
         end
+
+        describe '#strip_whitespace' do
+          it 'removes white space' do
+            @entry = RocketJob::DirmonEntry.new(
+              pattern:           ' test/files/*',
+              archive_directory: ' test/archive/ '
+            )
+            @entry.send(:strip_whitespace)
+            assert_equal 'test/files/*', @entry.pattern
+            assert_equal 'test/archive/', @entry.archive_directory
+          end
+        end
       end
     end
 

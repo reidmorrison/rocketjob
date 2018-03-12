@@ -111,6 +111,8 @@ module RocketJob
     # @formatter:on
     validates_presence_of :pattern, :job_class_name
 
+    before_validation :strip_whitespace
+
     validates_each :job_class_name do |record, attr, value|
       exists =
         begin
@@ -287,6 +289,12 @@ module RocketJob
     end
 
     private
+
+    # strip whitespaces from all variables that reference paths or patterns
+    def strip_whitespace
+      self.pattern = pattern.strip unless pattern.nil?
+      self.archive_directory = archive_directory.strip unless archive_directory.nil?
+    end
 
     class_attribute :whitelist_paths
     self.whitelist_paths = Concurrent::Array.new
