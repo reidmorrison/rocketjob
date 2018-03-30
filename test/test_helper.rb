@@ -1,4 +1,5 @@
 $LOAD_PATH.unshift File.dirname(__FILE__) + '/../lib'
+ENV['TZ'] = 'America/New_York'
 
 require 'yaml'
 require 'minitest/autorun'
