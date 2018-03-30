@@ -14,4 +14,4 @@ RocketJob::Config.load!('test', 'test/config/mongoid.yml')
 Mongoid.logger       = SemanticLogger[Mongoid]
 Mongo::Logger.logger = SemanticLogger[Mongo]
 
-#RocketJob::Job.collection.database.command(dropDatabase: 1)
+# RocketJob::Job.collection.database.command(dropDatabase: 1)

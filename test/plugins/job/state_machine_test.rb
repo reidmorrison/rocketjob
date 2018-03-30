@@ -3,7 +3,6 @@ module Plugins
   module Job
     # Unit Test for RocketJob::Job
     class StateMachineTest < Minitest::Test
-
       class StateMachineJob < RocketJob::Job
         def perform
         end
@@ -111,7 +110,6 @@ module Plugins
             assert_nil @job.exception
           end
         end
-
       end
     end
   end

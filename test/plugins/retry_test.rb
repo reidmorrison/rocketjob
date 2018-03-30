@@ -7,7 +7,7 @@ module Plugins
 
       # Fails 5 times before succeeding
       def perform
-        raise "Oh No" unless rocket_job_failure_count >= 5
+        raise 'Oh No' unless rocket_job_failure_count >= 5
         'DONE'
       end
     end
@@ -83,7 +83,6 @@ module Plugins
           assert @job.failed?, -> { @job.attributes.ai }
         end
       end
-
     end
   end
 end

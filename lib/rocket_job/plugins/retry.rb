@@ -77,8 +77,8 @@ module RocketJob
 
         now         = Time.now
         self.run_at = now + delay_seconds
-        self.failed_at_list << now
-        new_record? ? self.retry : self.retry!
+        failed_at_list << now
+        new_record? ? self.retry : retry!
       end
 
       # Prevent exception from being cleared on retry
@@ -93,7 +93,6 @@ module RocketJob
       def rocket_job_retry_seconds_to_delay
         (rocket_job_failure_count ** 4) + 15 + (rand(30) * (rocket_job_failure_count + 1))
       end
-
     end
   end
 end

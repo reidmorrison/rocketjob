@@ -76,7 +76,6 @@ module RocketJob
         return unless cron_schedule
         self.run_at = rocket_job_cron_next_time if cron_schedule_changed? && !run_at_changed?
       end
-
     end
   end
 end

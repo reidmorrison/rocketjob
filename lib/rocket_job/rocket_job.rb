@@ -19,20 +19,20 @@ module RocketJob
   # Returns a human readable duration from the supplied [Float] number of seconds
   def self.seconds_as_duration(seconds)
     return nil unless seconds
-    if seconds >= 86400.0 # 1 day
-      "#{(seconds / 86400).to_i}d #{Time.at(seconds).strftime('%-Hh %-Mm')}"
+    if seconds >= 86_400.0 # 1 day
+      "#{(seconds / 86_400).to_i}d #{Time.at(seconds).strftime('%-Hh %-Mm')}"
     elsif seconds >= 3600.0 # 1 hour
       Time.at(seconds).strftime('%-Hh %-Mm')
     elsif seconds >= 60.0 # 1 minute
       Time.at(seconds).strftime('%-Mm %-Ss')
     elsif seconds >= 1.0 # 1 second
-      "#{'%.3f' % seconds}s"
+      format('%.3fs', seconds)
     else
       duration = seconds * 1000
       if defined? JRuby
         "#{duration.to_i}ms"
       else
-        duration < 10.0 ? "#{'%.3f' % duration}ms" : "#{'%.1f' % duration}ms"
+        duration < 10.0 ? format('%.3fms', duration) : format('%.1fms', duration)
       end
     end
   end
@@ -49,5 +49,4 @@ module RocketJob
   def self.rails!
     @rails = true
   end
-
 end

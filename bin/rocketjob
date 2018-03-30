@@ -6,7 +6,7 @@ require 'rocket_job/cli'
 # Start a rocketjob server instance from the command line
 begin
   RocketJob::CLI.new(ARGV).run
-rescue => exc
+rescue Exception => exc
   # Failsafe logger that writes to STDERR
   SemanticLogger.add_appender(io: STDERR, level: :error, formatter: :color)
   SemanticLogger['RocketJob'].error('Rocket Job shutting down due to exception', exc)

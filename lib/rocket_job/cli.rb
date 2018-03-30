@@ -41,7 +41,7 @@ module RocketJob
       opts               = {}
       opts[:name]        = name if name
       opts[:max_workers] = workers if workers
-      opts[:filter]      = {:_type => filter} if filter
+      opts[:filter]      = {_type: filter} if filter
       Server.run(opts)
     end
 
@@ -70,12 +70,12 @@ module RocketJob
       # Override Rails log level if command line option was supplied
       SemanticLogger.default_level = log_level.to_sym if log_level
 
-      if Rails.configuration.eager_load
-        logger.measure_info('Eager loaded Rails and all Engines') do
-          Rails.application.eager_load!
-          Rails::Engine.subclasses.each(&:eager_load!)
-          self.class.eager_load_jobs(File.expand_path('jobs', File.dirname(__FILE__)))
-        end
+      return unless Rails.configuration.eager_load
+
+      logger.measure_info('Eager loaded Rails and all Engines') do
+        Rails.application.eager_load!
+        Rails::Engine.subclasses.each(&:eager_load!)
+        self.class.eager_load_jobs(File.expand_path('jobs', File.dirname(__FILE__)))
       end
     end
 
@@ -86,12 +86,14 @@ module RocketJob
         require 'bundler/setup'
         Bundler.require(environment)
       rescue LoadError
+        nil
       end
 
       require 'rocketjob'
       begin
         require 'rocketjob_pro'
       rescue LoadError
+        nil
       end
 
       # Log to file except when booting rails, when it will add the log file path
@@ -138,10 +140,10 @@ module RocketJob
     end
 
     # Eager load files in jobs folder
-    def self.eager_load_jobs(path = 'jobs')
-      Pathname.glob("#{path}/**/*.rb").each do |path|
+    def self.eager_load_jobs(job_path = 'jobs')
+      Pathname.glob("#{job_path}/**/*.rb").each do |path|
         next if path.directory?
-        logger.debug "Loading #{path.to_s}"
+        logger.debug "Loading #{path}"
         require path.expand_path.to_s
       end
     end
@@ -198,6 +200,5 @@ module RocketJob
       end
       parser.parse! argv
     end
-
   end
 end

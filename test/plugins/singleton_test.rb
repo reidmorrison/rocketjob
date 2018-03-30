@@ -3,7 +3,6 @@ require_relative '../test_helper'
 module Plugins
   # Unit Test for RocketJob::Job
   class SingletonTest < Minitest::Test
-
     class SingletonJob < RocketJob::Job
       include RocketJob::Plugins::Singleton
 
@@ -88,7 +87,6 @@ module Plugins
           job2.save!
         end
       end
-
     end
   end
 end

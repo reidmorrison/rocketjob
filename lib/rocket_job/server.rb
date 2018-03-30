@@ -35,7 +35,7 @@ module RocketJob
     #   Default: `host name:PID`
     # The unique name is used on re-start to re-queue any jobs that were being processed
     # at the time the server unexpectedly terminated, if any
-    field :name, type: String, default: -> { "#{SemanticLogger.host}:#{$$}" }
+    field :name, type: String, default: -> { "#{SemanticLogger.host}:#{$PROCESS_ID}" }
 
     # The maximum number of workers this server should start
     #   If set, it will override the default value in RocketJob::Config
@@ -107,7 +107,7 @@ module RocketJob
 
     # Stop all running, paused, or starting servers
     def self.stop_all
-      where(:state.in => [:running, :paused, :starting]).each(&:stop!)
+      where(:state.in => %i[running paused starting]).each(&:stop!)
     end
 
     # Pause all running servers
@@ -194,7 +194,7 @@ module RocketJob
       server = create!(attrs)
       server.send(:run)
     ensure
-      server.destroy if server
+      server&.destroy
     end
 
     # Returns [Boolean] whether the server is shutting down
@@ -207,10 +207,10 @@ module RocketJob
       dead_seconds        = Config.instance.heartbeat_seconds * missed
       last_heartbeat_time = Time.now - dead_seconds
       where(
-        :state.in => [:stopping, :running, :paused],
+        :state.in => %i[stopping running paused],
         '$or'     => [
-          {"heartbeat.updated_at" => {'$exists' => false}},
-          {"heartbeat.updated_at" => {'$lte' => last_heartbeat_time}}
+          {'heartbeat.updated_at' => {'$exists' => false}},
+          {'heartbeat.updated_at' => {'$lte' => last_heartbeat_time}}
         ]
       )
     end
@@ -230,8 +230,6 @@ module RocketJob
 
     private
 
-    attr_reader :workers
-
     # Returns [Array<Worker>] collection of workers
     def workers
       @workers ||= []
@@ -250,7 +248,7 @@ module RocketJob
       # Tell each worker to shutdown cleanly
       workers.each(&:shutdown!)
 
-      while worker = workers.first
+      while (worker = workers.first)
         if worker.join(5)
           # Worker thread is dead
           workers.shift
@@ -332,18 +330,18 @@ module RocketJob
       return unless running?
 
       # Need to add more workers?
-      if count < max_workers
-        worker_count = max_workers - count
-        logger.info "Starting #{worker_count} workers"
-        worker_count.times.each do
-          sleep (Config.instance.max_poll_seconds.to_f / max_workers) if stagger_workers
-          return if shutdown?
-          # Start worker
-          begin
-            workers << Worker.new(id: next_worker_id, server_name: name, filter: filter)
-          rescue Exception => exc
-            logger.fatal('Cannot start worker', exc)
-          end
+      return unless count < max_workers
+
+      worker_count = max_workers - count
+      logger.info "Starting #{worker_count} workers"
+      worker_count.times.each do
+        sleep(Config.instance.max_poll_seconds.to_f / max_workers) if stagger_workers
+        return if shutdown?
+        # Start worker
+        begin
+          workers << Worker.new(id: next_worker_id, server_name: name, filter: filter)
+        rescue Exception => exc
+          logger.fatal('Cannot start worker', exc)
         end
       end
     end
@@ -353,30 +351,28 @@ module RocketJob
     #   Perform clean shutdown
     #
     def self.register_signal_handlers
-      begin
-        Signal.trap 'SIGTERM' do
-          shutdown!
-          message = 'Shutdown signal (SIGTERM) received. Will shutdown as soon as active jobs/slices have completed.'
-          # Logging uses a mutex to access Queue on MRI/CRuby
-          defined?(JRuby) ? logger.warn(message) : puts(message)
-        end
-
-        Signal.trap 'INT' do
-          shutdown!
-          message = 'Shutdown signal (INT) received. Will shutdown as soon as active jobs/slices have completed.'
-          # Logging uses a mutex to access Queue on MRI/CRuby
-          defined?(JRuby) ? logger.warn(message) : puts(message)
-        end
-      rescue StandardError
-        logger.warn 'SIGTERM handler not installed. Not able to shutdown gracefully'
+      Signal.trap 'SIGTERM' do
+        shutdown!
+        message = 'Shutdown signal (SIGTERM) received. Will shutdown as soon as active jobs/slices have completed.'
+        # Logging uses a mutex to access Queue on MRI/CRuby
+        defined?(JRuby) ? logger.warn(message) : puts(message)
       end
+
+      Signal.trap 'INT' do
+        shutdown!
+        message = 'Shutdown signal (INT) received. Will shutdown as soon as active jobs/slices have completed.'
+        # Logging uses a mutex to access Queue on MRI/CRuby
+        defined?(JRuby) ? logger.warn(message) : puts(message)
+      end
+    rescue StandardError
+      logger.warn 'SIGTERM handler not installed. Not able to shutdown gracefully'
     end
+
+    private_class_method :register_signal_handlers
 
     # Requeue any jobs assigned to this server when it is destroyed
     def requeue_jobs
       RocketJob::Job.requeue_dead_server(name)
     end
-
   end
 end
-

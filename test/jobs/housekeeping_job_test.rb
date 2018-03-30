@@ -98,6 +98,5 @@ class HousekeepingJobTest < Minitest::Test
         assert_equal 1, RocketJob::Server.count, -> { RocketJob::Server.all.to_a.ai }
       end
     end
-
   end
 end

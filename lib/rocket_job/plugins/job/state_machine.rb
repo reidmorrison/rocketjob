@@ -78,7 +78,7 @@ module RocketJob
 
             event :requeue do
               transitions from:  :running, to: :queued,
-                          if:    -> server_name { worker_on_server?(server_name) },
+                          if:    ->(server_name) { worker_on_server?(server_name) },
                           after: :rocket_job_clear_started_at
             end
           end
@@ -165,7 +165,6 @@ module RocketJob
           destroy if destroy_on_complete && !new_record?
         end
       end
-
     end
   end
 end

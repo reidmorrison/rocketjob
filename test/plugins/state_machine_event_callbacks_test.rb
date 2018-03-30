@@ -93,11 +93,10 @@ module Plugins
           @job = PositivePathJob.new
           @job.perform_now
           assert @job.completed?, @job.attributes.ai
-          expected = %w(before_start_block before_start_method before_start2_block before_start_method2 after_start2_block after_start_method after_start_block perform before_complete_block before_complete_method before_complete2_block before_complete_method2 after_complete2_block after_complete_method after_complete_block)
+          expected = %w[before_start_block before_start_method before_start2_block before_start_method2 after_start2_block after_start_method after_start_block perform before_complete_block before_complete_method before_complete2_block before_complete_method2 after_complete2_block after_complete_method after_complete_block]
           assert_equal expected, @job.call_list, 'Sequence of before_perform callbacks is incorrect'
         end
       end
-
     end
   end
 end

@@ -23,7 +23,6 @@ module Plugins
         def before_perform_method
           call_list << 'before_perform_method'
         end
-
       end
 
       # This job adds each callback as they run into an array
@@ -45,14 +44,13 @@ module Plugins
         def after_perform_method
           call_list << 'after_perform_method'
         end
-
       end
 
       # This job adds each callback as they run into an array
       class AroundPerformJob < RocketJob::Job
         field :call_list, type: Array, default: []
 
-        around_perform do |job, block|
+        around_perform do |_job, block|
           call_list << 'around_perform_block_before'
           block.call
           call_list << 'around_perform_block_after'
@@ -71,7 +69,6 @@ module Plugins
           yield
           call_list << 'around_perform_method_after'
         end
-
       end
 
       # This job adds each callback as they run into an array
@@ -86,7 +83,7 @@ module Plugins
           call_list << 'after_perform_block'
         end
 
-        around_perform do |job, block|
+        around_perform do |_job, block|
           call_list << 'around_perform_block_before'
           block.call
           call_list << 'around_perform_block_after'
@@ -108,16 +105,15 @@ module Plugins
           call_list << 'before_perform_method'
         end
 
-        def around_perform_method(&block)
+        def around_perform_method
           call_list << 'around_perform_method_before'
-          block.call
+          yield
           call_list << 'around_perform_method_after'
         end
 
         def after_perform_method
           call_list << 'after_perform_method'
         end
-
       end
 
       describe RocketJob::Plugins::Job::Callbacks do
@@ -130,7 +126,7 @@ module Plugins
             @job = BeforePerformJob.new
             @job.perform_now
             assert @job.completed?, @job.attributes.ai
-            expected = %w(before_perform_block before_perform_method perform)
+            expected = %w[before_perform_block before_perform_method perform]
             assert_equal expected, @job.call_list, 'Sequence of before_perform callbacks is incorrect'
           end
         end
@@ -140,7 +136,7 @@ module Plugins
             @job = AfterPerformJob.new
             @job.perform_now
             assert @job.completed?, @job.attributes.ai
-            expected = %w(perform after_perform_method after_perform_block)
+            expected = %w[perform after_perform_method after_perform_block]
             assert_equal expected, @job.call_list, 'Sequence of after_perform callbacks is incorrect'
           end
         end
@@ -150,7 +146,7 @@ module Plugins
             @job = AroundPerformJob.new
             @job.perform_now
             assert @job.completed?, @job.attributes.ai
-            expected = %w(around_perform_block_before around_perform_method_before perform around_perform_method_after around_perform_block_after)
+            expected = %w[around_perform_block_before around_perform_method_before perform around_perform_method_after around_perform_block_after]
             assert_equal expected, @job.call_list, 'Sequence of around_perform callbacks is incorrect'
           end
         end
@@ -160,11 +156,10 @@ module Plugins
             @job = CombinedPerformJob.new
             @job.perform_now
             assert @job.completed?, @job.attributes.ai
-            expected = %w(before_perform_block around_perform_block_before before_perform_method around_perform_method_before perform after_perform_method around_perform_method_after around_perform_block_after after_perform_block)
+            expected = %w[before_perform_block around_perform_block_before before_perform_method around_perform_method_before perform after_perform_method around_perform_method_after around_perform_block_after after_perform_block]
             assert_equal expected, @job.call_list, 'Sequence of around_perform callbacks is incorrect'
           end
         end
-
       end
     end
   end

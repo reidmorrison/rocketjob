@@ -7,7 +7,7 @@ module RocketJob
     # specific time window. If the time window is already active the job is able to be processed
     # immediately.
     #
-    # Example: Process this job on Monday’s between 8am and 10am.
+    # Example: Process this job on Monday's between 8am and 10am.
     #
     # Example: Run this job on the 1st of every month from midnight for the entire day.
     #
@@ -70,7 +70,7 @@ module RocketJob
         return if rocket_job_processing_window_active?
         logger.warn("Processing window closed before job was processed. Job is re-scheduled to run at: #{rocket_job_processing_schedule.next_time}")
         self.worker_name ||= 'inline'
-        self.requeue!(worker_name)
+        requeue!(worker_name)
       end
 
       def rocket_job_processing_window_set_run_at

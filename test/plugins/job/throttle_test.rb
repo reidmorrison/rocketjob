@@ -4,7 +4,6 @@ require_relative '../../test_helper'
 module Plugins
   module Job
     class ThrottleTest < Minitest::Test
-
       class ThrottleJob < RocketJob::Job
         # Only allow one to be processed at a time
         self.throttle_running_jobs = 1
@@ -20,20 +19,20 @@ module Plugins
           RocketJob::Job.delete_all
         end
 
-        describe '.has_throttle?' do
+        describe '.throttle?' do
           it 'defines the running jobs throttle' do
-            assert ThrottleJob.has_throttle?(:throttle_running_jobs_exceeded?), ThrottleJob.rocket_job_throttles
-            refute ThrottleJob.has_throttle?(:blah?), ThrottleJob.rocket_job_throttles
+            assert ThrottleJob.throttle?(:throttle_running_jobs_exceeded?), ThrottleJob.rocket_job_throttles
+            refute ThrottleJob.throttle?(:blah?), ThrottleJob.rocket_job_throttles
           end
         end
 
         describe '.undefine_throttle' do
           it 'undefines the running jobs throttle' do
-            assert ThrottleJob.has_throttle?(:throttle_running_jobs_exceeded?), ThrottleJob.rocket_job_throttles
+            assert ThrottleJob.throttle?(:throttle_running_jobs_exceeded?), ThrottleJob.rocket_job_throttles
             ThrottleJob.undefine_throttle(:throttle_running_jobs_exceeded?)
-            refute ThrottleJob.has_throttle?(:throttle_running_jobs_exceeded?), ThrottleJob.rocket_job_throttles
+            refute ThrottleJob.throttle?(:throttle_running_jobs_exceeded?), ThrottleJob.rocket_job_throttles
             ThrottleJob.define_throttle(:throttle_running_jobs_exceeded?)
-            assert ThrottleJob.has_throttle?(:throttle_running_jobs_exceeded?), ThrottleJob.rocket_job_throttles
+            assert ThrottleJob.throttle?(:throttle_running_jobs_exceeded?), ThrottleJob.rocket_job_throttles
           end
         end
 
@@ -106,7 +105,6 @@ module Plugins
             assert_equal 1, filter.size
           end
         end
-
       end
     end
   end

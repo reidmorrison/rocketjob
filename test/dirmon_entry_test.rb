@@ -2,7 +2,6 @@ require_relative 'test_helper'
 
 # Unit Test for RocketJob::Job
 class DirmonEntryTest < Minitest::Test
-
   class WithFullFileNameJob < RocketJob::Job
     # Dirmon will store the filename in this property when starting the job
     field :upload_file_name, type: String
@@ -16,8 +15,8 @@ class DirmonEntryTest < Minitest::Test
     @result = nil
 
     # For temp test data
-    def self.result
-      @result
+    class << self
+      attr_reader :result
     end
 
     def perform(a, b)
@@ -90,7 +89,7 @@ class DirmonEntryTest < Minitest::Test
       end
 
       after do
-        @dirmon_entry.destroy if @dirmon_entry && @dirmon_entry.new_record?
+        @dirmon_entry.destroy if @dirmon_entry&.new_record?
       end
 
       it 'fail with message' do
@@ -156,7 +155,7 @@ class DirmonEntryTest < Minitest::Test
       end
 
       after do
-        @file.delete if @file
+        @file&.delete
         RocketJob::Jobs::DirmonJob.delete_all
       end
 
@@ -293,6 +292,5 @@ class DirmonEntryTest < Minitest::Test
         end
       end
     end
-
   end
 end

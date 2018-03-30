@@ -84,7 +84,7 @@ module RocketJob
       field :code, type: String
 
       validates :code, presence: true
-      validates_each :code do |job, attr, value|
+      validates_each :code do |job, attr, _value|
         begin
           job.send(:load_code)
         rescue Exception => exc
@@ -97,7 +97,7 @@ module RocketJob
       private
 
       def load_code
-        instance_eval("def perform\n#{code}\nend")
+        instance_eval("def perform\n#{code}\nend", __FILE__, __LINE__)
       end
     end
   end

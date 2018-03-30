@@ -28,7 +28,6 @@ module RocketJob
             &block
           )
         end
-
       end
     end
   end

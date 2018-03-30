@@ -81,14 +81,13 @@ module Plugins
           describe '#queued' do
             it 'returns all queued jobs' do
               count = 0
-              RocketJob::Job.queued.each do |job|
+              RocketJob::Job.queued.each do |_job|
                 count += 1
               end
               assert 3, count
             end
           end
         end
-
       end
     end
   end

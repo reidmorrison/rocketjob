@@ -4,7 +4,6 @@ module Plugins
   module Job
     # Unit Test for RocketJob::Job
     class DefaultsTest < Minitest::Test
-
       class ParentJob < RocketJob::Job
         self.priority    = 53
         self.description = 'Hello'

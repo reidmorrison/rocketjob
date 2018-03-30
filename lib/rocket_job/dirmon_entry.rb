@@ -59,7 +59,7 @@ module RocketJob
     # Exceeding this number will result in an exception being logged in a failed Dirmon instance.
     # Dirmon processing will continue with new instances.
     # TODO: Implement max_hits
-    #field :max_hits, type: Integer, default: 100
+    # field :max_hits, type: Integer, default: 100
 
     #
     # Read-only attributes
@@ -149,7 +149,7 @@ module RocketJob
     #
     # Returns [Array<String>] a copy of the whitelisted paths
     def self.get_whitelist_paths
-      self.whitelist_paths.dup
+      whitelist_paths.dup
     end
 
     # Add a path to the whitelist
@@ -157,8 +157,8 @@ module RocketJob
     def self.add_whitelist_path(path)
       # Confirms that path exists
       path = Pathname.new(path).realpath.to_s
-      self.whitelist_paths << path
-      self.whitelist_paths.uniq!
+      whitelist_paths << path
+      whitelist_paths.uniq!
       path
     end
 
@@ -167,8 +167,8 @@ module RocketJob
     def self.delete_whitelist_path(path)
       # Confirms that path exists
       path = Pathname.new(path).realpath.to_s
-      self.whitelist_paths.delete(path)
-      self.whitelist_paths.uniq!
+      whitelist_paths.delete(path)
+      whitelist_paths.uniq!
       path
     end
 
@@ -218,7 +218,7 @@ module RocketJob
     end
 
     # Passes each filename [Pathname] found that matches the pattern into the supplied block
-    def each(&block)
+    def each
       SemanticLogger.named_tagged(dirmon_entry: id.to_s) do
         # Case insensitive filename matching
         Pathname.glob(pattern, File::FNM_CASEFOLD).each do |pathname|
@@ -236,7 +236,7 @@ module RocketJob
           next if file_name.include?(self.class.default_archive_directory)
 
           # Security check?
-          if (whitelist_paths.size > 0) && whitelist_paths.none? { |whitepath| file_name.to_s.start_with?(whitepath) }
+          if whitelist_paths.size.positive? && whitelist_paths.none? { |whitepath| file_name.to_s.start_with?(whitepath) }
             logger.error "Skipping file: #{file_name} since it is not in any of the whitelisted paths: #{whitelist_paths.join(', ')}"
             next
           end
@@ -246,7 +246,7 @@ module RocketJob
             logger.error "Skipping file: #{file_name} since it is not writable by the current user. Must be able to delete/move the file after queueing the job"
             next
           end
-          block.call(pathname)
+          yield(pathname)
         end
       end
     end
@@ -276,15 +276,14 @@ module RocketJob
 
     # Queues the job for the supplied pathname
     def later(pathname)
-      if klass = job_class
-        logger.measure_info "Enqueued: #{name}, Job class: #{job_class_name}" do
-          job = klass.new(properties)
-          upload_file(job, pathname)
-          job.save!
-          job
-        end
-      else
-        raise(ArgumentError, "Cannot instantiate a class for: #{job_class_name.inspect}")
+      klass = job_class
+      raise(ArgumentError, "Cannot instantiate a class for: #{job_class_name.inspect}") unless klass
+
+      logger.measure_info "Enqueued: #{name}, Job class: #{job_class_name}" do
+        job = klass.new(properties)
+        upload_file(job, pathname)
+        job.save!
+        job
       end
     end
 
@@ -292,7 +291,7 @@ module RocketJob
 
     # strip whitespaces from all variables that reference paths or patterns
     def strip_whitespace
-      self.pattern = pattern.strip unless pattern.nil?
+      self.pattern           = pattern.strip unless pattern.nil?
       self.archive_directory = archive_directory.strip unless archive_directory.nil?
     end
 
@@ -338,6 +337,5 @@ module RocketJob
       FileUtils.move(pathname.to_s, target_file_name.to_s)
       target_file_name.to_s
     end
-
   end
 end

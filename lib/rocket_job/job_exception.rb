@@ -29,6 +29,5 @@ module RocketJob
         backtrace:  exc.backtrace || []
       )
     end
-
   end
 end

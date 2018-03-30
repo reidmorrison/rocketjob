@@ -4,7 +4,6 @@ require_relative '../../test_helper'
 module Plugins
   module Job
     class LoggerTest < Minitest::Test
-
       class LoggerJob < RocketJob::Job
         def perform
           logger.debug('DONE', value: 123, other_value: 'HI')
@@ -36,7 +35,7 @@ module Plugins
           it 'adds start logging' do
             @job        = LoggerJob.new
             info_called = false
-            @job.logger.stub(:info, -> description { info_called = true if description == 'Start #perform' }) do
+            @job.logger.stub(:info, ->(description) { info_called = true if description == 'Start #perform' }) do
               @job.perform_now
             end
             assert info_called, "In Plugins::Job::Logger.around_perform logger.info('Start #perform') not called"
@@ -45,13 +44,12 @@ module Plugins
           it 'adds completed logging' do
             @job           = LoggerJob.new
             measure_called = false
-            @job.logger.stub(:measure_info, -> description, *args { measure_called = true if description == 'Completed #perform' }) do
+            @job.logger.stub(:measure_info, ->(description, *_args) { measure_called = true if description == 'Completed #perform' }) do
               @job.perform_now
             end
             assert measure_called, "In Plugins::Job::Logger.around_perform logger.measure_info('Completed #perform') not called"
           end
         end
-
       end
     end
   end

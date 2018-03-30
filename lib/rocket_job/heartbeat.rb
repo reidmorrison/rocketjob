@@ -16,23 +16,22 @@ module RocketJob
     #
 
     # Percentage utilization for the server process alone
-    #field :process_cpu, type: Integer
+    # field :process_cpu, type: Integer
     # Kilo Bytes used by the server process (Virtual & Physical)
-    #field :process_mem_phys_kb, type: Integer
-    #field :process_mem_virt_kb, type: Integer
+    # field :process_mem_phys_kb, type: Integer
+    # field :process_mem_virt_kb, type: Integer
 
     #
     # System Information. Future.
     #
 
     # Percentage utilization for the host machine
-    #field :host_cpu, type: Integer
+    # field :host_cpu, type: Integer
     # Kilo Bytes Available on the host machine (Physical)
-    #field :host_mem_avail_phys_kbytes, type: Float
-    #field :host_mem_avail_virt_kbytes, type: Float
+    # field :host_mem_avail_phys_kbytes, type: Float
+    # field :host_mem_avail_virt_kbytes, type: Float
 
     # If available
-    #field :load_average, type: Float
+    # field :load_average, type: Float
   end
 end
-

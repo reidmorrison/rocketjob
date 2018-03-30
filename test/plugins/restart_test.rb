@@ -188,7 +188,6 @@ module Plugins
           refute job2.result
         end
       end
-
     end
   end
 end

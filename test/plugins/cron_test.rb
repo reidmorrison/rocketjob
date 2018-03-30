@@ -15,7 +15,7 @@ module Plugins
       include RocketJob::Plugins::Cron
 
       def perform
-        raise 'oh no' if failure_count == 0
+        raise 'oh no' if failure_count.zero?
       end
     end
 
@@ -60,7 +60,6 @@ module Plugins
             assert_equal Time.parse('2015-12-10 06:00:00 UTC'), @job.run_at
           end
         end
-
       end
 
       describe '#save' do
@@ -162,7 +161,6 @@ module Plugins
           end
         end
       end
-
     end
   end
 end

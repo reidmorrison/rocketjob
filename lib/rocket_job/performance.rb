@@ -18,7 +18,9 @@ module RocketJob
     # Loads the queue with jobs to be processed once the queue is loaded.
     # Retain the first and last job for timings, all others are destroyed on completion.
     def run_test_case(count = self.count)
-      raise 'Please start servers before starting the performance test' if RocketJob::Server.where(:state.in => ['running', 'paused']).count == 0
+      if RocketJob::Server.where(:state.in => %w[running paused]).count.zero?
+        raise 'Please start servers before starting the performance test'
+      end
 
       count_running_workers
 
@@ -33,21 +35,19 @@ module RocketJob
           running += server.heartbeat.workers unless server.zombie?
         end
         puts "Waiting for #{running} workers"
-        break if running == 0
+        break if running.zero?
         sleep 1
       end
 
       puts 'Enqueuing jobs'
       first = RocketJob::Jobs::SimpleJob.create!(priority: 1, destroy_on_complete: false)
-      (count - 2).times { |i| RocketJob::Jobs::SimpleJob.create! }
+      (count - 2).times { RocketJob::Jobs::SimpleJob.create! }
       last = RocketJob::Jobs::SimpleJob.create!(priority: 100, destroy_on_complete: false)
 
       puts 'Resuming workers'
       RocketJob::Server.resume_all
 
-      while (!last.reload.completed?)
-        sleep 3
-      end
+      sleep 3 until last.reload.completed?
 
       duration = last.reload.completed_at - first.reload.started_at
       first.destroy
@@ -67,13 +67,19 @@ module RocketJob
     # Parse command line options
     def parse(argv)
       parser        = OptionParser.new do |o|
-        o.on('-c', '--count COUNT', 'Count of jobs to enqueue') do |arg|
+        o.on('-c',
+             '--count COUNT',
+             'Count of jobs to enqueue') do |arg|
           self.count = arg.to_i
         end
-        o.on('-m', '--mongo MONGO_CONFIG_FILE_NAME', 'Path and filename of config file. Default: config/mongoid.yml') do |arg|
+        o.on('-m',
+             '--mongo MONGO_CONFIG_FILE_NAME',
+             'Path and filename of config file. Default: config/mongoid.yml') do |arg|
           self.mongo_config = arg
         end
-        o.on('-e', '--environment ENVIRONMENT', 'The environment to run the app on (Default: RAILS_ENV || RACK_ENV || development)') do |arg|
+        o.on('-e',
+             '--environment ENVIRONMENT',
+             'The environment to run the app on (Default: RAILS_ENV || RACK_ENV || development)') do |arg|
           self.environment = arg
         end
       end
@@ -95,6 +101,5 @@ module RocketJob
       end
       puts "Running: #{workers} workers, distributed across #{servers} servers"
     end
-
   end
 end

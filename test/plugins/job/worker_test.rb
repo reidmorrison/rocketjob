@@ -98,7 +98,7 @@ module Plugins
             @job           = NoisyJob.new
             @job.log_level = :warn
             logged         = false
-            @job.logger.stub(:log_internal, -> level, index, message, payload, exception { logged = true if message.include?('some very noisy logging') }) do
+            @job.logger.stub(:log_internal, ->(_level, _index, message, _payload, _exception) { logged = true if message.include?('some very noisy logging') }) do
               @job.perform_now
             end
             assert_equal false, logged
@@ -193,7 +193,6 @@ module Plugins
             assert active_worker.duration
           end
         end
-
       end
     end
   end

@@ -2,7 +2,6 @@ require_relative 'test_helper'
 
 # Unit Test for RocketJob::Job
 class JobTest < Minitest::Test
-
   class SimpleJob < RocketJob::Job
     def perform
     end
@@ -68,6 +67,5 @@ class JobTest < Minitest::Test
         assert_equal worker_name2, @job2.worker_name
       end
     end
-
   end
 end

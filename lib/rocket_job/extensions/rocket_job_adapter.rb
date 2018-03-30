@@ -70,20 +70,18 @@ module ActiveJob
         job
       end
 
-      private
-
       def self.active_job_params(active_job)
         params            = {
           description:      active_job.class.name,
           data:             active_job.serialize,
           active_job_id:    active_job.job_id,
           active_job_class: active_job.class.name,
-          active_job_queue: active_job.queue_name,
+          active_job_queue: active_job.queue_name
         }
         params[:priority] = active_job.priority if active_job.respond_to?(:priority) && active_job.priority
         params
       end
-
+      private_class_method :active_job_params
     end
   end
 end

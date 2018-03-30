@@ -72,11 +72,10 @@ module RocketJob
         DirmonEntry.enabled.each do |entry|
           entry.each do |pathname|
             # BSON Keys cannot contain periods
-            key           = pathname.to_s.gsub('.', '_')
-            previous_size = previous_file_names[key]
-            if size = check_file(entry, pathname, previous_size)
-              new_file_names[key] = size
-            end
+            key                 = pathname.to_s.tr('.', '_')
+            previous_size       = previous_file_names[key]
+            size                = check_file(entry, pathname, previous_size)
+            new_file_names[key] = size if size
           end
         end
         self.previous_file_names = new_file_names
@@ -96,7 +95,6 @@ module RocketJob
           size
         end
       end
-
     end
   end
 end

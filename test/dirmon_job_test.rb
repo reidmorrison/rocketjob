@@ -36,7 +36,7 @@ class DirmonJobTest < Minitest::Test
         new_size      = 10
         file          = Tempfile.new('check_file')
         file_name     = file.path
-        File.open(file_name, 'w') { |file| file.write('*' * new_size) }
+        File.open(file_name, 'w') { |f| f.write('*' * new_size) }
         assert_equal new_size, File.size(file_name)
         result = @entry.stub(:later, nil) do
           @dirmon_job.send(:check_file, @entry, file, previous_size)
@@ -49,10 +49,10 @@ class DirmonJobTest < Minitest::Test
         new_size      = 10
         file          = Tempfile.new('check_file')
         file_name     = file.path
-        File.open(file_name, 'w') { |file| file.write('*' * new_size) }
+        File.open(file_name, 'w') { |f| f.write('*' * new_size) }
         assert_equal new_size, File.size(file_name)
         started = false
-        result  = @entry.stub(:later, -> fn { started = true }) do
+        result  = @entry.stub(:later, ->(_fn) { started = true }) do
           @dirmon_job.send(:check_file, @entry, file, previous_size)
         end
         assert_nil result
@@ -75,7 +75,7 @@ class DirmonJobTest < Minitest::Test
       end
 
       after do
-        @entry.destroy if @entry
+        @entry&.destroy
       end
 
       it 'no files' do
@@ -116,7 +116,7 @@ class DirmonJobTest < Minitest::Test
         # assert_equal 0, files.count, files
 
         count  = 0
-        result = RocketJob::DirmonEntry.stub_any_instance(:later, -> path { count += 1 }) do
+        result = RocketJob::DirmonEntry.stub_any_instance(:later, ->(_path) { count += 1 }) do
           @dirmon_job.send(:check_directories)
         end
         assert_equal 0, result.count, result
@@ -145,11 +145,11 @@ class DirmonJobTest < Minitest::Test
       it 'check directories and reschedule' do
         previous_file_names = {
           "#{@directory}/abc/file1" => 5,
-          "#{@directory}/abc/file2" => 10,
+          "#{@directory}/abc/file2" => 10
         }
         new_file_names      = {
           "#{@directory}/abc/file1" => 10,
-          "#{@directory}/abc/file2" => 10,
+          "#{@directory}/abc/file2" => 10
         }
         assert_equal 0, RocketJob::Jobs::DirmonJob.count
         # perform_now does not save the job, just runs it
@@ -185,7 +185,7 @@ class DirmonJobTest < Minitest::Test
           check_seconds:       30,
           destroy_on_complete: false
         )
-        RocketJob::Jobs::DirmonJob.stub_any_instance(:check_directories, -> { raise RuntimeError.new('Oh no') }) do
+        RocketJob::Jobs::DirmonJob.stub_any_instance(:check_directories, -> { raise 'Oh no' }) do
           assert_raises RuntimeError do
             dirmon_job.perform_now
           end

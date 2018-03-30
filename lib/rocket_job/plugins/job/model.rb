@@ -156,7 +156,7 @@ module RocketJob
           # Scope for queued jobs that can run now
           # I.e. Queued jobs excluding scheduled jobs
           def queued_now
-            queued.or({:run_at => nil}, {:run_at.lte => Time.now})
+            queued.or({run_at: nil}, :run_at.lte => Time.now)
           end
 
           # Defines all the fields that are accessible on the Document
@@ -182,10 +182,8 @@ module RocketJob
             end
             if options.delete(:class_attribute) == true
               class_attribute(name, instance_accessor: false)
-              if options.has_key?(:default)
-                public_send("#{name}=", options[:default])
-              end
-              options[:default] = lambda { self.class.public_send(name) }
+              public_send("#{name}=", options[:default]) if options.key?(:default)
+              options[:default] = -> { self.class.public_send(name) }
             end
             if options.delete(:copy_on_restart) == true
               self.rocket_job_restart_attributes += [name.to_sym] unless rocket_job_restart_attributes.include?(name.to_sym)
@@ -248,7 +246,7 @@ module RocketJob
         # Return [true|false] whether this job is sleeping.
         # I.e. No workers currently working on this job even if it is running.
         def sleeping?
-          running? && (worker_count == 0)
+          running? && worker_count.zero?
         end
 
         # Returns [Integer] the number of workers currently working on this job.
@@ -263,32 +261,31 @@ module RocketJob
 
         # Returns [Hash] status of this job
         def as_json
-          attrs = serializable_hash(methods: [:seconds, :duration])
+          attrs = serializable_hash(methods: %i[seconds duration])
           attrs.delete('result') unless collect_output?
-          attrs.delete('failure_count') unless failure_count > 0
-          case
-          when queued?
+          attrs.delete('failure_count') unless failure_count.positive?
+          if queued?
             attrs.delete('started_at')
             attrs.delete('completed_at')
             attrs.delete('result')
             attrs
-          when running?
+          elsif running?
             attrs.delete('completed_at')
             attrs.delete('result')
             attrs
-          when completed?
+          elsif completed?
             attrs.delete('percent_complete')
             attrs
-          when paused?
+          elsif paused?
             attrs.delete('completed_at')
             attrs.delete('result')
             # Ensure 'paused_at' appears first in the hash
             {'paused_at' => completed_at}.merge(attrs)
-          when aborted?
+          elsif aborted?
             attrs.delete('completed_at')
             attrs.delete('result')
             {'aborted_at' => completed_at}.merge(attrs)
-          when failed?
+          elsif failed?
             attrs.delete('completed_at')
             attrs.delete('result')
             {'failed_at' => completed_at}.merge(attrs)
@@ -302,10 +299,9 @@ module RocketJob
           h = as_json
           h.delete('seconds')
           h.dup.each_pair do |k, v|
-            case
-            when v.is_a?(Time)
+            if v.is_a?(Time)
               h[k] = v.in_time_zone(time_zone).to_s
-            when v.is_a?(BSON::ObjectId)
+            elsif v.is_a?(BSON::ObjectId)
               h[k] = v.to_s
             end
           end
@@ -317,7 +313,6 @@ module RocketJob
           return false unless worker_name.present? && server_name.present?
           worker_name.start_with?(server_name)
         end
-
       end
     end
   end

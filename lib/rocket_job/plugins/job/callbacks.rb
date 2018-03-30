@@ -84,7 +84,6 @@ module RocketJob
             set_callback(:perform, :around, *filters, &blk)
           end
         end
-
       end
     end
   end

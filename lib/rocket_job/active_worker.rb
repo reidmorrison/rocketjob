@@ -4,7 +4,8 @@ module RocketJob
     # When this server started working on this job / slice
     attr_accessor :started_at
 
-    attr_accessor :name, :job
+    attr_accessor :job
+    attr_reader :name
 
     # Returns [Hash<String:ActiveWorker>] hash of all servers sorted by name
     # and what they are currently working on.
@@ -16,7 +17,7 @@ module RocketJob
     def self.all(server_name = nil)
       servers = []
       # Need paused, failed or aborted since servers may still be working on active slices
-      query = RocketJob::Job.where(:state.in => [:running, :paused, :failed, :aborted])
+      query = RocketJob::Job.where(:state.in => %i[running paused failed aborted])
       query = query.where(worker_name: /\A#{server_name}/) if server_name
       query.each do |job|
         servers += job.rocket_job_active_workers
@@ -50,7 +51,7 @@ module RocketJob
 
     # Returns [String] the name of the server running this worker
     def server_name
-      if match = name.to_s.match(/(.*:.*):.*/)
+      if (match = name.to_s.match(/(.*:.*):.*/))
         match[1]
       else
         name

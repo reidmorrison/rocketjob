@@ -104,8 +104,6 @@ module Plugins
           assert @job.queued?, @job.attributes.ai
         end
       end
-
     end
-
   end
 end

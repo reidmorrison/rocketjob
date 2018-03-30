@@ -4,7 +4,6 @@ module Plugins
   module Job
     # Unit Test for RocketJob::Job
     class PersistenceTest < Minitest::Test
-
       class PersistJob < RocketJob::Job
         self.priority = 53
         field :data, type: Hash
@@ -89,7 +88,6 @@ module Plugins
             assert_equal 1, counts[:scheduled]
           end
         end
-
       end
     end
   end

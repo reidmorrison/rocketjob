@@ -3,7 +3,6 @@ require_relative '../test_helper'
 module Plugins
   # Unit Test for RocketJob::Job
   class StateMachineTest < Minitest::Test
-
     class Test
       include RocketJob::Plugins::Document
       include RocketJob::Plugins::StateMachine
@@ -63,7 +62,6 @@ module Plugins
           assert @doc.enabled?
         end
       end
-
     end
   end
 end

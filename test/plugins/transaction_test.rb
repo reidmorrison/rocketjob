@@ -1,7 +1,7 @@
 require_relative '../test_helper'
 require 'active_record'
 
-ActiveRecord::Base.configurations = YAML::load(ERB.new(IO.read('test/config/database.yml')).result)
+ActiveRecord::Base.configurations = YAML.safe_load(ERB.new(IO.read('test/config/database.yml')).result)
 ActiveRecord::Base.establish_connection(:test)
 
 ActiveRecord::Schema.define version: 0 do
@@ -16,7 +16,6 @@ end
 module Plugins
   module Job
     class TransactionTest < Minitest::Test
-
       class CommitTransactionJob < RocketJob::Job
         # Wrap perform with a transaction, so that it is rolled back on exception.
         include RocketJob::Plugins::Transaction
@@ -36,7 +35,7 @@ module Plugins
 
         def perform
           User.create!(login: login)
-          raise "This must fail and rollback the transaction"
+          raise 'This must fail and rollback the transaction'
         end
       end
 
@@ -53,9 +52,9 @@ module Plugins
 
         describe '#rocket_job_transaction' do
           it 'is registered' do
-            assert CommitTransactionJob.send(:get_callbacks, :perform).find { |c| c.filter == :rocket_job_transaction }
-            assert RollbackTransactionJob.send(:get_callbacks, :perform).find { |c| c.filter == :rocket_job_transaction }
-            refute RocketJob::Job.send(:get_callbacks, :perform).find { |c| c.filter == :rocket_job_transaction }
+            assert(CommitTransactionJob.send(:get_callbacks, :perform).find { |c| c.filter == :rocket_job_transaction })
+            assert(RollbackTransactionJob.send(:get_callbacks, :perform).find { |c| c.filter == :rocket_job_transaction })
+            refute(RocketJob::Job.send(:get_callbacks, :perform).find { |c| c.filter == :rocket_job_transaction })
           end
         end
 
@@ -79,7 +78,6 @@ module Plugins
             assert_equal 0, User.count
           end
         end
-
       end
     end
   end

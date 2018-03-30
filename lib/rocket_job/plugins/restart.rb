@@ -91,8 +91,8 @@ module RocketJob
           logger.info('Job has expired. Not creating a new instance.')
           return
         end
-        attrs = rocket_job_restart_attributes.reduce({}) { |attrs, attr| attrs[attr] = send(attr); attrs }
-        rocket_job_restart_create(attrs)
+        attributes = rocket_job_restart_attributes.each_with_object({}) { |attr, attrs| attrs[attr] = send(attr) }
+        rocket_job_restart_create(attributes)
       end
 
       def rocket_job_restart_abort
@@ -117,7 +117,6 @@ module RocketJob
         logger.warn("New job instance not started: #{job.errors.messages.inspect}")
         false
       end
-
     end
   end
 end
