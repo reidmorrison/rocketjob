@@ -35,7 +35,7 @@ module RocketJob
     #   Default: `host name:PID`
     # The unique name is used on re-start to re-queue any jobs that were being processed
     # at the time the server unexpectedly terminated, if any
-    field :name, type: String, default: -> { "#{SemanticLogger.host}:#{$PROCESS_ID}" }
+    field :name, type: String, default: -> { "#{SemanticLogger.host}:#{$$}" }
 
     # The maximum number of workers this server should start
     #   If set, it will override the default value in RocketJob::Config
@@ -268,9 +268,7 @@ module RocketJob
       logger.error('RocketJob::Server is stopping due to an exception', exc)
     ensure
       # Logs the backtrace for each running worker
-      if SemanticLogger::VERSION.to_i >= 4
-        workers.each { |worker| logger.backtrace(thread: worker.thread) if worker.thread && worker.alive? }
-      end
+      workers.each { |worker| logger.backtrace(thread: worker.thread) if worker.thread && worker.alive? }
     end
 
     def run_workers

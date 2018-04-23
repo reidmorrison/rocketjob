@@ -50,6 +50,7 @@ module RocketJob
     autoload :GeneralizedJob,   'rocket_job/jobs/generalized_job'
     autoload :HousekeepingJob,  'rocket_job/jobs/housekeeping_job'
     autoload :SimpleJob,        'rocket_job/jobs/simple_job'
+    autoload :UploadFileJob,    'rocket_job/jobs/upload_file_job'
   end
 end
 

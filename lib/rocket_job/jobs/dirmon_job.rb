@@ -40,7 +40,7 @@ module RocketJob
       # Start a new job when this one completes, fails, or aborts
       include RocketJob::Plugins::Restart
 
-      self.priority = 40
+      self.priority = 30
 
       # Number of seconds between directory scans. Default 5 mins
       field :check_seconds, type: Float, default: 300.0, copy_on_restart: true

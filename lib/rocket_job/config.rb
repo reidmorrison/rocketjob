@@ -51,25 +51,26 @@ module RocketJob
     # Configure Mongoid
     def self.load!(environment = 'development', file_name = nil, encryption_file_name = nil)
       config_file = file_name ? Pathname.new(file_name) : Pathname.pwd.join('config/mongoid.yml')
-      if config_file.file?
-        logger.debug "Reading Mongo configuration from: #{config_file}"
-        Mongoid.load!(config_file, environment)
-      else
-        raise(ArgumentError, "Mongo Configuration file: #{config_file} not found")
-      end
+
+      raise(ArgumentError, "Mongo Configuration file: #{config_file} not found") unless config_file.file?
+
+      logger.debug "Reading Mongo configuration from: #{config_file}"
+      Mongoid.load!(config_file, environment)
 
       # Load Encryption configuration file if present
       return unless defined?(SymmetricEncryption)
+
       config_file =
         if encryption_file_name
           Pathname.new(encryption_file_name)
         else
           Pathname.pwd.join('config/symmetric-encryption.yml')
         end
-      if config_file.file?
-        logger.debug "Reading SymmetricEncryption configuration from: #{config_file}"
-        SymmetricEncryption.load!(config_file.to_s, environment)
-      end
+
+      return unless config_file.file?
+
+      logger.debug "Reading SymmetricEncryption configuration from: #{config_file}"
+      SymmetricEncryption.load!(config_file.to_s, environment)
     end
   end
 end

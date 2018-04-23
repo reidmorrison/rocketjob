@@ -2,11 +2,12 @@ source 'https://rubygems.org'
 
 gemspec
 
-gem 'activerecord', '~> 4.2.0'
-gem 'mongoid', '~> 5.0'
+gem 'activerecord', '~> 5.2.0'
+gem 'mongoid', '~> 6.0'
 
 gem 'appraisal'
 gem 'awesome_print'
+gem 'iostreams'
 gem 'minitest'
 gem 'minitest-stub_any_instance'
 gem 'rake'

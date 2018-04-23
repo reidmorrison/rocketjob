@@ -38,10 +38,10 @@ module RocketJob
           #   If a job is in queued state it will be started
           def rocket_job_next_job(worker_name, filter = {})
             while (job = rocket_job_retrieve(worker_name, filter))
-              if job.running?
-                # Batch Job
-                return job
-              elsif job.expired?
+              # Batch Job?
+              return job if job.running?
+
+              if job.expired?
                 job.rocket_job_fail_on_exception!(worker_name) { job.destroy }
                 logger.info "Destroyed expired job #{job.class.name}, id:#{job.id}"
               elsif (new_filter = job.send(:rocket_job_evaluate_throttles))

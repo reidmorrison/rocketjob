@@ -108,7 +108,7 @@ Style/Documentation:
 
 # One line methods
 Style/EmptyMethod:
-  Enabled: false
+  EnforcedStyle: expanded
 
 # Ruby 3 compatibility feature
 Style/FrozenStringLiteralComment:
@@ -119,4 +119,8 @@ Style/NumericPredicate:
 
 # Incorrectly changes job.fail to job.raise
 Style/SignalException:
+  Enabled: false
+
+# English is not always already loaded
+Style/SpecialGlobalVars:
   Enabled: false
