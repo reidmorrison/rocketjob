@@ -22,11 +22,13 @@ module RocketJob
     field :record_number, type: Integer
 
     # Returns [JobException] built from the supplied exception
-    def self.from_exception(exc)
+    def self.from_exception(exc, **args)
       new(
-        class_name: exc.class.name,
-        message:    exc.message,
-        backtrace:  exc.backtrace || []
+        args.merge(
+          class_name: exc.class.name,
+          message:    exc.message,
+          backtrace:  exc.backtrace || []
+        )
       )
     end
   end

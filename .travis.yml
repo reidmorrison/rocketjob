@@ -1,33 +1,30 @@
 language: ruby
 
 gemfile:
-  - gemfiles/rails_4.2.gemfile
-  - gemfiles/rails_5.0.gemfile
-  - gemfiles/rails_5.1.gemfile
-  - gemfiles/rails_5.2.gemfile
+  - gemfiles/mongoid_5.gemfile
+  - gemfiles/mongoid_6.gemfile
+  - gemfiles/mongoid_7.gemfile
 
 rvm:
-  - 2.3.6
-  - 2.4.3
+  - 2.3.7
+  - 2.4.4
   - 2.5.1
   - 2.6.0-preview1
-  - jruby-9.1.16.0
+  - jruby-9.1.17.0
 
 matrix:
   exclude:
-    - rvm: 2.4.3
-      gemfile: gemfiles/rails_4.2.gemfile
+    - rvm: 2.4.4
+      gemfile: gemfiles/mongoid_5.gemfile
     - rvm: 2.5.1
-      gemfile: gemfiles/rails_4.2.gemfile
+      gemfile: gemfiles/mongoid_5.gemfile
     - rvm: 2.6.0-preview1
-      gemfile: gemfiles/rails_4.2.gemfile
+      gemfile: gemfiles/mongoid_5.gemfile
+    - rvm: jruby-9.1.17.0
+      gemfile: gemfiles/mongoid_7.gemfile
   allow_failures:
     - rvm: 2.6.0-preview1
-    - rvm: jruby-9.1.16.0
-    - gemfile: gemfiles/rails_5.2.gemfile
-
-notifications:
-  email: false
+    - rvm: jruby-9.1.17.0
 
 bundler_args: --without development
 
