@@ -1,9 +1,9 @@
 require_relative '../test_helper'
 
-class GeneralizedJobTest < Minitest::Test
-  describe RocketJob::Jobs::GeneralizedJob do
+class OnDemandJobTest < Minitest::Test
+  describe RocketJob::Jobs::OnDemandJob do
     before do
-      RocketJob::Jobs::GeneralizedJob.delete_all
+      RocketJob::Jobs::OnDemandJob.delete_all
     end
 
     describe '#perform' do
@@ -12,7 +12,7 @@ class GeneralizedJobTest < Minitest::Test
           logger.info 'Hello World'
         CODE
 
-        job = RocketJob::Jobs::GeneralizedJob.new(code: code)
+        job = RocketJob::Jobs::OnDemandJob.new(code: code)
         job.perform_now
       end
 
@@ -21,7 +21,7 @@ class GeneralizedJobTest < Minitest::Test
           {'value' => 'h' * 24}
         CODE
 
-        job = RocketJob::Jobs::GeneralizedJob.new(
+        job = RocketJob::Jobs::OnDemandJob.new(
           code:           code,
           collect_output: true
         )
@@ -34,7 +34,7 @@ class GeneralizedJobTest < Minitest::Test
           {'value' => data['a'] * data['b']}
         CODE
 
-        job = RocketJob::Jobs::GeneralizedJob.new(
+        job = RocketJob::Jobs::OnDemandJob.new(
           code:           code,
           collect_output: true,
           data:           {'a' => 10, 'b' => 2}
@@ -48,7 +48,7 @@ class GeneralizedJobTest < Minitest::Test
           def bad code
         CODE
 
-        job = RocketJob::Jobs::GeneralizedJob.new(code: code)
+        job = RocketJob::Jobs::OnDemandJob.new(code: code)
         refute job.valid?
         assert_raises Mongoid::Errors::Validations do
           job.perform_now

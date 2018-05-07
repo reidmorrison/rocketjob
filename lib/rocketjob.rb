@@ -47,7 +47,7 @@ module RocketJob
   module Jobs
     autoload :ActiveJob,        'rocket_job/jobs/active_job'
     autoload :DirmonJob,        'rocket_job/jobs/dirmon_job'
-    autoload :GeneralizedJob,   'rocket_job/jobs/generalized_job'
+    autoload :OnDemandJob,      'rocket_job/jobs/on_demand_job'
     autoload :HousekeepingJob,  'rocket_job/jobs/housekeeping_job'
     autoload :SimpleJob,        'rocket_job/jobs/simple_job'
     autoload :UploadFileJob,    'rocket_job/jobs/upload_file_job'

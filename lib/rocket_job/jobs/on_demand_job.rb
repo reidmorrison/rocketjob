@@ -10,7 +10,7 @@
 #     end
 #   CODE
 #
-#   RocketJob::Jobs::GeneralizedJob.create!(
+#   RocketJob::Jobs::OnDemandJob.create!(
 #     code:          code,
 #     description:   'Cleanse users'
 #   )
@@ -23,7 +23,7 @@
 #     end
 #   CODE
 #
-#   job = RocketJob::Jobs::GeneralizedJob.new(code: code, description: 'cleanse users')
+#   job = RocketJob::Jobs::OnDemandJob.new(code: code, description: 'cleanse users')
 #   job.perform_now
 #
 # Example: Pass input data:
@@ -31,7 +31,7 @@
 #     puts data['a'] * data['b']
 #   CODE
 #
-#   RocketJob::Jobs::GeneralizedJob.create!(
+#   RocketJob::Jobs::OnDemandJob.create!(
 #     code: code,
 #     data: {'a' => 10, 'b' => 2}
 #   )
@@ -41,7 +41,7 @@
 #     {'value' => data['a'] * data['b']}
 #   CODE
 #
-#   RocketJob::Jobs::GeneralizedJob.create!(
+#   RocketJob::Jobs::OnDemandJob.create!(
 #     code:           code,
 #     collect_output: true,
 #     data:           {'a' => 10, 'b' => 2}
@@ -49,14 +49,14 @@
 #
 # Example: Schedule the job to run nightly at 2am Eastern:
 #
-#   RocketJob::Jobs::GeneralizedJob.create!(
+#   RocketJob::Jobs::OnDemandJob.create!(
 #     cron_schedule: '0 2 * * * America/New_York',
 #     code:          code
 #   )
 #
 # Example: Change the job priority, description, etc.
 #
-#   RocketJob::Jobs::GeneralizedJob.create!(
+#   RocketJob::Jobs::OnDemandJob.create!(
 #     code:          code,
 #     description:   'Cleanse users',
 #     priority:      30
@@ -64,13 +64,13 @@
 #
 # Example: Automatically retry up to 5 times on failure:
 #
-#   RocketJob::Jobs::GeneralizedJob.create!(
+#   RocketJob::Jobs::OnDemandJob.create!(
 #     retry_limit: 5
 #     code:        code
 #   )
 module RocketJob
   module Jobs
-    class GeneralizedJob < RocketJob::Job
+    class OnDemandJob < RocketJob::Job
       include RocketJob::Plugins::Cron
       include RocketJob::Plugins::Retry
 
