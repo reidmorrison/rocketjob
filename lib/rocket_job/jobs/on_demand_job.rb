@@ -74,23 +74,16 @@ module RocketJob
       include RocketJob::Plugins::Cron
       include RocketJob::Plugins::Retry
 
-      self.priority            = 90
-      self.description         = 'Generalized Job'
+      self.description         = 'On Demand Job'
       self.destroy_on_complete = false
       self.retry_limit         = 0
 
       # Be sure to store key names only as Strings, not Symbols
-      field :data, type: Hash, default: {}
-      field :code, type: String
+      field :data, type: Hash, default: {}, copy_on_restart: true
+      field :code, type: String, copy_on_restart: true
 
       validates :code, presence: true
-      validates_each :code do |job, attr, _value|
-        begin
-          job.send(:load_code)
-        rescue Exception => exc
-          job.errors.add(attr, "Failed to parse :code, #{exc.inspect}")
-        end
-      end
+      validate :validate_code
 
       before_perform :load_code
 
@@ -98,6 +91,12 @@ module RocketJob
 
       def load_code
         instance_eval("def perform\n#{code}\nend", __FILE__, __LINE__)
+      end
+
+      def validate_code
+        load_code
+      rescue Exception => exc
+        errors.add(:code, "Failed to parse :code, #{exc.inspect}")
       end
     end
   end

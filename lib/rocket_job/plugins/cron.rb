@@ -2,7 +2,13 @@ require 'active_support/concern'
 
 module RocketJob
   module Plugins
-    # Schedule jobs to run at set intervals.
+    # Allow jobs to run on a predefined schedule, much like a crontab.
+    #
+    # Notes:
+    # - No single point of failure since their is no centralized scheduler.
+    # - `cron_schedule` can be edited at any time via the web interface.
+    # - A scheduled job can be run at any time by calling `#run_now!` or
+    #   by clicking `Run Now` in the web interface.
     module Cron
       extend ActiveSupport::Concern
 
@@ -11,15 +17,8 @@ module RocketJob
 
         field :cron_schedule, type: String, class_attribute: true, user_editable: true, copy_on_restart: true
 
-        before_save :rocket_job_set_run_at
-
-        validates_each :cron_schedule do |record, attr, value|
-          begin
-            RocketJob::Plugins::Rufus::CronLine.new(value) if value
-          rescue ArgumentError => exc
-            record.errors.add(attr, exc.message)
-          end
-        end
+        validate :rocket_job_cron_valid
+        before_save :rocket_job_cron_set_run_at
 
         private
 
@@ -41,25 +40,6 @@ module RocketJob
         end
       end
 
-      # Returns [Time] at which this job was intended to run at.
-      #
-      # Takes into account any delays that could occur.
-      # Recommended to use this Time instead of Time.now in the `#perform` since the job could run outside its
-      # intended window. Especially if a failed job is only retried quite sometime later.
-      #
-      # Notes:
-      # * When `cron_schedule` is set, this would be the `run_at` time, otherwise it is the `created_at` time
-      #   since that would be the intended time for which this job is running.
-      def scheduled_at
-        run_at || created_at
-      end
-
-      # Make this job run now, regardless of the cron schedule.
-      # Upon completion the job will automatically reschedule itself.
-      def run_now!
-        update_attributes(run_at: nil) if cron_schedule
-      end
-
       # Returns [Time] the next time this job will be scheduled to run at.
       #
       # Parameters
@@ -72,9 +52,16 @@ module RocketJob
 
       private
 
-      def rocket_job_set_run_at
+      def rocket_job_cron_set_run_at
         return unless cron_schedule
         self.run_at = rocket_job_cron_next_time if cron_schedule_changed? && !run_at_changed?
+      end
+
+      def rocket_job_cron_valid
+        return unless cron_schedule
+        RocketJob::Plugins::Rufus::CronLine.new(cron_schedule)
+      rescue ArgumentError => exc
+        errors.add(:cron_schedule, exc.message)
       end
     end
   end

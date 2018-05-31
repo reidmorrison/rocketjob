@@ -259,6 +259,20 @@ module RocketJob
           running? && worker_name.present? ? [worker_name] : []
         end
 
+        # Clear `run_at` so that this job will run now.
+        def run_now!
+          update_attributes(run_at: nil) if run_at
+        end
+
+        # Returns [Time] at which this job was intended to run at.
+        #
+        # Takes into account any delays that could occur.
+        # Recommended to use this Time instead of Time.now in the `#perform` since the job could run outside its
+        # intended window. Especially if a failed job is only retried quite sometime later.
+        def scheduled_at
+          run_at || created_at
+        end
+
         # Returns [Hash] status of this job
         def as_json
           attrs = serializable_hash(methods: %i[seconds duration])

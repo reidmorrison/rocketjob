@@ -88,10 +88,18 @@ class UploadFileJobTest < Minitest::Test
 
       it 'calls upload with original_file_name' do
         job.job_class_name     = BatchTestJob.name
-        job.original_file_name = 'file.zip'
         job.perform_now
         assert created_job = UploadFileJobTest::BatchTestJob.first
         assert_equal __FILE__, created_job.upload_file_name
+        assert_nil created_job.saved_streams
+      end
+
+      it 'job retains the original_file_name when present' do
+        job.job_class_name     = BatchTestJob.name
+        job.original_file_name = 'file.zip'
+        job.perform_now
+        assert created_job = UploadFileJobTest::BatchTestJob.first
+        assert_equal 'file.zip', created_job.upload_file_name
         assert_equal %i[file zip], created_job.saved_streams
       end
     end

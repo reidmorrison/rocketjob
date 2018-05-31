@@ -75,7 +75,7 @@ module Plugins
           @job.start!
           job2 = SingletonJob.new
           refute job2.valid?
-          assert_equal ['Another instance of Plugins::SingletonTest::SingletonJob is already queued or running'], job2.errors.messages[:state]
+          assert_equal ['Another instance of Plugins::SingletonTest::SingletonJob is already running, queued, or paused'], job2.errors.messages[:state]
         end
 
         it 'passes if another job is active, but this job is not' do
