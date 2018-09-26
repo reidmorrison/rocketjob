@@ -1,4 +1,5 @@
 require 'optparse'
+require 'json'
 require 'semantic_logger'
 require 'mongoid'
 require 'rocketjob'
@@ -9,7 +10,7 @@ module RocketJob
     include SemanticLogger::Loggable
     attr_accessor :name, :workers, :environment, :pidfile, :directory, :quiet,
                   :log_level, :log_file, :mongo_config, :symmetric_encryption_config,
-                  :filter
+                  :include_filter, :exclude_filter, :where_filter
 
     def initialize(argv)
       @name                        = nil
@@ -22,7 +23,8 @@ module RocketJob
       @log_file                    = nil
       @mongo_config                = nil
       @symmetric_encryption_config = nil
-      @filter                      = nil
+      @include_filter              = nil
+      @exclude_filter              = nil
       parse(argv)
     end
 
@@ -38,10 +40,13 @@ module RocketJob
       # In case Rails did not load the Mongoid Config
       RocketJob::Config.load!(environment, mongo_config, symmetric_encryption_config) if ::Mongoid::Config.clients.empty?
 
+      filter = build_filter
+
       opts               = {}
       opts[:name]        = name if name
       opts[:max_workers] = workers if workers
-      opts[:filter]      = {_type: filter} if filter
+      opts[:filter]      = filter if filter
+
       Server.run(opts)
     end
 
@@ -91,7 +96,7 @@ module RocketJob
 
       require 'rocketjob'
       begin
-        require 'rocketjob_pro'
+        require 'rocketjob_batch'
       rescue LoadError
         nil
       end
@@ -148,6 +153,17 @@ module RocketJob
       end
     end
 
+    # Returns [Hash] a where clause filter to apply to this server.
+    # Returns nil if no filter should be applied
+    def build_filter
+      raise(ArgumentError, 'Cannot supply both a filter and an exclusion filter') if include_filter && exclude_filter
+
+      filter                  = where_filter
+      (filter ||= {})['_type'] = include_filter if include_filter
+      (filter ||= {})['_type'] = {'$not' => exclude_filter} if exclude_filter
+      filter
+    end
+
     # Parse command line options placing results in the corresponding instance variables
     def parse(argv)
       parser        = OptionParser.new do |o|
@@ -161,8 +177,14 @@ module RocketJob
           warn '-t and --threads are deprecated, use -w or --workers'
           @workers = arg.to_i
         end
-        o.on('-F', '--filter REGEXP', 'Limit this worker to only those job classes that match this regular expression (case-insensitive). Example: "DirmonJob|WeeklyReportJob"') do |arg|
-          @filter = Regexp.new(arg, true)
+        o.on('-F', '--filter REGEXP', 'Limit this server to only those job classes that match this regular expression (case-insensitive). Example: "DirmonJob|WeeklyReportJob"') do |arg|
+          @include_filter = Regexp.new(arg, true)
+        end
+        o.on('-E', '--exclude REGEXP', 'Prevent this server from working on any job classes that match this regular expression (case-insensitive). Example: "DirmonJob|WeeklyReportJob"') do |arg|
+          @exclude_filter = Regexp.new(arg, true)
+        end
+        o.on('-W', '--where JSON', "Limit this server instance to the supplied mongo query filter. Supply as a string in JSON format. Example: '{\"priority\":{\"$lte\":25}}'") do |arg|
+          @where_filter = JSON.parse(arg)
         end
         o.on('-q', '--quiet', 'Do not write to stdout, only to logfile. Necessary when running as a daemon') do
           @quiet = true

@@ -47,7 +47,7 @@ module RocketJob
       @name             = "#{server_name}:#{id}"
       @re_check_seconds = (re_check_seconds || 60).to_f
       @re_check_start   = Time.now
-      @filter           = filter || {}
+      @filter           = filter.nil? ? {} : filter.dup
       @current_filter   = @filter.dup
       @thread           = Thread.new { run } unless inline
     end
@@ -121,7 +121,7 @@ module RocketJob
       return unless (time - @re_check_start) > re_check_seconds
 
       @re_check_start     = time
-      self.current_filter = filter.dup
+      self.current_filter = filter.dup if current_filter != filter
     end
   end
 end

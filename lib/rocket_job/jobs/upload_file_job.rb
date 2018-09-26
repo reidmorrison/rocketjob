@@ -60,11 +60,8 @@ module RocketJob
 
       def upload_file(job)
         if job.respond_to?(:upload)
-          if original_file_name && defined?(IOStreams)
-            streams = IOStreams.streams_for_file_name(original_file_name)
-            job.upload(upload_file_name, streams: streams)
-            # job.upload sets the archived filename, we want it to be the original file name.
-            job.upload_file_name = original_file_name
+          if original_file_name
+            job.upload(upload_file_name, file_name: original_file_name)
           else
             job.upload(upload_file_name)
           end

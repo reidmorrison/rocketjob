@@ -12,12 +12,6 @@ module RocketJob
       end
 
       module ClassMethods
-        # V2 Backward compatibility
-        # DEPRECATED
-        def key(name, type, options = {})
-          field(name, options.merge(type: type))
-        end
-
         # Mongoid does not apply ordering, add sort
         def first
           all.sort('_id' => 1).first

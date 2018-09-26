@@ -16,7 +16,6 @@ Gem::Specification.new do |s|
   s.files                 = Dir['lib/**/*', 'bin/*', 'LICENSE.txt', 'README.md']
   s.test_files            = Dir['test/**/*']
   s.license               = 'Apache-2.0'
-  s.has_rdoc              = true
   s.required_ruby_version = '>= 2.3'
   s.add_dependency 'aasm', '~> 4.12'
   s.add_dependency 'concurrent-ruby', '~> 1.0'

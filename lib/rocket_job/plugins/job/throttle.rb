@@ -58,17 +58,14 @@ module RocketJob
           end
 
           # Undefine a previously defined throttle
-          def undefine_throttle(_method_name)
-            rocket_job_throttles.delete_if(&:method_name)
+          def undefine_throttle(method_name)
+            rocket_job_throttles.delete_if { |throttle| throttle.method_name == method_name }
           end
 
           # Has a throttle been defined?
           def throttle?(method_name)
-            rocket_job_throttles.find { |throttle| throttle.method_name == method_name }
+            rocket_job_throttles.any? { |throttle| throttle.method_name == method_name }
           end
-
-          # DEPRECATED
-          alias has_throttle? throttle?
         end
 
         # Default throttle to use when the throttle is exceeded.

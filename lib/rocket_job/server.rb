@@ -1,3 +1,4 @@
+require 'yaml'
 require 'concurrent'
 module RocketJob
   # Server
@@ -45,7 +46,7 @@ module RocketJob
     field :started_at, type: Time
 
     # Filter to apply to control which job classes this server can process
-    field :filter, type: Hash
+    field :yaml_filter, type: String
 
     # The heartbeat information for this server
     embeds_one :heartbeat, class_name: 'RocketJob::Heartbeat'
@@ -228,6 +229,15 @@ module RocketJob
       (Time.now - heartbeat.updated_at) >= dead_seconds
     end
 
+    # Where clause filter to apply to workers looking for jobs
+    def filter
+      YAML.load(yaml_filter)
+    end
+
+    def filter=(hash)
+      self.yaml_filter = hash.nil? ? nil : hash.to_yaml
+    end
+
     private
 
     # Returns [Array<Worker>] collection of workers
@@ -238,6 +248,7 @@ module RocketJob
     # Management Thread
     def run
       logger.info "Using MongoDB Database: #{RocketJob::Job.collection.database.name}"
+      logger.info('Running with filter', filter) if filter
       build_heartbeat(updated_at: Time.now, workers: 0)
       started!
       logger.info 'Rocket Job Server started'
