@@ -51,7 +51,7 @@ module RocketJob
               else
                 job.worker_name = worker_name
                 job.rocket_job_fail_on_exception!(worker_name) do
-                  defined?(RocketJobPro) ? job.start! : job.start
+                  job.start!
                 end
                 return job if job.running?
               end
@@ -105,7 +105,7 @@ module RocketJob
         #
         # Exceptions are _not_ suppressed and should be handled by the caller.
         def perform_now
-          raise(Mongoid::Errors::Validations, self) unless valid?
+          raise(::Mongoid::Errors::Validations, self) unless valid?
 
           worker = RocketJob::Worker.new(inline: true)
           start if may_start?

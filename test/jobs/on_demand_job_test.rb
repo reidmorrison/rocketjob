@@ -50,7 +50,7 @@ class OnDemandJobTest < Minitest::Test
 
         job = RocketJob::Jobs::OnDemandJob.new(code: code)
         refute job.valid?
-        assert_raises Mongoid::Errors::Validations do
+        assert_raises ::Mongoid::Errors::Validations do
           job.perform_now
         end
       end

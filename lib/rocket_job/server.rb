@@ -189,7 +189,7 @@ module RocketJob
     def self.run(attrs = {})
       Thread.current.name = 'rocketjob main'
       # Create Indexes on server startup
-      Mongoid::Tasks::Database.create_indexes
+      ::Mongoid::Tasks::Database.create_indexes
       register_signal_handlers
 
       server = create!(attrs)
@@ -273,7 +273,7 @@ module RocketJob
       end
 
       logger.info 'Shutdown'
-    rescue Mongoid::Errors::DocumentNotFound
+    rescue ::Mongoid::Errors::DocumentNotFound
       logger.warn('Server has been destroyed. Going down hard!')
     rescue Exception => exc
       logger.error('RocketJob::Server is stopping due to an exception', exc)

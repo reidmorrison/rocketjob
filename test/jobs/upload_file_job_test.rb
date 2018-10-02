@@ -14,11 +14,14 @@ class UploadFileJobTest < Minitest::Test
 
   class BatchTestJob < RocketJob::Job
     field :upload_file_name, type: String
+    field :original_file_name, type: String
     field :saved_streams, type: Array
 
-    def upload(file_name, streams: nil)
-      self.upload_file_name = file_name
-      self.saved_streams    = streams
+    def upload(upload_file_name, streams: nil, file_name: nil)
+      self.upload_file_name   = upload_file_name
+      self.saved_streams      = streams
+      self.saved_streams      ||= IOStreams.streams_for_file_name(file_name) if file_name
+      self.original_file_name = file_name
     end
 
     def perform
@@ -87,7 +90,7 @@ class UploadFileJobTest < Minitest::Test
       end
 
       it 'calls upload with original_file_name' do
-        job.job_class_name     = BatchTestJob.name
+        job.job_class_name = BatchTestJob.name
         job.perform_now
         assert created_job = UploadFileJobTest::BatchTestJob.first
         assert_equal __FILE__, created_job.upload_file_name
@@ -99,8 +102,9 @@ class UploadFileJobTest < Minitest::Test
         job.original_file_name = 'file.zip'
         job.perform_now
         assert created_job = UploadFileJobTest::BatchTestJob.first
-        assert_equal 'file.zip', created_job.upload_file_name
-        assert_equal %i[file zip], created_job.saved_streams
+        assert_equal 'file.zip', created_job.original_file_name
+        assert_equal __FILE__, created_job.upload_file_name
+        assert_equal %i[zip], created_job.saved_streams
       end
     end
   end

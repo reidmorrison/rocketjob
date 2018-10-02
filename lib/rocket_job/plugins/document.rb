@@ -5,7 +5,7 @@ module RocketJob
     # Base class for storing models in MongoDB
     module Document
       extend ActiveSupport::Concern
-      include Mongoid::Document
+      include ::Mongoid::Document
 
       included do
         store_in client: 'rocketjob'
@@ -29,7 +29,7 @@ module RocketJob
       # Allows other changes to be made on the server that will be loaded.
       def find_and_update(attrs)
         doc = collection.find(_id: id).find_one_and_update({'$set' => attrs}, return_document: :after)
-        raise(Mongoid::Errors::DocumentNotFound.new(self.class, id)) unless doc
+        raise(::Mongoid::Errors::DocumentNotFound.new(self.class, id)) unless doc
 
         # Clear out keys that are not returned during the reload from MongoDB
         (fields.keys + embedded_relations.keys - doc.keys).each { |key| send("#{key}=", nil) }
