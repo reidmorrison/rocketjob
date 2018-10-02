@@ -3,6 +3,9 @@ require 'active_support/concern'
 module RocketJob
   module Batch
     module Tabular
+      # For the simple case where all `input_categories` have the same format,
+      # If multiple input categories are used with different formats, then use IOStreams::Tabular directly
+      # instead of this plugin.
       module Input
         extend ActiveSupport::Concern
 
@@ -10,7 +13,7 @@ module RocketJob
           field :tabular_input_header, type: Array, class_attribute: true, user_editable: true
           field :tabular_input_format, type: Symbol, default: :csv, class_attribute: true, user_editable: true
 
-          validates_inclusion_of :tabular_input_format, in: [:csv, :hash, :json, :array, :psv]
+          validates_inclusion_of :tabular_input_format, in: IOStreams::Tabular.registered_formats
 
           class_attribute :tabular_input_white_list
           class_attribute :tabular_input_required
@@ -38,7 +41,7 @@ module RocketJob
         end
 
         def tabular_input_render
-          @rocket_job_input = tabular_input.record_parse(@rocket_job_input) unless tabular_input_header.blank? && tabular_input.requires_header?
+          @rocket_job_input = tabular_input.record_parse(@rocket_job_input) unless tabular_input_header.blank? && tabular_input.parse_header?
         end
 
         # Cleanse custom input header if supplied.
@@ -62,13 +65,13 @@ module RocketJob
 
         # Process the first slice to get the header line, unless already set.
         def tabular_input_process_first_slice
-          return if tabular_input_header.present? || !tabular_input.requires_header?
+          return if tabular_input_header.present? || !tabular_input.parse_header?
 
           work_first_slice do |row|
             # Skip blank lines
             next if row.blank?
 
-            if tabular_input_header.blank? && tabular_input.requires_header?
+            if tabular_input_header.blank? && tabular_input.parse_header?
               tabular_input_parse_header(row)
             else
               if block_given?

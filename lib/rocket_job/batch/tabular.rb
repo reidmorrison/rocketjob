@@ -28,7 +28,7 @@ module RocketJob
       #     before_perform :tabular_input_render
       #     after_perform  :tabular_output_render
       def tabular_input_process_first_slice
-        if tabular_input_header.present? && tabular_output.requires_header?
+        if tabular_input_header.present? && tabular_output.render_header?
           # When the input header is supplied in the job, write the output header in its own slice.
           tabular_output_set_header
           tabular_output_write_header
@@ -40,7 +40,7 @@ module RocketJob
           # Skip blank lines
           next if row.blank?
 
-          if tabular_input_header.blank? && tabular_input.requires_header?
+          if tabular_input_header.blank? && tabular_input.parse_header?
             tabular_input_parse_header(row)
             # When the header is extracted from the first line in the file
             # set the output header and return it so that it is written to the output file.

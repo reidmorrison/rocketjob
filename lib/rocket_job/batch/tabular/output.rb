@@ -3,6 +3,9 @@ require 'active_support/concern'
 module RocketJob
   module Batch
     module Tabular
+      # For the simple case where all `output_categories` have the same format,
+      # If multiple output categories are used with different formats, then use IOStreams::Tabular directly
+      # instead of this plugin.
       module Output
         extend ActiveSupport::Concern
 
@@ -10,13 +13,18 @@ module RocketJob
           field :tabular_output_header, type: Array, class_attribute: true, user_editable: true, copy_on_restart: true
           field :tabular_output_format, type: Symbol, default: :csv, class_attribute: true, user_editable: true, copy_on_restart: true
 
-          validates_inclusion_of :tabular_output_format, in: [:csv, :array, :hash, :json, :psv]
+          validates_inclusion_of :tabular_output_format, in: IOStreams::Tabular.registered_formats
 
           after_perform :tabular_output_render
         end
 
         def tabular_output_header=(tabular_output_header)
           super(tabular_output_header)
+          @tabular_output = nil
+        end
+
+        def tabular_output_format=(tabular_output_format)
+          super(tabular_output_format)
           @tabular_output = nil
         end
 
@@ -34,7 +42,7 @@ module RocketJob
 
         # Write the tabular_output_header to the output in its own slice
         def tabular_output_write_header
-          return unless tabular_output_header.present? && tabular_output.requires_header?
+          return unless tabular_output_header.present? && tabular_output.render_header?
 
           # Add the header output slice with just the header in it and
           # id of 0 to make it the first record in the output
