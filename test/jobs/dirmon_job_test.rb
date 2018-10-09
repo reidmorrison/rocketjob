@@ -1,4 +1,4 @@
-require_relative 'test_helper'
+require_relative '../test_helper'
 
 module Jobs
   class DirmonJobTest < Minitest::Test
@@ -24,7 +24,7 @@ module Jobs
       let :dirmon_entry do
         RocketJob::DirmonEntry.new(
           pattern:           "#{directory}/abc/*",
-          job_class_name:    'DirmonJobTest::TestJob',
+          job_class_name:    'Jobs::DirmonJobTest::TestJob',
           properties:        {priority: 23},
           archive_directory: archive_directory
         )

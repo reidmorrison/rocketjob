@@ -2,14 +2,13 @@ language: ruby
 
 gemfile:
   - gemfiles/mongoid_5.gemfile
-  - gemfiles/mongoid_6.gemfile
   - gemfiles/mongoid_7.gemfile
 
 rvm:
   - 2.3.7
   - 2.4.4
   - 2.5.1
-  - 2.6.0-preview1
+  - 2.6.0-preview2
   - jruby-9.2.0.0
 
 matrix:
@@ -23,7 +22,7 @@ matrix:
     - rvm: jruby-9.2.0.0
       gemfile: gemfiles/mongoid_7.gemfile
   allow_failures:
-    - rvm: 2.6.0-preview1
+    - rvm: 2.6.0-preview2
     - rvm: jruby-9.2.0.0
 
 jdk:

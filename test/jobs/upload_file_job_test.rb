@@ -58,7 +58,7 @@ module Jobs
         it 'validates job_class_name' do
           job = RocketJob::Jobs::UploadFileJob.new(job_class_name: UploadFileJobTest::BadJob.to_s)
           refute job.valid?
-          assert_equal ['UploadFileJobTest::BadJob must implement any one of: :upload :upload_file_name= :full_file_name= instance methods'], job.errors.messages[:job_class_name]
+          assert_equal ['Jobs::UploadFileJobTest::BadJob must implement any one of: :upload :upload_file_name= :full_file_name= instance methods'], job.errors.messages[:job_class_name]
         end
 
         it 'with valid job and upload_file_name' do

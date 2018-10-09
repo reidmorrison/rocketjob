@@ -17,8 +17,11 @@ gem 'sqlite3', platform: :ruby
 group :development do
   gem 'rubocop'
 
+  # Test against master
+  gem 'iostreams', git: 'https://github.com/rocketjob/iostreams'
+
   # Testing against locally cloned repos
-  # gem 'iostreams', path: '../iostreams'
+  #gem 'iostreams', path: '../iostreams'
   # gem 'semantic_logger', path: '../semantic_logger'
   # gem 'symmetric-encryption', path: '../symmetric-encryption'
 end

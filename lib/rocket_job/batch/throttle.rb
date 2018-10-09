@@ -1,4 +1,3 @@
-@ @ -1, 87 + 1, 89 @ @
 require 'active_support/concern'
 
 module RocketJob
@@ -71,6 +70,8 @@ module RocketJob
       end
 
       private
+
+      ThrottleDefinition = Struct.new(:method_name, :filter)
 
       # Returns the matching filter, or nil if no throttles were triggered.
       def rocket_job_batch_evaluate_throttles(slice)
