@@ -14,6 +14,7 @@ module RocketJob
           field :tabular_input_format, type: Symbol, default: :csv, class_attribute: true, user_editable: true
 
           validates_inclusion_of :tabular_input_format, in: IOStreams::Tabular.registered_formats
+          validate :tabular_input_header_present
 
           class_attribute :tabular_input_white_list
           class_attribute :tabular_input_required
@@ -23,8 +24,31 @@ module RocketJob
           self.tabular_input_required     = nil
           self.tabular_input_skip_unknown = true
 
-          before_batch :tabular_input_cleanse_header, :tabular_input_process_first_slice
           before_perform :tabular_input_render
+        end
+
+        # Extract the header line during the upload.
+        #
+        # Overrides: RocketJob::Batch::IO#upload
+        #
+        # Notes:
+        # - When supplying a block the header must be set manually
+        def upload(file_name_or_io = nil, **args, &block)
+          # If an input header is not required, then we don't extract it'
+          return super(file_name_or_io, **args, &block) unless tabular_input.parse_header?
+
+          # If the header is already set then it is not expected in the file
+          if tabular_input_header.present?
+            tabular_input_cleanse_header
+            return super(file_name_or_io, **args, &block)
+          end
+
+          parse_header = -> (line) do
+            tabular_input.parse_header(line)
+            tabular_input_cleanse_header
+            self.tabular_input_header = tabular_input.header.columns
+          end
+          super(file_name_or_io, on_first_line: parse_header, **args, &block)
         end
 
         private
@@ -46,43 +70,17 @@ module RocketJob
 
         # Cleanse custom input header if supplied.
         def tabular_input_cleanse_header
-          return unless tabular_input_header.present?
-
           ignored_columns = tabular_input.header.cleanse!
           logger.warn('Stripped out invalid columns from custom header', ignored_columns) unless ignored_columns.empty?
 
           self.tabular_input_header = tabular_input.header.columns
         end
 
-        def tabular_input_parse_header(row)
-          tabular_input.parse_header(row)
-
-          ignored_columns = tabular_input.header.cleanse!
-          logger.warn('Stripped out invalid columns from custom header', ignored_columns) unless ignored_columns.empty?
-
-          self.tabular_input_header = tabular_input.header.columns
-        end
-
-        # Process the first slice to get the header line, unless already set.
-        def tabular_input_process_first_slice
+        def tabular_input_header_present
           return if tabular_input_header.present? || !tabular_input.parse_header?
 
-          work_first_slice do |row|
-            # Skip blank lines
-            next if row.blank?
-
-            if tabular_input_header.blank? && tabular_input.parse_header?
-              tabular_input_parse_header(row)
-            else
-              if block_given?
-                @rocket_job_output = yield(@rocket_job_input)
-              else
-                perform(row)
-              end
-            end
-          end
+          errors.add(:tabular_input_header, "is required when tabular_input_format is #{tabular_input_format.inspect}")
         end
-
       end
     end
   end

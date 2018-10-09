@@ -6,7 +6,8 @@ module Plugins
 
       class ArrayInputOutputJob < RocketJob::Job
         include RocketJob::Batch
-        include RocketJob::Batch::Tabular
+        include RocketJob::Batch::Tabular::Input
+        include RocketJob::Batch::Tabular::Output
 
         self.destroy_on_complete   = false
         self.collect_output        = true
@@ -20,7 +21,8 @@ module Plugins
 
       class HashInputOutputJob < RocketJob::Job
         include RocketJob::Batch
-        include RocketJob::Batch::Tabular
+        include RocketJob::Batch::Tabular::Input
+        include RocketJob::Batch::Tabular::Output
 
         self.destroy_on_complete   = false
         self.collect_output        = true
@@ -34,7 +36,8 @@ module Plugins
       # Useful for "sanity" checking first slice before letting workers process the remaining slices.
       class SpecializedFirstSliceJob < RocketJob::Job
         include RocketJob::Batch
-        include RocketJob::Batch::Tabular
+        include RocketJob::Batch::Tabular::Input
+        include RocketJob::Batch::Tabular::Output
 
         attr_accessor :specialized_first_slice
 

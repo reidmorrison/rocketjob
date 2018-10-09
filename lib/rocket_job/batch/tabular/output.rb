@@ -15,9 +15,11 @@ module RocketJob
 
           validates_inclusion_of :tabular_output_format, in: IOStreams::Tabular.registered_formats
 
+          before_batch :tabular_output_default_header if respond_to?(:tabular_input_header)
           after_perform :tabular_output_render
         end
 
+        # Clear out cached tabular_output any time header or format is changed.
         def tabular_output_header=(tabular_output_header)
           super(tabular_output_header)
           @tabular_output = nil
@@ -26,6 +28,19 @@ module RocketJob
         def tabular_output_format=(tabular_output_format)
           super(tabular_output_format)
           @tabular_output = nil
+        end
+
+        # Overrides: `RocketJob::Batch::IO#download` to add the `tabular_output_header`.
+        def download(file_name_or_io = nil, **args, &block)
+          # No header required
+          return super(file_name_or_io, **args, &block) unless tabular_output.render_header?
+
+          if tabular_output_header.blank?
+            raise(ArgumentError, "tabular_output_header must be set before calling #download when tabular_output_format is #{tabular_output_format}")
+          end
+
+          header = tabular_output.render(tabular_output_header)
+          super(file_name_or_io, header_line: header, **args, &block)
         end
 
         private
@@ -37,20 +52,15 @@ module RocketJob
 
         # Render the output from the perform.
         def tabular_output_render
-          @rocket_job_output = tabular_output.render(@rocket_job_output)
+          @rocket_job_output = tabular_output.render(@rocket_job_output) if collect_output?
         end
 
-        # Write the tabular_output_header to the output in its own slice
-        def tabular_output_write_header
-          return unless tabular_output_header.present? && tabular_output.render_header?
+        private
 
-          # Add the header output slice with just the header in it and
-          # id of 0 to make it the first record in the output
-          slice = output.new(id: 0)
-          slice << tabular_output.render(tabular_output_header)
-          slice.save!
+        # Set the output header to the input header if no output header is present
+        def tabular_output_default_header
+          self.tabular_output_header ||= tabular_input_header
         end
-
       end
     end
   end

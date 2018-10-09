@@ -10,48 +10,44 @@ module RocketJob
       #     Full path and file name to stream into the job,
       #     Or, an IO Stream that responds to: :read
       #
-      #   options:
-      #     :streams [Symbol|Array]
-      #       Streams to convert the data whilst it is being read.
-      #       When nil, the file_name extensions will be inspected to determine what
-      #       streams should be applied.
-      #       Default: nil
+      #   streams [Symbol|Array]
+      #     Streams to convert the data whilst it is being read.
+      #     When nil, the file_name extensions will be inspected to determine what
+      #     streams should be applied.
+      #     Default: nil
       #
-      #   The remaining options are not applicable when uploading Xlsx files, or when :streams
-      #   is supplied.
+      #   delimiter[String]
+      #     Line / Record delimiter to use to break the stream up into records
+      #       Any string to break the stream up by
+      #       The records when saved will not include this delimiter
+      #     Default: nil
+      #       Automatically detect line endings and break up by line
+      #       Searches for the first "\r\n" or "\n" and then uses that as the
+      #       delimiter for all subsequent records
       #
-      #     :delimiter[String]
-      #       Line / Record delimiter to use to break the stream up into records
-      #         Any string to break the stream up by
-      #         The records when saved will not include this delimiter
-      #       Default: nil
-      #         Automatically detect line endings and break up by line
-      #         Searches for the first "\r\n" or "\n" and then uses that as the
-      #         delimiter for all subsequent records
+      #   buffer_size [Integer]
+      #     Size of the blocks when reading from the input file / stream.
+      #     Default: 65536 ( 64K )
       #
-      #     :buffer_size [Integer]
-      #       Maximum size of the buffer into which to read the stream into for
-      #       processing.
-      #       Must be large enough to hold the entire first line and its delimiter(s)
-      #       Default: 65536 ( 64K )
+      #   encoding: [String|Encoding]
+      #     Encode returned data with this encoding.
+      #     'US-ASCII':   Original 7 bit ASCII Format
+      #     'ASCII-8BIT': 8-bit ASCII Format
+      #     'UTF-8':      UTF-8 Format
+      #     Etc.
+      #     Default: 'UTF-8'
       #
-      #     :strip_non_printable [true|false]
-      #       Strip all non-printable characters read from the file
-      #       Default: false
+      #   encode_replace: [String]
+      #     The character to replace with when a character cannot be converted to the target encoding.
+      #     nil: Don't replace any invalid characters. Encoding::UndefinedConversionError is raised.
+      #     Default: nil
       #
-      #     :encoding
-      #       Force encoding to this encoding for all data being read
-      #       Default: UTF8_ENCODING
-      #       Set to nil to disable encoding
-      #
-      # Stream types / extensions supported:
-      #   .zip       Zip File                                   [ :zip ]
-      #   .gz, .gzip GZip File                                  [ :gzip ]
-      #   .enc       File Encrypted using symmetric encryption  [ :enc ]
-      #
-      # When a file is encrypted, it may also be compressed:
-      #   .zip.enc  [ :zip, :enc ]
-      #   .gz.enc   [ :gz,  :enc ]
+      #   encode_cleaner: [nil|symbol|Proc]
+      #     Cleanse data read from the input stream.
+      #     nil:           No cleansing
+      #     :printable Cleanse all non-printable characters except \r and \n
+      #     Proc/lambda    Proc to call after every read to cleanse the data
+      #     Default: :printable
       #
       # Example:
       #   # Load plain text records from a file
@@ -81,24 +77,28 @@ module RocketJob
       #   end
       #
       # Notes:
-      # - All data read from the file/stream is converted into UTF-8
-      #   before being persisted.
+      # - By default all data read from the file/stream is converted into UTF-8 before being persisted. This
+      #   is recommended since Mongo only supports UTF-8 strings.
       # - When zip format, the Zip file/stream must contain only one file, the first file found will be
       #   loaded into the job
-      # - If an io stream is supplied, it is read until it returns nil
-      # - Only use this method for UTF-8 data, for binary data use #input_slice or #input_records
-      # - Not thread-safe. Only call from one thread at a time per job instance
-      # - All data is converted by this method to UTF-8 since that is how strings are stored in MongoDB
+      # - If an io stream is supplied, it is read until it returns nil.
+      # - Only use this method for UTF-8 data, for binary data use #input_slice or #input_records.
+      # - Only call from one thread at a time per job instance.
       # - CSV parsing is slow, so it is left for the workers to do.
-      def upload(file_name_or_io = nil, strip_non_printable: true, **args, &block)
+      def upload(file_name_or_io = nil, encode_cleaner: :printable, on_first_line: nil, **args, &block)
         create_indexes
-        return Writer::Input.collect(self, &block) if block
+        return Writer::Input.collect(self, on_first_line: on_first_line, &block) if block
 
         raise(ArgumentError, 'Either file_name_or_io, or a block must be supplied') unless file_name_or_io
 
         Writer::Input.collect(self) do |lines|
-          IOStreams.each_line(file_name_or_io, strip_non_printable: strip_non_printable, **args) do |line|
-            lines << line
+          IOStreams.each_line(file_name_or_io, encode_cleaner: encode_cleaner, **args) do |line|
+            if on_first_line
+              on_first_line.call(line)
+              on_first_line = nil
+            else
+              lines << line
+            end
           end
         end
       end
@@ -195,7 +195,7 @@ module RocketJob
           column_names = column_names.collect(&:to_sym)
           column_names << :id if column_names.size.zero?
 
-          block     =
+          block =
             if column_names.size == 1
               column = column_names.first
               ->(model) { model.send(column) }

@@ -2,7 +2,6 @@ require_relative '../../test_helper'
 
 module Tabular
   class InputTest < Minitest::Test
-
     class SimpleInputJob < RocketJob::Job
       include RocketJob::Batch
       include RocketJob::Batch::Tabular::Input
@@ -36,12 +35,9 @@ module Tabular
           assert header = @job.tabular_input_header
           assert_equal %w(first second third), header
         end
-      end
 
-      describe '#tabular_input_process_first_slice' do
         it 'processes the first and subsequent slices' do
           lines = [
-            '["first", "second", "third"]',
             '{"first"=>"1", "second"=>"2", "third"=>"3"}',
             '',
             '{"first"=>"4", "second"=>"5", "third"=>"6"}',
@@ -66,18 +62,15 @@ module Tabular
         @job.download(@io)
       end
 
-      describe '#tabular_input_process_first_slice' do
-        it 'processes the first and subsequent slices' do
-          lines = [
-            '{"first"=>"1", "second"=>"2", "third"=>"3"}',
-            '',
-            '{"first"=>"4", "second"=>"5", "third"=>"6"}',
-            '{"first"=>"7", "second"=>"8", "third"=>"9"}'
-          ]
-          assert_equal lines, @io.string.lines.collect(&:chomp)
-        end
+      it 'processes the first and subsequent slices' do
+        lines = [
+          '{"first"=>"1", "second"=>"2", "third"=>"3"}',
+          '',
+          '{"first"=>"4", "second"=>"5", "third"=>"6"}',
+          '{"first"=>"7", "second"=>"8", "third"=>"9"}'
+        ]
+        assert_equal lines, @io.string.lines.collect(&:chomp)
       end
-
     end
 
     describe 'json job' do
@@ -94,16 +87,14 @@ module Tabular
         @job.download(@io)
       end
 
-      describe '#tabular_input_process_first_slice' do
-        it 'processes the first and subsequent slices' do
-          lines = [
-            '{"first"=>1, "second"=>2, "third"=>3}',
-            '',
-            '{"first"=>4, "second"=>5, "third"=>6}',
-            '{"first"=>7, "second"=>8, "third"=>9}'
-          ]
-          assert_equal lines, @io.string.lines.collect(&:chomp)
-        end
+      it 'processes the first and subsequent slices' do
+        lines = [
+          '{"first"=>1, "second"=>2, "third"=>3}',
+          '',
+          '{"first"=>4, "second"=>5, "third"=>6}',
+          '{"first"=>7, "second"=>8, "third"=>9}'
+        ]
+        assert_equal lines, @io.string.lines.collect(&:chomp)
       end
     end
   end

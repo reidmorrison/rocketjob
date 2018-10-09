@@ -12,9 +12,6 @@ module Plugins
           self.collect_output      = true
           self.slice_size          = 3
 
-          # Write the ouput header before any other data
-          before_batch :tabular_output_write_header
-
           def perform(record)
             record
           end

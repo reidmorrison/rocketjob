@@ -23,7 +23,11 @@ module RocketJob
 
     autoload :Performance, 'rocket_job/batch/performance'
     autoload :Statistics, 'rocket_job/batch/statistics'
-    autoload :Tabular, 'rocket_job/batch/tabular'
+
+    module Tabular
+      autoload :Input, 'rocket_job/batch/tabular/input'
+      autoload :Output, 'rocket_job/batch/tabular/output'
+    end
   end
 end
 

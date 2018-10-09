@@ -63,12 +63,15 @@ module RocketJob
       # Notes:
       # - The records are returned in '_id' order. Usually this is the order in
       #   which the records were originally loaded.
-      def download(file_name_or_io = nil, **args)
+      def download(file_name_or_io = nil, header_line: nil, **args)
         raise(ArgumentError, 'Either file_name_or_io, or a block must be supplied') unless file_name_or_io || block_given?
 
         record_count = 0
 
         if block_given?
+          # Write the header line
+          yield(header_line) if header_line
+
           # Call the supplied block for every record returned
           each do |slice|
             slice.each do |record|
@@ -78,9 +81,14 @@ module RocketJob
           end
         else
           IOStreams.line_writer(file_name_or_io, **args) do |io|
+            # Write the header line
+            io << header_line if header_line
+
             each do |slice|
-              slice.each { |record| io << record }
-              record_count += slice.size
+              slice.each do |record|
+                io << record
+                record_count += 1
+              end
             end
           end
         end

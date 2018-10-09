@@ -53,14 +53,14 @@ module RocketJob
       # Returns [Integer] the number of records uploaded
       #
       # Note:
-      #   Not thread-safe. Only call from one thread at a time
-      def upload(file_name_or_io = nil, file_name: nil, **args, &block)
+      # * Not thread-safe. Only call from one thread at a time
+      def upload(file_name_or_io = nil, file_name: nil, category: :main, **args, &block)
         if file_name
           self.upload_file_name = file_name
-        elsif !file_name_or_io.nil? && !IOStreams.reader_stream?(file_name_or_io)
+        elsif file_name_or_io.is_a?(String)
           self.upload_file_name = file_name_or_io
         end
-        count             = input.upload(file_name_or_io, file_name: file_name, **args, &block)
+        count             = input(category).upload(file_name_or_io, file_name: file_name, **args, &block)
         self.record_count = (record_count || 0) + count
         count
       end
@@ -102,10 +102,10 @@ module RocketJob
       # See RocketJob::Sliced::Output#download for remaining options
       #
       # Returns [Integer] the number of records downloaded
-      def download(file_name_or_io = nil, options = {}, &block)
-        category = options.delete(:category) || :main
+      def download(file_name_or_io = nil, category: :main, **args, &block)
         raise "Cannot download incomplete job: #{id}. Currently in state: #{state}-#{sub_state}" if rocket_job_processing?
-        output(category).download(file_name_or_io, options, &block)
+
+        output(category).download(file_name_or_io, **args, &block)
       end
 
       # Writes the supplied result, Result or CompositeResult to the relevant collections.

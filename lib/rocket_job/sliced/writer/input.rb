@@ -5,8 +5,15 @@ module RocketJob
       class Input
         attr_reader :record_count
 
-        def self.collect(input, &block)
-          writer = new(input)
+        # Batch collection of lines into slices.
+        #
+        # Parameters
+        #   on_first_line: [Proc]
+        #     Block to call on the first line only, instead of storing in the slice.
+        #     Useful for extracting the header row
+        #     Default: nil
+        def self.collect(input, **args, &block)
+          writer = new(input, **args)
           block.call(writer)
           writer.record_count
         rescue Exception => exc
@@ -17,7 +24,8 @@ module RocketJob
           writer&.close
         end
 
-        def initialize(input)
+        def initialize(input, on_first_line: nil)
+          @on_first_line = on_first_line
           @batch_count   = 0
           @record_count  = 0
           @input         = input
@@ -25,16 +33,22 @@ module RocketJob
           @slice         = @input.new(first_record_number: @record_number)
         end
 
-        def <<(record)
-          @slice << record
+        def <<(line)
+          @record_number += 1
+          if @on_first_line
+            @on_first_line.call(line)
+            @on_first_line = nil
+            return self
+          end
+          @slice << line
           @batch_count   += 1
           @record_count  += 1
-          @record_number += 1
           if @batch_count >= @input.slice_size
             @input.insert(@slice)
             @batch_count = 0
             @slice       = @input.new(first_record_number: @record_number)
           end
+          self
         end
 
         def close
