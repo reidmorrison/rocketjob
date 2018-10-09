@@ -2,7 +2,6 @@ require_relative '../../test_helper'
 
 module Plugins
   module Job
-    # Unit Test for RocketJob::Job
     class ModelTest < Minitest::Test
       class SimpleJob < RocketJob::Job
         def perform

@@ -1,7 +1,6 @@
 require_relative '../test_helper'
 
 module Plugins
-  # Unit Test for RocketJob::Job
   class StateMachineTest < Minitest::Test
     class Test
       include RocketJob::Plugins::Document

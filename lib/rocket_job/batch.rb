@@ -21,6 +21,7 @@ module RocketJob
     include ThrottleRunningSlices
     include IO
 
+    autoload :LowerPriority, 'rocket_job/batch/lower_priority'
     autoload :Performance, 'rocket_job/batch/performance'
     autoload :Statistics, 'rocket_job/batch/statistics'
 

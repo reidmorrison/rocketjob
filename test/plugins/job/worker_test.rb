@@ -2,7 +2,6 @@ require_relative '../../test_helper'
 
 module Plugins
   module Job
-    # Unit Test for RocketJob::Job
     class WorkerTest < Minitest::Test
       class QuietJob < RocketJob::Job
         # Test increasing log level for debugging purposes

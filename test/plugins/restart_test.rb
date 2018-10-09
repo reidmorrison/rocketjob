@@ -1,6 +1,5 @@
 require_relative '../test_helper'
 
-# Unit Test for RocketJob::Job
 module Plugins
   class RestartTest < Minitest::Test
     class RestartableJob < RocketJob::Job

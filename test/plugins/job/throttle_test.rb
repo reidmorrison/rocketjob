@@ -1,6 +1,5 @@
 require_relative '../../test_helper'
 
-# Unit Test for RocketJob::Job
 module Plugins
   module Job
     class ThrottleTest < Minitest::Test

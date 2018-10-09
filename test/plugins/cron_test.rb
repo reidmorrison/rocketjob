@@ -1,6 +1,5 @@
 require_relative '../test_helper'
 
-# Unit Test for RocketJob::Job
 module Plugins
   class CronTest < Minitest::Test
     class CronJob < RocketJob::Job

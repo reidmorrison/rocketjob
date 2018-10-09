@@ -2,7 +2,6 @@ require_relative '../../test_helper'
 
 module Plugins
   module Job
-    # Unit Test for RocketJob::Job
     class PersistenceTest < Minitest::Test
       class PersistJob < RocketJob::Job
         self.priority = 53

@@ -1,6 +1,5 @@
 require_relative '../test_helper'
 
-# Unit Test for RocketJob::SlicedJob
 module Sliced
   class InputTest < Minitest::Test
     describe RocketJob::Sliced::Input do
