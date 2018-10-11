@@ -86,8 +86,8 @@ module RocketJob
 
             each do |slice|
               slice.each do |record|
-                io << record
                 record_count += 1
+                io << record
               end
             end
           end

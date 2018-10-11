@@ -15,7 +15,6 @@ module RocketJob
 
           validates_inclusion_of :tabular_output_format, in: IOStreams::Tabular.registered_formats
 
-          before_batch :tabular_output_default_header if respond_to?(:tabular_input_header)
           after_perform :tabular_output_render
         end
 
@@ -53,13 +52,6 @@ module RocketJob
         # Render the output from the perform.
         def tabular_output_render
           @rocket_job_output = tabular_output.render(@rocket_job_output) if collect_output?
-        end
-
-        private
-
-        # Set the output header to the input header if no output header is present
-        def tabular_output_default_header
-          self.tabular_output_header ||= tabular_input_header
         end
       end
     end

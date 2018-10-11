@@ -8,7 +8,7 @@ module RocketJob
         # Batch collection of lines into slices.
         #
         # Parameters
-        #   on_first_line: [Proc]
+        #   on_first: [Proc]
         #     Block to call on the first line only, instead of storing in the slice.
         #     Useful for extracting the header row
         #     Default: nil
@@ -24,8 +24,8 @@ module RocketJob
           writer&.close
         end
 
-        def initialize(input, on_first_line: nil)
-          @on_first_line = on_first_line
+        def initialize(input, on_first: nil)
+          @on_first      = on_first
           @batch_count   = 0
           @record_count  = 0
           @input         = input
@@ -35,14 +35,14 @@ module RocketJob
 
         def <<(line)
           @record_number += 1
-          if @on_first_line
-            @on_first_line.call(line)
-            @on_first_line = nil
+          if @on_first
+            @on_first.call(line)
+            @on_first = nil
             return self
           end
           @slice << line
-          @batch_count   += 1
-          @record_count  += 1
+          @batch_count  += 1
+          @record_count += 1
           if @batch_count >= @input.slice_size
             @input.insert(@slice)
             @batch_count = 0

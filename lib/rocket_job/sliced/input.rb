@@ -49,9 +49,23 @@ module RocketJob
       #     Proc/lambda    Proc to call after every read to cleanse the data
       #     Default: :printable
       #
+      #   stream_mode: [:line | :row | :record]
+      #     :line
+      #       Uploads the file a line (String) at a time for processing by workers.
+      #     :row
+      #       Parses each line from the file as an Array and uploads each array for processing by workers.
+      #     :record
+      #       Parses each line from the file into a Hash and uploads each hash for processing by workers.
+      #     See IOStream#each_line, IOStream#each_row, and IOStream#each_record.
+      #
       # Example:
       #   # Load plain text records from a file
       #   job.input.upload('hello.csv')
+      #
+      # Example:
+      #   # Load plain text records from a file, stripping all non-printable characters,
+      #   # as well as any characters that cannot be converted to UTF-8
+      #   job.input.upload('hello.csv', encode_cleaner: :printable, encode_replace: '')
       #
       # Example: Zip
       #   # Since csv is not known to RocketJob it is ignored
@@ -85,22 +99,16 @@ module RocketJob
       # - Only use this method for UTF-8 data, for binary data use #input_slice or #input_records.
       # - Only call from one thread at a time per job instance.
       # - CSV parsing is slow, so it is left for the workers to do.
-      def upload(file_name_or_io = nil, encode_cleaner: :printable, on_first_line: nil, **args, &block)
-        create_indexes
-        return Writer::Input.collect(self, on_first_line: on_first_line, &block) if block
+      def upload(file_name_or_io = nil, encoding: 'UTF-8', stream_mode: :line, on_first: nil, **args, &block)
+        raise(ArgumentError, 'Either file_name_or_io, or a block must be supplied') unless file_name_or_io || block
 
-        raise(ArgumentError, 'Either file_name_or_io, or a block must be supplied') unless file_name_or_io
-
-        Writer::Input.collect(self) do |lines|
-          IOStreams.each_line(file_name_or_io, encode_cleaner: encode_cleaner, **args) do |line|
-            if on_first_line
-              on_first_line.call(line)
-              on_first_line = nil
-            else
-              lines << line
-            end
-          end
+        block ||= -> (io) do
+          iterator = "each_#{stream_mode}".to_sym
+          IOStreams.public_send(iterator, file_name_or_io, encoding: encoding, **args) { |line| io << line }
         end
+
+        create_indexes
+        Writer::Input.collect(self, on_first: on_first, &block)
       end
 
       # Upload the result of a MongoDB query to the input collection for processing
