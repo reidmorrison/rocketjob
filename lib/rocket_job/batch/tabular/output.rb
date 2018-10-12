@@ -38,7 +38,7 @@ module RocketJob
             raise(ArgumentError, "tabular_output_header must be set before calling #download when tabular_output_format is #{tabular_output_format}")
           end
 
-          header = tabular_output.render(tabular_output_header)
+          header = tabular_output.render_header
           super(file_name_or_io, header_line: header, **args, &block)
         end
 

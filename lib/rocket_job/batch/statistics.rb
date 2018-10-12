@@ -58,7 +58,8 @@ module RocketJob
       # Increment a statistic
       def statistics_inc(key, increment = 1)
         return if key.nil? || key == ''
-        return unless @slice_statistics
+        # Being called within tests outside of a perform
+        @slice_statistics ||= Stats.new(new_record? ? statistics : nil)
         key.is_a?(Hash) ? @slice_statistics.inc(key) : @slice_statistics.inc_key(key, increment)
       end
 
