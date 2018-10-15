@@ -2,7 +2,7 @@ require 'active_support/concern'
 
 module RocketJob
   module Batch
-    module Tabular
+    class Tabular
       # For the simple case where all `input_categories` have the same format,
       # If multiple input categories are used with different formats, then use IOStreams::Tabular directly
       # instead of this plugin.
@@ -57,7 +57,7 @@ module RocketJob
           end
 
           # If an input header is not required, then we don't extract it'
-          return super(file_name_or_io, stream_mode: tabular_input_mode, **args, &block) unless tabular_input.parse_header?
+          return super(file_name_or_io, stream_mode: tabular_input_mode, **args, &block) unless tabular_input.header?
 
           # If the header is already set then it is not expected in the file
           if tabular_input_header.present?
@@ -101,7 +101,7 @@ module RocketJob
         end
 
         def tabular_input_render
-          @rocket_job_input = tabular_input.record_parse(@rocket_job_input) unless tabular_input_header.blank? && tabular_input.parse_header?
+          @rocket_job_input = tabular_input.record_parse(@rocket_job_input) unless tabular_input_header.blank? && tabular_input.header?
         end
 
         # Cleanse custom input header if supplied.
@@ -113,7 +113,7 @@ module RocketJob
         end
 
         def tabular_input_header_present
-          return if tabular_input_header.present? || !tabular_input.parse_header? || (tabular_input_mode == :record)
+          return if tabular_input_header.present? || !tabular_input.header? || (tabular_input_mode == :record)
 
           errors.add(:tabular_input_header, "is required when tabular_input_format is #{tabular_input_format.inspect}")
         end

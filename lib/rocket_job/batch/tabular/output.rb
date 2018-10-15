@@ -2,7 +2,7 @@ require 'active_support/concern'
 
 module RocketJob
   module Batch
-    module Tabular
+    class Tabular
       # For the simple case where all `output_categories` have the same format,
       # If multiple output categories are used with different formats, then use IOStreams::Tabular directly
       # instead of this plugin.
@@ -30,15 +30,11 @@ module RocketJob
         end
 
         # Overrides: `RocketJob::Batch::IO#download` to add the `tabular_output_header`.
-        def download(file_name_or_io = nil, **args, &block)
+        def download(file_name_or_io = nil, category: :main, **args, &block)
           # No header required
-          return super(file_name_or_io, **args, &block) unless tabular_output.render_header?
+          return super(file_name_or_io, category: category, **args, &block) unless tabular_output.requires_header?
 
-          if tabular_output_header.blank?
-            raise(ArgumentError, "tabular_output_header must be set before calling #download when tabular_output_format is #{tabular_output_format}")
-          end
-
-          header = tabular_output.render_header
+          header = tabular_output.render_header(category)
           super(file_name_or_io, header_line: header, **args, &block)
         end
 
@@ -46,12 +42,16 @@ module RocketJob
 
         # Delimited instance used for this slice, by a single worker (thread)
         def tabular_output
-          @tabular_output ||= IOStreams::Tabular.new(columns: tabular_output_header, format: tabular_output_format)
+          @tabular_output ||= Tabular.new(
+            main: IOStreams::Tabular.new(columns: tabular_output_header, format: tabular_output_format)
+          )
         end
 
         # Render the output from the perform.
         def tabular_output_render
-          @rocket_job_output = tabular_output.render(@rocket_job_output) if collect_output?
+          return unless collect_output?
+
+          @rocket_job_output = tabular_output.render(@rocket_job_output)
         end
       end
     end
