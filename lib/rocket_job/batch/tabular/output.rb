@@ -32,10 +32,10 @@ module RocketJob
         # Overrides: `RocketJob::Batch::IO#download` to add the `tabular_output_header`.
         def download(file_name_or_io = nil, category: :main, **args, &block)
           # No header required
-          return super(file_name_or_io, category: category, **args, &block) unless tabular_output.requires_header?
+          return super(file_name_or_io, category: category, **args, &block) unless tabular_output.requires_header?(category)
 
           header = tabular_output.render_header(category)
-          super(file_name_or_io, header_line: header, **args, &block)
+          super(file_name_or_io, header_line: header, category: category, **args, &block)
         end
 
         private

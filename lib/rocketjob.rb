@@ -69,10 +69,8 @@ module RocketJob
   end
 
   module Sliced
-    autoload :CompositeResult,     'rocket_job/sliced/composite_result'
     autoload :Input,               'rocket_job/sliced/input'
     autoload :Output,              'rocket_job/sliced/output'
-    autoload :Result,              'rocket_job/sliced/result'
     autoload :Slice,               'rocket_job/sliced/slice'
     autoload :Slices,              'rocket_job/sliced/slices'
     autoload :Store,               'rocket_job/sliced/store'

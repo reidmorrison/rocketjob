@@ -1,9 +1,9 @@
 require 'active_support/concern'
 
 module RocketJob
-  module Sliced
+  module Batch
     # For holding multiple categorized Result's
-    class CompositeResult < Array
+    class Results < Array
     end
   end
 end

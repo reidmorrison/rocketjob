@@ -45,7 +45,7 @@ module Batch
           count
         else
           # Specify the :odd output category as registered above
-          RocketJob::Sliced::Result.new(:odd, count)
+          RocketJob::Batch::Result.new(:odd, count)
         end
       end
     end
@@ -61,7 +61,7 @@ module Batch
       # Return an undefined category
       def perform(count)
         # :bad is not registered so will raise an exception
-        RocketJob::Sliced::Result.new(:bad, count)
+        RocketJob::Batch::Result.new(:bad, count)
       end
     end
 
@@ -76,12 +76,12 @@ module Batch
 
       # Returns multiple results, each
       def perform
-        result = RocketJob::Sliced::CompositeResult.new
+        result = RocketJob::Batch::Results.new
         # A result for the main collections
-        result << RocketJob::Sliced::Result.new(:main, 'main')
+        result << RocketJob::Batch::Result.new(:main, 'main')
         # Custom output collections
-        result << RocketJob::Sliced::Result.new(:odd, 'odd')
-        result << RocketJob::Sliced::Result.new(:even, 'even')
+        result << RocketJob::Batch::Result.new(:odd, 'odd')
+        result << RocketJob::Batch::Result.new(:even, 'even')
       end
     end
 

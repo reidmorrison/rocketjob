@@ -27,10 +27,10 @@ module RocketJob
           @categorized_records = {}
         end
 
-        # Writes the supplied result, RocketJob::Sliced::Result or RocketJob::Sliced::CompositeResult
+        # Writes the supplied result, RocketJob::Batch::Result or RocketJob::Batch::Results
         # to the relevant collections
         def <<(result)
-          if result.is_a?(RocketJob::Sliced::CompositeResult)
+          if result.is_a?(RocketJob::Batch::Results)
             result.each { |single| extract_categorized_result(single) }
           else
             extract_categorized_result(result)
@@ -50,7 +50,7 @@ module RocketJob
         def extract_categorized_result(result)
           category = :main
           value    = result
-          if result.is_a?(RocketJob::Sliced::Result)
+          if result.is_a?(RocketJob::Batch::Result)
             category = result.category
             value    = result.value
             raise(ArgumentError, "Invalid RocketJob Output Category: #{category}") if job.output_categories.exclude?(category)

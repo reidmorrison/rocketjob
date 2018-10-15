@@ -2,7 +2,7 @@ module RocketJob
   module Batch
     # Format output results.
     #
-    # Takes Sliced::CompositeResult, Sliced::Result, Hash, Array, or String and renders it for output.
+    # Takes Batch::Results, Batch::Result, Hash, Array, or String and renders it for output.
     #
     # Example:
     #
@@ -20,23 +20,24 @@ module RocketJob
         @map = map
       end
 
-      def tabular(category)
-        @map[:main] || raise("No tabular map defined for category: #{category.inspect}")
+      def tabular(category = :main)
+        @map[category] || raise("No tabular map defined for category: #{category.inspect}")
       end
 
       # Iterate over responses and format using Tabular
       def render(row, category = :main)
-        if row.is_a?(RocketJob::Sliced::CompositeResult)
-          row.each { |result| result.value = render(result.value) }
-          return row
-        elsif row.is_a?(RocketJob::Sliced::Result)
+        if row.is_a?(Batch::Results)
+          results = Batch::Results.new
+          row.each { |result| results << render(result) }
+          results
+        elsif row.is_a?(Batch::Result)
           row.value = tabular(row.category).render(row.value)
-          return row
+          row
         elsif row.blank?
-          return
+          nil
+        else
+          tabular(category).render(row)
         end
-
-        tabular(category).render(row)
       end
 
       def render_header(category = :main)

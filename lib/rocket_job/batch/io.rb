@@ -108,7 +108,7 @@ module RocketJob
         output(category).download(file_name_or_io, **args, &block)
       end
 
-      # Writes the supplied result, Result or CompositeResult to the relevant collections.
+      # Writes the supplied result, Batch::Result or Batch::Results to the relevant collections.
       #
       # If a block is supplied, the block is supplied with a writer that should be used to
       # accumulate the results.
@@ -122,15 +122,15 @@ module RocketJob
       # end
       #
       # job.write_output do |writer|
-      #   result = RocketJob::Sliced::CompositeResult
-      #   result << RocketJob::Sliced::Result.new(:main, 'hello world')
-      #   result << RocketJob::Sliced::Result.new(:errors, 'errors')
+      #   result = RocketJob::Batch::Results
+      #   result << RocketJob::Batch::Result.new(:main, 'hello world')
+      #   result << RocketJob::Batch::Result.new(:errors, 'errors')
       #   writer << result
       # end
       #
-      # result = RocketJob::Sliced::CompositeResult
-      # result << RocketJob::Sliced::Result.new(:main, 'hello world')
-      # result << RocketJob::Sliced::Result.new(:errors, 'errors')
+      # result = RocketJob::Batch::Results
+      # result << RocketJob::Batch::Result.new(:main, 'hello world')
+      # result << RocketJob::Batch::Result.new(:errors, 'errors')
       # job.write_output(result)
       def write_output(result = nil, input_slice = nil, &block)
         if block
