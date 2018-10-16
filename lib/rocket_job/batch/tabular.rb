@@ -20,7 +20,7 @@ module RocketJob
         @map = map
       end
 
-      def tabular(category = :main)
+      def [](category = :main)
         @map[category] || raise("No tabular map defined for category: #{category.inspect}")
       end
 
@@ -31,25 +31,25 @@ module RocketJob
           row.each { |result| results << render(result) }
           results
         elsif row.is_a?(Batch::Result)
-          row.value = tabular(row.category).render(row.value)
+          row.value = self[row.category].render(row.value)
           row
         elsif row.blank?
           nil
         else
-          tabular(category).render(row)
+          self[category].render(row)
         end
       end
 
       def render_header(category = :main)
-        tabular(category).render_header
+        self[category].render_header
       end
 
       def requires_header?(category = :main)
-        tabular(category).requires_header?
+        self[category].requires_header?
       end
 
       def header?(category = :main)
-        tabular(category).header?
+        self[category].header?
       end
     end
   end
