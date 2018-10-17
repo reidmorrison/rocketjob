@@ -3,7 +3,6 @@ require 'json'
 require 'semantic_logger'
 require 'mongoid'
 require 'rocketjob'
-require 'rocket_job/extensions/mongoid/factory'
 require 'pathname'
 module RocketJob
   # Command Line Interface parser for Rocket Job

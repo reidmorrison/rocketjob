@@ -231,7 +231,7 @@ module RocketJob
 
     # Where clause filter to apply to workers looking for jobs
     def filter
-      YAML.load(yaml_filter)
+      YAML.load(yaml_filter) if yaml_filter
     end
 
     def filter=(hash)

@@ -1,3 +1,5 @@
+require 'mongoid/factory'
+
 module RocketJob
   module Mongoid5Factory
     def from_db(klass, attributes = nil, selected_fields = nil, criteria = nil)
