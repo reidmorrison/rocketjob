@@ -1,7 +1,6 @@
 require_relative '../test_helper'
 
 module Plugins
-  # Unit Test for RocketJob::Job
   class StateMachineEventCallbacksTest < Minitest::Test
     # This job adds each event callback as they run into an array
     # [:start, :complete, :fail, :retry, :pause, :resume, :abort, :requeue]

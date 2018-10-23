@@ -55,7 +55,7 @@ module RocketJob
       raise(ArgumentError, "Mongo Configuration file: #{config_file} not found") unless config_file.file?
 
       logger.debug "Reading Mongo configuration from: #{config_file}"
-      Mongoid.load!(config_file, environment)
+      ::Mongoid.load!(config_file, environment)
 
       # Load Encryption configuration file if present
       return unless defined?(SymmetricEncryption)

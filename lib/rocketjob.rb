@@ -1,12 +1,25 @@
+require 'iostreams'
 require 'semantic_logger'
 require 'mongoid'
 require 'rocket_job/extensions/mongo/logging'
 require 'rocket_job/version'
 require 'rocket_job/rocket_job'
 
+# Apply patches to implement `with_collection`
+if Mongoid::VERSION.to_i >= 6
+  require 'rocket_job/extensions/mongoid/clients/options'
+  require 'rocket_job/extensions/mongoid/contextual/mongo'
+  require 'rocket_job/extensions/mongoid/factory'
+else
+  require 'rocket_job/extensions/mongoid_5/clients/options'
+  require 'rocket_job/extensions/mongoid_5/contextual/mongo'
+  require 'rocket_job/extensions/mongoid_5/factory'
+end
+
 # @formatter:off
 module RocketJob
   autoload :ActiveWorker,       'rocket_job/active_worker'
+  autoload :Batch,              'rocket_job/batch'
   autoload :CLI,                'rocket_job/cli'
   autoload :Config,             'rocket_job/config'
   autoload :DirmonEntry,        'rocket_job/dirmon_entry'
@@ -47,10 +60,25 @@ module RocketJob
   module Jobs
     autoload :ActiveJob,        'rocket_job/jobs/active_job'
     autoload :DirmonJob,        'rocket_job/jobs/dirmon_job'
+    autoload :OnDemandBatchJob, 'rocket_job/jobs/on_demand_batch_job'
     autoload :OnDemandJob,      'rocket_job/jobs/on_demand_job'
     autoload :HousekeepingJob,  'rocket_job/jobs/housekeeping_job'
+    autoload :PerformanceJob,   'rocket_job/jobs/performance_job'
     autoload :SimpleJob,        'rocket_job/jobs/simple_job'
     autoload :UploadFileJob,    'rocket_job/jobs/upload_file_job'
+  end
+
+  module Sliced
+    autoload :Input,               'rocket_job/sliced/input'
+    autoload :Output,              'rocket_job/sliced/output'
+    autoload :Slice,               'rocket_job/sliced/slice'
+    autoload :Slices,              'rocket_job/sliced/slices'
+    autoload :Store,               'rocket_job/sliced/store'
+
+    module Writer
+      autoload :Input,             'rocket_job/sliced/writer/input'
+      autoload :Output,            'rocket_job/sliced/writer/output'
+    end
   end
 end
 

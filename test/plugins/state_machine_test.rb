@@ -1,7 +1,6 @@
 require_relative '../test_helper'
 
 module Plugins
-  # Unit Test for RocketJob::Job
   class StateMachineTest < Minitest::Test
     class Test
       include RocketJob::Plugins::Document
@@ -32,7 +31,7 @@ module Plugins
 
       describe '#create!' do
         it 'raises an exception when a validation fails on create!' do
-          assert_raises Mongoid::Errors::Validations do
+          assert_raises ::Mongoid::Errors::Validations do
             @doc = Test.create!
           end
         end
@@ -40,7 +39,7 @@ module Plugins
 
       describe '#save!' do
         it 'raises an exception when a validation fails on save' do
-          assert_raises Mongoid::Errors::Validations do
+          assert_raises ::Mongoid::Errors::Validations do
             @doc.save!
           end
         end
@@ -48,7 +47,7 @@ module Plugins
 
       describe '#transition!' do
         it 'raises an exception when a validation fails on state transition with save' do
-          assert_raises Mongoid::Errors::Validations do
+          assert_raises ::Mongoid::Errors::Validations do
             @doc.enable!
           end
           assert @doc.pending?

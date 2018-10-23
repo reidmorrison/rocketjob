@@ -1,6 +1,5 @@
 require_relative 'test_helper'
 
-# Unit Test for RocketJob::Job
 class DirmonEntryTest < Minitest::Test
   class TestJob < RocketJob::Job
     # Dirmon will store the filename in this property when starting the job

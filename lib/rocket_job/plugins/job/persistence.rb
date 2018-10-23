@@ -32,9 +32,11 @@ module RocketJob
           #   job    = RocketJob::Job.rocket_job_retrieve('host:pid:worker', filter)
           def rocket_job_retrieve(worker_name, filter)
             SemanticLogger.silence(:info) do
-              query  = queued_now
-              query  = query.where(filter) unless filter.blank?
-              update = {'$set' => {'worker_name' => worker_name, 'state' => 'running', 'started_at' => Time.now}}
+              scheduled = {'$or' => [{run_at: nil}, {:run_at.lte => Time.now}]}
+              working   = {'$or' => [{state: :queued}, {state: :running, sub_state: :processing}]}
+              query     = self.and(working, scheduled)
+              query     = query.where(filter) unless filter.blank?
+              update    = {'$set' => {'worker_name' => worker_name, 'state' => 'running'}}
               query.sort(priority: 1, _id: 1).find_one_and_update(update, bypass_document_validation: true)
             end
           end
@@ -101,7 +103,7 @@ module RocketJob
           return super unless destroy_on_complete
           begin
             super
-          rescue Mongoid::Errors::DocumentNotFound
+          rescue ::Mongoid::Errors::DocumentNotFound
             unless completed?
               self.state = :completed
               rocket_job_set_completed_at

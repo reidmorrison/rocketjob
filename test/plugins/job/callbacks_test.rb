@@ -2,7 +2,6 @@ require_relative '../../test_helper'
 
 module Plugins
   module Job
-    # Unit Test for RocketJob::Job
     class CallbacksTest < Minitest::Test
       # This job adds each callback as they run into an array
       class BeforePerformJob < RocketJob::Job

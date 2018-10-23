@@ -17,6 +17,59 @@ Checkout http://rocketjob.io/
 * Questions? Join the chat room on Gitter for [rocketjob support](https://gitter.im/rocketjob/support)
 * [Report bugs](https://github.com/rocketjob/rocketjob/issues)
 
+## Rocket Job 4
+
+Rocket Job Pro is now open sourced and included within Rocket Job. 
+
+The `RocketJob::Batch` plugin now adds batch processing capabilites to break up a single task into many
+concurrent workers processing slices of the entire job at the same time. 
+
+
+Example:
+
+```ruby
+class MyJob < RocketJob::Job
+  include RocketJob::Batch
+  
+  self.description         = "Reverse names"
+  self.destroy_on_complete = false
+  self.collect_output      = true
+
+  # Method to call by all available workers at the same time.
+  # Reverse the characters for each line: 
+  def perform(line)
+    line.reverse
+  end
+end
+```
+
+Upload a file for processing, for example `names.csv` which could contain:
+
+```
+jack
+jane
+bill
+john
+blake
+chris
+dave
+marc
+```
+
+To queue the above job for processing:
+
+```ruby
+job = MyJob.new
+job.upload('names.csv')
+job.save!
+```
+
+Once the job has completed, download the results into a file:
+
+```ruby
+job.download('names_reversed.csv')
+```
+
 ## Contributing to the documentation
 
 To contribute to the documentation it is as easy as forking the repository
@@ -99,6 +152,14 @@ Rocket Job is tested and supported on the following Ruby platforms:
 - Ruby 2.1, 2.2, 2.3, 2.4, and above
 - JRuby 9.0.5 and above
 
+## Dependencies
+
+* [MongoDB](https://www.mongodb.org)
+    * Persists job information.
+    * Version 2.7 or greater.
+* [Semantic Logger](https://rocketjob.github.io/semantic_logger)
+    * Highly concurrent scalable logging.
+
 ## Versioning
 
 This project uses [Semantic Versioning](http://semver.org/).
@@ -109,4 +170,5 @@ This project uses [Semantic Versioning](http://semver.org/).
 
 ## Contributors
 
-* [Chris Lamb](https://github.com/lambcr)
+[Contributors](https://github.com/rocketjob/rocketjob/graphs/contributors)
+

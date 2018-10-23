@@ -1,0 +1,11 @@
+#!/usr/bin/env ruby
+require 'rocketjob_batch'
+
+# Log to console
+SemanticLogger.add_appender(io: STDOUT, formatter: :color)
+
+perf = RocketJob::Batch::Performance.new
+perf.parse(ARGV)
+RocketJob::Config.load!(perf.environment, perf.mongo_config)
+results = perf.run_test_case
+p results
