@@ -9,38 +9,9 @@ module Batch
 
       field :header, type: String
 
-      before_batch :process_first_slice
-
       def perform(record)
         if record % 2 == 0
           statistics_inc('even')
-        else
-          statistics_inc('odd')
-        end
-      end
-
-      private
-
-      # Also test that header can be extracted in a before_batch
-      def process_first_slice
-        work_first_slice do |line|
-          if header.nil?
-            self.header = line
-          else
-            perform(line)
-          end
-        end
-      end
-    end
-
-    # This job adds each callback as they run into an array
-    class HashStatsJob < RocketJob::Job
-      include RocketJob::Batch
-      include RocketJob::Batch::Statistics
-
-      def perform(record)
-        if record % 2 == 0
-          statistics_inc(even: 1)
         else
           statistics_inc(odd: 1, 'and.more' => 2)
         end
@@ -194,73 +165,80 @@ module Batch
     end
 
     describe RocketJob::Batch::Statistics do
+      let :job do
+        job = BatchSlicesJob.new(slice_size: 4)
+        job.upload do |stream|
+          7.times.each { |i| stream << i }
+        end
+        job
+      end
+
       after do
-        @job.destroy if @job && !@job.new_record?
+        BatchSlicesJob.delete_all
       end
 
       describe '#statistics_inc' do
         it 'in memory model' do
-          records = 7
-          @job    = BatchSlicesJob.new(slice_size: 4)
-          @job.upload do |stream|
-            stream << 'header line'
-            records.times.each { |i| stream << i }
-          end
-          @job.perform_now
-          assert @job.completed?, @job.attributes.ai
-          assert_equal ['even', 'odd'], @job.statistics.keys.sort
-          assert_equal 4, @job.statistics['even'], @job.statistics.ai
-          assert_equal 3, @job.statistics['odd'], @job.statistics.ai
-          assert_equal 'header line', @job.header
+          job.perform_now
+          assert job.completed?, job.attributes.ai
+          assert_equal ['and', 'even', 'odd'], job.statistics.keys.sort
+          assert_equal 4, job.statistics['even'], job.statistics.ai
+          assert_equal 3, job.statistics['odd'], job.statistics.ai
+          assert_equal({'more' => 6}, job.statistics['and'], job.statistics.ai)
         end
 
         it 'persisted model' do
-          records = 7
-          @job    = BatchSlicesJob.new(slice_size: 4)
-          @job.upload do |stream|
-            stream << 'header line'
-            records.times.each { |i| stream << i }
-          end
-          @job.save!
-          @job.perform_now
-          assert @job.completed?, @job.attributes.ai
-          assert_equal ['even', 'odd'], @job.statistics.keys.sort
-          assert_equal 4, @job.statistics['even'], @job.statistics.ai
-          assert_equal 3, @job.statistics['odd'], @job.statistics.ai
-          assert_equal 'header line', @job.header
-          @job.reload
-          assert_equal ['even', 'odd'], @job.statistics.keys.sort
-          assert_equal 4, @job.statistics['even'], @job.statistics.ai
-          assert_equal 3, @job.statistics['odd'], @job.statistics.ai
+          job.save!
+          job.perform_now
+          assert job.completed?, job.attributes.ai
+          assert_equal ['and', 'even', 'odd'], job.statistics.keys.sort
+          assert_equal 4, job.statistics['even'], job.statistics.ai
+          assert_equal 3, job.statistics['odd'], job.statistics.ai
+          assert_equal({'more' => 6}, job.statistics['and'], job.statistics.ai)
+          job.reload
+          assert_equal ['and', 'even', 'odd'], job.statistics.keys.sort
+          assert_equal 4, job.statistics['even'], job.statistics.ai
+          assert_equal 3, job.statistics['odd'], job.statistics.ai
+          assert_equal({'more' => 6}, job.statistics['and'], job.statistics.ai)
         end
 
-        it 'handles hash in memory model' do
-          records = 7
-          @job    = HashStatsJob.new(slice_size: 4)
-          @job.upload do |stream|
-            records.times.each { |i| stream << i }
+        it 'logs statistics on completion' do
+          description = nil
+          payload     = nil
+          job.logger.stub(:info, ->(_description, _payload) { description = _description, payload = _payload }) do
+            job.perform_now
           end
-          @job.perform_now
-          assert @job.completed?, @job.attributes.ai
-          assert_equal ['and', 'even', 'odd'], @job.statistics.keys.sort
-          assert_equal 4, @job.statistics['even'], @job.statistics.ai
-          assert_equal 3, @job.statistics['odd'], @job.statistics.ai
-          assert_equal({'more' => 6}, @job.statistics['and'], @job.statistics.ai)
+          assert job.completed?, job.attributes.ai
+
+          assert_equal 'Complete', description.first
+          assert_equal :complete, payload[:event]
+          assert_equal :running, payload[:from]
+          assert_equal :completed, payload[:to]
+
+          assert statistics = payload[:statistics]
+          assert_equal ['and', 'even', 'odd'], statistics.keys.sort
+          assert_equal 4, statistics['even'], statistics.ai
+          assert_equal 3, statistics['odd'], statistics.ai
+          assert_equal({'more' => 6}, statistics['and'], statistics.ai)
         end
 
-        it 'handles hash in stored model' do
-          records = 7
-          @job    = HashStatsJob.new(slice_size: 4)
-          @job.upload do |stream|
-            records.times.each { |i| stream << i }
+        it 'logs statistics on failure' do
+          description = nil
+          payload     = nil
+          job.start
+          job.statistics = {'bad' => 'one'}
+          job.logger.stub(:info, ->(_description, _payload) { description = _description, payload = _payload }) do
+            job.fail
           end
-          @job.save!
-          @job.perform_now
-          assert @job.completed?, @job.attributes.ai
-          assert_equal ['and', 'even', 'odd'], @job.statistics.keys.sort
-          assert_equal 4, @job.statistics['even'], @job.statistics.ai
-          assert_equal 3, @job.statistics['odd'], @job.statistics.ai
-          assert_equal({'more' => 6}, @job.statistics['and'], @job.statistics.ai)
+          assert job.failed?, job.attributes.ai
+
+          assert_equal 'Fail', description.first
+          assert_equal :fail, payload[:event]
+          assert_equal :running, payload[:from]
+          assert_equal :failed, payload[:to]
+
+          assert statistics = payload[:statistics]
+          assert_equal({'bad' => 'one'}, statistics)
         end
       end
     end

@@ -44,7 +44,7 @@ module RocketJob
           last  = paths.pop
           return unless last
 
-          target = paths.inject(in_memory) {|target, key| target.key?(key) ? target[key] : target[key]  = Hash.new(0)}
+          target       = paths.inject(in_memory) { |target, key| target.key?(key) ? target[key] : target[key] = Hash.new(0) }
           target[last] += increment
         end
       end
@@ -71,6 +71,17 @@ module RocketJob
         @slice_statistics = Stats.new(new_record? ? statistics : nil)
         yield
         collection.update_one({_id: id}, {'$inc' => @slice_statistics.stats}) unless @slice_statistics.empty?
+      end
+
+      # Overrides RocketJob::Batch::Logger#rocket_job_batch_log_payload
+      def rocket_job_batch_log_payload
+        h              = {
+          from:  aasm.from_state,
+          to:    aasm.to_state,
+          event: aasm.current_event
+        }
+        h[:statistics] = statistics.dup if statistics.present? && (completed? || failed?)
+        h
       end
     end
   end

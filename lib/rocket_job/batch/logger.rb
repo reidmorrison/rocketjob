@@ -42,14 +42,16 @@ module RocketJob
       end
 
       def rocket_job_batch_log_state_change
-        logger.info(
-          aasm.current_event.to_s.camelcase,
+        logger.info(aasm.current_event.to_s.camelcase, rocket_job_batch_log_payload)
+      end
+
+      def rocket_job_batch_log_payload
+        {
           from:  aasm.from_state,
           to:    aasm.to_state,
           event: aasm.current_event
-        )
+        }
       end
-
     end
   end
 end
