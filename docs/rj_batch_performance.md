@@ -1,7 +1,8 @@
 ---
 layout: default
 ---
-## Rocket Job Pro Performance Test
+
+## Batch Performance Test
 
 Setup for the performance test below:
 
@@ -21,13 +22,13 @@ bundle exec rocketjob --log_level warn --threads 5
 Quick test:
 
 ~~~
-bundle exec rocketjob_pro_perf -c 1000
+bundle exec rocketjob_batch_perf -c 1000
 ~~~
 
 Full test:
 
 ~~~
-bundle exec rocketjob_pro_perf
+bundle exec rocketjob_batch_perf
 ~~~
 
 ### Test 1

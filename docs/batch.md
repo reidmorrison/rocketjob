@@ -1,13 +1,14 @@
 ---
 layout: default
 ---
+
 ## Batch Processing
 
 Regular jobs run on a single worker. In order to scale up and use all available workers
 it is necessary to break up the input data into "slices" so that different parts of the job
 can be processed in parallel.
 
-Jobs that include `RocketJob::Plugins::Batch` break their work up into slices so that many workers can work
+Jobs that include `RocketJob::Batch` break their work up into slices so that many workers can work
 on the individual slices at the same time. Slices take a large and unwieldy batch job and break it up
 into "bite-size" pieces that can be processed a slice at a time by the workers.
 
@@ -21,11 +22,9 @@ A running batch Job will be interrupted if a new job with a higher priority is q
 processing.  This allows low priority jobs to use all available resources until a higher
 priority job arrives, and then to resume processing once the higher priority job is complete.
 
-Batch processing is available as part of [Rocket Job Pro][2].
-
 ~~~ruby
 class ReverseJob < RocketJob::Job
-  include RocketJob::Plugins::Batch
+  include RocketJob::Batch
 
   # Number of lines/records for each slice
   self.slice_size          = 100
@@ -80,7 +79,7 @@ were uploaded into the job. This makes it easy to correlate an input record with
 
 ### Batch Large File Processing
 
-[Rocket Job Pro][2] supports very large files. It can easily upload
+Rocket Job batch jobs supports very large files. It can easily upload
 entire files into the Job for processing and automatically slices up the records in
 the file into slices for processing.
 
@@ -100,7 +99,7 @@ When complete, download the results of the batch into a file:
 job.download('reversed.txt.gz')
 ~~~
 
-[Rocket Job Pro][2] has built-in support for reading and writing
+Rocket Job has built-in support for reading and writing
 
 * `Zip` files
 * `GZip` files
@@ -117,46 +116,9 @@ Note:
 * In order to read and write `Zip` on Ruby MRI, add the gem `rubyzip` to your `Gemfile`.
 * Not required with JRuby since it will use the native `Zip` support built into Java
 
-### Encryption
-
-By setting the Batch Job attribute `encrypt` to true, input and output data is encrypted.
-Encryption helps ensure sensitive data meets compliance requirements both at rest and in-flight.
-
-~~~ruby
-class ReverseJob < RocketJob::Job
-  include RocketJob::Plugins::Batch
-
-  # Encrypt input and output data
-  self.encrypt = true
-
-  def perform(line)
-    line.reverse
-  end
-end
-~~~
-
-### Compression
-
-Compression reduces network utilization and disk storage requirements.
-Highly recommended when processing large files, or large amounts of data.
-
-~~~ruby
-class ReverseJob < RocketJob::Job
-  include RocketJob::Plugins::Batch
-
-  # Compress input and output data
-  self.compress = true
-
-  def perform(line)
-    line.reverse
-  end
-end
-~~~
-
 ### Worker Limiting / Throttling
 
-[Rocket Job Pro][2] has the ability to throttle the number of workers that can work on
-a batch job instance at any time.
+Throttle the number of workers that can work on a batch job instance at any time.
 
 Limiting can be used when too many concurrent workers are:
 
@@ -170,7 +132,7 @@ either increase or decrease the number of workers working on that job.
 
 ~~~ruby
 class ReverseJob < RocketJob::Job
-  include RocketJob::Plugins::Batch
+  include RocketJob::Batch
 
   # No more than 10 workers should work on this job at a time
   self.throttle_running_slices = 10
@@ -189,7 +151,7 @@ or deleted based on the configuration for that path.
 
 ### Multiple Output Files
 
-[Rocket Job Pro][2] can also create multiple output files by categorizing the result
+A single batch job can also create multiple output files by categorizing the result
 of the perform method.
 
 This can be used to output one file with results from the job and another for
@@ -197,7 +159,7 @@ outputting for example the lines that were too short.
 
 ~~~ruby
 class MultiFileJob < RocketJob::Job
-  include RocketJob::Plugins::Batch
+  include RocketJob::Batch
 
   self.collect_output      = true
   self.destroy_on_complete = false
@@ -228,7 +190,7 @@ job.download('invalid.txt.gz', category: :invalid)
 
 ## Error Handling
 
-Since [Rocket Job Pro][2] breaks a single job into slices, individual records within
+Since a Batch job breaks a single job into slices, individual records within
 slices can fail while others are still being processed.
 
 ~~~ruby
@@ -251,18 +213,18 @@ CSV format is set as default. See Tabular page for details.
 
 ~~~ruby
 class MultiFileJob < RocketJob::Job
-  include RocketJob::Plugins::Batch
-  include RocketJob::Plugins::Batch::Tabular
+  include RocketJob::Batch
+  include RocketJob::Batch::Tabular
   
   def perform(row)
-  # row here is represented as a hash in the form h['header'] data
-  # where 'header' is low case cleansed header
+  #  row is a hash: 
   #  {
-  #       "first_field" => 100,
-  #            "second" => 200,
-  #             "third" => 300
+  #     "first_field" => 100,
+  #     "second"      => 200,
+  #     "third"       => 300
   #   }
-  end 
+  end
+end
 ~~~
 
 When multiple output files are created with Tabular, the first output should be passed in as a hash,
@@ -270,8 +232,8 @@ second - as an array.
 
 ~~~ruby
 class MultiFileJob < RocketJob::Job
-  include RocketJob::Plugins::Batch
-  include RocketJob::Plugins::Batch::Tabular
+  include RocketJob::Batch
+  include RocketJob::Batch::Tabular
 
   self.collect_output      = true
   self.destroy_on_complete = false
@@ -292,8 +254,8 @@ class MultiFileJob < RocketJob::Job
        second_result: row['second'] * 2,
        third_result:  row['third'] * 2
      }
-     # RocketJob::Sliced::Result handles writing result to the main output file
-     RocketJob::Sliced::Result.new(:main, result)
+     # RocketJob::Batch::Result handles writing result to the main output file
+     RocketJob::Batch::Result.new(:main, result)
     else
      # error condition: return file in input format, add extra column with error message.
      # Pass array instead of hash to fill in the second CSV file correctly
@@ -305,18 +267,9 @@ class MultiFileJob < RocketJob::Job
                 row["third"],
                 'first field can not be 0'
      ]
-     # RocketJob::Sliced::Result handles writing result to the invalid output file
-     RocketJob::Sliced::Result.new(:invalid, result) 
+     # RocketJob::Batch::Result handles writing result to the invalid output file
+     RocketJob::Batch::Result.new(:invalid, result) 
     end
-  end
-  
-  # The headers for these files are set by overwrite to
-  # RocketJob::Plugins::Batch::Tabular::Output#tabular_output_set_header
-  def tabular_output_set_header
-    headers = RocketJob::Sliced::CompositeResult.new
-    headers << RocketJob::Sliced::Result.new(:main, tabular_output_header)
-    headers << RocketJob::Sliced::Result.new(:invalid, invalid_file_header)
-    headers
   end
   
   def invalid_file_header
@@ -337,14 +290,12 @@ In this case it is a good practice to create audit files using build-in Symmetri
 
 ~~~ruby
 class MultiFileJob < RocketJob::Job
-  include RocketJob::Plugins::Batch
-  include RocketJob::Plugins::Batch::Tabular
+  include RocketJob::Batch
+  include RocketJob::Batch::Tabular
 
   self.collect_output      = true
   self.destroy_on_complete = false
   self.output_categories   = [ :main, :invalid ]
-  # Encrypt input and output data
-  self.encrypt             = true
   
   field :output_path, type: String
   field :pgp_public_key, type: String
@@ -358,10 +309,8 @@ class MultiFileJob < RocketJob::Job
   before_batch :set_output_file_names
   before_complete :download_file, :download_audit_file
   
-  
   def set_output_file_names
-  
-    path        = File.join(RocketJob::Batch::Stage::File.root_path, 'downloads', self.class.collective_name)
+    path        = File.join('downloads', self.class.collective_name)
     output_path = output_path.present? ? output_path : path
     FileUtils.mkdir_p(path) unless File.exist?(path)
     
@@ -404,7 +353,7 @@ class MultiFileJobTest < ActiveSupport::TestCase
     job = MultiFileJob.new(
       pgp_public_key:    IOStreams::Pgp.export(email: 'receiver@example.org'),
       output_path:       'output_path'
-      )
+    )
   end
   
   let :valid_row do
@@ -415,7 +364,11 @@ class MultiFileJobTest < ActiveSupport::TestCase
     it 'creates main output file' do
       job.upload(StringIO.new(valid_row), file_name: 'a.csv')
       job.perform_now
-      result                 = IOStreams.reader(job.main_output_file_name, pgp: {passphrase: 'receiver_passphrase'}) { |f| f.read }
+      result = IOStreams.reader(
+        job.main_output_file_name, 
+        iostreams: {pgp: {passphrase: 'receiver_passphrase'}},
+        &:read
+      )
       header, row, remainder = CSV.parse(result)
       
       assert_equal header.size, row.size
@@ -431,5 +384,4 @@ end
 
 [0]: http://rocketjob.io
 [1]: mission_control.html
-[2]: pro.html
 [3]: http://rocketjob.github.io/symmetric-encryption

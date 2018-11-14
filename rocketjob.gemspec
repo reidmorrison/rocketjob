@@ -12,7 +12,6 @@ Gem::Specification.new do |s|
   s.summary               = "Ruby's missing batch system."
   s.executables           = %w[rocketjob rocketjob_perf]
   s.files                 = Dir['lib/**/*', 'bin/*', 'LICENSE.txt', 'README.md']
-  s.test_files            = Dir['test/**/*']
   s.license               = 'Apache-2.0'
   s.required_ruby_version = '>= 2.3'
   s.add_dependency 'aasm', '~> 4.12'
