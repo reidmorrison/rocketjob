@@ -1,4 +1,12 @@
 module RocketJob
+  def self.create_indexes
+    # Ensure models with indexes are loaded into memory first
+    Job
+    Server
+    DirmonEntry
+    ::Mongoid::Tasks::Database.create_indexes
+  end
+
   # Whether the current process is running inside a Rocket Job server process.
   def self.server?
     @server

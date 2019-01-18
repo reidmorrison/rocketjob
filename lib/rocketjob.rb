@@ -30,6 +30,7 @@ module RocketJob
   autoload :Performance,        'rocket_job/performance'
   autoload :Server,             'rocket_job/server'
   autoload :Supervisor,         'rocket_job/supervisor'
+  autoload :WorkerPool,         'rocket_job/worker_pool'
 
   module Plugins
     module Job
