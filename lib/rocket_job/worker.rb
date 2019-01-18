@@ -38,12 +38,7 @@ module RocketJob
                    filter: nil)
       @id               = id
       @server_name      = server_name
-      @shutdown         =
-        if defined?(Concurrent::JavaAtomicBoolean) || defined?(Concurrent::CAtomicBoolean)
-          Concurrent::AtomicBoolean.new(false)
-        else
-          false
-        end
+      @shutdown         = Concurrent::Event.new
       @name             = "#{server_name}:#{id}"
       @re_check_seconds = (re_check_seconds || 60).to_f
       @re_check_start   = Time.now
@@ -52,23 +47,17 @@ module RocketJob
       @thread           = Thread.new { run } unless inline
     end
 
-    if defined?(Concurrent::JavaAtomicBoolean) || defined?(Concurrent::CAtomicBoolean)
-      # Tells this worker to shutdown as soon the current job/slice is complete
-      def shutdown!
-        @shutdown.make_true
-      end
+    def shutdown?
+      @shutdown.set?
+    end
 
-      def shutdown?
-        @shutdown.value
-      end
-    else
-      def shutdown!
-        @shutdown = true
-      end
+    def shutdown!
+      @shutdown.set
+    end
 
-      def shutdown?
-        @shutdown
-      end
+    # Returns [true|false] whether the shutdown indicator was set
+    def wait_for_shutdown?(timeout = nil)
+      @shutdown.wait(timeout)
     end
 
     private
@@ -82,14 +71,13 @@ module RocketJob
       Thread.current.name = format('rocketjob %03i', id)
       logger.info 'Started'
       until shutdown?
+        wait = RocketJob::Config.instance.max_poll_seconds
         if process_available_jobs
           # Keeps workers staggered across the poll interval so that
           # all workers don't poll at the same time
-          sleep rand(RocketJob::Config.instance.max_poll_seconds * 1000) / 1000
-        else
-          break if shutdown?
-          sleep RocketJob::Config.instance.max_poll_seconds
+          wait = rand(wait * 1000) / 1000
         end
+        break if wait_for_shutdown?(wait)
       end
       logger.info 'Stopping'
     rescue Exception => exc

@@ -69,7 +69,7 @@ module RocketJob
           stagger = false
         end
 
-        sleep Config.instance.heartbeat_seconds
+        break if self.class.wait_for_shutdown?(Config.instance.heartbeat_seconds)
 
         server.refresh(living_worker_count)
       end

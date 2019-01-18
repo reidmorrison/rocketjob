@@ -7,32 +7,22 @@ module RocketJob
       extend ActiveSupport::Concern
 
       included do
-        # On CRuby the 'concurrent-ruby-ext' gem may not be loaded
-        if defined?(Concurrent::JavaAtomicBoolean) || defined?(Concurrent::CAtomicBoolean)
-          # Returns [true|false] whether the shutdown indicator has been set for this server process
-          def self.shutdown?
-            @shutdown.value
-          end
-
-          # Set shutdown indicator for this server process
-          def self.shutdown!
-            @shutdown.make_true
-          end
-
-          @shutdown = Concurrent::AtomicBoolean.new(false)
-        else
-          # Returns [true|false] whether the shutdown indicator has been set for this server process
-          def self.shutdown?
-            @shutdown
-          end
-
-          # Set shutdown indicator for this server process
-          def self.shutdown!
-            @shutdown = true
-          end
-
-          @shutdown = false
+        # Returns [true|false] whether the shutdown indicator has been set for this server process
+        def self.shutdown?
+          @shutdown.set?
         end
+
+        # Returns [true|false] whether the shutdown indicator was set before the timeout was reached
+        def self.wait_for_shutdown?(timeout = nil)
+          @shutdown.wait(timeout)
+        end
+
+        # Set shutdown indicator for this server process
+        def self.shutdown!
+          @shutdown.set
+        end
+
+        @shutdown = Concurrent::Event.new
 
         # Register handlers for the various signals
         # Term:
@@ -40,28 +30,25 @@ module RocketJob
         #
         def self.register_signal_handlers
           Signal.trap 'SIGTERM' do
-            shutdown!
-            message = 'Shutdown signal (SIGTERM) received. Will shutdown as soon as active jobs/slices have completed.'
-            # Logging uses a mutex to access Queue on CRuby
-            defined?(JRuby) ? logger.warn(message) : puts(message)
+            Thread.new do
+              shutdown!
+              message = 'Shutdown signal (SIGTERM) received. Will shutdown as soon as active jobs/slices have completed.'
+              logger.warn(message)
+            end
           end
 
           Signal.trap 'INT' do
-            shutdown!
-            message = 'Shutdown signal (INT) received. Will shutdown as soon as active jobs/slices have completed.'
-            # Logging uses a mutex to access Queue on CRuby
-            defined?(JRuby) ? logger.warn(message) : puts(message)
+            Thread.new do
+              shutdown!
+              message = 'Shutdown signal (INT) received. Will shutdown as soon as active jobs/slices have completed.'
+              logger.warn(message)
+            end
           end
         rescue StandardError
           logger.warn 'SIGTERM handler not installed. Not able to shutdown gracefully'
         end
 
         private_class_method :register_signal_handlers
-      end
-
-      # Returns [Boolean] whether the server is shutting down
-      def shutdown?
-        self.class.shutdown? || !server.running?
       end
     end
   end
