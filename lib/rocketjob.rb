@@ -29,6 +29,7 @@ module RocketJob
   autoload :Worker,             'rocket_job/worker'
   autoload :Performance,        'rocket_job/performance'
   autoload :Server,             'rocket_job/server'
+  autoload :Supervisor,         'rocket_job/supervisor'
 
   module Plugins
     module Job

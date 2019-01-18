@@ -92,7 +92,6 @@ module RocketJob
             ]
           )
         end
-
       end
 
       # Where clause filter to apply to workers looking for jobs
@@ -115,6 +114,16 @@ module RocketJob
         return true if heartbeat.nil? || heartbeat.updated_at.nil?
         dead_seconds = Config.instance.heartbeat_seconds * missed
         (Time.now - heartbeat.updated_at) >= dead_seconds
+      end
+
+      # Updates the heartbeat and returns a refreshed server instance.
+      def refresh(worker_count)
+        SemanticLogger.silence(:info) do
+          find_and_update(
+            'heartbeat.updated_at' => Time.now,
+            'heartbeat.workers'    => worker_count
+          )
+        end
       end
 
       private

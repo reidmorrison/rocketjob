@@ -20,6 +20,7 @@ module RocketJob
             transitions from: :starting, to: :running
             before do
               self.started_at = Time.now
+              build_heartbeat(updated_at: Time.now, workers: 0)
             end
           end
 

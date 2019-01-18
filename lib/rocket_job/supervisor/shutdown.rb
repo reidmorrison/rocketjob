@@ -2,7 +2,7 @@ require 'active_support/concern'
 require 'concurrent'
 
 module RocketJob
-  class Server
+  class Supervisor
     module Shutdown
       extend ActiveSupport::Concern
 
@@ -61,7 +61,7 @@ module RocketJob
 
       # Returns [Boolean] whether the server is shutting down
       def shutdown?
-        self.class.shutdown? || !running?
+        self.class.shutdown? || !server.running?
       end
     end
   end

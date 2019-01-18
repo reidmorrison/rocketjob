@@ -1,6 +1,4 @@
 require 'rocket_job/server/model'
-require 'rocket_job/server/processor'
-require 'rocket_job/server/shutdown'
 require 'rocket_job/server/state_machine'
 
 module RocketJob
@@ -34,21 +32,5 @@ module RocketJob
     include SemanticLogger::Loggable
     include Server::Model
     include Server::StateMachine
-    include Server::Shutdown
-    include Server::Processor
-
-    # Run the server process
-    # Attributes supplied are passed to #new
-    def self.run(attrs = {})
-      Thread.current.name = 'rocketjob main'
-      # Create Indexes on server startup
-      ::Mongoid::Tasks::Database.create_indexes
-      register_signal_handlers
-
-      server = create!(attrs)
-      server.send(:run)
-    ensure
-      server&.destroy
-    end
   end
 end
