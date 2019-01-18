@@ -113,7 +113,7 @@ Rocket Job has built-in support for reading and writing
 
 Note:
 
-* In order to read and write `Zip` on Ruby MRI, add the gem `rubyzip` to your `Gemfile`.
+* In order to read and write `Zip` on CRuby, add the gem `rubyzip` to your `Gemfile`.
 * Not required with JRuby since it will use the native `Zip` support built into Java
 
 ### Worker Limiting / Throttling

@@ -8,7 +8,7 @@ Setup for the performance test below:
 
 * 13" MacBook Pro (Dual core i7, Early 2015)
 * Mac OSX v10.11
-* Ruby v2.3 (MRI/CRuby)
+* Ruby v2.3 (CRuby)
 * MongoDB v3.2.1
 
 ### Start worker processes:
