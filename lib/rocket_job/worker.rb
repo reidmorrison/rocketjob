@@ -8,16 +8,11 @@ module RocketJob
   class Worker
     include SemanticLogger::Loggable
     include ActiveSupport::Callbacks
-    extend Forwardable
-
-    def_delegator :@thread, :alive?
-    def_delegator :@thread, :backtrace
-    def_delegator :@thread, :join
 
     define_callbacks :running
 
     attr_accessor :id, :re_check_seconds, :filter, :current_filter
-    attr_reader :thread, :name
+    attr_reader :thread, :name, :inline
 
     def self.before_running(*filters, &blk)
       set_callback(:running, :before, *filters, &blk)
@@ -45,6 +40,19 @@ module RocketJob
       @filter           = filter.nil? ? {} : filter.dup
       @current_filter   = @filter.dup
       @thread           = Thread.new { run } unless inline
+      @inline           = inline
+    end
+
+    def alive?
+      inline ? true : @thread.alive?
+    end
+
+    def backtrace
+      inline ? Thread.current.backtrace : @thread.backtrace
+    end
+
+    def join(*args)
+      @thread.join(*args) unless inline
     end
 
     def shutdown?

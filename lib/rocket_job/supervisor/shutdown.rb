@@ -7,22 +7,30 @@ module RocketJob
       extend ActiveSupport::Concern
 
       included do
+        # Set shutdown indicator for this server process
+        def self.shutdown!
+          @shutdown.set
+          event!
+        end
+
         # Returns [true|false] whether the shutdown indicator has been set for this server process
         def self.shutdown?
           @shutdown.set?
         end
 
-        # Returns [true|false] whether the shutdown indicator was set before the timeout was reached
-        def self.wait_for_shutdown?(timeout = nil)
-          @shutdown.wait(timeout)
+        # An event has occured
+        def self.event!
+          @event.set
         end
 
-        # Set shutdown indicator for this server process
-        def self.shutdown!
-          @shutdown.set
+        # Returns [true|false] whether the shutdown indicator was set before the timeout was reached
+        def self.wait_for_event(timeout = nil)
+          @event.wait(timeout)
+          @event.reset
         end
 
         @shutdown = Concurrent::Event.new
+        @event    = Concurrent::Event.new
 
         # Register handlers for the various signals
         # Term:

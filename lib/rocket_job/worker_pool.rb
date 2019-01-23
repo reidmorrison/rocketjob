@@ -1,15 +1,22 @@
+require 'concurrent-ruby'
 require 'rocket_job/supervisor/shutdown'
 
 module RocketJob
   class WorkerPool
     include SemanticLogger::Loggable
 
-    attr_reader :server, :workers
+    attr_reader :server_name, :filter, :workers
 
-    def initialize(server)
-      @server    = server
-      @workers   = []
-      @worker_id = 0
+    def initialize(server_name, filter)
+      @server_name = server_name
+      @filter      = filter
+      @workers     = Concurrent::Array.new
+      @worker_id   = 0
+    end
+
+    # Find a worker in the list by its id
+    def find(id)
+      workers.find { |worker| worker.id == id }
     end
 
     # Add new workers to get back to the `max_workers` if not already at `max_workers`
@@ -19,15 +26,15 @@ module RocketJob
     #       It spreads out the queue polling over the max_poll_seconds so
     #       that not all workers poll at the same time.
     #       The worker also responds faster than max_poll_seconds when a new job is created.
-    def rebalance(stagger_start = false)
-      count = server.max_workers.to_i - living_count
+    def rebalance(max_workers, stagger_start = false)
+      count = max_workers.to_i - living_count
       return 0 unless count > 0
 
-      logger.info "Starting #{count} workers"
+      logger.info("#{'Stagger ' if stagger_start}Starting #{count} workers")
 
       add_one
       count -= 1
-      delay = Config.instance.max_poll_seconds.to_f / server.max_workers
+      delay = Config.instance.max_poll_seconds.to_f / max_workers
 
       count.times.each do
         sleep(delay) if stagger_start
@@ -41,7 +48,7 @@ module RocketJob
       remove_count = workers.count - living_count
       return 0 if remove_count.zero?
 
-      logger.info "Cleaned up #{workers.count - count} dead workers"
+      logger.info "Cleaned up #{remove_count} dead workers"
       workers.delete_if { |t| !t.alive? }
       remove_count
     end
@@ -51,20 +58,19 @@ module RocketJob
       workers.each(&:shutdown!)
     end
 
-    # Shutdown and wait for all workers to stop.
-    def shutdown!
-      stop!
-
-      logger.info 'Waiting for workers to stop'
+    # Wait for all workers to stop.
+    # Return [true] if all workers stopped
+    # Return [false] on timeout
+    def join(timeout = 5)
       while (worker = workers.first)
-        if worker.join(5)
+        if worker.join(timeout)
           # Worker thread is dead
           workers.shift
         else
-          # Worker still running so update heartbeat so that server reports "alive".
-          server.refresh(living_count)
+          return false
         end
       end
+      true
     end
 
     # Returns [Fixnum] number of workers (threads) that are alive
@@ -72,14 +78,14 @@ module RocketJob
       workers.count(&:alive?)
     end
 
-    def log_bracktraces
+    def log_backtraces
       workers.each { |worker| logger.backtrace(thread: worker.thread) if worker.thread && worker.alive? }
     end
 
     private
 
     def add_one
-      workers << Worker.new(id: next_worker_id, server_name: server.name, filter: server.filter)
+      workers << Worker.new(id: next_worker_id, server_name: server_name, filter: filter)
     rescue StandardError => exc
       logger.fatal('Cannot start worker', exc)
     end

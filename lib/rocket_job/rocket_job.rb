@@ -4,6 +4,7 @@ module RocketJob
     Job
     Server
     DirmonEntry
+    Event.create_capped_collection
     ::Mongoid::Tasks::Database.create_indexes
   end
 
