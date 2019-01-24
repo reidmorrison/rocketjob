@@ -73,16 +73,22 @@ module RocketJob
   end
 
   module Sliced
-    autoload :Input,               'rocket_job/sliced/input'
-    autoload :Output,              'rocket_job/sliced/output'
-    autoload :Slice,               'rocket_job/sliced/slice'
-    autoload :Slices,              'rocket_job/sliced/slices'
-    autoload :Store,               'rocket_job/sliced/store'
+    autoload :Input,            'rocket_job/sliced/input'
+    autoload :Output,           'rocket_job/sliced/output'
+    autoload :Slice,            'rocket_job/sliced/slice'
+    autoload :Slices,           'rocket_job/sliced/slices'
+    autoload :Store,            'rocket_job/sliced/store'
 
     module Writer
-      autoload :Input,             'rocket_job/sliced/writer/input'
-      autoload :Output,            'rocket_job/sliced/writer/output'
+      autoload :Input,          'rocket_job/sliced/writer/input'
+      autoload :Output,         'rocket_job/sliced/writer/output'
     end
+  end
+
+  module Subscribers
+    autoload :Logger,           'rocket_job/subscribers/logger'
+    autoload :Server,           'rocket_job/subscribers/server'
+    autoload :Worker,           'rocket_job/subscribers/worker'
   end
 end
 

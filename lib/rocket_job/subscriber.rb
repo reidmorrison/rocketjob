@@ -21,17 +21,22 @@ module RocketJob
   #   end
   # end
   #
-  # Event.subscribe(MySubscriber.new)
+  # MySubscriber.subscribe
   module Subscriber
     extend ActiveSupport::Concern
 
     included do
       include SemanticLogger::Loggable
 
-      def self.publish_action(action, **parameters)
+      def self.publish(action, **parameters)
         raise(ArgumentError, "Invalid action: #{action}") unless public_method_defined?(action)
 
         Event.create!(name: name, action: action, parameters: parameters)
+      end
+
+      def self.subscribe(*args, &block)
+        instance = new(*args)
+        Event.subscribe(instance, &block)
       end
     end
 

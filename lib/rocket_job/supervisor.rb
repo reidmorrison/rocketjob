@@ -1,6 +1,3 @@
-require 'rocket_job/supervisor/subscriber/logger'
-require 'rocket_job/supervisor/subscriber/server'
-require 'rocket_job/supervisor/subscriber/worker'
 require 'rocket_job/supervisor/shutdown'
 
 module RocketJob
@@ -36,10 +33,10 @@ module RocketJob
       server.started!
       logger.info 'Rocket Job Server started'
 
-      event_listener = Thread.new { Event.event_listener }
-      Event.subscribe(Supervisor::Subscriber::Server.new(self)) do
-        Event.subscribe(Supervisor::Subscriber::Worker.new(self)) do
-          Event.subscribe(Supervisor::Subscriber::Logger.new) do
+      event_listener = Thread.new { Event.listener }
+      Subscribers::Server.subscribe(self) do
+        Subscribers::Worker.subscribe(self) do
+          Subscribers::Logger.subscribe do
             supervise_pool
             stop!
           end

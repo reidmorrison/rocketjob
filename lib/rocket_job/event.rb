@@ -1,5 +1,4 @@
 require 'concurrent-ruby'
-require 'rocket_job/supervisor/shutdown'
 
 module RocketJob
   # RocketJob::Event
@@ -63,7 +62,7 @@ module RocketJob
     #   end
     # end
     #
-    # Event.subscribe(MySubscriber.new)
+    # MySubscriber.subscribe
     def self.subscribe(subscriber)
       if block_given?
         begin
@@ -84,21 +83,25 @@ module RocketJob
 
     # Indefinitely tail the capped collection looking for new events.
     #   time: the start time from which to start looking for new events.
-    def self.event_listener(time: @load_time)
+    def self.listener(time: @load_time)
       Thread.current.name = 'rocketjob event'
+      create_capped_collection
+
       logger.info('Event listener started')
       tail_capped_collection(time) { |event| new_event(event) }
     rescue Exception => exc
-      logger.error('#event_listener Event listener is terminating due to unhandled exception', exc)
+      logger.error('#listener Event listener is terminating due to unhandled exception', exc)
       raise(exc)
     end
 
     # Create the capped collection only if it does not exist.
     # Drop the collection before calling this method to re-create it.
     def self.create_capped_collection(size: capped_collection_size)
-      return if collection.database.collection_names.include?(collection_name.to_s)
-
-      collection.client[collection_name, {capped: true, size: size}].create
+      if collection_exists?
+        convert_to_capped_collection(size) unless collection.capped?
+      else
+        collection.client[collection_name, {capped: true, size: size}].create
+      end
     end
 
     private
@@ -141,11 +144,20 @@ module RocketJob
         @subscribers[event.name].each { |subscriber| subscriber.process_action(event.action, event.parameters) }
       end
 
-      if @subscribers.key?('*')
-        @subscribers['*'].each { |subscriber| subscriber.process_event(event.name, event.action, event.parameters) }
+      if @subscribers.key?(WILDCARD)
+        @subscribers[WILDCARD].each { |subscriber| subscriber.process_event(event.name, event.action, event.parameters) }
       end
     rescue StandardError => exc
       logger.error('Unknown subscriber. Continuing..', exc)
+    end
+
+    def self.collection_exists?
+      collection.database.collection_names.include?(collection_name.to_s)
+    end
+
+    # Convert a non-capped collection to capped
+    def self.convert_to_capped_collection(size)
+      collection.database.command('convertToCapped' => collection_name.to_s, 'size' => size)
     end
   end
 end
