@@ -78,7 +78,9 @@ module Jobs
       describe 'zombie cleanup' do
         before do
           @server = RocketJob::Server.new
-          @server.started!
+          Time.stub(:now, 1.day.ago) do
+            @server.started!
+          end
           assert @server.reload.zombie?
           assert_equal 1, RocketJob::Server.count, -> { RocketJob::Server.all.to_a.ai }
         end
