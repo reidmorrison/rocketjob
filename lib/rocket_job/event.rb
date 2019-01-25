@@ -88,7 +88,7 @@ module RocketJob
       create_capped_collection
 
       logger.info('Event listener started')
-      tail_capped_collection(time) { |event| new_event(event) }
+      tail_capped_collection(time) { |event| process_event(event) }
     rescue Exception => exc
       logger.error('#listener Event listener is terminating due to unhandled exception', exc)
       raise(exc)
@@ -137,7 +137,7 @@ module RocketJob
     end
 
     # Process a new event, calling registered subscribers.
-    def self.new_event(event)
+    def self.process_event(event)
       logger.info('Event Received', event.attributes)
 
       if @subscribers.key?(event.name)
