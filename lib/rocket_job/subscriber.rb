@@ -40,10 +40,17 @@ module RocketJob
     included do
       include SemanticLogger::Loggable
 
+      # Name of the event published and subscribed to
+      class_attribute :event_name, instance_accessor: false
+      self.event_name = self.class.name
+
       def self.publish(action, **parameters)
         raise(ArgumentError, "Invalid action: #{action}") unless public_method_defined?(action)
+        if event_name == Event::ALL_EVENTS
+          raise(NotImplementedError, "Cannot publish to an all events subscriber: event_name='#{Event::ALL_EVENTS}'")
+        end
 
-        event = Event.new(name: name, action: action, parameters: parameters)
+        event = Event.new(name: event_name, action: action, parameters: parameters)
         Subscriber.test_mode? ? Event.process_event(event) : event.save!
       end
 
@@ -53,7 +60,7 @@ module RocketJob
       end
     end
 
-    def process_action(action, parameters = nil)
+    def process_action(action, parameters)
       unless public_methods.include?(action)
         logger.warn("Ignoring unknown action: #{action}")
         return
@@ -65,7 +72,7 @@ module RocketJob
       logger.error('Exception calling subscriber. Resuming..', exc)
     end
 
-    def process_event(name, action, parameters = nil)
+    def process_event(name, action, parameters)
       raise(NotImplementedError)
     end
   end

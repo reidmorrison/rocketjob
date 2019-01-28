@@ -10,7 +10,7 @@ module RocketJob
     include Plugins::Document
     include Mongoid::Timestamps
 
-    WILDCARD = '*'.freeze
+    ALL_EVENTS = '*'.freeze
 
     # Capped collection long polling interval.
     class_attribute :long_poll_seconds, instance_accessor: false
@@ -110,7 +110,7 @@ module RocketJob
     @subscribers = Concurrent::Map.new { Concurrent::Array.new }
 
     def self.add_subscriber(subscriber)
-      name               = subscriber.class.name
+      name               = subscriber.class.event_name
       @subscribers[name] = @subscribers[name] << subscriber
       subscriber.object_id
     end
@@ -144,8 +144,8 @@ module RocketJob
         @subscribers[event.name].each { |subscriber| subscriber.process_action(event.action, event.parameters) }
       end
 
-      if @subscribers.key?(WILDCARD)
-        @subscribers[WILDCARD].each { |subscriber| subscriber.process_event(event.name, event.action, event.parameters) }
+      if @subscribers.key?(ALL_EVENTS)
+        @subscribers[ALL_EVENTS].each { |subscriber| subscriber.process_event(event.name, event.action, event.parameters) }
       end
     rescue StandardError => exc
       logger.error('Unknown subscriber. Continuing..', exc)
