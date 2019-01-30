@@ -1,4 +1,11 @@
 module RocketJob
+  def self.create_indexes
+    # Ensure models with indexes are loaded into memory first
+    Job.create_indexes
+    Server.create_indexes
+    DirmonEntry.create_indexes
+  end
+
   # Whether the current process is running inside a Rocket Job server process.
   def self.server?
     @server

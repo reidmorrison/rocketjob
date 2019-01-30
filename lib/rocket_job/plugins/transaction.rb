@@ -25,7 +25,7 @@ module RocketJob
     #   end
     #
     # Performance
-    # - On Ruby (MRI) an empty transaction block call takes about 1ms.
+    # - On CRuby an empty transaction block call takes about 1ms.
     # - On JRuby an empty transaction block call takes about 55ms.
     #
     # Note:

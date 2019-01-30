@@ -23,12 +23,16 @@ module RocketJob
   autoload :CLI,                'rocket_job/cli'
   autoload :Config,             'rocket_job/config'
   autoload :DirmonEntry,        'rocket_job/dirmon_entry'
+  autoload :Event,              'rocket_job/event'
   autoload :Heartbeat,          'rocket_job/heartbeat'
   autoload :Job,                'rocket_job/job'
   autoload :JobException,       'rocket_job/job_exception'
   autoload :Worker,             'rocket_job/worker'
   autoload :Performance,        'rocket_job/performance'
   autoload :Server,             'rocket_job/server'
+  autoload :Subscriber,         'rocket_job/subscriber'
+  autoload :Supervisor,         'rocket_job/supervisor'
+  autoload :WorkerPool,         'rocket_job/worker_pool'
 
   module Plugins
     module Job
@@ -69,16 +73,22 @@ module RocketJob
   end
 
   module Sliced
-    autoload :Input,               'rocket_job/sliced/input'
-    autoload :Output,              'rocket_job/sliced/output'
-    autoload :Slice,               'rocket_job/sliced/slice'
-    autoload :Slices,              'rocket_job/sliced/slices'
-    autoload :Store,               'rocket_job/sliced/store'
+    autoload :Input,            'rocket_job/sliced/input'
+    autoload :Output,           'rocket_job/sliced/output'
+    autoload :Slice,            'rocket_job/sliced/slice'
+    autoload :Slices,           'rocket_job/sliced/slices'
+    autoload :Store,            'rocket_job/sliced/store'
 
     module Writer
-      autoload :Input,             'rocket_job/sliced/writer/input'
-      autoload :Output,            'rocket_job/sliced/writer/output'
+      autoload :Input,          'rocket_job/sliced/writer/input'
+      autoload :Output,         'rocket_job/sliced/writer/output'
     end
+  end
+
+  module Subscribers
+    autoload :Logger,           'rocket_job/subscribers/logger'
+    autoload :Server,           'rocket_job/subscribers/server'
+    autoload :Worker,           'rocket_job/subscribers/worker'
   end
 end
 

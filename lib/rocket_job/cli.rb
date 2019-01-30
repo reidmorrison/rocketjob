@@ -47,7 +47,7 @@ module RocketJob
       opts[:max_workers] = workers if workers
       opts[:filter]      = filter if filter
 
-      Server.run(opts)
+      Supervisor.run(opts)
     end
 
     def rails?
@@ -96,7 +96,7 @@ module RocketJob
 
       require 'rocketjob'
       begin
-        require 'rocketjob_batch'
+        require 'rocketjob_enterprise'
       rescue LoadError
         nil
       end
