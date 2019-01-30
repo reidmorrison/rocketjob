@@ -14,7 +14,6 @@ gem "sqlite3", platform: :ruby
 
 group :development do
   gem "rubocop"
-  gem "iostreams", git: "https://github.com/rocketjob/iostreams"
 end
 
 group :test do

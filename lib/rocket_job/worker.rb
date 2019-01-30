@@ -14,6 +14,13 @@ module RocketJob
     attr_accessor :id, :re_check_seconds, :filter, :current_filter
     attr_reader :thread, :name, :inline
 
+    # Raised when a worker is killed so that it shutdown immediately, yet cleanly.
+    #
+    # Note:
+    # - It is not recommended to catch this exception since it is to shutdown workers quickly.
+    class Shutdown < Interrupt
+    end
+
     def self.before_running(*filters, &blk)
       set_callback(:running, :before, *filters, &blk)
     end
@@ -53,6 +60,13 @@ module RocketJob
 
     def join(*args)
       @thread.join(*args) unless inline
+    end
+
+    # Send each active worker the RocketJob::ShutdownException so that stops processing immediately.
+    def kill
+      return true if inline
+
+      @thread.raise(Shutdown, "Shutdown due to kill request for worker: #{name}") if @thread.alive?
     end
 
     def shutdown?

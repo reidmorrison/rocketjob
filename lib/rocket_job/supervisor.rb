@@ -55,7 +55,7 @@ module RocketJob
 
     def stop!
       server.stop! if server.may_stop?
-      worker_pool.stop!
+      worker_pool.stop
       while !worker_pool.join
         logger.info 'Waiting for workers to finish processing ...'
         # One or more workers still running so update heartbeat so that server reports "alive".
@@ -72,7 +72,7 @@ module RocketJob
             worker_pool.rebalance(server.max_workers, stagger)
             stagger = false
           elsif server.paused?
-            worker_pool.stop!
+            worker_pool.stop
             sleep(0.1)
             worker_pool.prune
             stagger = true

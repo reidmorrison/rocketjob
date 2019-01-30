@@ -9,6 +9,19 @@ module RocketJob
         @supervisor = supervisor
       end
 
+      def kill(server_id:, worker_id:, wait_timeout: 3)
+        return unless my_server?(server_id)
+
+        worker = locate_worker(worker_id)
+        return unless worker
+
+        worker.shutdown!
+        worker.join(wait_timeout)
+        worker.kill
+
+        logger.info "Killed"
+      end
+
       def stop(server_id:, worker_id:)
         return unless my_server?(server_id)
 

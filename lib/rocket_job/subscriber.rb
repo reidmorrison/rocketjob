@@ -42,7 +42,7 @@ module RocketJob
 
       # Name of the event published and subscribed to
       class_attribute :event_name, instance_accessor: false
-      self.event_name = self.class.name
+      self.event_name = name
 
       def self.publish(action, **parameters)
         raise(ArgumentError, "Invalid action: #{action}") unless public_method_defined?(action)
