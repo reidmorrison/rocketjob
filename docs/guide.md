@@ -166,7 +166,7 @@ class ReportJob < RocketJob::Job
   def perform
     # Retrieve the supplied value
     puts username
-    # Set the user_count so that it is visible after the completes
+    # Set the user_count so that it is visible after the job completes
     self.user_count = 123 
   end
 end
@@ -243,22 +243,22 @@ field :report_date, type: Date, default: -> { Date.today }
 
 When the default is specified with a proc or lambda, it has access to the job itself.
 ~~~ruby
-field :report_date, type: Date, default: ->{ new_record? ? Date.yesterday : Date.today }
+field :report_date, type: Date, default: -> { new_record? ? Date.yesterday : Date.today }
 ~~~
 
 Proc or lambda default values are applied after all other attributes are set. To apply this default
-before the other attributes, set `pre_processed: true`
+before the other attributes are set, use `pre_processed: true`
 ~~~ruby
-field :report_date, type: Date, default: ->{ new_record? ? Date.yesterday : Date.today }, pre_processed: true
+field :report_date, type: Date, default: -> { new_record? ? Date.yesterday : Date.today }, pre_processed: true
 ~~~
 
 **Note** that defaults are evaluated at class load time, whereas proc or lambda defaults are evaluated at runtime.
 In the example below only the second one would be evaluated every time the job is created, and is usually
-the prefered option:
+the intended option:
 
 ~~~ruby
 field :report_date, type: Date, default: Date.today
-field :report_date, type: Date, default: ->{ Date.today }
+field :report_date, type: Date, default: -> { Date.today }
 ~~~
 
 #### Field Settings
@@ -357,7 +357,7 @@ When a job runs its result is usually the effect it has on the database, emails 
 it is useful to keep the result in the job itself. The result can be used to take other actions, or to display
 to an end user.
 
-The `result` is a Hash that can contain a numeric result, string, array of values, or even a binary image, up to a
+The `result` of a perform is a Hash that can contain a numeric result, string, array of values, or even a binary image, up to a
 total document size of 16MB.
 
 ~~~ruby
@@ -386,7 +386,7 @@ Continue doing other work while the job runs, and display its result on completi
 
 ~~~ruby
 if job.reload.completed?
-  puts "Job result: #{job.result}"
+  puts "Job result: #{job.result.inspect}"
 end
 ~~~
 
@@ -433,7 +433,7 @@ or fails it is automatically re-scheduled to run at the next occurence of the `c
 
 The next instance of a scheduled job is only created once the current one has completed. This prevents the system
 from starting or running multiple instances of the same scheduled job at the same time.
-For example, if the job takes 10 minutes to complete, and is scheduled to run every 5 minutes,                     
+For example, if the job takes 10 minutes to complete, and is scheduled to run every 5 minutes,
 it will only be run every 10 minutes.                                                                             
 
 There is no centralized scheduler or need to start schedulers anywhere, since the jobs
@@ -446,11 +446,10 @@ task needs to be executed then that task will not run.
 
 * When a scheduled job is created it is immediately queued to run in the future. When that future time comes around 
   the job will be processed immediately, only if there are workers available to process that job.
-  For example, if workers are busy working on higher priority jobs, then the scheduled job                   
+  For example, if workers are busy working on higher priority jobs, then the scheduled job
   will only run once those jobs have completed, or their priority is lowered. 
-* While a job is waiting in queue, no future instances of that scheduled job will be enqueued, 
-  even if the next scheduled interval has passed.
 * The job will not be scheduled to run again if it has passed its expiration, if set.
+  * This allows a scheduled job to automatically destroy itself at some future date by setting `expires_at`.
 * When a scheduled job fails, it creates a new scheduled instance and then clears out the `cron_schedule`
   in the failed instance. That way it will not create yet another scheduled instance when it is retried.
 
@@ -830,7 +829,7 @@ Example: Find the reporting job for a specific date:
 class ReportJob < RocketJob::Job
   self.destroy_on_complete = false
   
-  field :report_date, type: Date, default: ->{ Date.today }
+  field :report_date, type: Date, default: -> { Date.today }
 
   def perform
     puts report_date
@@ -1268,10 +1267,6 @@ Trying to queue the job a second time will result in:
 MyJob.create!(file_name: 'abc.csv')
 # => MongoMapper::DocumentNotValid: Validation failed: State Another instance of this job is already queued or running
 ~~~
-
-## Reference
-
-* [API Reference](http://www.rubydoc.info/gems/rocketjob/)
 
 [0]: http://rocketjob.io
 [1]: mission_control.html

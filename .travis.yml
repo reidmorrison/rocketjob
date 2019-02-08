@@ -8,7 +8,6 @@ rvm:
 - 2.3.8
 - 2.4.5
 - 2.5.3
-- 2.6.0
 - jruby-9.2.5.0
 
 matrix:
@@ -17,12 +16,9 @@ matrix:
     gemfile: gemfiles/mongoid_5.gemfile
   - rvm: 2.5.3
     gemfile: gemfiles/mongoid_5.gemfile
-  - rvm: 2.6.0
-    gemfile: gemfiles/mongoid_5.gemfile
   - rvm: jruby-9.2.5.0
     gemfile: gemfiles/mongoid_7.gemfile
   allow_failures:
-  - rvm: 2.6.0
   - rvm: jruby-9.2.5.0
 
 jdk:

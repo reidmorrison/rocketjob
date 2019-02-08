@@ -46,13 +46,6 @@ module RocketJob
       field :queued_retention, type: Integer, user_editable: true, copy_on_restart: true
 
       def perform
-        if destroy_zombies
-          # Cleanup zombie servers
-          RocketJob::Server.destroy_zombies
-          # Requeue jobs where the worker is in the zombie state and its server has gone away
-          RocketJob::ActiveWorker.requeue_zombies
-        end
-
         RocketJob::Job.aborted.where(completed_at: {'$lte' => aborted_retention.seconds.ago}).destroy_all if aborted_retention
         if completed_retention
           RocketJob::Job.completed.where(completed_at: {'$lte' => completed_retention.seconds.ago}).destroy_all
@@ -60,6 +53,13 @@ module RocketJob
         RocketJob::Job.failed.where(completed_at: {'$lte' => failed_retention.seconds.ago}).destroy_all if failed_retention
         RocketJob::Job.paused.where(completed_at: {'$lte' => paused_retention.seconds.ago}).destroy_all if paused_retention
         RocketJob::Job.queued.where(created_at: {'$lte' => queued_retention.seconds.ago}).destroy_all if queued_retention
+
+        if destroy_zombies
+          # Cleanup zombie servers
+          RocketJob::Server.destroy_zombies
+          # Requeue jobs where the worker is in the zombie state and its server has gone away
+          RocketJob::ActiveWorker.requeue_zombies
+        end
       end
     end
   end

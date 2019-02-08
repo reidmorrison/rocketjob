@@ -32,10 +32,68 @@ layout: default
   </tr>
   <tr>
     <td>
-<div class="highlighter-rouge"><pre class="highlight"><code><span class="k">class</span> <span class="nc">Job</span> <span class="o">&lt;</span> <span class="no">Rocket Job</span><span class="o">::</span><span class="no">Job</span>
-  <span class="n">key</span> <span class="ss">:login</span><span class="p">,</span> <span class="no">String</span>
-  <span class="n">key</span> <span class="ss">:count</span><span class="p">,</span> <span class="no">Integer</span>
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="no">ImportJob</span><span class="p">.</span><span class="nf">create!</span><span class="p">(</span>
+  <span class="ss">file_name: </span><span class="s1">"file.csv"</span><span class="p">,</span>
+  <span class="ss">priority:  </span><span class="mi">5</span>
+<span class="p">)</span>
+</code></pre>
+</div>
+    </td>
+    <td>
+      Familiar interface.
+      <ul>
+        <li>Similar to ActiveRecord.</li>
+      </ul>
+    </td>
+  </tr>
+  <tr>
+    <td>
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="k">class</span> <span class="nc">MyJob</span> <span class="o">&lt;</span> <span class="no">RocketJob</span><span class="o">::</span><span class="no">Job</span>
+  <span class="k">def</span> <span class="nf">perform</span>
+    <span class="c1"># Implement behavior here ...</span>
+  <span class="k">end</span>
+<span class="k">end</span>
+</code></pre>
+</div>
+    </td>
+    <td>
+      Implement behavior.
+      <ul>
+        <li>#perform</li>
+      </ul>
+    </td>
+  </tr>
+  <tr>
+    <td>
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="k">class</span> <span class="nc">Job</span> <span class="o">&lt;</span> <span class="no">RocketJob</span><span class="o">::</span><span class="no">Job</span>
+  <span class="n">field</span> <span class="ss">:login</span><span class="p">,</span> <span class="no">String</span>
+  <span class="n">field</span> <span class="ss">:count</span><span class="p">,</span> <span class="no">Integer</span>
+  
+  <span class="k">def</span> <span class="nf">perform</span>
+    <span class="c1"># Implement behavior here ...</span>
+  <span class="k">end</span>
+<span class="k">end</span>
+</code></pre>
+</div>
+    </td>
+    <td>
+      Attributes.
+      <ul>
+        <li>Real attributes with data types.</li>
+        <li>Use the keyword: field.</li>
+      </ul>
+    </td>
+  </tr>
+  <tr>
+    <td>
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="k">class</span> <span class="nc">Job</span> <span class="o">&lt;</span> <span class="no">RocketJob</span><span class="o">::</span><span class="no">Job</span>
+  <span class="n">field</span> <span class="ss">:login</span><span class="p">,</span> <span class="no">String</span>
+  <span class="n">field</span> <span class="ss">:count</span><span class="p">,</span> <span class="no">Integer</span>
 
+  <span class="k">def</span> <span class="nf">perform</span>
+    <span class="c1"># Implement behavior here ...</span>
+  <span class="k">end</span>
+  
   <span class="n">validates_presence_of</span> <span class="ss">:login</span>
   <span class="n">validates</span> <span class="ss">:count</span><span class="p">,</span> <span class="ss">inclusion: </span><span class="mi">1</span><span class="p">.</span><span class="nf">.</span><span class="mi">100</span>
 <span class="k">end</span>
@@ -44,22 +102,20 @@ layout: default
     </td>
     <td>
       Validations.
-      <ul>
-        <li>Validate job parameters when the job is created.</li>
-      </ul>
     </td>
   </tr>
   <tr>
     <td>
-<div class="highlighter-rouge"><pre class="highlight"><code><span class="k">class</span> <span class="nc">MyJob</span> <span class="o">&lt;</span> <span class="no">Rocket Job</span><span class="o">::</span><span class="no">Job</span>
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="k">class</span> <span class="nc">MyJob</span> <span class="o">&lt;</span> <span class="no">RocketJob</span><span class="o">::</span><span class="no">Job</span>
   <span class="n">after_start</span> <span class="ss">:email_started</span>
 
   <span class="k">def</span> <span class="nf">perform</span>
+    <span class="c1"># Implement behavior here ...</span>
   <span class="k">end</span>
 
   <span class="c1"># Send an email when the job starts</span>
   <span class="k">def</span> <span class="nf">email_started</span>
-    <span class="no">MyJob</span><span class="p">.</span><span class="nf">started</span><span class="p">(</span><span class="nb">self</span><span class="p">).</span><span class="nf">deliver</span>
+    <span class="no">MyJobMailer</span><span class="p">.</span><span class="nf">started</span><span class="p">(</span><span class="nb">self</span><span class="p">).</span><span class="nf">deliver_now</span>
   <span class="k">end</span>
 <span class="k">end</span>
 </code></pre>
@@ -69,23 +125,34 @@ layout: default
       Callbacks.
       <ul>
         <li>Extensive callback hooks to customize job processing and behavior.</li>
-        <li>Similar to Middleware.</li>
       </ul>
     </td>
   </tr>
   <tr>
     <td>
-<div class="highlighter-rouge"><pre class="highlight"><code><span class="no">ImportJob</span><span class="p">.</span><span class="nf">create!</span><span class="p">(</span>
-  <span class="ss">file_name: </span><span class="s1">'file.csv'</span><span class="p">,</span>
-  <span class="ss">priority:  </span><span class="mi">5</span>
-<span class="p">)</span>
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="k">class</span> <span class="nc">ImportPricesJob</span> <span class="o">&lt;</span> <span class="no">RocketJob</span><span class="o">::</span><span class="no">Job</span>
+  <span class="n">include</span> <span class="ss">RocketJob::Batch </span>
+  
+  <span class="k">def</span> <span class="nf">perform</span>(<span class="nb">row</span>)
+    <span class="c1"># Each row is a Hash</span>
+    <span class="c1"># Load into DB via Active Record</span>
+    <span class="no">Price</span><span class="p">.</span><span class="nf">create!</span><span class="p">(</span><span class="nb">row</span><span class="p">)</span>
+  <span class="k">end</span>
+<span class="k">end</span>
+</code></pre>
+</div>
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1"># Upload the file into the Batch Job for processing</span>
+job = <span class="nc">ImportPricesJob</span>.new
+job.<span class="nf">upload</span>(<span class="s1">"prices.csv"</span>)
+job.<span class="nf">save!</span>
 </code></pre>
 </div>
     </td>
     <td>
-      Familiar interface.
+      Batch Jobs.
       <ul>
-        <li>Similar interface to ActiveRecord models.</li>
+        <li>Use many workers to process a single job at the same time.</li>
+        <li>Process large files by breaking it up into pieces that can be processed concurrently across all available workers.</li>
       </ul>
     </td>
   </tr>
@@ -139,26 +206,6 @@ layout: default
     </td>
   </tr>
 </table>
-
-### Example:
-
-~~~ruby
-class ImportJob < RocketJob::Job
-  # Create a property called `file_name` of type String
-  field :file_name, type: String
-
-  def perform
-    # Perform work here, such as processing a large file
-    puts "The file_name is #{file_name}"
-  end
-end
-~~~
-
-Queue the job for processing:
-
-~~~ruby
-ImportJob.create!(file_name: 'file.csv')
-~~~
 
 [0]: http://rocketjob.io
 [1]: mission_control.html
