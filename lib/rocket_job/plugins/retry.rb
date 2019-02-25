@@ -4,27 +4,12 @@ module RocketJob
   module Plugins
     # Automatically retry the job on failure.
     #
-    # The following retry algorithm is used to automatically retry a job when it fails:
-    # Failed jobs are aborted so that they cannot be restarted since a new instance has there are workers
-    # available to run. For example if workers are busy working on higher priority jobs, then the job
-    # will only run once those jobs have completed, or their priority lowered. Additionally, while the
-    # job is queued no additional instances will be enqueued, even if the next cron interval has been reached.
-    #
-    # Note:
-    # - After failure the job is scheduled to run again in the future.
-    # - The job will not be retried if:
-    #   - The job has expired.
-    #   - The job fails validations.
-    #   - The number of retry counts has been exceeded.
-    # - To see the number of times a job has failed so far:
-    #     job.failure_count
-    #
     # Example:
     #
     # class MyJob < RocketJob::Job
     #   include RocketJob::Plugins::Retry
     #
-    #   # Set the default retry_count
+    #   # Set the maximum number of times a job should be retried before giving up.
     #   self.retry_limit = 3
     #
     #   def perform
@@ -35,10 +20,10 @@ module RocketJob
     # # Queue the job for processing using the default cron_schedule specified above
     # MyJob.create!
     #
-    # # Replace the default retry_count
+    # # Override the default retry_limit for a specific job instance.
     # MyCronJob.create!(retry_limit: 10)
     #
-    # # Disable retries for this job instance
+    # # Disable retries for this job instance.
     # MyCronJob.create!(retry_limit: 0)
     #
     module Retry

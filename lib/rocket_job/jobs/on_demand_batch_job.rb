@@ -1,4 +1,4 @@
-# Generalized Batch Job.
+# Job to dynamically perform ruby code on demand as a Batch,
 #
 # Often used for data correction or cleansing.
 #

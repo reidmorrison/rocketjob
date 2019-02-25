@@ -6,7 +6,7 @@ layout: default
 
 #### Table of Contents
 
-* [Writing Jobs](#writing-jobs)
+* [Regular Jobs](#regular-jobs)
     * [Fields](#fields)
         * [Field Types](#field-types)
         * [Defaults](#field-defaults)
@@ -18,25 +18,32 @@ layout: default
     * [Job Status](#job-status)
     * [Expired Jobs](#expired-jobs)
     * [Scheduled Jobs](#scheduled-jobs)
-    * Automatic Retry
-    * Singleton
-    * Processing Window
-    * Restartable
-    * Throttling
-    * Transaction
+    * [Automatic Retry](#automatic-retry)
+    * [Singleton](#singleton)
+    * [Processing Window](#processing-window)
+    * [Automatic Restart](#automatic-restart)
+    * [Throttling](#throttling)
+    * [Transactions](#transactions)
 * [Persistence](#persistence)
 * [Queries](#queries)
 * [Callbacks](#callbacks)
 * [Validations](#validations)
 * [Exception Handling](#exception-handling)
-* Writing Tests
-* Command Line Interface
-* Server Configuration
-* State Machine
+* [Writing Tests](#writing-tests)
+* [Command Line Interface](#command-line-interface)
 * [Logging](#logging)
+* [Batch Jobs](#batch-jobs)
+    * [Batch Output](#batch-output)
+    * [Batch Job Throttling](#batch-job-throttling)
+    * [Large File Processing](#large-file-processing)
+    * [Multiple Output Files](#multiple-output-files)
+    * [Error Handling](#error-handling)
+    * [Tabular Files](#tabular-files)
 * Included Jobs
     * [Housekeeping Job](#housekeeping-job)
     * [Dirmon Job](#dirmon-job)
+    * [OnDemandJob](#ondemandjob)
+    * [OnDemandBatchJob](#ondemandbatchjob)
 * [Concurrency](#concurrency)
 * [Architecture](#architecture)
 * [Extensibility](#extensibility)
@@ -159,6 +166,9 @@ User defined fields can also be set or retrieved within the job itself. Example:
 class ReportJob < RocketJob::Job
   # Retain the job when it completes
   self.destroy_on_complete = false
+  
+  # Retain the output from perform
+  self.collect_output = true 
   
   field :username, type: String
   field :user_count, type: Integer
@@ -652,6 +662,274 @@ class MyCronJob < RocketJob::Job
 end
 ~~~
 
+### Automatic Retry
+
+Should a job fail it is often convenient to have the job automatically retry itself without any manual or 
+human intervention.
+
+Add the `RocketJob::Plugins::Retry` plugin to a job to have it automatically retry on failure.
+
+Example:
+~~~ruby
+class ReportJob < RocketJob::Job
+  include RocketJob::Plugins::Retry
+
+  def perform
+    # Perform work here
+  end
+end
+~~~
+
+#### Retry attempts
+
+The default number of attempts before giving up is 25. 
+It is configurable by setting the `retry_limit` attribute. 
+
+~~~ruby
+class ReportJob < RocketJob::Job
+  include RocketJob::Plugins::Retry
+  
+  # Set the maximum number of times a job should be retried before giving up.
+  self.retry_limit = 3
+
+  def perform
+    # Perform work here
+  end
+end
+~~~
+
+#### Notes
+- When a job is retried it is scheduled to run again in the future. As a result the job will appear as `queued`
+  or `running` and not `failed` in the Web Management Interface.
+- The job will not be retried if:
+   - it has expired.
+   - it fails validations when the retry is attempted. An error is logged and the job is not retried.
+   - The number of retry counts has been exceeded.
+ - To see the number of times a job has failed so far:
+     job.failure_count
+- When a job is retried its exception is logged and the job's `exception` attribute is cleared out.
+
+### Singleton
+
+Singleton ensures that only one instance of a job is `running`, `queued`, or `paused`.
+
+Add the `RocketJob::Plugins::Singleton` plugin to a job to make it a singleton.
+
+Example:
+~~~ruby
+class ReportJob < RocketJob::Job
+  include RocketJob::Plugins::Singleton
+  
+  def perform
+    # Perform work here
+  end
+end
+~~~
+
+### Processing Window
+
+Ensure that a job will only run between certain hours of the day, regardless of when it was
+created/enqueued. Useful for creating a job now that should only be processed later during a
+specific time window. If the time window is already active the job is able to be processed
+immediately.
+
+Example: Process this job on Monday's between 8am and 10am.
+
+Example: Run this job on the 1st of every month from midnight for the entire day.
+
+Since the cron schedule supports time zones it is easy to setup jobs to run at UTC or any other time zone.
+
+Example:
+~~~ruby
+# Only run the job between the hours of 8:30am and 8:30pm. If it is after 8:30pm schedule
+# it to run at 8:30am the next day.
+class BusinessHoursJob < RocketJob::Job
+  include RocketJob::Plugins::ProcessingWindow
+
+  # The start of the processing window
+  self.processing_schedule = "30 8 * * * America/New_York"
+
+  # How long the processing window is:
+  self.processing_duration = 12.hours
+
+  def perform
+    # Job will only run between 8:30am and 8:30pm Eastern
+  end
+end
+~~~
+
+Note:
+- If a job is created/enqueued during the processing window, but due to busy/unavailable workers
+  is not processed during the window, the current job will be re-queued for the beginning
+  of the next processing window.
+
+### Automatic Restart
+
+Automatically starts a new instance of this job anytime it fails, aborts, or completes.
+
+Notes:
+* Restartable jobs automatically abort if they fail. This prevents the failed job from being retried.
+  - To disable this behavior, add the following empty method:
+       def rocket_job_restart_abort
+       end
+* On destroy this job is destroyed without starting a new instance.
+* On Abort a new instance is created.
+* Include `RocketJob::Plugins::Singleton` to prevent multiple copies of a job from running at
+  the same time.
+* The job will not be restarted if:
+  - A validation fails after creating the new instance of this job.
+  - The job has expired.
+* Only the fields that have `copy_on_restart: true` will be passed onto the new instance of this job.
+
+Example:
+
+~~~ruby
+class RestartableJob < RocketJob::Job
+  include RocketJob::Plugins::Restart
+
+  # Retain the completed job under the completed tab in Rocket Job Web Interface.
+  self.destroy_on_complete = false
+
+  # Will be copied to the new job on restart.
+  field :limit, type: Integer, copy_on_restart: true
+
+  # Will _not_ be copied to the new job on restart.
+  field :list, type: Array, default: [1,2,3]
+
+  # Set run_at every time a new instance of the job is created.
+  after_initialize set_run_at, if: :new_record?
+
+  def perform
+    puts "The limit is #{limit}"
+    puts "The list is #{list}"
+    'DONE'
+  end
+
+  private
+
+  # Run this job in 30 minutes.
+  def set_run_at
+    self.run_at = 30.minutes.from_now
+  end
+end
+
+job = RestartableJob.create!(limit: 10, list: [4,5,6])
+job.reload.state
+# => :queued
+
+job.limit
+# => 10
+
+job.list
+# => [4,5,6]
+
+# Wait 30 minutes ...
+
+job.reload.state
+# => :completed
+
+# A new instance was automatically created.
+job2 = RestartableJob.last
+job2.state
+# => :queued
+
+job2.limit
+# => 10
+
+job2.list
+# => [1,2,3]
+~~~
+
+### Throttling
+
+Throttle the number of jobs of a specific class that are running at the same time.
+
+Since it is common to run hundreds or thousands of workers it could allow jobs to
+overwhelm resources causing a distributed denial of service against that resource.
+In this case the job can be throttled to only allow a certain number of workers to
+work on it at the same time. 
+
+Any jobs in excess of `throttle_running_jobs` will remain in a queued state and only prcocessed
+when the running number of jobs of that class drops below the value of `throttle_running_jobs`.
+
+Example:
+~~~ruby
+class MyJob < RocketJob
+  # Maximum number of jobs of this class to process at the same time.
+  self.throttle_running_jobs = 25
+
+  def perform
+    # ....
+  end
+end
+~~~
+
+Notes:
+- The number of running jobs will not exceed this value.
+- It may appear that a job is running briefly over this limit, but then is immediately back into queued state.
+  This is expected behavior and is part of the check to ensure this value is not exceeded.
+  The worker grabs the job and only then verifies the throttle, this is to prevent any other worker
+  from attempting to grab the job, which would have exceeded the throttle.
+
+#### Custom Throttles
+
+Using the throttling famework, custom throttle plugins can be created.
+
+Example:
+
+~~~ruby
+# Do not run this job when the MySQL slave delay exceeds 5 minutes.
+class MyJob < RocketJob
+  define_throttle :mysql_throttle_exceeded?
+
+  def perform
+    # ....
+  end
+
+  private
+
+  # Returns true if the MySQL slave delay exceeds 5 minutes
+  def mysql_throttle_exceeded?
+    status        = ActiveRecord::Base.connection.select_one('show slave status')
+    seconds_delay = Hash(status)['Seconds_Behind_Master'].to_i
+    seconds_delay >= 300
+  end
+end
+~~~
+
+### Transactions
+
+Wraps every `#perform` call with an Active Record transaction / unit or work.
+
+If the perform raises an exception it will cause any database changes to be rolled back.
+
+For Batch Jobs the transaction is at the slice level so that the entire slice succeeds,
+or is rolled back.
+
+Example:
+~~~ruby
+# Update User and create an Audit entry as a single database transaction.
+# If Audit.create! fails then the user change will also be rolled back.
+class MyJob < RocketJob::Job
+  include RocketJob::Plugins::Transaction
+
+  def perform
+    u = User.find(name: 'Jack')
+    u.age = 21
+    u.save!
+
+    Audit.create!(table: 'user', description: 'Changed age to 21')
+  end
+end
+
+Performance
+- On CRuby an empty transaction block call takes about 1ms.
+- On JRuby an empty transaction block call takes about 55ms.
+
+Note:
+- This plugin will only be activated if ActiveRecord has been loaded first.
+~~~
+
 ---
 ### Persistence
 
@@ -1030,6 +1308,117 @@ end
 ~~~
 
 ---
+## Writing Tests
+
+### In-Memory
+
+Jobs can be created and run entirely in-memory, without being persisted.
+This is useful for tests, as well as for trying out jobs in a console.
+In production this technique can also be used to run a new job in a
+console for diagnostic purposes without it being picked up by active workers.
+
+Example Job:
+~~~ruby
+# Example job
+class ReportJob < RocketJob::Job
+  # Retain the job on completion
+  self.destroy_on_complete = false
+  
+  # Retain the result returned by perform
+  self.collect_output = true   
+  
+  def perform
+    puts "Hello World"
+    45
+  end
+end
+~~~
+
+Create a job instance in-memory, by calling `.new` instead of `.create!`
+~~~ruby
+job = ReportJob.new
+~~~ 
+
+Run the entire job in-memory by calling `#perform_now`
+~~~ruby
+job.perform_now
+~~~ 
+
+The job should complete successfully:
+~~~ruby
+job.completed?
+# => 'true'
+~~~
+ 
+If the job failed in memory, inspect its attributes:
+~~~ruby
+p(job.attributes) if job.failed?
+~~~ 
+
+### Tests
+
+Minitest example on how to test the above `ReportJob`
+
+~~~ruby
+require_relative 'test_helper'
+
+class ReportJobTest < Minitest::Test
+  describe ReportJob do
+    # Create an in-memory instance of the ReportJob
+    let(:report_job) do
+      ReportJob.new
+    end
+
+    describe '#perform_now' do
+      it 'returns 45' do
+        # When a job is created it is immediately in queued status
+        assert report_job.queued?
+        
+        report_job.perform_now
+        
+        # Job should successfully complete
+        assert report_job.completed?, -> { report_job.attributes }
+        
+        # On completion the job retained its output value of 45
+        assert_equal({'result' => 45 }, report_job.result) 
+      end
+    end
+  end
+end  
+~~~
+
+---
+## Command Line Interface
+
+RocketJob offers a command line interface for starting servers. 
+
+#### Server
+
+Start a server that will run 10 workers:
+
+~~~
+bundle exec rocketjob
+~~~
+
+Start a server with just 2 workers:
+
+~~~
+bundle exec rocketjob --workers 2
+~~~
+
+#### Filtering
+
+Limit all workers in a server instance to only run `DirmonJob` and `WeeklyReportJob`
+
+~~~
+bundle exec rocketjob --filter "DirmonJob|WeeklyReportJob"
+~~~
+
+Notes:
+- The filter is a regular ruby expression. 
+- The regular expression needs to be appropriately escaped when invoked from a command line shell.
+
+---
 ## Logging
 
 Supports sending log messages, exceptions, and errors simultaneously to one or more of:
@@ -1045,6 +1434,244 @@ Supports sending log messages, exceptions, and errors simultaneously to one or m
 To remove the usual impact of logging, the log writing is performed in a separate thread.
 In this way the time it takes to write to one or logging destinations does _not_ slow down
 active worker threads.
+
+---
+## Batch Jobs
+
+Regular jobs run on a single worker. In order to scale up and use all available workers
+it is necessary to break up the input data into "slices" so that different parts of the job
+can be processed in parallel.
+
+Jobs that include `RocketJob::Batch` break their work up into slices so that many workers can work
+on the individual slices at the same time. Slices take a large and unwieldy job and break it up
+into _bite-size_ pieces that can be processed a slice at a time by the workers.
+
+Since batch jobs consists of lots of smaller slices the job can be paused, resumed, or even aborted as a whole.
+If there are any failed slices when the job finishes, they can all be retried by retrying the job itself.
+
+For example, using the default `slice_size` of 100, if a file contains 1,000,000 
+lines then the job will contain 10,000 slices.
+
+A running batch Job will be interrupted if a new job with a higher priority is queued for
+processing.  This allows low priority jobs to use all available resources until a higher
+priority job arrives, and then to resume processing once the higher priority job is complete.
+
+~~~ruby
+class ReverseJob < RocketJob::Job
+  include RocketJob::Batch
+
+  # Number of lines/records for each slice
+  self.slice_size          = 100
+
+  # Keep the job around after it has finished
+  self.destroy_on_complete = false
+
+  # Collect any output from the job
+  self.collect_output      = true
+
+  def perform(line)
+    # Work on a single record at a time across many workers
+  end
+end
+~~~
+
+Queue the job for processing:
+
+~~~ruby
+# Words would come from a database query, file, etc.
+words = %w(these are some words that are to be processed at the same time on many workers)
+
+job = ReverseJob.new
+
+# Load words as individual records for processing into the job
+job.upload do |records|
+  words.each do |word|
+    records << word
+  end
+end
+
+# Queue the job for processing
+job.save!
+~~~
+
+### Batch Output
+
+Display the output from the above batch:
+
+~~~ruby
+# Display the results that were returned
+job.output.each do |slice|
+  slice.each do |record|
+    # Display each result returned from job
+    puts record
+  end
+end
+~~~
+
+The order of the output gathered above is exactly the same as the order in which the records
+were uploaded into the job. This makes it easy to correlate an input record with its corresponding output.
+
+### Large File Processing
+
+Batch jobs can process very large files. Entire files are uploaded into a Job for processing
+and automatically broken up into slices for workers to process.
+
+Queue the job for processing:
+
+~~~ruby
+job = ReverseJob.new
+# Upload a file into the job for processing
+job.upload('myfile.txt')
+job.save!
+~~~
+
+When complete, download the results of the batch into a file:
+
+~~~ruby
+# Download the output and compress the output into a GZip file
+job.download('reversed.txt.gz')
+~~~
+
+Rocket Job has built-in support for reading and writing
+
+* `Zip` files
+* `GZip` files
+* files encrypted with [Symmetric Encryption][3]
+* delimited files
+    * Windows CR/LF text files
+    * Linux text files
+    * Auto-detects Windows or Linux line endings
+    * Any custom delimiter
+* files with fixed length records
+
+Note:
+
+* In order to read and write `Zip` on CRuby, add the gem `rubyzip` to your `Gemfile`.
+* Not required with JRuby since it will use the native `Zip` support built into Java
+
+### Batch Job Throttling
+
+Throttle the number of workers that can work on a batch job instance at any time.
+
+Limiting can be used when too many concurrent workers are:
+
+* Overwhelming a third party system by calling it too frequently.
+* Impacting the online production systems by writing too much data too quickly to the master database.
+
+Worker limiting also allows batch jobs to be processed concurrently instead of sequentially.
+
+The `throttle_running_slices` throttle can be changed at any time, even while the job is running to
+either increase or decrease the number of workers working on that job.
+
+~~~ruby
+class ReverseJob < RocketJob::Job
+  include RocketJob::Batch
+
+  # No more than 10 workers should work on this job at a time
+  self.throttle_running_slices = 10
+
+  def perform(line)
+    line.reverse
+  end
+end
+~~~
+
+### Multiple Output Files
+
+A single batch job can also create multiple output files by categorizing the result
+of the perform method.
+
+This can be used to output one file with results from the job and another for
+outputting for example the lines that were too short.
+
+~~~ruby
+class MultiFileJob < RocketJob::Job
+  include RocketJob::Batch
+
+  self.collect_output      = true
+  self.destroy_on_complete = false
+  # Register additional `:invalid` output category for this job
+  self.output_categories   = [ :main, :invalid ]
+
+  def perform(line)
+    if line.length < 10
+      # The line is too short, send it to the invalid output collection
+      Result.new(line, :invalid)
+    else
+      # Reverse the line ( default output goes to the :main output collection )
+      line.reverse
+    end
+  end
+end
+~~~
+
+When complete, download the results of the batch into 2 files:
+
+~~~ruby
+# Download the regular results
+job.download('reversed.txt.gz')
+
+# Download the invalid results to a separate file
+job.download('invalid.txt.gz', category: :invalid)
+~~~
+
+### Error Handling
+
+Since a Batch job breaks a single job into slices, individual records within
+slices can fail while others are still being processed.
+
+~~~ruby
+# Display the exceptions for failed slices:
+job = RocketJob::Job.find('55bbce6b498e76424fa103e8')
+job.input.each_failed_record do |record, slice|
+  p slice.exception
+end
+~~~
+
+Once all slices have been processed and there are only failed slices left, then the job as a whole
+is failed.
+
+### Tabular Files
+
+Very often data that is being received is in a format very similar to that of a spreadsheet
+with rows and columns, such as CSV, or Excel files. 
+Usually the first row is the header that describes what each column contains.
+The remaining rows are the actual data for processing. By default the csv format is used.
+
+Include the `RocketJob::Batch::Tabular` plugin so that tabular files such as csv and Excel are automatically
+parsed prior to being passed into the perform method. The `perform` method now takes a `Hash` as the argument
+instead of the raw csv line.
+
+This `Hash` consists of the header field names as keys and the values that were received for the specific row 
+in the file.
+
+~~~ruby
+class TabularJob < RocketJob::Job
+  include RocketJob::Batch
+  include RocketJob::Batch::Tabular
+  
+  def perform(row)
+  #  row is now a hash because the tabular plugin already parsed the csv data: 
+  #  {
+  #     "first_field" => 100,
+  #     "second"      => 200,
+  #     "third"       => 300
+  #   }
+  end
+end
+~~~
+
+Upload a file into the job for processing
+~~~ruby
+job = TabularJob.new
+job.upload('my_really_big_csv_file.csv')
+job.save!
+~~~
+
+Notes:
+- The file is uploaded in its entirety before saving the job.
+- It is possible to save the job prior to uploading the file, but if the file upload fails workers will have already
+  processed much of the data that was uploaded.
 
 ---
 ## Included Jobs
@@ -1144,6 +1771,160 @@ above will fail with:
 Or to start DirmonJob and ignore errors if already running
 ~~~ruby
 RocketJob::Jobs::DirmonJob.create
+~~~
+
+### OnDemandJob
+
+Job to dynamically perform ruby code on demand,
+
+Create or schedule a generalized job for one off fixes or cleanups.
+
+
+Example: Iterate over all rows in a table:
+~~~ruby
+code = <<~CODE
+  User.unscoped.all.order('updated_at DESC').each |user|
+    user.cleanse_attributes!
+    user.save!
+  end
+CODE
+
+RocketJob::Jobs::OnDemandJob.create!(
+  code:          code,
+  description:   'Cleanse users'
+)
+~~~
+
+Example: Test job in a console:
+~~~ruby
+code = <<~CODE
+  User.unscoped.all.order('updated_at DESC').each |user|
+    user.cleanse_attributes!
+    user.save!
+  end
+CODE
+
+job = RocketJob::Jobs::OnDemandJob.new(code: code, description: 'cleanse users')
+job.perform_now
+~~~
+
+Example: Pass input data:
+~~~ruby
+code = <<~CODE
+  puts data['a'] * data['b']
+CODE
+
+RocketJob::Jobs::OnDemandJob.create!(
+  code: code,
+  data: {'a' => 10, 'b' => 2}
+)
+~~~
+
+Example: Retain output:
+~~~ruby
+code = <<~CODE
+  {'value' => data['a'] * data['b']}
+CODE
+
+RocketJob::Jobs::OnDemandJob.create!(
+  code:           code,
+  collect_output: true,
+  data:           {'a' => 10, 'b' => 2}
+)
+~~~
+Example: Schedule the job to run nightly at 2am Eastern:
+
+~~~ruby
+RocketJob::Jobs::OnDemandJob.create!(
+  cron_schedule: '0 2 * * * America/New_York',
+  code:          code
+)
+~~~
+
+Example: Change the job priority, description, etc.
+
+~~~ruby
+RocketJob::Jobs::OnDemandJob.create!(
+  code:          code,
+  description:   'Cleanse users',
+  priority:      30
+)
+~~~~
+
+Example: Automatically retry up to 5 times on failure:
+~~~ruby
+RocketJob::Jobs::OnDemandJob.create!(
+  retry_limit: 5,
+  code:        code
+)
+~~~
+
+### OnDemandBatchJob
+
+Job to dynamically perform ruby code on demand as a Batch,
+
+Often used for data correction or cleansing.
+
+Example: Iterate over all rows in a table:
+~~~ruby
+code = <<-CODE
+  if user = User.find(row)
+    user.cleanse_attributes!
+    user.save(validate: false)
+  end
+CODE
+job  = RocketJob::Jobs::OnDemandBatchJob.new(code: code, description: 'cleanse users')
+arel = User.unscoped.all.order('updated_at DESC')
+job.record_count = input.upload_arel(arel)
+job.save!
+~~~
+
+Console Testing:
+~~~ruby
+code = <<-CODE
+  if user = User.find(row)
+    user.cleanse_attributes!
+    user.save(validate: false)
+  end
+CODE
+job  = RocketJob::Jobs::OnDemandBatchJob.new(code: code, description: 'cleanse users')
+
+# Run against a sub-set using a limit
+arel = User.unscoped.all.order('updated_at DESC').limit(100)
+job.record_count = job.input.upload_arel(arel)
+
+# Run the subset directly within the console
+job.perform_now
+job.cleanup!
+~~~
+
+By default output is not collected, add the option `collect_output: true` to collect output.
+
+Example:
+
+~~~ruby
+job = RocketJob::Jobs::OnDemandBatchJob(description: 'Fix data', code: code, throttle_running_slices: 5, priority: 30, collect_output: true)
+~~~
+
+Example: Move the upload operation into a before_batch.
+~~~ruby
+upload_code = <<-CODE
+  arel = User.unscoped.all.order('updated_at DESC')
+  self.record_count = input.upload_arel(arel)
+CODE
+
+code = <<-CODE
+  if user = User.find(row)
+    user.cleanse_attributes!
+    user.save(validate: false)
+  end
+CODE
+
+RocketJob::Jobs::OnDemandBatchJob.create!(
+  upload_code: upload_code,
+  code:        code,
+  description: 'cleanse users'
+)
 ~~~
 
 ---

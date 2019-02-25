@@ -1,4 +1,4 @@
-# Generalized Job.
+# Job to dynamically perform ruby code on demand,
 #
 # Create or schedule a generalized job for one off fixes or cleanups.
 #
