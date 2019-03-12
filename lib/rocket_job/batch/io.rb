@@ -65,6 +65,18 @@ module RocketJob
         count
       end
 
+      def upload_arel(arel, *column_names, category: :main, &block)
+        count             = input(category).upload_arel(arel, *column_names, &block)
+        self.record_count = (record_count || 0) + count
+        count
+      end
+
+      def upload_mongo_query(criteria, *column_names, category: :main, &block)
+        count             = input(category).upload_mongo_query(criteria, *column_names, &block)
+        self.record_count = (record_count || 0) + count
+        count
+      end
+
       # Upload the supplied slices for processing by workers
       #
       # Updates the record_count after adding the records
