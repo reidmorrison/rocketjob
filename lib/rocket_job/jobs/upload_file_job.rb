@@ -91,7 +91,7 @@ module RocketJob
       end
 
       def file_exists
-        return if upload_file_name.nil? || File.exist?(upload_file_name)
+        return if upload_file_name.nil? || File.exist?(upload_file_name) || upload_file_name =~ /^s3:/
         errors.add(:upload_file_name, "Upload file: #{upload_file_name} does not exist.")
       end
     end
