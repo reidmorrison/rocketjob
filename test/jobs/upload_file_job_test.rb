@@ -55,6 +55,22 @@ module Jobs
           assert_equal ['Upload file: /tmp/blah does not exist.'], job.errors.messages[:upload_file_name]
         end
 
+        it 'allows urls other than file for upload_file_name' do
+          job = RocketJob::Jobs::UploadFileJob.new(
+            job_class_name:   UploadFileJobTest::TestJob.to_s,
+            upload_file_name: 's3:/foo/blah'
+          )
+          assert job.valid?
+        end
+
+        it 'checks the filesystem if the url scheme is file for upload_file_name' do
+          job = RocketJob::Jobs::UploadFileJob.new(
+            job_class_name:   UploadFileJobTest::TestJob.to_s,
+            upload_file_name: 'file:/foo/blah'
+          )
+          refute job.valid?
+        end
+
         it 'validates job_class_name' do
           job = RocketJob::Jobs::UploadFileJob.new(job_class_name: UploadFileJobTest::BadJob.to_s)
           refute job.valid?
