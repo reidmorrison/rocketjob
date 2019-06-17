@@ -93,17 +93,12 @@ module RocketJob
       end
 
       def file_exists
-        return if upload_file_name.nil? || cloud_url?(upload_file_name) || File.exist?(upload_file_name)
+        return if upload_file_name.nil? 
+        uri = URI.parse(upload_file_name)
+        return unless uri.scheme.nil? || uri.scheme == 'file'
+        return if File.exist?(upload_file_name) 
         errors.add(:upload_file_name, "Upload file: #{upload_file_name} does not exist.")
       end
-
-      def cloud_url?(filename)
-        uri = URI.parse(filename)
-        return true if uri.scheme.downcase == 's3'
-        false
-      rescue
-        false
-      end
-    end
+   end
   end
 end
