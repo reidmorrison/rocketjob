@@ -41,7 +41,7 @@ module RocketJob
             Thread.new do
               shutdown!
               message = 'Shutdown signal (SIGTERM) received. Will shutdown as soon as active jobs/slices have completed.'
-              logger.warn(message)
+              logger.info(message)
             end
           end
 
@@ -49,7 +49,7 @@ module RocketJob
             Thread.new do
               shutdown!
               message = 'Shutdown signal (INT) received. Will shutdown as soon as active jobs/slices have completed.'
-              logger.warn(message)
+              logger.info(message)
             end
           end
         rescue StandardError

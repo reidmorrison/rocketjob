@@ -78,7 +78,7 @@ module RocketJob
       true
     end
 
-    # Returns [Fixnum] number of workers (threads) that are alive
+    # Returns [Integer] number of workers (threads) that are alive
     def living_count
       workers.count(&:alive?)
     end

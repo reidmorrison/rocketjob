@@ -283,7 +283,7 @@ module Batch
 
           io = StringIO.new
           @job.output.download(io)
-          expected_evens = (1..(record_count / 2)).collect { |i| i *2 }.join("\n") + "\n"
+          expected_evens = (1..(record_count / 2)).collect { |i| i * 2 }.join("\n") + "\n"
           assert_equal expected_evens, io.string
 
           io = StringIO.new
