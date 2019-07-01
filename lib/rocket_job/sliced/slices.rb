@@ -21,7 +21,9 @@ module RocketJob
         @slice_class     = slice_class
         @slice_size      = slice_size
         @collection_name = collection_name
-        @all             = slice_class.with_collection(collection_name)
+
+        # Using `Sliced::Slice` avoids having to add `_type` as an index when all slices are the same type anyway.
+        @all = Sliced::Slice.with_collection(collection_name)
       end
 
       def new(params = {})
