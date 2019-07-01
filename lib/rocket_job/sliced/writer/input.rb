@@ -14,6 +14,8 @@ module RocketJob
         #     Default: nil
         def self.collect(input, **args, &block)
           writer = new(input, **args)
+          # Create indexes before uploading
+          input.create_indexes if input.respond_to?(:create_indexes)
           block.call(writer)
           writer.record_count
         rescue Exception => exc

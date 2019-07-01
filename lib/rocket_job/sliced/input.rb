@@ -107,7 +107,6 @@ module RocketJob
           IOStreams.public_send(iterator, file_name_or_io, encoding: encoding, **args) { |line| io << line }
         end
 
-        create_indexes
         Writer::Input.collect(self, on_first: on_first, &block)
       end
 
@@ -141,7 +140,6 @@ module RocketJob
       #   criteria = User.where(state: 'FL')
       #   job.record_count = job.upload_mongo_query(criteria, :zip_code)
       def upload_mongo_query(criteria, *column_names, &block)
-        create_indexes
         options = criteria.options
 
         # Without a block extract the fields from the supplied criteria
@@ -198,7 +196,6 @@ module RocketJob
       #   arel = User.where(country_code: 'US')
       #   job.record_count = job.upload_arel(arel, :user_name, :zip_code)
       def upload_arel(arel, *column_names, &block)
-        create_indexes
         unless block
           column_names = column_names.collect(&:to_sym)
           column_names << :id if column_names.size.zero?
