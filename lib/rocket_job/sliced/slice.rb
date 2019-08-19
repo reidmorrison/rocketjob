@@ -119,6 +119,14 @@ module RocketJob
         self.worker_name   = nil
       end
 
+      # Returns the failed record.
+      # Returns [nil] if there is no failed record
+      def failed_record
+        if exception && (record_number = exception.record_number)
+          at(record_number - 1)
+        end
+      end
+
       # Returns [Hash] the slice as a Hash for storage purposes
       # Compresses / Encrypts the slice according to the job setting
       if ::Mongoid::VERSION.to_i >= 6

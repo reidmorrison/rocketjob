@@ -98,6 +98,7 @@ module RocketJob
         all.collection.indexes.create_one(state: 1, _id: 1)
       end
 
+      # Forward additional methods.
       def_instance_delegators :@all, :collection, :count, :delete_all, :first, :find, :last, :nor, :not, :or, :to_a, :where
 
       # Drop this collection when it is no longer needed
