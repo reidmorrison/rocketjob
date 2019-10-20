@@ -16,12 +16,9 @@ module Jobs
     class BatchTestJob < RocketJob::Job
       field :upload_file_name, type: String
       field :original_file_name, type: String
-      field :saved_streams, type: Array
 
-      def upload(upload_file_name, streams: nil, file_name: nil)
+      def upload(upload_file_name, file_name: nil)
         self.upload_file_name   = upload_file_name
-        self.saved_streams      = streams
-        self.saved_streams      ||= IOStreams.streams_for_file_name(file_name) if file_name
         self.original_file_name = file_name
       end
 
@@ -111,7 +108,6 @@ module Jobs
           job.perform_now
           assert created_job = UploadFileJobTest::BatchTestJob.first
           assert_equal __FILE__, created_job.upload_file_name
-          assert_nil created_job.saved_streams
         end
 
         it 'job retains the original_file_name when present' do
@@ -121,7 +117,6 @@ module Jobs
           assert created_job = UploadFileJobTest::BatchTestJob.first
           assert_equal 'file.zip', created_job.original_file_name
           assert_equal __FILE__, created_job.upload_file_name
-          assert_equal %i[zip], created_job.saved_streams
         end
       end
     end

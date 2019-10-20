@@ -118,7 +118,7 @@ module Batch
           assert_equal [:main], @job.output_categories
 
           io = StringIO.new
-          @job.output.download(io)
+          @job.download(io)
           expected = (1..record_count).collect { |i| i }.join("\n") + "\n"
           assert_equal expected, io.string
         end
@@ -282,12 +282,12 @@ module Batch
           assert_equal %i[main odd even], @job.output_categories
 
           io = StringIO.new
-          @job.output.download(io)
+          @job.download(io)
           expected_evens = (1..(record_count / 2)).collect { |i| i * 2 }.join("\n") + "\n"
           assert_equal expected_evens, io.string
 
           io = StringIO.new
-          @job.output(:odd).download(io)
+          @job.download(io, category: :odd)
           expected_odds = (0..(record_count / 2 - 1)).collect { |i| i * 2 + 1 }.join("\n") + "\n"
           assert_equal expected_odds, io.string
         end

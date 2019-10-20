@@ -3,9 +3,7 @@ require_relative '../test_helper'
 module Sliced
   class InputTest < Minitest::Test
     describe RocketJob::Sliced::Input do
-      let :collection_name do
-        'rocket_job.slices.test'.to_sym
-      end
+      let(:collection_name) { 'rocket_job.slices.test'.to_sym }
 
       let :input do
         RocketJob::Sliced::Input.new(
@@ -14,13 +12,10 @@ module Sliced
         )
       end
 
-      let :slice do
-        input.new(records: %w[hello world])
-      end
-
-      let :worker_name do
-        'ThisIsMe'
-      end
+      let(:slice) { input.new(records: %w[hello world]) }
+      let(:worker_name) { 'ThisIsMe' }
+      let(:lines) { %w[Line1 Line2 Line3] }
+      let(:data) { lines.join("\n") + "\n" }
 
       before do
         input.delete_all
@@ -37,81 +32,39 @@ module Sliced
         end
       end
 
-      describe '#upload' do
-        describe 'file' do
-          it 'text slice size 1' do
-            input.slice_size = 1
-            file_name        = File.join(File.dirname(__FILE__), 'files', 'text.txt')
-            data             = File.read(file_name)
-            assert_equal 3, input.upload(file_name)
-            assert_equal 3, input.count
-            result = input.collect(&:to_a).join("\n") + "\n"
-            assert_equal data, result
-
-            assert_equal 1, input.first.first_record_number
-            assert_equal 3, input.last.first_record_number
-          end
-
-          it 'text slice size 2' do
-            input.slice_size = 2
-            file_name        = File.join(File.dirname(__FILE__), 'files', 'text.txt')
-            data             = File.read(file_name)
-            assert_equal 3, input.upload(file_name)
-            assert_equal 2, input.count
-            result = input.collect(&:to_a).join("\n") + "\n"
-            assert_equal data, result
-
-            assert_equal 1, input.first.first_record_number
-            assert_equal 3, input.last.first_record_number
-          end
-
-          it 'text slice size 3' do
-            input.slice_size = 3
-            file_name        = File.join(File.dirname(__FILE__), 'files', 'text.txt')
-            data             = File.read(file_name)
-            assert_equal 3, input.upload(file_name)
-            assert_equal 1, input.count
-            result = input.collect(&:to_a).join("\n") + "\n"
-            assert_equal data, result
-            assert_equal 1, input.first.first_record_number
-          end
-
-          it 'gzip' do
-            file_name = File.join(File.dirname(__FILE__), 'files', 'text.txt.gz')
-            data      = Zlib::GzipReader.open(file_name, &:read)
-            assert_equal 3, input.upload(file_name)
-            assert_equal 2, input.count
-            result = input.collect(&:to_a).join("\n") + "\n"
-            assert_equal data, result
-          end
-        end
-
-        describe 'stream' do
-          it 'text' do
-            file_name = File.join(File.dirname(__FILE__), 'files', 'text.txt')
-            data      = File.read(file_name)
-            File.open(file_name, 'rb') do |io|
-              assert_equal 3, input.upload(io)
-            end
-            assert_equal 2, input.count
-            result = input.collect(&:to_a).join("\n") + "\n"
-            assert_equal data, result
-          end
-
-          it 'gzip' do
-            file_name = File.join(File.dirname(__FILE__), 'files', 'text.txt.gz')
-            data      = Zlib::GzipReader.open(file_name, &:read)
-            File.open(file_name, 'rb') do |io|
-              assert_equal 3, input.upload(io, streams: :gz)
-            end
-            assert_equal 2, input.count, input.collect(&:to_a)
-            result = input.collect(&:to_a).join("\n") + "\n"
-            assert_equal data, result
-          end
-        end
-      end
-
       describe '#upload with a block' do
+        it 'slice size 1' do
+          input.slice_size = 1
+          count = input.upload { |records| lines.each { |line| records << line } }
+          assert_equal 3, count
+          assert_equal 3, input.count
+          assert_equal 1, input.first.first_record_number
+          assert_equal 3, input.last.first_record_number
+          result = input.collect(&:to_a).join("\n") + "\n"
+          assert_equal data, result
+        end
+
+        it 'slice size 2' do
+          input.slice_size = 2
+          count = input.upload { |records| lines.each { |line| records << line } }
+          assert_equal 3, count
+          assert_equal 2, input.count
+          assert_equal 1, input.first.first_record_number
+          assert_equal 3, input.last.first_record_number
+          result = input.collect(&:to_a).join("\n") + "\n"
+          assert_equal data, result
+        end
+
+        it 'slice size 3' do
+          input.slice_size = 3
+          count = input.upload { |records| lines.each { |line| records << line } }
+          assert_equal 3, count
+          assert_equal 1, input.count
+          assert_equal 1, input.first.first_record_number
+          result = input.collect(&:to_a).join("\n") + "\n"
+          assert_equal data, result
+        end
+
         it 'upload records according to slice_size' do
           count = input.upload do |records|
             (1..10).each { |i| records << i }

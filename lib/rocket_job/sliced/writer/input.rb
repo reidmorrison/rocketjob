@@ -12,16 +12,10 @@ module RocketJob
         #     Block to call on the first line only, instead of storing in the slice.
         #     Useful for extracting the header row
         #     Default: nil
-        def self.collect(input, **args, &block)
+        def self.collect(input, **args)
           writer = new(input, **args)
-          # Create indexes before uploading
-          input.create_indexes if input.respond_to?(:create_indexes)
-          block.call(writer)
+          yield(writer)
           writer.record_count
-        rescue Exception => exc
-          # Drop input collection when upload fails
-          input.drop
-          raise exc
         ensure
           writer&.close
         end

@@ -1,15 +1,13 @@
 module RocketJob
   module Sliced
     class Input < Slices
-      def upload(file_name_or_io = nil, encoding: 'UTF-8', stream_mode: :line, on_first: nil, **args, &block)
-        raise(ArgumentError, 'Either file_name_or_io, or a block must be supplied') unless file_name_or_io || block
-
-        block ||= -> (io) do
-          iterator = "each_#{stream_mode}".to_sym
-          IOStreams.public_send(iterator, file_name_or_io, encoding: encoding, **args) { |line| io << line }
-        end
-
+      def upload(on_first: nil, &block)
+        # Create indexes before uploading
+        create_indexes
         Writer::Input.collect(self, on_first: on_first, &block)
+      rescue StandardError => exc
+        drop
+        raise(exc)
       end
 
       def upload_mongo_query(criteria, *column_names, &block)
@@ -36,7 +34,7 @@ module RocketJob
             end
         end
 
-        Writer::Input.collect(self) do |records|
+        upload do |records|
           # Drop down to the mongo driver level to avoid constructing a Model for each document returned
           criteria.klass.collection.find(criteria.selector, options).each do |document|
             records << block.call(document)
@@ -46,8 +44,7 @@ module RocketJob
 
       def upload_arel(arel, *column_names, &block)
         unless block
-          column_names = column_names.collect(&:to_sym)
-          column_names << :id if column_names.size.zero?
+          column_names = column_names.empty? ? [:id] : column_names.collect(&:to_sym)
 
           block =
             if column_names.size == 1
@@ -61,12 +58,11 @@ module RocketJob
           arel      = arel.select(selection)
         end
 
-        Writer::Input.collect(self) do |records|
-          arel.find_each { |model| records << block.call(model) }
-        end
+        upload { |records| arel.find_each { |model| records << block.call(model) } }
       end
 
       def upload_integer_range(start_id, last_id)
+        # Create indexes before uploading
         create_indexes
         count = 0
         while start_id <= last_id
@@ -77,9 +73,13 @@ module RocketJob
           count    += 1
         end
         count
+      rescue StandardError => exc
+        drop
+        raise(exc)
       end
 
       def upload_integer_range_in_reverse_order(start_id, last_id)
+        # Create indexes before uploading
         create_indexes
         end_id = last_id
         count  = 0
@@ -91,6 +91,9 @@ module RocketJob
           count  += 1
         end
         count
+      rescue StandardError => exc
+        drop
+        raise(exc)
       end
 
       # Iterate over each failed record, if any

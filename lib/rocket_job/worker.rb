@@ -119,6 +119,9 @@ module RocketJob
 
         SemanticLogger.named_tagged(job: job.id.to_s) do
           processed = true unless job.rocket_job_work(self, false, current_filter)
+
+          # Return the database connections for this thread back to the connection pool
+          ActiveRecord::Base.clear_active_connections! if defined?(ActiveRecord::Base)
         end
       end
       processed
