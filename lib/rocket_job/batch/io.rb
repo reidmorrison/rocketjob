@@ -65,7 +65,7 @@ module RocketJob
       #       Parses each line from the file as an Array and uploads each array for processing by workers.
       #     :record
       #       Parses each line from the file into a Hash and uploads each hash for processing by workers.
-      #     See IOStream#each_line, IOStream#each_row, and IOStream#each_record.
+      #     See IOStreams::Stream#each_line, IOStreams::Stream#each_row, and IOStreams::Stream#each_record.
       #
       #   encoding: [String|Encoding]
       #     Encode returned data with this encoding.

@@ -36,8 +36,8 @@ module Jobs
       end
 
       after do
-        FileUtils.remove_dir(archive_directory, true) if Dir.exist?(archive_directory)
-        FileUtils.remove_dir(directory, true) if Dir.exist?(directory)
+        IOStreams.path(archive_directory).delete_all
+        IOStreams.path(directory).delete_all
       end
 
       describe '#check_file' do
@@ -123,12 +123,12 @@ module Jobs
           dirmon_entry.archive_directory = 'archive'
           dirmon_entry.pattern           = "#{directory}/abc/**/*"
 
-          file_pathname = Pathname.new("#{directory}/abc/file1")
-          create_file(file_pathname.to_s, 5)
+          file_pathname = IOStreams.path(directory, "/abc/file1")
+          create_file(file_pathname, 5)
           create_file("#{directory}/abc/file2", 10)
 
-          archive_pathname = dirmon_entry.send(:archive_pathname, file_pathname)
-          create_file("#{archive_pathname}/file3", 21)
+          archive_iopath = dirmon_entry.send(:archive_iopath, file_pathname)
+          create_file("#{archive_iopath}/file3", 21)
 
           result = dirmon_job.send(:check_directories)
           assert_equal [5, 10], result.values.sort
@@ -202,7 +202,7 @@ module Jobs
       end
 
       def create_file(file_name, size)
-        File.open(file_name, 'wb') { |file| file.write('*' * size) }
+        IOStreams.new(file_name).write('*' * size)
       end
 
       def create_temp_file(size)

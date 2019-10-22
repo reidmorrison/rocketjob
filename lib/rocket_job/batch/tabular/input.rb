@@ -20,7 +20,7 @@ module RocketJob
           #     Parses each line from the file as an Array and uploads each array for processing by workers.
           #   :record
           #     Parses each line from the file into a Hash and uploads each hash for processing by workers.
-          #   See IOStream#each_line, IOStream#each_row, and IOStream#each_record.
+          #   See IOStreams#each_line, IOStreams#each_row, and IOStreams#each_record.
           field :tabular_input_mode, type: Symbol, default: :line, class_attribute: true, user_editable: true, copy_on_restart: true
 
           validates_inclusion_of :tabular_input_format, in: IOStreams::Tabular.registered_formats

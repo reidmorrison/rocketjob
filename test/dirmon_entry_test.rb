@@ -18,9 +18,7 @@ class DirmonEntryTest < Minitest::Test
     end
 
     let :archive_path do
-      archive_path = Pathname.new(archive_directory)
-      archive_path.mkpath
-      archive_path.realdirpath
+      IOStreams.path(archive_directory)
     end
 
     let :dirmon_entry do
@@ -84,13 +82,13 @@ class DirmonEntryTest < Minitest::Test
       end
 
       it 'convert relative path to an absolute one' do
-        path = Pathname('test/files').realpath.to_s
+        path = IOStreams.path('test/files').realpath.to_s
         assert_equal path, RocketJob::DirmonEntry.add_whitelist_path('test/files')
         assert_equal [path], RocketJob::DirmonEntry.whitelist_paths
       end
 
       it 'prevent duplicates' do
-        path = Pathname('test/files').realpath.to_s
+        path = IOStreams.path('test/files').realpath.to_s
         assert_equal path, RocketJob::DirmonEntry.add_whitelist_path('test/files')
         assert_equal path, RocketJob::DirmonEntry.add_whitelist_path('test/files')
         assert_equal path, RocketJob::DirmonEntry.add_whitelist_path(path)
@@ -183,8 +181,8 @@ class DirmonEntryTest < Minitest::Test
         file.path
       end
 
-      let :pathname do
-        Pathname.new(file_name)
+      let :iopath do
+        IOStreams.path(file_name)
       end
 
       after do
@@ -196,12 +194,10 @@ class DirmonEntryTest < Minitest::Test
         it 'without archive path' do
           dirmon_entry.archive_directory = nil
           files                          = []
-          dirmon_entry.each do |file_name|
-            files << file_name
-          end
+          dirmon_entry.each { |file_name| files << file_name }
           assert_nil dirmon_entry.archive_directory
           assert_equal 1, files.count
-          assert_equal Pathname.new('test/files/text.txt').realpath, files.first
+          assert_equal IOStreams.path('test/files/text.txt').realpath, files.first
         end
 
         it 'with archive path' do
@@ -210,7 +206,7 @@ class DirmonEntryTest < Minitest::Test
             files << file_name
           end
           assert_equal 1, files.count
-          assert_equal Pathname.new('test/files/text.txt').realpath, files.first
+          assert_equal IOStreams.path('test/files/text.txt').realpath, files.first
         end
 
         it 'with case-insensitive pattern' do
@@ -220,26 +216,26 @@ class DirmonEntryTest < Minitest::Test
             files << file_name
           end
           assert_equal 1, files.count
-          assert_equal Pathname.new('test/files/text.txt').realpath, files.first
+          assert_equal IOStreams.path('test/files/text.txt').realpath, files.first
         end
 
         it 'reads paths inside of the whitelist' do
           dirmon_entry.archive_directory = nil
           files                          = []
-          dirmon_entry.stub(:whitelist_paths, [Pathname.new('test/files').realpath.to_s]) do
+          dirmon_entry.stub(:whitelist_paths, [IOStreams.path('test/files').realpath.to_s]) do
             dirmon_entry.each do |file_name|
               files << file_name
             end
           end
           assert_nil dirmon_entry.archive_directory
           assert_equal 1, files.count
-          assert_equal Pathname.new('test/files/text.txt').realpath, files.first
+          assert_equal IOStreams.path('test/files/text.txt').realpath, files.first
         end
 
         it 'skips paths outside of the whitelist' do
           dirmon_entry.archive_directory = nil
           files                          = []
-          dirmon_entry.stub(:whitelist_paths, [Pathname.new('test/config').realpath.to_s]) do
+          dirmon_entry.stub(:whitelist_paths, [IOStreams.path('test/config').realpath.to_s]) do
             dirmon_entry.each do |file_name|
               files << file_name
             end
@@ -251,41 +247,29 @@ class DirmonEntryTest < Minitest::Test
 
       describe '#later' do
         it 'enqueues job' do
-          job = dirmon_entry.later(pathname)
+          job = dirmon_entry.later(iopath)
           assert created_job = RocketJob::Jobs::UploadFileJob.last
           assert_equal job.id, created_job.id
           assert job.queued?
         end
 
         it 'sets attributes' do
-          job = dirmon_entry.later(pathname)
+          job = dirmon_entry.later(iopath)
 
-          upload_file_name = Pathname.new(archive_directory).join("#{job.job_id}_#{File.basename(file_name)}").realdirpath.to_s
+          upload_file_name = IOStreams.path(archive_directory).join("#{job.job_id}_#{File.basename(file_name)}").to_s
 
           assert_equal dirmon_entry.job_class_name, job.job_class_name
           assert_equal dirmon_entry.properties, job.properties
           assert_equal upload_file_name, job.upload_file_name
-          assert_equal "#{dirmon_entry.name}: #{pathname.basename}", job.description
-          assert_equal pathname.to_s, job.original_file_name
+          assert_equal "#{dirmon_entry.name}: #{iopath.basename}", job.description
+          assert_equal iopath.to_s, job.original_file_name
           assert job.job_id
         end
       end
 
-      describe '#archive_file' do
-        it 'moves file to archive dir' do
-          job_id            = BSON::ObjectId.new
-          archive_real_name = archive_path.join("#{job_id}_#{File.basename(file_name)}").to_s
-
-          assert File.exist?(file_name)
-          assert_equal archive_real_name, dirmon_entry.send(:archive_file, job_id, pathname)
-          refute File.exist?(file_name)
-          assert File.exist?(archive_real_name)
-        end
-      end
-
-      describe '#archive_pathname' do
+      describe '#archive_iopath' do
         it 'with fully qualified archive directory' do
-          assert_equal archive_path.to_s, dirmon_entry.send(:archive_pathname, pathname).to_s
+          assert_equal archive_path.to_s, dirmon_entry.send(:archive_iopath, iopath).to_s
         end
 
         describe 'with relative' do
@@ -294,8 +278,8 @@ class DirmonEntryTest < Minitest::Test
           end
 
           it 'archive directory' do
-            archive_dir = File.join(pathname.realdirpath.dirname, archive_directory)
-            assert_equal archive_dir, dirmon_entry.send(:archive_pathname, pathname).to_s
+            archive_dir = iopath.directory.join(archive_directory)
+            assert_equal archive_dir.to_s, dirmon_entry.send(:archive_iopath, iopath).to_s
           end
         end
 

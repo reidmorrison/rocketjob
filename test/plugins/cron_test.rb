@@ -73,7 +73,7 @@ module Plugins
           @job.cron_schedule = '* 2 * * * UTC'
           assert_equal run_at, @job.run_at
           @job.save!
-          assert run_at < @job.run_at
+          assert run_at != @job.run_at, @job.attributes
         end
       end
 
