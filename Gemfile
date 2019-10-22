@@ -2,8 +2,6 @@ source 'https://rubygems.org'
 
 gemspec
 
-gem 'iostreams', path: '../iostreams'
-
 gem 'activerecord', '~> 5.2.0'
 gem 'mongoid', '~> 7.0'
 
