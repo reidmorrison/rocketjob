@@ -10,12 +10,12 @@ module RocketJob
     attr_accessor :worker_id
 
     # Start the Supervisor, using the supplied attributes to create a new Server instance.
-    def self.run(attrs = {})
+    def self.run
       Thread.current.name = 'rocketjob main'
       RocketJob.create_indexes
       register_signal_handlers
 
-      server = Server.create!(attrs)
+      server = Server.create!
       new(server).run
     ensure
       server&.destroy
@@ -23,13 +23,13 @@ module RocketJob
 
     def initialize(server)
       @server      = server
-      @worker_pool = WorkerPool.new(server.name, server.filter)
+      @worker_pool = WorkerPool.new(server.name)
       @mutex       = Mutex.new
     end
 
     def run
       logger.info "Using MongoDB Database: #{RocketJob::Job.collection.database.name}"
-      logger.info('Running with filter', server.filter) if server.filter
+      logger.info('Running with filter', Config.filter) if Config.filter
       server.started!
       logger.info 'Rocket Job Server started'
 
@@ -81,7 +81,7 @@ module RocketJob
           end
         end
 
-        self.class.wait_for_event(Config.instance.heartbeat_seconds)
+        self.class.wait_for_event(Config.heartbeat_seconds)
 
         break if self.class.shutdown?
 

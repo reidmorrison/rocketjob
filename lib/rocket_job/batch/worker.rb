@@ -62,7 +62,7 @@ module RocketJob
           end
 
           # Allow new jobs with a higher priority to interrupt this job
-          break if (Time.now - start_time) >= Config.instance.re_check_seconds
+          break if (Time.now - start_time) >= Config.re_check_seconds
         end
         false
       end

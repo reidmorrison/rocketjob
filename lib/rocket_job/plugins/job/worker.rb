@@ -66,18 +66,6 @@ module RocketJob
             end
           end
 
-          # DEPRECATED
-          def perform_later(args, &block)
-            if RocketJob::Config.inline_mode
-              perform_now(args, &block)
-            else
-              job = new(args)
-              yield(job) if block
-              job.save!
-              job
-            end
-          end
-
           private
 
           def rocket_job_merge_filter(target, source)

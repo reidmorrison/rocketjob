@@ -14,17 +14,14 @@ module RocketJob
         #   Default: `host name:PID`
         # The unique name is used on re-start to re-queue any jobs that were being processed
         # at the time the server unexpectedly terminated, if any
-        field :name, type: String, default: -> { "#{SemanticLogger.host}:#{$$}" }
+        field :name, type: String, default: -> { Config.server_name }
 
         # The maximum number of workers this server should start
         #   If set, it will override the default value in RocketJob::Config
-        field :max_workers, type: Integer, default: -> { Config.instance.max_workers }
+        field :max_workers, type: Integer, default: -> { Config.max_workers }
 
         # When this server process was started
         field :started_at, type: Time
-
-        # Filter to apply to control which job classes this server can process
-        field :yaml_filter, type: String
 
         # The heartbeat information for this server
         embeds_one :heartbeat, class_name: 'RocketJob::Heartbeat'
@@ -82,7 +79,7 @@ module RocketJob
 
         # Scope for all zombie servers
         def self.zombies(missed = 4)
-          dead_seconds        = Config.instance.heartbeat_seconds * missed
+          dead_seconds        = Config.heartbeat_seconds * missed
           last_heartbeat_time = Time.now - dead_seconds
           where(
             :state.in => %i[stopping running paused],
@@ -94,15 +91,6 @@ module RocketJob
         end
       end
 
-      # Where clause filter to apply to workers looking for jobs
-      def filter
-        YAML.load(yaml_filter) if yaml_filter
-      end
-
-      def filter=(hash)
-        self.yaml_filter = hash.nil? ? nil : hash.to_yaml
-      end
-
       # Returns [true|false] if this server has missed at least the last 4 heartbeats
       #
       # Possible causes for a server to miss its heartbeats:
@@ -112,7 +100,7 @@ module RocketJob
       def zombie?(missed = 4)
         return false unless running? || stopping? || paused?
         return true if heartbeat.nil? || heartbeat.updated_at.nil?
-        dead_seconds = Config.instance.heartbeat_seconds * missed
+        dead_seconds = Config.heartbeat_seconds * missed
         (Time.now - heartbeat.updated_at) >= dead_seconds
       end
 

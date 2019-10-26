@@ -117,51 +117,6 @@ module Plugins
           end
         end
 
-        describe '.perform_later' do
-          it 'queues the job for processing' do
-            RocketJob::Config.stub(:inline_mode, false) do
-              @job = SumJob.perform_later(first: 1, second: 23)
-            end
-            assert @job.queued?
-
-            # Manually run the job
-            @job.perform_now
-            assert @job.completed?, @job.attributes.ai
-            assert_equal 24, @job.result['result'], -> { @job.result.ai }
-
-            assert_nil @job.worker_name
-            assert @job.completed_at
-            assert @job.created_at
-            assert_equal false, @job.destroy_on_complete
-            assert_nil @job.expires_at
-            assert_equal 100, @job.percent_complete
-            assert_equal 51, @job.priority
-            assert_equal 0, @job.failure_count
-            assert_nil @job.run_at
-            assert @job.started_at
-          end
-
-          it 'runs the job immediately when inline_mode = true' do
-            RocketJob::Config.stub(:inline_mode, true) do
-              @job = SumJob.perform_later(first: 1, second: 23)
-            end
-
-            assert @job.completed?, @job.attributes.ai
-            assert_equal 24, @job.result['result']
-
-            assert_nil @job.worker_name
-            assert @job.completed_at
-            assert @job.created_at
-            assert_equal false, @job.destroy_on_complete
-            assert_nil @job.expires_at
-            assert_equal 100, @job.percent_complete
-            assert_equal 51, @job.priority
-            assert_equal 0, @job.failure_count
-            assert_nil @job.run_at
-            assert @job.started_at
-          end
-        end
-
         describe '.perform_now' do
           it 'run the job immediately' do
             @job = SumJob.perform_now(first: 1, second: 5)

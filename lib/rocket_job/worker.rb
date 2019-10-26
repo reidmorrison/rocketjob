@@ -11,7 +11,7 @@ module RocketJob
 
     define_callbacks :running
 
-    attr_accessor :id, :re_check_seconds, :filter, :current_filter
+    attr_accessor :id, :current_filter
     attr_reader :thread, :name, :inline
 
     # Raised when a worker is killed so that it shutdown immediately, yet cleanly.
@@ -33,21 +33,15 @@ module RocketJob
       set_callback(:running, :around, *filters, &blk)
     end
 
-    def initialize(id: 0,
-                   server_name: 'inline:0',
-                   inline: false,
-                   re_check_seconds: Config.instance.re_check_seconds,
-                   filter: nil)
-      @id               = id
-      @server_name      = server_name
-      @shutdown         = Concurrent::Event.new
-      @name             = "#{server_name}:#{id}"
-      @re_check_seconds = (re_check_seconds || 60).to_f
-      @re_check_start   = Time.now
-      @filter           = filter.nil? ? {} : filter.dup
-      @current_filter   = @filter.dup
-      @thread           = Thread.new { run } unless inline
-      @inline           = inline
+    def initialize(id: 0, server_name: 'inline:0', inline: false)
+      @id             = id
+      @server_name    = server_name
+      @shutdown       = Concurrent::Event.new
+      @name           = "#{server_name}:#{id}"
+      @re_check_start = Time.now
+      @current_filter = Config.filter || {}
+      @thread         = Thread.new { run } unless inline
+      @inline         = inline
     end
 
     def alive?
@@ -93,7 +87,7 @@ module RocketJob
       Thread.current.name = format('rocketjob %03i', id)
       logger.info 'Started'
       until shutdown?
-        wait = RocketJob::Config.instance.max_poll_seconds
+        wait = Config.max_poll_seconds
         if process_available_jobs
           # Keeps workers staggered across the poll interval so that
           # all workers don't poll at the same time
@@ -131,10 +125,10 @@ module RocketJob
     def reset_filter_if_expired
       # Only clear out the current_filter after every `re_check_seconds`
       time = Time.now
-      return unless (time - @re_check_start) > re_check_seconds
+      return unless (time - @re_check_start) > Config.re_check_seconds
 
       @re_check_start     = time
-      self.current_filter = filter.dup if current_filter != filter
+      self.current_filter = Config.filter
     end
   end
 end

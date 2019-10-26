@@ -8,13 +8,10 @@ module RocketJob
   # Command Line Interface parser for Rocket Job
   class CLI
     include SemanticLogger::Loggable
-    attr_accessor :name, :workers, :environment, :pidfile, :directory, :quiet,
+    attr_accessor :environment, :pidfile, :directory, :quiet,
                   :log_level, :log_file, :mongo_config, :symmetric_encryption_config,
-                  :include_filter, :exclude_filter, :where_filter
 
     def initialize(argv)
-      @name                        = nil
-      @workers                     = nil
       @quiet                       = false
       @environment                 = nil
       @pidfile                     = nil
@@ -40,14 +37,7 @@ module RocketJob
       # In case Rails did not load the Mongoid Config
       RocketJob::Config.load!(environment, mongo_config, symmetric_encryption_config) if ::Mongoid::Config.clients.empty?
 
-      filter = build_filter
-
-      opts               = {}
-      opts[:name]        = name if name
-      opts[:max_workers] = workers if workers
-      opts[:filter]      = filter if filter
-
-      Supervisor.run(opts)
+      Supervisor.run
     end
 
     def rails?
@@ -153,38 +143,27 @@ module RocketJob
       end
     end
 
-    # Returns [Hash] a where clause filter to apply to this server.
-    # Returns nil if no filter should be applied
-    def build_filter
-      raise(ArgumentError, 'Cannot supply both a filter and an exclusion filter') if include_filter && exclude_filter
-
-      filter                  = where_filter
-      (filter ||= {})['_type'] = include_filter if include_filter
-      (filter ||= {})['_type'] = {'$not' => exclude_filter} if exclude_filter
-      filter
-    end
-
     # Parse command line options placing results in the corresponding instance variables
     def parse(argv)
       parser        = OptionParser.new do |o|
         o.on('-n', '--name NAME', 'Unique Name of this server (Default: host_name:PID)') do |arg|
-          @name = arg
+          Config.name = arg
         end
         o.on('-w', '--workers COUNT', 'Number of workers (threads) to start') do |arg|
-          @workers = arg.to_i
+          Config.max_workers = arg.to_i
         end
-        o.on('-t', '--threads COUNT', 'DEPRECATED') do |arg|
-          warn '-t and --threads are deprecated, use -w or --workers'
-          @workers = arg.to_i
+        o.on('--include REGEXP', 'Limit this server to only those job classes that match this regular expression (case-insensitive). Example: "DirmonJob|WeeklyReportJob"') do |arg|
+          Config.include_filter = Regexp.new(arg, true)
         end
-        o.on('-F', '--filter REGEXP', 'Limit this server to only those job classes that match this regular expression (case-insensitive). Example: "DirmonJob|WeeklyReportJob"') do |arg|
-          @include_filter = Regexp.new(arg, true)
+        o.on('-F', '--filter REGEXP', 'DEPRECATED. Use --include') do |arg|
+          warn '-F and --filter are deprecated, use --include'
+          Config.include_filter = Regexp.new(arg, true)
         end
         o.on('-E', '--exclude REGEXP', 'Prevent this server from working on any job classes that match this regular expression (case-insensitive). Example: "DirmonJob|WeeklyReportJob"') do |arg|
-          @exclude_filter = Regexp.new(arg, true)
+          Config.exclude_filter = Regexp.new(arg, true)
         end
         o.on('-W', '--where JSON', "Limit this server instance to the supplied mongo query filter. Supply as a string in JSON format. Example: '{\"priority\":{\"$lte\":25}}'") do |arg|
-          @where_filter = JSON.parse(arg)
+          Config.where_filter = JSON.parse(arg)
         end
         o.on('-q', '--quiet', 'Do not write to stdout, only to logfile. Necessary when running as a daemon') do
           @quiet = true

@@ -5,11 +5,10 @@ module RocketJob
   class WorkerPool
     include SemanticLogger::Loggable
 
-    attr_reader :server_name, :filter, :workers
+    attr_reader :server_name, :workers
 
-    def initialize(server_name, filter)
+    def initialize(server_name)
       @server_name = server_name
-      @filter      = filter
       @workers     = Concurrent::Array.new
       @worker_id   = 0
     end
@@ -34,7 +33,7 @@ module RocketJob
 
       add_one
       count -= 1
-      delay = Config.instance.max_poll_seconds.to_f / max_workers
+      delay = Config.max_poll_seconds.to_f / max_workers
 
       count.times.each do
         sleep(delay) if stagger_start
@@ -90,7 +89,7 @@ module RocketJob
     private
 
     def add_one
-      workers << Worker.new(id: next_worker_id, server_name: server_name, filter: filter)
+      workers << Worker.new(id: next_worker_id, server_name: server_name)
     rescue StandardError => exc
       logger.fatal('Cannot start worker', exc)
     end

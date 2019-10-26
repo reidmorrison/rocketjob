@@ -70,14 +70,14 @@ module RocketJob
 
         # Default throttle to use when the throttle is exceeded.
         # When the throttle has been exceeded all jobs of this class will be ignored until the
-        # next refresh. `RocketJob::Config::re_check_seconds` which by default is 60 seconds.
+        # next refresh. `RocketJob::Config.re_check_seconds` which by default is 60 seconds.
         def throttle_filter_class
           {:_type.nin => [self.class.name]}
         end
 
         # Filter out only this instance of the job.
         # When the throttle has been exceeded this job will be ignored by this server until the next refresh.
-        # `RocketJob::Config::re_check_seconds` which by default is 60 seconds.
+        # `RocketJob::Config.re_check_seconds` which by default is 60 seconds.
         def throttle_filter_id
           {:id.nin => [id]}
         end
