@@ -6,13 +6,13 @@ module RocketJob
     #   module MyApplication
     #     class Application < Rails::Application
     #       # The maximum number of workers to create on any one server. (Default: 10)
-    #       config.rocket_job.max_workers = config.secret_config("rocket_job/max_workers", type: :integer, default: 10)
+    #       config.rocket_job.max_workers = config.secret_config.fetch("rocket_job/max_workers", type: :integer, default: 10)
     #
     #       # Number of seconds between heartbeats from a Rocket Job Server process. (Default: 15)
-    #       config.rocket_job.heartbeat_seconds = config.secret_config("rocket_job/heartbeat_seconds", type: :float, default: 15.0)
+    #       config.rocket_job.heartbeat_seconds = config.secret_config.fetch("rocket_job/heartbeat_seconds", type: :float, default: 15.0)
     #
     #       # Maximum number of seconds a Worker will wait before checking for new jobs. (Default: 5)
-    #       config.rocket_job.max_poll_seconds = config.secret_config("rocket_job/max_poll_seconds", type: :float, default: 5.0)
+    #       config.rocket_job.max_poll_seconds = config.secret_config.fetch("rocket_job/max_poll_seconds", type: :float, default: 5.0)
     #
     #       # Number of seconds between checking for:
     #       # - Jobs with a higher priority
@@ -24,7 +24,7 @@ module RocketJob
     #       # Note:
     #       #   Not all job types support pausing in the middle
     #       # Default: 60 seconds between checks.
-    #       config.rocket_job.re_check_seconds = config.secret_config("rocket_job/re_check_seconds", type: :float, default: 60.0)
+    #       config.rocket_job.re_check_seconds = config.secret_config.fetch("rocket_job/re_check_seconds", type: :float, default: 60.0)
     #
     #       config.rocket_job.include_filter    = config.secret_config["rocket_job/include_filter"]
     #       config.rocket_job.exclude_filter    = config.secret_config["rocket_job/exclude_filter"]
