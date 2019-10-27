@@ -4,6 +4,8 @@ require 'mongoid'
 require 'rocket_job/extensions/mongo/logging'
 require 'rocket_job/version'
 require 'rocket_job/rocket_job'
+require 'rocket_job/config'
+require 'rocket_job/railtie' if defined?(Rails)
 
 # Apply patches to implement `with_collection`
 if Mongoid::VERSION.to_i >= 6
@@ -21,7 +23,6 @@ module RocketJob
   autoload :ActiveWorker,       'rocket_job/active_worker'
   autoload :Batch,              'rocket_job/batch'
   autoload :CLI,                'rocket_job/cli'
-  autoload :Config,             'rocket_job/config'
   autoload :DirmonEntry,        'rocket_job/dirmon_entry'
   autoload :Event,              'rocket_job/event'
   autoload :Heartbeat,          'rocket_job/heartbeat'

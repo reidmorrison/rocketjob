@@ -27,8 +27,10 @@ module RocketJob
     # Making this interval too short results in too many checks for job status
     # changes instead of focusing on completing the active tasks
     #
-    # Note:
-    #   Not all job types support pausing in the middle
+    # Notes:
+    # - Not all job types support pausing in the middle
+    #
+    # Default: 60 seconds between checks.
     class_attribute :re_check_seconds
     self.re_check_seconds = 60.0
 

@@ -9,7 +9,7 @@ module RocketJob
   class CLI
     include SemanticLogger::Loggable
     attr_accessor :environment, :pidfile, :directory, :quiet,
-                  :log_level, :log_file, :mongo_config, :symmetric_encryption_config,
+                  :log_level, :log_file, :mongo_config, :symmetric_encryption_config
 
     def initialize(argv)
       @quiet                       = false
@@ -53,6 +53,8 @@ module RocketJob
       logger.info "Loading Rails environment: #{environment}"
       RocketJob.rails!
 
+      require 'rails'
+      require 'rocket_job/railtie'
       boot_file = Pathname.new(directory).join('config/environment.rb').expand_path
       require(boot_file.to_s)
 
