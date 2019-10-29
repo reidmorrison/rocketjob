@@ -21,7 +21,8 @@
 module RocketJob
   module Jobs
     class OnDemandBatchTabularJob < OnDemandBatchJob
-      include RocketJob::Batch::Tabular
+      include RocketJob::Batch::Tabular::Input
+      include RocketJob::Batch::Tabular::Output
     end
   end
 end
