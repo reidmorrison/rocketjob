@@ -9,7 +9,8 @@ module RocketJob
   class CLI
     include SemanticLogger::Loggable
     attr_accessor :environment, :pidfile, :directory, :quiet,
-                  :log_level, :log_file, :mongo_config, :symmetric_encryption_config
+                  :log_level, :log_file, :mongo_config, :symmetric_encryption_config,
+                  :max_workers, :include_filter, :exclude_filter, :where_filter
 
     def initialize(argv)
       @quiet                       = false
@@ -32,6 +33,7 @@ module RocketJob
       setup_environment
       setup_logger
       rails? ? boot_rails : boot_standalone
+      override_config
       write_pidfile
 
       # In case Rails did not load the Mongoid Config
@@ -104,6 +106,14 @@ module RocketJob
       self.class.eager_load_jobs
     end
 
+    # Allow the CLI to override the configuration after rails has been loaded.
+    def override_config
+      Config.max_workers    = max_workers if max_workers
+      Config.include_filter = include_filter if include_filter
+      Config.exclude_filter = exclude_filter if exclude_filter
+      Config.where_filter   = where_filter if where_filter
+    end
+
     # Create a PID file if requested
     def write_pidfile
       return unless pidfile
@@ -152,20 +162,20 @@ module RocketJob
           Config.name = arg
         end
         o.on('-w', '--workers COUNT', 'Number of workers (threads) to start') do |arg|
-          Config.max_workers = arg.to_i
+          @max_workers = arg.to_i
         end
         o.on('--include REGEXP', 'Limit this server to only those job classes that match this regular expression (case-insensitive). Example: "DirmonJob|WeeklyReportJob"') do |arg|
-          Config.include_filter = Regexp.new(arg, true)
+          @include_filter = Regexp.new(arg, true)
         end
         o.on('-F', '--filter REGEXP', 'DEPRECATED. Use --include') do |arg|
           warn '-F and --filter are deprecated, use --include'
-          Config.include_filter = Regexp.new(arg, true)
+          @include_filter = Regexp.new(arg, true)
         end
         o.on('-E', '--exclude REGEXP', 'Prevent this server from working on any job classes that match this regular expression (case-insensitive). Example: "DirmonJob|WeeklyReportJob"') do |arg|
-          Config.exclude_filter = Regexp.new(arg, true)
+          @exclude_filter = Regexp.new(arg, true)
         end
         o.on('-W', '--where JSON', "Limit this server instance to the supplied mongo query filter. Supply as a string in JSON format. Example: '{\"priority\":{\"$lte\":25}}'") do |arg|
-          Config.where_filter = JSON.parse(arg)
+          @where_filter = JSON.parse(arg)
         end
         o.on('-q', '--quiet', 'Do not write to stdout, only to logfile. Necessary when running as a daemon') do
           @quiet = true

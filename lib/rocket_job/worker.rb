@@ -128,7 +128,7 @@ module RocketJob
       return unless (time - @re_check_start) > Config.re_check_seconds
 
       @re_check_start     = time
-      self.current_filter = Config.filter
+      self.current_filter = Config.filter || {}
     end
   end
 end
