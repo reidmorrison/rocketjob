@@ -1,12 +1,6 @@
 require 'fileutils'
 require 'uri'
 
-begin
-  require 'iostreams'
-rescue LoadError
-  # Optional dependency
-end
-
 module RocketJob
   module Jobs
     # Job to upload a file into another job.
@@ -93,12 +87,12 @@ module RocketJob
       end
 
       def file_exists
-        return if upload_file_name.nil? 
+        return if upload_file_name.nil?
         uri = URI.parse(upload_file_name)
         return unless uri.scheme.nil? || uri.scheme == 'file'
-        return if File.exist?(upload_file_name) 
+        return if File.exist?(upload_file_name)
         errors.add(:upload_file_name, "Upload file: #{upload_file_name} does not exist.")
       end
-   end
+    end
   end
 end
