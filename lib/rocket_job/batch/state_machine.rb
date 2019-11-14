@@ -57,7 +57,7 @@ module RocketJob
       #
       # I.e. Not during before_batch and after_batch.
       def pausable?
-        queued? || paused? || running? && (sub_state == :processing)
+        queued? || paused? || (running? && (sub_state == :processing))
       end
 
       private

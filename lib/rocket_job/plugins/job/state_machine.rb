@@ -85,7 +85,7 @@ module RocketJob
           # @formatter:on
 
           # By default all jobs are not pausable / resumable
-          class_attribute(:pausable)
+          class_attribute(:pausable, instance_predicate: false)
           self.pausable = false
 
           # Define a before and after callback method for each event
@@ -108,6 +108,11 @@ module RocketJob
           # Resume all paused jobs
           def self.resume_all
             paused.each(&:resume!)
+          end
+
+          # All regular jobs can be paused or resumed whilst queued.
+          def self.pausable?
+            queued? || paused? || pausable
           end
         end
 

@@ -10,8 +10,7 @@
 #     password: "OpenSesame",
 #     ssh_options: {
 #       IdentityFile: "~/.ssh/secondary"
-#     },
-#     ruby: false
+#     }
 #   }
 # )
 #
@@ -48,8 +47,8 @@ module RocketJob
         field :source_data, type: String
       end
 
-      validates_presence_of :source_url, :source_args, :source_streams
-      validates_presence_of :target_url, :target_args, :target_streams, unless: :source_data
+      validates_presence_of :source_url, unless: :source_data
+      validates_presence_of :target_url
       validates_presence_of :source_data, unless: :source_url
 
       before_save :set_description
