@@ -45,8 +45,8 @@ module RocketJob
       def throttle_running_slices_exceeded?(slice)
         return unless throttle_running_slices&.positive?
 
-        input.with(read: {mode: :primary}) do |conn|
-          conn.running.where(:id.ne => slice.id).count >= throttle_running_slices
+        input.running.with(read: {mode: :primary}) do |conn|
+          conn.where(:id.ne => slice.id).count >= throttle_running_slices
         end
       end
 
