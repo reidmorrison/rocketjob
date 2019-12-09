@@ -72,8 +72,8 @@ module RocketJob
         DirmonEntry.enabled.each do |entry|
           entry.each do |iopath|
             # S3 files are only visible once completely uploaded.
-            if iopath.is_a?(IOStreams::Paths::S3)
-              logger.info("S3 File: #{iopath}. Starting: #{entry.job_class_name}")
+            unless iopath.partial_files_visible?
+              logger.info("File: #{iopath}. Starting: #{entry.job_class_name}")
               entry.later(iopath)
               next
             end
@@ -81,6 +81,7 @@ module RocketJob
             # BSON Keys cannot contain periods
             key                 = iopath.to_s.tr('.', '_')
             previous_size       = previous_file_names[key]
+            # Check every few minutes for a file size change before trying to process the file.
             size                = check_file(entry, iopath, previous_size)
             new_file_names[key] = size if size
           end
