@@ -61,8 +61,10 @@ module RocketJob
           # Requeues all jobs that were running on a server that died
           def requeue_dead_server(server_name)
             # Need to requeue paused, failed since user may have transitioned job before it finished
-            where(:state.in => %i[running paused failed]).each do |job|
-              job.requeue!(server_name) if job.may_requeue?(server_name)
+            with(read: {mode: :primary}) do |conn|
+              conn.where(:state.in => %i[running paused failed]).each do |job|
+                job.requeue!(server_name) if job.may_requeue?(server_name)
+              end
             end
           end
 

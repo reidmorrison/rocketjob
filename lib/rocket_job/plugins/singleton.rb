@@ -12,7 +12,9 @@ module RocketJob
 
       # Returns [true|false] whether another instance of this job is already active
       def rocket_job_singleton_active?
-        self.class.where(:state.in => %i[running queued], :id.ne => id).exists?
+        self.class.with(read: {mode: :primary}) do |conn|
+          conn.where(:state.in => %i[running queued], :id.ne => id).exists?
+        end
       end
 
       private
