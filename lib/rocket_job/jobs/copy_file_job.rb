@@ -32,12 +32,12 @@ module RocketJob
       field :target_url, type: String, user_editable: true
 
       # Any optional arguments to pass through to the IOStreams source and/or target.
-      field :source_args, type: Hash, default: -> { {} }
-      field :target_args, type: Hash, default: -> { {} }
+      field :source_args, type: Hash, default: -> { {} }, user_editable: true
+      field :target_args, type: Hash, default: -> { {} }, user_editable: true
 
       # Any optional IOStreams streams to apply to the source and/or target.
-      field :source_streams, type: Hash, default: -> { {none: nil} }
-      field :target_streams, type: Hash, default: -> { {none: nil} }
+      field :source_streams, type: Hash, default: -> { {none: nil} }, user_editable: true
+      field :target_streams, type: Hash, default: -> { {none: nil} }, user_editable: true
 
       # Data to upload, instead of supplying `:input_file_name` above.
       # Note: Data must be less than 15MB after compression.
@@ -63,12 +63,6 @@ module RocketJob
         self.percent_complete = 100
       end
 
-      private
-
-      def set_description
-        self.description = "Copying to #{target_url}"
-      end
-
       def source_path
         source = IOStreams.path(source_url, **decrypt_args(source_args))
         apply_streams(source, source_streams)
@@ -79,6 +73,12 @@ module RocketJob
         target = IOStreams.path(target_url, **decrypt_args(target_args))
         apply_streams(target, target_streams)
         target
+      end
+
+      private
+
+      def set_description
+        self.description = "Copying to #{target_url}"
       end
 
       def apply_streams(path, streams)
