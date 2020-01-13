@@ -139,7 +139,7 @@ class MultiFileJobTest < ActiveSupport::TestCase
     it 'creates main output file' do
       job.upload(StringIO.new(valid_row), file_name: 'a.csv')
       job.perform_now
-      result = IOStreams.reader(
+      result = IOStreams.path(
         job.main_output_file_name, 
         iostreams: {pgp: {passphrase: 'receiver_passphrase'}},
         &:read

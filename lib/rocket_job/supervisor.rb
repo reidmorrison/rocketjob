@@ -81,11 +81,11 @@ module RocketJob
           end
         end
 
+        synchronize { server.refresh(worker_pool.living_count) }
+
         self.class.wait_for_event(Config.heartbeat_seconds)
 
         break if self.class.shutdown?
-
-        synchronize { server.refresh(worker_pool.living_count) }
       end
     end
 
