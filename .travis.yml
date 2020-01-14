@@ -29,12 +29,13 @@ matrix:
     - name: "Mongoid 7 on Ruby 2.7.0"
       rvm: 2.7.0
       gemfile: gemfiles/mongoid_7.gemfile
-    - name: "Mongoid 7 on JRuby 9.2.7.0"
-      rvm: jruby-9.2.7.0
+    - name: "Mongoid 7 on JRuby 9.2.9.0"
+      rvm: jruby-9.2.9.0
       gemfile: gemfiles/mongoid_5.gemfile
 
   allow_failures:
     - rvm: jruby-9.2.9.0
+    - rvm: 2.3.8
 
 jdk:
   - openjdk8
