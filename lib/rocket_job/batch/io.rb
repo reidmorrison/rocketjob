@@ -58,14 +58,14 @@ module RocketJob
       #       Searches for the first "\r\n" or "\n" and then uses that as the
       #       delimiter for all subsequent records
       #
-      #   stream_mode: [:line | :row | :record]
+      #   stream_mode: [:line | :array | :hash]
       #     :line
       #       Uploads the file a line (String) at a time for processing by workers.
-      #     :row
+      #     :array
       #       Parses each line from the file as an Array and uploads each array for processing by workers.
-      #     :record
+      #     :hash
       #       Parses each line from the file into a Hash and uploads each hash for processing by workers.
-      #     See IOStreams::Stream#each_line, IOStreams::Stream#each_row, and IOStreams::Stream#each_record.
+      #     See IOStreams::Stream#each.
       #
       # Example:
       #   # Load plain text records from a file
@@ -118,6 +118,11 @@ module RocketJob
       def upload(stream = nil, file_name: nil, category: :main, stream_mode: :line, on_first: nil, **args, &block)
         raise(ArgumentError, 'Either stream, or a block must be supplied') unless stream || block
 
+        stream_mode = stream_mode.to_sym
+        # Backward compatibility with existing v4 jobs
+        stream_mode = :array if stream_mode == :row
+        stream_mode = :hash if stream_mode == :record
+
         count             =
           if block
             input(category).upload(on_first: on_first, &block)
@@ -126,7 +131,7 @@ module RocketJob
             path.file_name        = file_name if file_name
             self.upload_file_name = path.file_name
             input(category).upload(on_first: on_first) do |io|
-              path.public_send("each_#{stream_mode}".to_sym, **args) { |line| io << line }
+              path.each(stream_mode, **args) { |line| io << line }
             end
           end
         self.record_count = (record_count || 0) + count
@@ -336,7 +341,7 @@ module RocketJob
       #   end
       #
       # Example: Add a header and/or trailer record to the downloaded file, letting the line writer add the line breaks:
-      #   IOStreams.path('/tmp/file.txt.gz').line_writer do |writer|
+      #   IOStreams.path('/tmp/file.txt.gz').writer(:line) do |writer|
       #     writer << "Header"
       #     job.download do |line|
       #       writer << line
@@ -352,7 +357,7 @@ module RocketJob
 
         return output(category).download(header_line: header_line, &block) if block
 
-        IOStreams.new(stream).line_writer(**args) do |io|
+        IOStreams.new(stream).writer(:line, **args) do |io|
           output(category).download(header_line: header_line) { |record| io << record }
         end
       end

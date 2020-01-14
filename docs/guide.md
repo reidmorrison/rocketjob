@@ -1649,14 +1649,14 @@ Parameters
     - Proc / lambda:    Proc to call after every read to cleanse the data
     - Default: :printable
 
-- `stream_mode` `[:line | :row | :record]`
+- `stream_mode` `[:line | :array | :hash]`
     - `:line`
       - Uploads the file a line (String) at a time for processing by workers.
-    - `:row`
+    - `:array`
       - Parses each line from the file as an Array and uploads each array for processing by workers.
-    - `:record`
+    - `:hash`
       - Parses each line from the file into a Hash and uploads each hash for processing by workers.
-    - See `IOStream#each_line`, `IOStream#each_row`, and `IOStream#each_record`.
+    - See `IOStream#each`.
     - Default: `:line`
 
 Example, load plain text records from a file

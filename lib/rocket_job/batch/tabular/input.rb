@@ -13,18 +13,18 @@ module RocketJob
           field :tabular_input_header, type: Array, class_attribute: true, user_editable: true
           field :tabular_input_format, type: Symbol, default: :csv, class_attribute: true, user_editable: true
 
-          # tabular_input_mode: [:line | :row | :record]
+          # tabular_input_mode: [:line | :array | :hash]
           #   :line
           #     Uploads the file a line (String) at a time for processing by workers.
-          #   :row
+          #   :array
           #     Parses each line from the file as an Array and uploads each array for processing by workers.
-          #   :record
+          #   :hash
           #     Parses each line from the file into a Hash and uploads each hash for processing by workers.
-          #   See IOStreams#each_line, IOStreams#each_row, and IOStreams#each_record.
+          #   See IOStreams#each.
           field :tabular_input_mode, type: Symbol, default: :line, class_attribute: true, user_editable: true, copy_on_restart: true
 
           validates_inclusion_of :tabular_input_format, in: IOStreams::Tabular.registered_formats
-          validates_inclusion_of :tabular_input_mode, in: %i[line row record]
+          validates_inclusion_of :tabular_input_mode, in: %i[line array hash row record]
           validate :tabular_input_header_present
 
           class_attribute :tabular_input_white_list
@@ -72,16 +72,16 @@ module RocketJob
               tabular_input_cleanse_header
               self.tabular_input_header = tabular_input.header.columns
             end
-            super(input_stream, on_first: parse_header, stream_mode: tabular_input_mode, **args, &block)
-          when :row
+            super(input_stream, on_first: parse_header, stream_mode: :line, **args, &block)
+          when :array, :row
             set_header = -> (row) do
               tabular_input.header.columns = row
               tabular_input_cleanse_header
               self.tabular_input_header = tabular_input.header.columns
             end
-            super(input_stream, on_first: set_header, stream_mode: tabular_input_mode, **args, &block)
-          when :record
-            super(input_stream, stream_mode: tabular_input_mode, **args, &block)
+            super(input_stream, on_first: set_header, stream_mode: :array, **args, &block)
+          when :hash, :record
+            super(input_stream, stream_mode: :hash, **args, &block)
           else
             raise(ArgumentError, "Invalid tabular_input_mode: #{stream_mode.inspect}")
           end
@@ -113,7 +113,7 @@ module RocketJob
         end
 
         def tabular_input_header_present
-          return if tabular_input_header.present? || !tabular_input.header? || (tabular_input_mode == :record)
+          return if tabular_input_header.present? || !tabular_input.header? || (tabular_input_mode == :hash || tabular_input_mode == :record)
 
           errors.add(:tabular_input_header, "is required when tabular_input_format is #{tabular_input_format.inspect}")
         end

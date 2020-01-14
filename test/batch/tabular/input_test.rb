@@ -62,9 +62,9 @@ module Batch
             assert_equal expected_output, output.lines.collect(&:chomp)
           end
 
-          describe 'tabular_input_mode: :row' do
+          describe 'tabular_input_mode: :array' do
             let :job do
-              SimpleInputJob.new(tabular_input_mode: :row)
+              SimpleInputJob.new(tabular_input_mode: :array)
             end
 
             it 'parses the header' do
@@ -76,9 +76,9 @@ module Batch
             end
           end
 
-          describe 'tabular_input_mode: :record' do
+          describe 'tabular_input_mode: :hash' do
             let :job do
-              SimpleInputJob.new(tabular_input_mode: :record)
+              SimpleInputJob.new(tabular_input_mode: :hash)
             end
 
             it 'does not set the tabular_input_header' do

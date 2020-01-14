@@ -10,10 +10,11 @@ module RocketJob
     include SemanticLogger::Loggable
     attr_accessor :environment, :pidfile, :directory, :quiet,
                   :log_level, :log_file, :mongo_config, :symmetric_encryption_config,
-                  :max_workers, :include_filter, :exclude_filter, :where_filter,
-                  :stop_server, :kill_server, :pause_server, :resume_server, :dump_server, :list_servers, :refresh
+                  :max_workers, :include_filter, :exclude_filter, :where_filter, :server,
+                  :stop_server, :kill_server, :pause_server, :resume_server, :thread_dump, :list_servers, :refresh
 
     def initialize(argv)
+      @server                      = true
       @quiet                       = false
       @environment                 = nil
       @pidfile                     = nil
@@ -28,7 +29,7 @@ module RocketJob
       @kill_server                 = nil
       @pause_server                = nil
       @resume_server               = nil
-      @dump_server                 = nil
+      @thread_dump                 = nil
       @list_servers                = nil
       parse(argv)
     end
@@ -36,7 +37,7 @@ module RocketJob
     # Run a RocketJob::Server from the command line
     def run
       Thread.current.name = 'rocketjob main'
-      RocketJob.server!
+      RocketJob.server! if server
       setup_environment
       setup_logger
       rails? ? boot_rails : boot_standalone
@@ -50,7 +51,7 @@ module RocketJob
       return perform_server_action(kill_server, :kill) if kill_server
       return perform_server_action(pause_server, :pause) if pause_server
       return perform_server_action(resume_server, :resume) if resume_server
-      return perform_server_action(dump_server, :thread_dump) if dump_server
+      return perform_server_action(thread_dump, :thread_dump) if thread_dump
       return perform_list_servers(list_servers) if list_servers
 
       Supervisor.run
@@ -181,9 +182,9 @@ module RocketJob
     end
 
     def list_the_servers(filter)
-      format = "%40.40s %20.20s %20.20s %20.20s %10.10s"
+      format = "%50.50s %20.20s %20.20s %20.20s %10.10s"
       puts format % %w[Server\ Name Workers(Current/Max) Started Heartbeat State]
-      header = "=" * 40
+      header = "=" * 50
       puts format % [header, header, header, header, header]
       query = filter == :all ? RocketJob::Server.all : RocketJob::Server.where(name: /#{filter}/)
       query.each do |server|
@@ -223,11 +224,11 @@ module RocketJob
       if pid
         server = RocketJob::Server.where(name: server_name).first
         raise(ArgumentError, "No server with exact name: #{server_name} was found.") unless server
-        [server.id]
+        return [server.id]
       end
 
       server_ids = RocketJob::Server.where(name: /#{hostname}/).collect(&:id)
-      raise(ArgumentError, "No server with name: #{server_name} was found.") if server_ids.empty?
+      raise(ArgumentError, "No server with partial name: #{server_name} was found.") if server_ids.empty?
 
       server_ids
     end
@@ -280,30 +281,36 @@ module RocketJob
         end
         o.on('--list [FILTER]', "List active servers. Supply either an exact server name or a partial name as a filter.") do |filter|
           @quiet        = true
+          @server       = false
           @list_servers = filter || :all
         end
         o.on('--refresh [SECONDS]', "When listing active servers, update the list by this number of seconds. Defaults to every 1 second.") do |seconds|
           @refresh = (seconds || 1).to_s.to_f
         end
-        o.on('--stop [SERVER_NAME]', "Send event to stop a server once all in-process workers have completed. Optionally supply the complete or partial name of the server(s) to stop.") do |server_name|
+        o.on('--stop [SERVER_NAME]', "Send event to stop a server once all in-process workers have completed. Optionally supply the complete or partial name of the server(s) to stop. Default: All servers.") do |server_name|
           @quiet       = true
+          @server      = false
           @stop_server = server_name || :all
         end
-        o.on('--kill [SERVER_NAME]', "Send event to hard kill a server. Optionally supply the complete or partial name of the server(s) to kill.") do |server_name|
+        o.on('--kill [SERVER_NAME]', "Send event to hard kill a server. Optionally supply the complete or partial name of the server(s) to kill. Default: All servers.") do |server_name|
           @quiet       = true
+          @server      = false
           @kill_server = server_name || :all
         end
-        o.on('--pause [SERVER_NAME]', "Send event to pause a server. Optionally supply the complete or partial name of the server(s) to pause.") do |server_name|
+        o.on('--pause [SERVER_NAME]', "Send event to pause a server. Optionally supply the complete or partial name of the server(s) to pause. Default: All servers.") do |server_name|
           @quiet        = true
+          @server       = false
           @pause_server = server_name || :all
         end
-        o.on('--resume [SERVER_NAME]', "Send event to resume a server. Optionally supply the complete or partial name of the server(s) to resume.") do |server_name|
+        o.on('--resume [SERVER_NAME]', "Send event to resume a server. Optionally supply the complete or partial name of the server(s) to resume. Default: All servers.") do |server_name|
           @quiet         = true
+          @server        = false
           @resume_server = server_name || :all
         end
-        o.on('--dump [SERVER_NAME]', "Send event for a thread dump to its log file for a server.Optionally supply the complete or partial name of the server(s).") do |server_name|
+        o.on('--dump [SERVER_NAME]', "Send event for a server to send a worker thread dump to its log file. Optionally supply the complete or partial name of the server(s). Default: All servers.") do |server_name|
           @quiet       = true
-          @dump_server = server_name || :all
+          @server      = false
+          @thread_dump = server_name || :all
         end
         o.on('-v', '--version', 'Print the version information') do
           puts "Rocket Job v#{RocketJob::VERSION}"
