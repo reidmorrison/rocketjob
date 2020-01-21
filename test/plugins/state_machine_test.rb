@@ -21,18 +21,13 @@ module Plugins
     end
 
     describe RocketJob::Plugins::StateMachine do
-      before do
-        @doc = Test.new
-      end
-
-      after do
-        @doc.destroy if @doc && !@doc.new_record?
-      end
+      before { Test.delete_all }
+      let(:job) { Test.new }
 
       describe '#create!' do
         it 'raises an exception when a validation fails on create!' do
           assert_raises ::Mongoid::Errors::Validations do
-            @doc = Test.create!
+            Test.create!
           end
         end
       end
@@ -40,7 +35,7 @@ module Plugins
       describe '#save!' do
         it 'raises an exception when a validation fails on save' do
           assert_raises ::Mongoid::Errors::Validations do
-            @doc.save!
+            job.save!
           end
         end
       end
@@ -48,17 +43,17 @@ module Plugins
       describe '#transition!' do
         it 'raises an exception when a validation fails on state transition with save' do
           assert_raises ::Mongoid::Errors::Validations do
-            @doc.enable!
+            job.enable!
           end
-          assert @doc.pending?
-          refute @doc.valid?
+          assert job.pending?
+          refute job.valid?
         end
       end
 
       describe '#transition' do
         it 'does not raise an exception when a validation fails on state transition without save' do
-          @doc.enable
-          assert @doc.enabled?
+          job.enable
+          assert job.enabled?
         end
       end
     end
