@@ -64,13 +64,13 @@ module RocketJob
       end
 
       def source_path
-        source = IOStreams.path(source_url, **decrypt_args(source_args))
+        source = IOStreams.path(source_url, **decode_args(source_args))
         apply_streams(source, source_streams)
         source
       end
 
       def target_path
-        target = IOStreams.path(target_url, **decrypt_args(target_args))
+        target = IOStreams.path(target_url, **decode_args(target_args))
         apply_streams(target, target_streams)
         target
       end
@@ -78,26 +78,29 @@ module RocketJob
       private
 
       def set_description
-        self.description = "Copying to #{target_url}"
+        self.description ||= "Copying to #{target_url}"
       end
 
       def apply_streams(path, streams)
-        streams.each_pair { |stream, args| path.stream(stream.to_sym, args.nil? ? {} : decrypt_args(args)) }
+        streams.each_pair { |stream, args| path.stream(stream.to_sym, args.nil? ? {} : decode_args(args)) }
       end
 
-      def decrypt_args(args)
+      def decode_args(args)
         return args.symbolize_keys unless defined?(SymmetricEncryption)
 
-        decrypted_args = {}
+        decoded_args = {}
         args.each_pair do |key, value|
-          if key.to_s.start_with?("encrypted_")
-            unencrypted_key                        = key.to_s.sub("encrypted_", "")
-            decrypted_args[unencrypted_key.to_sym] = SymmetricEncryption.decrypt(value)
+          if key.to_s.start_with?("encrypted_") && defined?(SymmetricEncryption)
+            original_key               = key.to_s.sub("encrypted_", "").to_sym
+            decoded_args[original_key] = SymmetricEncryption.decrypt(value)
+          elsif key.to_s.start_with?("secret_config_") && defined?(SecretConfig)
+            original_key               = key.to_s.sub("secret_config_", "").to_sym
+            decoded_args[original_key] = SecretConfig.fetch(value)
           else
-            decrypted_args[key.to_sym] = value
+            decoded_args[key.to_sym] = value
           end
         end
-        decrypted_args
+        decoded_args
       end
     end
   end
