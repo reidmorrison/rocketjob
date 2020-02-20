@@ -23,7 +23,7 @@ module RocketJob
 
         puts "Loading job with #{count} records/lines"
         args = {log_level: :warn, slice_size: slice_size}
-        if defined?(::RocketJob::Enterprise)
+        if defined?(::RocketJob)
           args[:compress] = compress
           args[:encrypt]  = encrypt
         end

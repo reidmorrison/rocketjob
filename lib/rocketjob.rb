@@ -1,5 +1,6 @@
 require 'iostreams'
 require 'semantic_logger'
+require 'symmetric-encryption'
 require 'mongoid'
 require 'rocket_job/extensions/mongo/logging'
 require 'rocket_job/version'
@@ -70,11 +71,14 @@ module RocketJob
     autoload :OnDemandJob,      'rocket_job/jobs/on_demand_job'
     autoload :HousekeepingJob,  'rocket_job/jobs/housekeeping_job'
     autoload :PerformanceJob,   'rocket_job/jobs/performance_job'
+    autoload :RelationalJob,    'rocket_job/jobs/re_encrypt/relational_job'
     autoload :SimpleJob,        'rocket_job/jobs/simple_job'
     autoload :UploadFileJob,    'rocket_job/jobs/upload_file_job'
   end
 
   module Sliced
+    autoload :CompressedSlice,  'rocket_job/sliced/compressed_slice'
+    autoload :EncryptedSlice,   'rocket_job/sliced/encrypted_slice'
     autoload :Input,            'rocket_job/sliced/input'
     autoload :Output,           'rocket_job/sliced/output'
     autoload :Slice,            'rocket_job/sliced/slice'

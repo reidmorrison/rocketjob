@@ -19,4 +19,5 @@ Gem::Specification.new do |s|
   s.add_dependency 'iostreams', '~> 1.0'
   s.add_dependency 'mongoid', '>= 5.4'
   s.add_dependency 'semantic_logger', '~> 4.1'
+  s.add_dependency 'symmetric-encryption', '>= 4.0'
 end

@@ -80,9 +80,6 @@ module RocketJob
       logger.debug "Reading Mongo configuration from: #{config_file}"
       ::Mongoid.load!(config_file, environment)
 
-      # Load Encryption configuration file if present
-      return unless defined?(SymmetricEncryption)
-
       config_file =
         if encryption_file_name
           Pathname.new(encryption_file_name)

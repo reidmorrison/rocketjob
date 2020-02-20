@@ -41,6 +41,16 @@ module RocketJob
         # May or may not include the fully qualified path name.
         field :upload_file_name, type: String
 
+        # Compress uploaded records.
+        # The fields are not affected in any way, only the data stored in the
+        # records and results collections will compressed
+        field :compress, type: Boolean, default: false, class_attribute: true
+
+        # Encrypt uploaded records.
+        # The fields are not affected in any way, only the data stored in the
+        # records and results collections will be encrypted
+        field :encrypt, type: Boolean, default: false, class_attribute: true
+
         #
         # Values that jobs can also update during processing
         #
@@ -71,6 +81,16 @@ module RocketJob
             record.errors.add(attr, 'must only consist of lowercase characters, digits, and _') unless category.to_s =~ /\A[a-z_0-9]+\Z/
           end
         end
+      end
+
+      # Returns [true|false] whether the slices for this job are encrypted
+      def encrypted?
+        encrypt == true
+      end
+
+      # Returns [true|false] whether the slices for this job are compressed
+      def compressed?
+        compress == true
       end
 
       # Returns [Integer] percent of records completed so far

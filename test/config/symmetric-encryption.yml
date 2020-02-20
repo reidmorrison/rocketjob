@@ -1,0 +1,8 @@
+---
+development: &development_defaults
+  key:    1234567890ABCDEF
+  iv:     1234567890ABCDEF
+  cipher: aes-128-cbc
+
+test:
+  <<: *development_defaults

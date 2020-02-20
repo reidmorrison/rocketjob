@@ -11,7 +11,7 @@ require 'rocketjob'
 SemanticLogger.add_appender(file_name: 'test.log', formatter: :color)
 SemanticLogger.default_level = :info
 
-RocketJob::Config.load!('test', 'test/config/mongoid.yml')
+RocketJob::Config.load!('test', 'test/config/mongoid.yml', 'test/config/symmetric-encryption.yml')
 Mongoid.logger       = SemanticLogger[Mongoid]
 Mongo::Logger.logger = SemanticLogger[Mongo]
 
