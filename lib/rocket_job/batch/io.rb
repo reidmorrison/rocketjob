@@ -16,10 +16,7 @@ module RocketJob
       def input(category = :main)
         raise "Category #{category.inspect}, must be registered in input_categories: #{input_categories.inspect}" unless input_categories.include?(category) || (category == :main)
 
-        collection_name = "rocket_job.inputs.#{id}"
-        collection_name << ".#{category}" unless category == :main
-
-        (@inputs ||= {})[category] ||= RocketJob::Sliced::Input.new(collection_name: collection_name, slice_size: slice_size)
+        (@inputs ||= {})[category] ||= RocketJob::Sliced::Input.new(rocket_job_io_slice_arguments("inputs", category))
       end
 
       # Returns [RocketJob::Sliced::Output] output collection for holding output slices
@@ -33,10 +30,7 @@ module RocketJob
       def output(category = :main)
         raise "Category #{category.inspect}, must be registered in output_categories: #{output_categories.inspect}" unless output_categories.include?(category) || (category == :main)
 
-        collection_name = "rocket_job.outputs.#{id}"
-        collection_name << ".#{category}" unless category == :main
-
-        (@outputs ||= {})[category] ||= RocketJob::Sliced::Output.new(collection_name: collection_name, slice_size: slice_size)
+        (@outputs ||= {})[category] ||= RocketJob::Sliced::Output.new(rocket_job_io_slice_arguments("outputs", category))
       end
 
       # Upload the supplied file, io, IOStreams::Path, or IOStreams::Stream.
@@ -394,6 +388,22 @@ module RocketJob
           RocketJob::Sliced::Writer::Output.collect(self, input_slice) { |writer| writer << result }
         end
       end
+
+      private
+
+      def rocket_job_io_slice_arguments(collection_type, category)
+        collection_name = "rocket_job.#{collection_type}.#{id}"
+        collection_name << ".#{category}" unless category == :main
+
+        args = {collection_name: collection_name, slice_size: slice_size}
+        if encrypt
+          args[:slice_class] = Sliced::EncryptedSlice
+        elsif compress
+          args[:slice_class] = Sliced::CompressedSlice
+        end
+        args
+      end
+
     end
   end
 end

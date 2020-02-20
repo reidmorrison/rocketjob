@@ -68,8 +68,10 @@ module RocketJob
 
       args = (method(action).arity == 0) || parameters.nil? ? nil : parameters.symbolize_keys
       args ? public_send(action, **args) : public_send(action)
+    rescue ArgumentError => exc
+      logger.error("##{action}: Invalid Arguments. Resuming..", exc)
     rescue StandardError => exc
-      logger.error('Exception calling subscriber. Resuming..', exc)
+      logger.error("##{action}: Exception caught. Resuming..", exc)
     end
 
     def process_event(name, action, parameters)
