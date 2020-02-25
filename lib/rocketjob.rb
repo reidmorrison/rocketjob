@@ -72,9 +72,11 @@ module RocketJob
     autoload :OnDemandJob,             'rocket_job/jobs/on_demand_job'
     autoload :HousekeepingJob,         'rocket_job/jobs/housekeeping_job'
     autoload :PerformanceJob,          'rocket_job/jobs/performance_job'
-    autoload :RelationalJob,           'rocket_job/jobs/re_encrypt/relational_job'
     autoload :SimpleJob,               'rocket_job/jobs/simple_job'
     autoload :UploadFileJob,           'rocket_job/jobs/upload_file_job'
+    module ReEncrypt
+      autoload :RelationalJob,         'rocket_job/jobs/re_encrypt/relational_job'
+    end
   end
 
   module Sliced

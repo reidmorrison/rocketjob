@@ -105,11 +105,6 @@ module RocketJob
       end
 
       require 'rocketjob'
-      begin
-        require 'rocketjob_enterprise'
-      rescue LoadError
-        nil
-      end
 
       # Log to file except when booting rails, when it will add the log file path
       path = log_file ? Pathname.new(log_file) : Pathname.pwd.join("log/#{environment}.log")
