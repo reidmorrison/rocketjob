@@ -30,7 +30,7 @@ module RocketJob
         #   Internal use only. Do not set this field directly
         field :state, type: Symbol, default: :starting
 
-        index({name: 1}, background: true, unique: true, drop_dups: true)
+        index({name: 1}, background: true, unique: true)
 
         validates_presence_of :state, :name, :max_workers
 

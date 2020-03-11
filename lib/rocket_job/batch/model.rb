@@ -145,7 +145,7 @@ module RocketJob
 
         case sub_state
         when :before, :after
-          worker_name
+          [worker_name]
         when :processing
           input.running.collect { |slice| slice.worker_name }
         else

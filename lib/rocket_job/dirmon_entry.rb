@@ -73,7 +73,7 @@ module RocketJob
     field :state, type: Symbol, default: :pending
 
     # Unique index on pattern to help prevent two entries from scanning the same files
-    index({pattern: 1}, background: true, unique: true, drop_dups: true)
+    index({pattern: 1}, background: true, unique: true)
 
     before_validation :strip_whitespace
     validates_presence_of :pattern, :job_class_name, :archive_directory
