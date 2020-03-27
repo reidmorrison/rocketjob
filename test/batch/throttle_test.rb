@@ -18,20 +18,25 @@ module Batch
     describe RocketJob::Batch::Throttle do
       before do
         skip("Throttle tests fail intermittently on Travis CI") if ENV["TRAVIS"]
-        RocketJob::Job.delete_all
-
-        @job = ThrottleJob.new
-        @job.upload do |stream|
-          stream << 'first'
-          stream << 'second'
-        end
-        @job.save!
-        assert_equal 2, @job.input.count
+        RocketJob::Job.destroy_all
       end
 
       after do
-        @job.destroy if @job && !@job.new_record?
+        RocketJob::Job.destroy_all
       end
+
+      let(:job) do
+        job = ThrottleJob.new
+        job.upload do |stream|
+          stream << 'first'
+          stream << 'second'
+        end
+        job.save!
+        assert_equal 2, job.input.count
+        job
+      end
+
+      let(:worker) { RocketJob::Worker.new(inline: true) }
 
       describe '.batch_throttle?' do
         it 'defines the running slices throttle' do
@@ -52,73 +57,71 @@ module Batch
 
       describe '#throttle_running_slices_exceeded?' do
         it 'does not exceed throttle when no other slices are running' do
-          slice = @job.input.first
-          refute @job.send(:throttle_running_slices_exceeded?, slice)
+          slice = job.input.first
+          refute job.send(:throttle_running_slices_exceeded?, slice)
         end
 
         it 'exceeds throttle when other slices are running' do
-          @job.input.first.start!
-          slice = @job.input.last
-          assert @job.send(:throttle_running_slices_exceeded?, slice)
+          job.input.first.start!
+          slice = job.input.last
+          assert job.send(:throttle_running_slices_exceeded?, slice)
         end
 
         it 'does not exceed throttle when other slices are failed' do
-          @job.input.first.fail!
-          slice = @job.input.last
-          refute @job.send(:throttle_running_slices_exceeded?, slice)
+          job.input.first.fail!
+          slice = job.input.last
+          refute job.send(:throttle_running_slices_exceeded?, slice)
         end
       end
 
-      describe '.rocket_job_work' do
+      describe '#rocket_job_work' do
         before do
-          @worker = RocketJob::Worker.new
-          @job.start!
+          job.start!
         end
 
         it 'process all slices when all are queued' do
-          skip "TODO: Intermittent test failure"
-          refute @job.rocket_job_work(@worker, true)
-          assert @job.completed?, -> { @job.ai }
+          #skip "TODO: Intermittent test failure"
+          refute job.rocket_job_work(worker, true)
+          assert job.completed?, -> { job.ai }
         end
 
         it 'return true when other slices are running' do
-          @job.input.first.start!
-          assert @job.rocket_job_work(@worker, true)
-          assert @job.reload.running?
-          assert_equal 2, @job.input.count
+          job.input.first.start!
+          assert job.rocket_job_work(worker, true)
+          assert job.running?
+          assert_equal 2, job.input.count
         end
 
         it 'process non failed slices' do
-          skip "TODO: Intermittent test failure"
-          @job.input.first.fail!
-          refute @job.rocket_job_work(@worker, true)
-          assert @job.reload.failed?
-          assert_equal 1, @job.input.count
+          #skip "TODO: Intermittent test failure"
+          job.input.first.fail!
+          refute job.rocket_job_work(worker, true)
+          assert job.failed?
+          assert_equal 1, job.input.count
         end
 
         it 'update filter when other slices are running' do
-          skip "TODO: Intermittent test failure"
-          @job.input.first.start!
-          filter = {}
-          assert @job.rocket_job_work(@worker, true, filter)
-          assert @job.reload.running?
-          assert_equal 2, @job.input.count
-          assert_equal 1, filter.size
+          #skip "TODO: Intermittent test failure"
+          job.input.first.start!
+          assert job.rocket_job_work(worker, true)
+          assert job.running?
+          assert_equal 2, job.input.count
+          assert_equal({:id.nin => [job.id]}, worker.current_filter)
         end
 
         it 'returns slice when other slices are running for later processing' do
-          @job.input.first.start!
-          assert @job.rocket_job_work(@worker, true)
-          assert @job.reload.running?
-          assert_equal 1, @job.input.running.count
-          assert_equal 1, @job.input.queued.count
+          job.input.first.start!
+          assert job.rocket_job_work(worker, true)
+          assert job.running?
+          assert_equal 1, job.input.running.count
+          assert_equal 1, job.input.queued.count
 
-          @job.input.first.destroy
-          assert_equal 1, @job.input.count
-          assert_equal 1, @job.input.queued.count
-          refute @job.rocket_job_work(@worker, true)
-          assert_equal 0, @job.input.count, -> { @job.input.first.attributes.ai }
-          assert @job.reload.completed?, -> { @job.ai }
+          job.input.first.destroy
+          assert_equal 1, job.input.count
+          assert_equal 1, job.input.queued.count
+          refute job.rocket_job_work(worker, true)
+          assert_equal 0, job.input.count, -> { job.input.first.attributes.ai }
+          assert job.completed?, -> { job.ai }
         end
       end
     end

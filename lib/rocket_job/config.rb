@@ -104,7 +104,7 @@ module RocketJob
       filter                   = where_filter
       (filter ||= {})['_type'] = include_filter if include_filter
       (filter ||= {})['_type'] = {'$not' => exclude_filter} if exclude_filter
-      filter
+      filter&.dup
     end
   end
 end

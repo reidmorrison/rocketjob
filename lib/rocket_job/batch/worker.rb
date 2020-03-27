@@ -33,8 +33,9 @@ module RocketJob
       # Mongo connection failure occurs.
       #
       # Thread-safe, can be called by multiple threads at the same time
-      def rocket_job_work(worker, re_raise_exceptions = false, filter = {})
+      def rocket_job_work(worker, re_raise_exceptions = false)
         raise 'Job must be started before calling #rocket_job_work' unless running?
+
         start_time = Time.now
         if sub_state != :processing
           rocket_job_handle_callbacks(worker, re_raise_exceptions)
@@ -44,12 +45,7 @@ module RocketJob
         while !worker.shutdown?
           if slice = input.next_slice(worker.name)
             # Grab a slice before checking the throttle to reduce concurrency race condition.
-            if new_filter = rocket_job_batch_evaluate_throttles(slice)
-              # Restore retrieved slice so that other workers can process it later.
-              slice.set(worker_name: nil, state: :queued, started_at: nil)
-              self.class.send(:rocket_job_merge_filter, filter, new_filter)
-              return true
-            end
+            return true if rocket_job_apply_throttles(slice, worker)
 
             SemanticLogger.named_tagged(slice: slice.id.to_s) do
               rocket_job_process_slice(slice, re_raise_exceptions)
@@ -57,7 +53,7 @@ module RocketJob
           else
             break if record_count && rocket_job_batch_complete?(worker.name)
             logger.debug 'No more work available for this job'
-            self.class.send(:rocket_job_merge_filter, filter, throttle_filter_id)
+            worker.add_to_current_filter(throttle_filter_id)
             return true
           end
 
@@ -65,6 +61,21 @@ module RocketJob
           break if (Time.now - start_time) >= Config.re_check_seconds
         end
         false
+      end
+
+      def rocket_job_apply_throttles(slice, worker)
+        filter = rocket_job_batch_evaluate_throttles(slice)
+        return false unless filter
+
+        # Restore retrieved slice so that other workers can process it later.
+        slice.set(worker_name: nil, state: :queued, started_at: nil)
+        worker.add_to_current_filter(filter)
+        true
+      rescue StandardError => e
+        # If an error occurs while trying to evaluate any of the throttles
+        # restore retrieved slice so that other workers can try it.
+        slice.set(worker_name: nil, state: :queued, started_at: nil)
+        raise e
       end
 
       # Prior to a job being made available for processing it can be processed one
@@ -126,7 +137,7 @@ module RocketJob
         slice_record_number       = 0
         @rocket_job_record_number = slice.first_record_number || 0
         @rocket_job_slice         = slice
-        run_callbacks :slice do
+        run_callbacks(:slice) do
           RocketJob::Sliced::Writer::Output.collect(self, slice) do |writer|
             slice.each do |record|
               slice_record_number += 1
@@ -156,7 +167,7 @@ module RocketJob
         end
 
         # On successful completion remove the slice from the input queue
-        # TODO Option to complete slice instead of destroying it to retain input data
+        # TODO: Add option to complete slice instead of destroying it to retain input data.
         slice.destroy
         slice_record_number
       rescue Exception => exc
@@ -271,7 +282,7 @@ module RocketJob
 
       # Handle before and after callbacks
       def rocket_job_handle_callbacks(worker, re_raise_exceptions)
-        rocket_job_fail_on_exception!(worker.name, re_raise_exceptions) do
+        fail_on_exception!(worker.name, re_raise_exceptions) do
           # If this is the first worker to pickup this job
           if sub_state == :before
             rocket_job_batch_run_before_callbacks

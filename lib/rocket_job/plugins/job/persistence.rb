@@ -13,34 +13,6 @@ module RocketJob
         end
 
         module ClassMethods
-          # Retrieves the next job to work on in priority based order
-          # and assigns it to this worker
-          #
-          # Returns nil if no jobs are available for processing
-          #
-          # Parameters
-          #   worker_name: [String]
-          #     Name of the worker that will be processing this job
-          #
-          #   filter: [Hash]
-          #     Filter to apply to the query.
-          #     For example: to exclude jobs from being returned.
-          #
-          # Example:
-          #   # Skip any job ids from the job_ids_list
-          #   filter = {:id.nin => job_ids_list}
-          #   job    = RocketJob::Job.rocket_job_retrieve('host:pid:worker', filter)
-          def rocket_job_retrieve(worker_name, filter)
-            SemanticLogger.silence(:info) do
-              scheduled = {'$or' => [{run_at: nil}, {:run_at.lte => Time.now}]}
-              working   = {'$or' => [{state: :queued}, {state: :running, sub_state: :processing}]}
-              query     = self.and(working, scheduled)
-              query     = query.where(filter) unless filter.blank?
-              update    = {'$set' => {'worker_name' => worker_name, 'state' => 'running'}}
-              query.sort(priority: 1, _id: 1).find_one_and_update(update, bypass_document_validation: true)
-            end
-          end
-
           # Returns [Hash<String:Integer>] of the number of jobs in each state
           # Queued jobs are separated into :queued_now and :scheduled
           #   :queued_now are jobs that are awaiting processing and can be processed now.

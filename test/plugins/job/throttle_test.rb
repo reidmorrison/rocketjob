@@ -18,6 +18,10 @@ module Plugins
           RocketJob::Job.delete_all
         end
 
+        after do
+          RocketJob::Job.delete_all
+        end
+
         describe '.throttle?' do
           it 'defines the running jobs throttle' do
             assert ThrottleJob.throttle?(:throttle_running_jobs_exceeded?), ThrottleJob.rocket_job_throttles
@@ -63,45 +67,6 @@ module Plugins
             job1.fail!
             job2 = ThrottleJob.new
             refute job2.send(:throttle_running_jobs_exceeded?)
-          end
-        end
-
-        describe '.rocket_job_next_job' do
-          before do
-            @worker_name = 'worker:123'
-          end
-
-          after do
-            @job.destroy if @job && !@job.new_record?
-          end
-
-          it 'return nil when no jobs available' do
-            assert_nil RocketJob::Job.rocket_job_next_job(@worker_name)
-          end
-
-          it 'return the job when others are queued, paused, failed, or complete' do
-            @job = ThrottleJob.create!
-            ThrottleJob.create!(state: :failed)
-            ThrottleJob.create!(state: :complete)
-            ThrottleJob.create!(state: :paused)
-            assert job = RocketJob::Job.rocket_job_next_job(@worker_name), -> { ThrottleJob.all.to_a.ai }
-            assert_equal @job.id, job.id, -> { ThrottleJob.all.to_a.ai }
-          end
-
-          it 'return nil when other jobs are running' do
-            ThrottleJob.create!
-            @job = ThrottleJob.new
-            @job.start!
-            assert_nil RocketJob::Job.rocket_job_next_job(@worker_name), -> { ThrottleJob.all.to_a.ai }
-          end
-
-          it 'add job to filter when other jobs are running' do
-            ThrottleJob.create!
-            @job = ThrottleJob.new
-            @job.start!
-            filter = {}
-            assert_nil RocketJob::Job.rocket_job_next_job(@worker_name, filter), -> { ThrottleJob.all.to_a.ai }
-            assert_equal 1, filter.size
           end
         end
       end

@@ -23,41 +23,6 @@ module RocketJob
             job
           end
 
-          # Returns the next job to work on in priority based order
-          # Returns nil if there are currently no queued jobs, or processing batch jobs
-          #   with records that require processing
-          #
-          # Parameters
-          #   worker_name [String]
-          #     Name of the worker that will be processing this job
-          #
-          #   skip_job_ids [Array<BSON::ObjectId>]
-          #     Job ids to exclude when looking for the next job
-          #
-          # Note:
-          #   If a job is in queued state it will be started
-          def rocket_job_next_job(worker_name, filter = {})
-            while (job = rocket_job_retrieve(worker_name, filter))
-              # Batch Job?
-              return job if job.running?
-
-              if job.expired?
-                job.rocket_job_fail_on_exception!(worker_name) { job.destroy }
-                logger.info "Destroyed expired job #{job.class.name}, id:#{job.id}"
-              elsif (new_filter = job.send(:rocket_job_evaluate_throttles))
-                rocket_job_merge_filter(filter, new_filter)
-                # Restore retrieved job so that other workers can process it later
-                job.set(worker_name: nil, state: :queued)
-              else
-                job.worker_name = worker_name
-                job.rocket_job_fail_on_exception!(worker_name) do
-                  job.start!
-                end
-                return job if job.running?
-              end
-            end
-          end
-
           # Requeues all jobs that were running on a server that died
           def requeue_dead_server(server_name)
             # Need to requeue paused, failed since user may have transitioned job before it finished
@@ -66,20 +31,6 @@ module RocketJob
                 job.requeue!(server_name) if job.may_requeue?(server_name)
               end
             end
-          end
-
-          private
-
-          def rocket_job_merge_filter(target, source)
-            source.each_pair do |k, v|
-              target[k] =
-                if (previous = target[k])
-                  v.is_a?(Array) ? previous + v : v
-                else
-                  v
-                end
-            end
-            target
           end
         end
 
@@ -118,19 +69,21 @@ module RocketJob
         # re_raise_exceptions: [true|false]
         #   Re-raise the exception after updating the job
         #   Default: false
-        def rocket_job_fail_on_exception!(worker_name, re_raise_exceptions = false)
-          yield
+        def fail_on_exception!(worker_name, re_raise_exceptions = false, &block)
+          SemanticLogger.named_tagged(job: id.to_s, &block)
         rescue Exception => exc
-          if failed? || !may_fail?
-            self.exception        = JobException.from_exception(exc)
-            exception.worker_name = worker_name
-            save! unless new_record? || destroyed?
-          elsif new_record? || destroyed?
-            fail(worker_name, exc)
-          else
-            fail!(worker_name, exc)
+          SemanticLogger.named_tagged(job: id.to_s) do
+            if failed? || !may_fail?
+              self.exception        = JobException.from_exception(exc)
+              exception.worker_name = worker_name
+              save! unless new_record? || destroyed?
+            elsif new_record? || destroyed?
+              fail(worker_name, exc)
+            else
+              fail!(worker_name, exc)
+            end
+            raise exc if re_raise_exceptions
           end
-          raise exc if re_raise_exceptions
         end
 
         # Works on this job
@@ -143,7 +96,8 @@ module RocketJob
         # Thread-safe, can be called by multiple threads at the same time
         def rocket_job_work(worker, re_raise_exceptions = false, _filter = nil)
           raise(ArgumentError, 'Job must be started before calling #rocket_job_work') unless running?
-          rocket_job_fail_on_exception!(worker.name, re_raise_exceptions) do
+
+          fail_on_exception!(worker.name, re_raise_exceptions) do
             if _perform_callbacks.empty?
               @rocket_job_output = perform
             else

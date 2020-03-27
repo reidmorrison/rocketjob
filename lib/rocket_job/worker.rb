@@ -12,7 +12,7 @@ module RocketJob
     define_callbacks :running
 
     attr_accessor :id, :current_filter
-    attr_reader :thread, :name, :inline
+    attr_reader :thread, :name, :inline, :server_name
 
     # Raised when a worker is killed so that it shutdown immediately, yet cleanly.
     #
@@ -76,8 +76,6 @@ module RocketJob
       @shutdown.wait(timeout)
     end
 
-    private
-
     # Process jobs until it shuts down
     #
     # Params
@@ -87,12 +85,8 @@ module RocketJob
       Thread.current.name = format('rocketjob %03i', id)
       logger.info 'Started'
       until shutdown?
-        wait = Config.max_poll_seconds
-        if process_available_jobs
-          # Keeps workers staggered across the poll interval so that
-          # all workers don't poll at the same time
-          wait = rand(wait * 1000) / 1000
-        end
+        # Keeps workers staggered across the poll interval so that all workers don't poll at the same time
+        wait = process_available_jobs ? random_wait_interval : Config.max_poll_seconds
         break if wait_for_shutdown?(wait)
       end
       logger.info 'Stopping'
@@ -108,15 +102,13 @@ module RocketJob
       processed = false
       until shutdown?
         reset_filter_if_expired
-        job = Job.rocket_job_next_job(name, current_filter)
+        job = next_available_job
         break unless job
 
-        SemanticLogger.named_tagged(job: job.id.to_s) do
-          processed = true unless job.rocket_job_work(self, false, current_filter)
+        processed = true unless job.rocket_job_work(self, false)
 
-          # Return the database connections for this thread back to the connection pool
-          ActiveRecord::Base.clear_active_connections! if defined?(ActiveRecord::Base)
-        end
+        # Return the database connections for this thread back to the connection pool
+        ActiveRecord::Base.clear_active_connections! if defined?(ActiveRecord::Base)
       end
       processed
     end
@@ -129,6 +121,83 @@ module RocketJob
 
       @re_check_start     = time
       self.current_filter = Config.filter || {}
+    end
+
+    # Iterate over all available jobs until one is available for processing.
+    #
+    # Notes:
+    # - Destroys expired jobs
+    # - Runs job throttles and skips the job if it is throttled.
+    #   - Adding that filter to the current filter to exclude from subsequent polling.
+    def next_available_job
+      loop do
+        job = find_and_assign_job
+        break unless job
+
+        if job.expired?
+          job.fail_on_exception!(name) { job.destroy }
+          logger.info "Destroyed expired job #{job.class.name}, id:#{job.id}"
+          next
+        end
+
+        # Batch Job that is already started?
+        return job if job.running?
+
+        next if job.fail_on_exception!(name) { throttled_job?(job) }
+
+        # Start this job
+        job.worker_name = name
+        job.fail_on_exception!(name) { job.start! }
+        return job if job.running?
+      end
+    end
+
+    # Whether the supplied job has been throttled and should be ignored.
+    def throttled_job?(job)
+      # Evaluate job throttles, if any.
+      new_filter = job.send(:rocket_job_evaluate_throttles)
+      if new_filter
+        add_to_current_filter(new_filter)
+        # Restore retrieved job so that other workers can process it later
+        job.set(worker_name: nil, state: :queued)
+        return true
+      end
+      false
+    end
+
+    # Finds the next job to work on in priority based order
+    # and assigns it to this worker.
+    #
+    # Applies the current filter to exclude filtered jobs.
+    #
+    # Returns nil if no jobs are available for processing.
+    def find_and_assign_job
+      SemanticLogger.silence(:info) do
+        scheduled = {'$or' => [{run_at: nil}, {:run_at.lte => Time.now}]}
+        working   = {'$or' => [{state: :queued}, {state: :running, sub_state: :processing}]}
+        query     = RocketJob::Job.and(working, scheduled)
+        query     = query.where(current_filter) unless current_filter.blank?
+        update    = {'$set' => {'worker_name' => name, 'state' => 'running'}}
+        query.sort(priority: 1, _id: 1).find_one_and_update(update, bypass_document_validation: true)
+      end
+    end
+
+    # Add the supplied filter to the current filter.
+    def add_to_current_filter(filter)
+      filter.each_pair do |k, v|
+        current_filter[k] =
+          if (previous = current_filter[k])
+            v.is_a?(Array) ? previous + v : v
+          else
+            v
+          end
+      end
+      current_filter
+    end
+
+    # Returns [Float] a randomized poll interval in seconds up to the maximum configured poll interval.
+    def random_wait_interval
+      rand(Config.max_poll_seconds * 1000) / 1000
     end
   end
 end
