@@ -1807,7 +1807,7 @@ Limiting can be used when too many concurrent workers are:
 
 Worker limiting also allows batch jobs to be processed concurrently instead of sequentially.
 
-The `throttle_running_slices` throttle can be changed at any time, even while the job is running to
+The `throttle_running_workers` throttle can be changed at any time, even while the job is running to
 either increase or decrease the number of workers working on that job.
 
 ~~~ruby
@@ -1815,7 +1815,7 @@ class ReverseJob < RocketJob::Job
   include RocketJob::Batch
 
   # No more than 10 workers should work on this job at a time
-  self.throttle_running_slices = 10
+  self.throttle_running_workers = 10
 
   def perform(line)
     line.reverse
@@ -2242,7 +2242,7 @@ By default output is not collected, add the option `collect_output: true` to col
 Example:
 
 ~~~ruby
-job = RocketJob::Jobs::OnDemandBatchJob(description: 'Fix data', code: code, throttle_running_slices: 5, priority: 30, collect_output: true)
+job = RocketJob::Jobs::OnDemandBatchJob(description: 'Fix data', code: code, throttle_running_workers: 5, priority: 30, collect_output: true)
 ~~~
 
 Example: Move the upload operation into a before_batch.

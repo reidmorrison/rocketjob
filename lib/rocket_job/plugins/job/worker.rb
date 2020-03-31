@@ -94,7 +94,7 @@ module RocketJob
         # is set in the job itself.
         #
         # Thread-safe, can be called by multiple threads at the same time
-        def rocket_job_work(worker, re_raise_exceptions = false, _filter = nil)
+        def rocket_job_work(worker, re_raise_exceptions = false)
           raise(ArgumentError, 'Job must be started before calling #rocket_job_work') unless running?
 
           fail_on_exception!(worker.name, re_raise_exceptions) do

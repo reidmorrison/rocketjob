@@ -5,7 +5,7 @@ require 'rocket_job/batch/logger'
 require 'rocket_job/batch/model'
 require 'rocket_job/batch/state_machine'
 require 'rocket_job/batch/throttle'
-require 'rocket_job/batch/throttle_running_slices'
+require 'rocket_job/batch/throttle_running_workers'
 require 'rocket_job/batch/worker'
 
 module RocketJob
@@ -18,7 +18,7 @@ module RocketJob
     include Logger
     include Worker
     include Throttle
-    include ThrottleRunningSlices
+    include ThrottleRunningWorkers
     include IO
 
     autoload :LowerPriority, 'rocket_job/batch/lower_priority'

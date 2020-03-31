@@ -6,9 +6,9 @@ module Batch
       include RocketJob::Batch
 
       # Only allow one to be processed at a time
-      self.throttle_running_jobs   = 1
-      self.throttle_running_slices = 1
-      self.slice_size              = 1
+      self.throttle_running_jobs    = 1
+      self.throttle_running_workers = 1
+      self.slice_size               = 1
 
       def perform(record)
         record
@@ -40,37 +40,37 @@ module Batch
 
       describe '.batch_throttle?' do
         it 'defines the running slices throttle' do
-          assert ThrottleJob.batch_throttle?(:throttle_running_slices_exceeded?), ThrottleJob.rocket_job_batch_throttles
+          assert ThrottleJob.batch_throttle?(:throttle_running_workers_exceeded?), ThrottleJob.rocket_job_batch_throttles
           refute ThrottleJob.batch_throttle?(:blah?), ThrottleJob.rocket_job_batch_throttles
         end
       end
 
       describe '.undefine_batch_throttle' do
         it 'undefines the running jobs throttle' do
-          assert ThrottleJob.batch_throttle?(:throttle_running_slices_exceeded?), ThrottleJob.rocket_job_batch_throttles
-          ThrottleJob.undefine_batch_throttle(:throttle_running_slices_exceeded?)
-          refute ThrottleJob.batch_throttle?(:throttle_running_slices_exceeded?), ThrottleJob.rocket_job_batch_throttles
-          ThrottleJob.define_batch_throttle(:throttle_running_slices_exceeded?)
-          assert ThrottleJob.batch_throttle?(:throttle_running_slices_exceeded?), ThrottleJob.rocket_job_batch_throttles
+          assert ThrottleJob.batch_throttle?(:throttle_running_workers_exceeded?), ThrottleJob.rocket_job_batch_throttles
+          ThrottleJob.undefine_batch_throttle(:throttle_running_workers_exceeded?)
+          refute ThrottleJob.batch_throttle?(:throttle_running_workers_exceeded?), ThrottleJob.rocket_job_batch_throttles
+          ThrottleJob.define_batch_throttle(:throttle_running_workers_exceeded?)
+          assert ThrottleJob.batch_throttle?(:throttle_running_workers_exceeded?), ThrottleJob.rocket_job_batch_throttles
         end
       end
 
-      describe '#throttle_running_slices_exceeded?' do
+      describe '#throttle_running_workers_exceeded?' do
         it 'does not exceed throttle when no other slices are running' do
           slice = job.input.first
-          refute job.send(:throttle_running_slices_exceeded?, slice)
+          refute job.send(:throttle_running_workers_exceeded?, slice)
         end
 
         it 'exceeds throttle when other slices are running' do
           job.input.first.start!
           slice = job.input.last
-          assert job.send(:throttle_running_slices_exceeded?, slice)
+          assert job.send(:throttle_running_workers_exceeded?, slice)
         end
 
         it 'does not exceed throttle when other slices are failed' do
           job.input.first.fail!
           slice = job.input.last
-          refute job.send(:throttle_running_slices_exceeded?, slice)
+          refute job.send(:throttle_running_workers_exceeded?, slice)
         end
       end
 
@@ -106,7 +106,8 @@ module Batch
           assert job.rocket_job_work(worker, true)
           assert job.running?
           assert_equal 2, job.input.count
-          assert_equal({:id.nin => [job.id]}, worker.current_filter)
+          either_filter = [ {:id.nin => [job.id]}, {:_type.nin => [job.class.name]} ]
+          assert(either_filter.include?(worker.current_filter), -> { ThrottleJob.all.to_a.ai })
         end
 
         it 'returns slice when other slices are running for later processing' do

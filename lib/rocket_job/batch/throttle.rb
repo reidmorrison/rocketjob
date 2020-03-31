@@ -31,7 +31,7 @@ module RocketJob
 
       included do
         class_attribute :rocket_job_batch_throttles
-        self.rocket_job_batch_throttles = []
+        self.rocket_job_batch_throttles = ThrottleDefinitions.new
       end
 
       module ClassMethods
@@ -48,44 +48,19 @@ module RocketJob
         #
         # Note: Throttles are executed in the order they are defined.
         def define_batch_throttle(method_name, filter: :throttle_filter_class)
-          unless filter.is_a?(Symbol) || filter.is_a?(Proc)
-            raise(ArgumentError, "Filter for #{method_name} must be a Symbol or Proc")
-          end
-          if batch_throttle?(method_name)
-            raise(ArgumentError, "Cannot define #{method_name} twice, undefine previous throttle first")
-          end
-
-          self.rocket_job_batch_throttles += [ThrottleDefinition.new(method_name, filter)]
+          rocket_job_batch_throttles.add(method_name, filter)
         end
 
         # Undefine a previously defined throttle
         def undefine_batch_throttle(method_name)
-          rocket_job_batch_throttles.delete_if { |throttle| throttle.method_name == method_name }
+          rocket_job_batch_throttles.remove(method_name)
         end
 
         # Has a throttle been defined?
         def batch_throttle?(method_name)
-          rocket_job_batch_throttles.any? { |throttle| throttle.method_name == method_name }
+          rocket_job_batch_throttles.throttle?(method_name)
         end
       end
-
-      private
-
-      ThrottleDefinition = Struct.new(:method_name, :filter)
-
-      # Returns the matching filter, or nil if no throttles were triggered.
-      def rocket_job_batch_evaluate_throttles(slice)
-        rocket_job_batch_throttles.each do |throttle|
-          throttle_exceeded = method(throttle.method_name).arity == 0 ? send(throttle.method_name) : send(throttle.method_name, slice)
-          next unless throttle_exceeded
-
-          logger.debug { "Batch Throttle: #{throttle.method_name} has been exceeded. #{self.class.name}:#{id}" }
-          filter = throttle.filter
-          return filter.is_a?(Proc) ? filter.call(self) : send(filter)
-        end
-        nil
-      end
-
     end
   end
 end

@@ -1,10 +1,20 @@
 # See: https://docs.mongodb.com/mongoid/master/tutorials/mongoid-configuration/
+# Below are the client options we run in production where each server has 10 workers each.
 client_options: &client_options
-  max_pool_size:      50
-  min_pool_size:      10
-  connect_timeout:    5
-  socket_timeout:     300
-  wait_queue_timeout: 5
+  max_pool_size:            50
+  min_pool_size:            10
+  # Very important to read from the primary mongo node.
+  read:
+    mode:                   :primary
+  connect_timeout:          5
+  socket_timeout:           300
+  # Includes the time taken to re-establish after a replica-set refresh
+  wait_queue_timeout:       125
+  server_selection_timeout: 120
+  max_read_retries:         20
+  read_retry_interval:      3
+  max_pool_size:            50
+  min_pool_size:            1
 
 mongoid_options: &mongoid_options
   use_utc: true

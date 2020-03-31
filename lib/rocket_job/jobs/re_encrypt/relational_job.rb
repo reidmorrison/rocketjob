@@ -25,7 +25,7 @@ module RocketJob
         self.destroy_on_complete     = false
         self.compress                = true
         self.throttle_running_jobs   = 1
-        self.throttle_running_slices = 10
+        self.throttle_running_workers = 10
 
         # Name of the table being re-encrypted
         field :table_name, type: String

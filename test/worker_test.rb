@@ -192,14 +192,6 @@ class WorkerTest < Minitest::Test
     end
 
     describe '#next_available_job' do
-      #   it 'Skip expired jobs' do
-      #     count           = RocketJob::Job.count
-      #     @job.expires_at = Time.now - 100
-      #     @job.save!
-      #     assert_nil RocketJob::Job.rocket_job_next_job(@worker_name)
-      #     assert_equal count, RocketJob::Job.count
-      #   end
-      #
       it 'returns nil when no jobs available' do
         assert_nil worker.next_available_job
       end
@@ -257,11 +249,12 @@ class WorkerTest < Minitest::Test
         end
 
         it 'return the job when others are queued, paused, failed, or complete' do
+          RocketJob::Job.destroy_all
           job = ThrottledJob.create!
           ThrottledJob.create!(state: :failed)
           ThrottledJob.create!(state: :complete)
           ThrottledJob.create!(state: :paused)
-          assert found_job = worker.next_available_job
+          assert found_job = worker.next_available_job, -> { ThrottledJob.all.to_a.ai }
           assert_equal job.id, found_job.id
         end
 

@@ -33,7 +33,7 @@
 #
 # By default output is not collected, add the option `collect_output: true` to collect output.
 # Example:
-#   job = RocketJob::Jobs::OnDemandBatchJob(description: 'Fix data', code: code, throttle_running_slices: 5, priority: 30, collect_output: true)
+#   job = RocketJob::Jobs::OnDemandBatchJob(description: 'Fix data', code: code, throttle_running_workers: 5, priority: 30, collect_output: true)
 #
 # Example: Move the upload operation into a before_batch.
 #   upload_code = <<-CODE

@@ -30,7 +30,7 @@ module RocketJob
 
         included do
           class_attribute :rocket_job_throttles
-          self.rocket_job_throttles = []
+          self.rocket_job_throttles = ThrottleDefinitions.new
         end
 
         module ClassMethods
@@ -40,6 +40,7 @@ module RocketJob
           #   method_name: [Symbol]
           #     Name of method to call to evaluate whether a throttle has been exceeded.
           #     Note: Must return true or false.
+          #
           #   filter: [Symbol|Proc]
           #     Name of method to call to return the filter when the throttle has been exceeded.
           #     Or, a block that will return the filter.
@@ -47,24 +48,17 @@ module RocketJob
           #
           # Note: Throttles are executed in the order they are defined.
           def define_throttle(method_name, filter: :throttle_filter_class)
-            unless filter.is_a?(Symbol) || filter.is_a?(Proc)
-              raise(ArgumentError, "Filter for #{method_name} must be a Symbol or Proc")
-            end
-            if throttle?(method_name)
-              raise(ArgumentError, "Cannot define #{method_name} twice, undefine previous throttle first")
-            end
-
-            self.rocket_job_throttles += [ThrottleDefinition.new(method_name, filter)]
+            rocket_job_throttles.add(method_name, filter)
           end
 
           # Undefine a previously defined throttle
           def undefine_throttle(method_name)
-            rocket_job_throttles.delete_if { |throttle| throttle.method_name == method_name }
+            rocket_job_throttles.remove(method_name)
           end
 
           # Has a throttle been defined?
           def throttle?(method_name)
-            rocket_job_throttles.any? { |throttle| throttle.method_name == method_name }
+            rocket_job_throttles.throttle?(method_name)
           end
         end
 
@@ -80,22 +74,6 @@ module RocketJob
         # `RocketJob::Config.re_check_seconds` which by default is 60 seconds.
         def throttle_filter_id
           {:id.nin => [id]}
-        end
-
-        private
-
-        ThrottleDefinition = Struct.new(:method_name, :filter)
-
-        # Returns the matching filter, or nil if no throttles were triggered.
-        def rocket_job_evaluate_throttles
-          rocket_job_throttles.each do |throttle|
-            # Throttle exceeded?
-            next unless send(throttle.method_name)
-            logger.debug { "Throttle: #{throttle.method_name} has been exceeded. #{self.class.name}:#{id}" }
-            filter = throttle.filter
-            return filter.is_a?(Proc) ? filter.call(self) : send(filter)
-          end
-          nil
         end
       end
     end

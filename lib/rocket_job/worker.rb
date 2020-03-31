@@ -155,7 +155,7 @@ module RocketJob
     # Whether the supplied job has been throttled and should be ignored.
     def throttled_job?(job)
       # Evaluate job throttles, if any.
-      new_filter = job.send(:rocket_job_evaluate_throttles)
+      new_filter = job.rocket_job_throttles.matching_filter(job)
       if new_filter
         add_to_current_filter(new_filter)
         # Restore retrieved job so that other workers can process it later

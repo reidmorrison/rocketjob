@@ -34,6 +34,8 @@ module RocketJob
   autoload :Server,             'rocket_job/server'
   autoload :Subscriber,         'rocket_job/subscriber'
   autoload :Supervisor,         'rocket_job/supervisor'
+  autoload :ThrottleDefinition, 'rocket_job/throttle_definition'
+  autoload :ThrottleDefinitions,'rocket_job/throttle_definitions'
   autoload :WorkerPool,         'rocket_job/worker_pool'
 
   module Plugins

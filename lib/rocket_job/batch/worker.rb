@@ -64,7 +64,7 @@ module RocketJob
       end
 
       def rocket_job_apply_throttles(slice, worker)
-        filter = rocket_job_batch_evaluate_throttles(slice)
+        filter = self.class.rocket_job_batch_throttles.matching_filter(self, slice)
         return false unless filter
 
         # Restore retrieved slice so that other workers can process it later.
