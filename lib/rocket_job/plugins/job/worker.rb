@@ -63,13 +63,10 @@ module RocketJob
         #
         # The job is automatically saved only if an exception is raised in the supplied block.
         #
-        # worker_name: [String]
-        #   Name of the server on which the exception has occurred
-        #
         # re_raise_exceptions: [true|false]
         #   Re-raise the exception after updating the job
         #   Default: false
-        def fail_on_exception!(worker_name, re_raise_exceptions = false, &block)
+        def fail_on_exception!(re_raise_exceptions = false, &block)
           SemanticLogger.named_tagged(job: id.to_s, &block)
         rescue Exception => exc
           SemanticLogger.named_tagged(job: id.to_s) do
@@ -88,7 +85,7 @@ module RocketJob
 
         # Works on this job
         #
-        # Returns [true|false] whether this job should be excluded from the next lookup
+        # Returns [true|false] whether any work was performed.
         #
         # If an exception is thrown the job is marked as failed and the exception
         # is set in the job itself.
@@ -97,7 +94,7 @@ module RocketJob
         def rocket_job_work(worker, re_raise_exceptions = false)
           raise(ArgumentError, 'Job must be started before calling #rocket_job_work') unless running?
 
-          fail_on_exception!(worker.name, re_raise_exceptions) do
+          fail_on_exception!(re_raise_exceptions) do
             if _perform_callbacks.empty?
               @rocket_job_output = perform
             else

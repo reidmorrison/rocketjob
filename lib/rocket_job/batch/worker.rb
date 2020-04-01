@@ -16,10 +16,10 @@ module RocketJob
 
       # Processes records in each available slice for this job. Slices are processed
       # one at a time to allow for concurrent calls to this method to increase
-      # throughput. Processing will continue until there are no more jobs available
+      # throughput. Processing will continue until there are no more slices available
       # for this job.
       #
-      # Returns [true|false] whether this job should be excluded from the next lookup
+      # Returns [true|false] whether any work was performed.
       #
       # Slices are destroyed after their records are successfully processed
       #
@@ -38,44 +38,31 @@ module RocketJob
 
         start_time = Time.now
         if sub_state != :processing
-          rocket_job_handle_callbacks(worker, re_raise_exceptions)
+          fail_on_exception!(re_raise_exceptions) { rocket_job_batch_callbacks(worker) }
           return false unless running?
         end
 
-        while !worker.shutdown?
-          if slice = input.next_slice(worker.name)
-            # Grab a slice before checking the throttle to reduce concurrency race condition.
-            return true if rocket_job_apply_throttles(slice, worker)
+        SemanticLogger.named_tagged(job: id.to_s) do
+          while !worker.shutdown?
+            if slice = input.next_slice(worker.name)
+              # Grab a slice before checking the throttle to reduce concurrency race condition.
+              return true if slice.fail_on_exception!(re_raise_exceptions) { rocket_job_batch_throttled?(slice, worker) }
+              next if slice.failed?
 
-            SemanticLogger.named_tagged(slice: slice.id.to_s) do
-              rocket_job_process_slice(slice, re_raise_exceptions)
+              slice.fail_on_exception!(re_raise_exceptions) { rocket_job_process_slice(slice, re_raise_exceptions) }
+            elsif record_count && rocket_job_batch_complete?(worker.name)
+              return false
+            else
+              logger.debug 'No more work available for this job'
+              worker.add_to_current_filter(throttle_filter_id)
+              return true
             end
-          else
-            break if record_count && rocket_job_batch_complete?(worker.name)
-            logger.debug 'No more work available for this job'
-            worker.add_to_current_filter(throttle_filter_id)
-            return true
-          end
 
-          # Allow new jobs with a higher priority to interrupt this job
-          break if (Time.now - start_time) >= Config.re_check_seconds
+            # Allow new jobs with a higher priority to interrupt this job
+            break if (Time.now - start_time) >= Config.re_check_seconds
+          end
         end
         false
-      end
-
-      def rocket_job_apply_throttles(slice, worker)
-        filter = self.class.rocket_job_batch_throttles.matching_filter(self, slice)
-        return false unless filter
-
-        # Restore retrieved slice so that other workers can process it later.
-        slice.set(worker_name: nil, state: :queued, started_at: nil)
-        worker.add_to_current_filter(filter)
-        true
-      rescue StandardError => e
-        # If an error occurs while trying to evaluate any of the throttles
-        # restore retrieved slice so that other workers can try it.
-        slice.set(worker_name: nil, state: :queued, started_at: nil)
-        raise e
       end
 
       # Prior to a job being made available for processing it can be processed one
@@ -129,6 +116,16 @@ module RocketJob
       end
 
       private
+
+      def rocket_job_batch_throttled?(slice, worker)
+        filter = self.class.rocket_job_batch_throttles.matching_filter(self, slice)
+        return false unless filter
+
+        # Restore retrieved slice so that other workers can process it later.
+        slice.set(worker_name: nil, state: :queued, started_at: nil)
+        worker.add_to_current_filter(filter)
+        true
+      end
 
       # Process a single slice from Mongo
       # Once the slice has been successfully processed it will be removed from the input collection
@@ -281,19 +278,16 @@ module RocketJob
       end
 
       # Handle before and after callbacks
-      def rocket_job_handle_callbacks(worker, re_raise_exceptions)
-        fail_on_exception!(worker.name, re_raise_exceptions) do
-          # If this is the first worker to pickup this job
-          if sub_state == :before
-            rocket_job_batch_run_before_callbacks
-            # Check for 0 record jobs
-            rocket_job_batch_complete?(worker.name) if running?
-          elsif sub_state == :after
-            rocket_job_batch_run_after_callbacks
-          end
+      def rocket_job_batch_callbacks(worker)
+        # If this is the first worker to pickup this job
+        if sub_state == :before
+          rocket_job_batch_run_before_callbacks
+          # Check for 0 record jobs
+          rocket_job_batch_complete?(worker.name) if running?
+        elsif sub_state == :after
+          rocket_job_batch_run_after_callbacks
         end
       end
-
     end
   end
 end

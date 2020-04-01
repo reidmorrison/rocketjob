@@ -2,49 +2,43 @@ AllCops:
   TargetRubyVersion: 2.3
   Exclude:
     - '.git/**/*'
-    - 'docs/**/*'
-    - 'gemfiles/**/*'
+    - 'docs/*'
+    - 'gemfiles/*'
     # Keep Rufus files unchanged
     - 'lib/rocket_job/plugins/rufus/*'
+    - 'test/*'
 
-# Match existing layout
+#
+# RuboCop built-in settings.
+#   For documentation on all settings see: https://docs.rubocop.org/en/stable
+#
+
+# Remove?
 Layout/DotPosition:
   EnforcedStyle: trailing
 
-# Rubocop cannot yet see beyond one line above or below, when aligning =
-Layout/ExtraSpacing:
-  Enabled: false
-  AllowForAlignment: true
-  ForceEqualSignAlignment: true
-  AutoCorrect: false
+# Turn on auto-correction of equals alignment.
+Layout/EndAlignment:
+  AutoCorrect: true
 
-# Pick one
-Layout/IndentHeredoc:
-  EnforcedStyle: squiggly
+# Prevent accidental windows line endings
+Layout/EndOfLine:
+  EnforcedStyle: lf
 
-# Match existing layout
-Layout/MultilineMethodCallIndentation:
-  EnforcedStyle: indented
-  IndentationWidth: 2
+# Use a table layout for hashes
+Layout/HashAlignment:
+  EnforcedHashRocketStyle: table
+  EnforcedColonStyle: table
 
-# Rubocop cannot yet see beyond one line above or below, when aligning =
-Layout/SpaceAroundOperators:
-  Enabled: false
-  AllowForAlignment: true
-  AutoCorrect: false
+# Soften limits
+Layout/LineLength:
+  Max: 128
+  Exclude:
+    - '**/test/**/*'
 
 # Match existing layout
 Layout/SpaceInsideHashLiteralBraces:
   EnforcedStyle: no_space
-  EnforcedStyleForEmptyBraces: no_space
-
-# Files must end with a blank line
-Layout/TrailingBlankLines:
-  EnforcedStyle: final_newline
-
-# Rocket Job needs to catch Exception
-Lint/RescueException:
-  Enabled: false
 
 # TODO: Soften Limits for phase 1 only
 Metrics/AbcSize:
@@ -69,12 +63,6 @@ Metrics/ClassLength:
 Metrics/CyclomaticComplexity:
   Max: 15
 
-Metrics/LineLength:
-  Max: 128
-  Exclude:
-    - '**/*/cli.rb'
-    - 'test/**/*'
-
 # Soften limits
 Metrics/MethodLength:
   Max: 50
@@ -91,7 +79,7 @@ Metrics/PerceivedComplexity:
   Max: 21
 
 # Initialization Vector abbreviation
-Naming/UncommunicativeMethodParamName:
+Naming/MethodParameterName:
   AllowedNames: ['iv', '_', 'io', 'ap']
 
 # Does not allow Symbols to load
@@ -121,6 +109,10 @@ Style/NumericPredicate:
 Style/SignalException:
   Enabled: false
 
-# English is not always already loaded
+# Since English may not be loaded, cannot force its use.
 Style/SpecialGlobalVars:
   Enabled: false
+
+# Make it easier for developers to move between languages.
+Style/StringLiterals:
+  EnforcedStyle: double_quotes

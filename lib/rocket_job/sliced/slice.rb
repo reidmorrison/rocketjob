@@ -108,7 +108,7 @@ module RocketJob
       def_instance_delegators :records, :each, :<<, :size, :concat, :at
       def_instance_delegators :records, *(Enumerable.instance_methods - Module.methods)
 
-      # Fail this slice, along with the exception that caused the failure
+      # Before Fail save the exception to this slice.
       def set_exception(exc = nil, record_number = nil)
         if exc
           self.exception          = JobException.from_exception(exc)
@@ -147,6 +147,24 @@ module RocketJob
         "#{super[0...-1]}, records: #{@records.inspect}, collection_name: #{collection_name.inspect}>"
       end
 
+      # Fail this slice if an exception occurs during processing.
+      def fail_on_exception!(re_raise_exceptions = false, &block)
+        SemanticLogger.named_tagged(slice: id.to_s, &block)
+      rescue Exception => exc
+        SemanticLogger.named_tagged(slice: id.to_s) do
+          if failed? || !may_fail?
+            exception       = JobException.from_exception(exc)
+            exception.worker_name = worker_name
+            save! unless new_record? || destroyed?
+          elsif new_record? || destroyed?
+            fail(exc)
+          else
+            fail!(exc)
+          end
+          raise exc if re_raise_exceptions
+        end
+      end
+
       private
 
       # Always add records to any updates.
@@ -166,6 +184,7 @@ module RocketJob
         records.mongoize
       end
 
+      # Before Start
       def set_started_at
         self.started_at = Time.now
       end

@@ -198,7 +198,7 @@ class WorkerTest < Minitest::Test
 
       it 'returns a queued job' do
         job.save!
-        assert found_job = worker.next_available_job
+        assert (found_job = worker.next_available_job), -> { SimpleJob.all.to_a.ai }
         assert_equal job.id, found_job.id
       end
 

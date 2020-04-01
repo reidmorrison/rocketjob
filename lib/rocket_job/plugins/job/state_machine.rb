@@ -134,8 +134,9 @@ module RocketJob
           end
         end
 
-        def rocket_job_set_started_at
+        def rocket_job_set_started_at(worker_name = nil)
           self.started_at = Time.now
+          self.worker_name = worker_name if worker_name
         end
 
         def rocket_job_mark_complete

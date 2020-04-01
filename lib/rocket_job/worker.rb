@@ -84,33 +84,29 @@ module RocketJob
     def run
       Thread.current.name = format('rocketjob %03i', id)
       logger.info 'Started'
+
       until shutdown?
-        # Keeps workers staggered across the poll interval so that all workers don't poll at the same time
-        wait = process_available_jobs ? random_wait_interval : Config.max_poll_seconds
-        break if wait_for_shutdown?(wait)
+        sleep_seconds = Config.max_poll_seconds
+        reset_filter_if_expired
+        job = next_available_job
+
+        # Returns true when work was completed, but no other work is available
+        if job&.rocket_job_work(self, false)
+          # Return the database connections for this thread back to the connection pool
+          ActiveRecord::Base.clear_active_connections! if defined?(ActiveRecord::Base)
+
+          # Stagger workers so that they don't all poll at the same time.
+          sleep_seconds = random_wait_interval
+        end
+
+        wait_for_shutdown?(sleep_seconds)
       end
+
       logger.info 'Stopping'
     rescue Exception => exc
       logger.fatal('Unhandled exception in job processing thread', exc)
     ensure
       ActiveRecord::Base.clear_active_connections! if defined?(ActiveRecord::Base)
-    end
-
-    # Process the next available job
-    # Returns [Boolean] whether any job was actually processed
-    def process_available_jobs
-      processed = false
-      until shutdown?
-        reset_filter_if_expired
-        job = next_available_job
-        break unless job
-
-        processed = true unless job.rocket_job_work(self, false)
-
-        # Return the database connections for this thread back to the connection pool
-        ActiveRecord::Base.clear_active_connections! if defined?(ActiveRecord::Base)
-      end
-      processed
     end
 
     # Resets the current job filter if the relevant time interval has passed
@@ -123,31 +119,36 @@ module RocketJob
       self.current_filter = Config.filter || {}
     end
 
-    # Iterate over all available jobs until one is available for processing.
+    # Returns [RocketJob::Job] the next job available for processing.
+    # Returns [nil] if no job is available for processing.
     #
     # Notes:
     # - Destroys expired jobs
     # - Runs job throttles and skips the job if it is throttled.
     #   - Adding that filter to the current filter to exclude from subsequent polling.
     def next_available_job
-      loop do
+      while !shutdown?
         job = find_and_assign_job
-        break unless job
+        return unless job
 
         if job.expired?
-          job.fail_on_exception!(name) { job.destroy }
-          logger.info "Destroyed expired job #{job.class.name}, id:#{job.id}"
+          job.fail_on_exception! do
+            job.worker_name = name
+            job.destroy
+            logger.info("Destroyed expired job.")
+          end
           next
         end
 
         # Batch Job that is already started?
+        # Batch has its own throttles for slices.
         return job if job.running?
 
-        next if job.fail_on_exception!(name) { throttled_job?(job) }
+        # Should this job be throttled?
+        next if job.fail_on_exception! { throttled_job?(job) }
 
-        # Start this job
-        job.worker_name = name
-        job.fail_on_exception!(name) { job.start! }
+        # Start this job!
+        job.fail_on_exception! { job.start!(name) }
         return job if job.running?
       end
     end
@@ -155,14 +156,13 @@ module RocketJob
     # Whether the supplied job has been throttled and should be ignored.
     def throttled_job?(job)
       # Evaluate job throttles, if any.
-      new_filter = job.rocket_job_throttles.matching_filter(job)
-      if new_filter
-        add_to_current_filter(new_filter)
-        # Restore retrieved job so that other workers can process it later
-        job.set(worker_name: nil, state: :queued)
-        return true
-      end
-      false
+      filter = job.rocket_job_throttles.matching_filter(job)
+      return false unless filter
+
+      add_to_current_filter(filter)
+      # Restore retrieved job so that other workers can process it later
+      job.set(worker_name: nil, state: :queued)
+      true
     end
 
     # Finds the next job to work on in priority based order
