@@ -74,7 +74,7 @@ module RocketJob
       include RocketJob::Plugins::Cron
       include RocketJob::Plugins::Retry
 
-      self.description         = 'On Demand Job'
+      self.description         = "On Demand Job"
       self.destroy_on_complete = false
       self.retry_limit         = 0
 
@@ -95,8 +95,8 @@ module RocketJob
 
       def validate_code
         load_code
-      rescue Exception => exc
-        errors.add(:code, "Failed to parse :code, #{exc.inspect}")
+      rescue Exception => e
+        errors.add(:code, "Failed to parse :code, #{e.inspect}")
       end
     end
   end

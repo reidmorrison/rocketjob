@@ -1,4 +1,4 @@
-require 'active_support/concern'
+require "active_support/concern"
 
 module RocketJob
   module Batch
@@ -23,15 +23,15 @@ module RocketJob
         aasm.state_machine.add_event(:requeue, {}) do
           # Requeue perform
           transitions from:  :running, to: :running,
-                      if:    -> server_name { sub_state == :processing },
+                      if:    ->(_server_name) { sub_state == :processing },
                       after: :rocket_job_requeue_sub_state_processing
           # Requeue after_batch
           transitions from:  :running, to: :running,
-                      if:    -> server_name { worker_on_server?(server_name) && (sub_state == :after) },
+                      if:    ->(server_name) { worker_on_server?(server_name) && (sub_state == :after) },
                       after: :rocket_job_requeue_sub_state_after
           # Requeue before_batch
           transitions from:  :running, to: :queued,
-                      if:    -> server_name { worker_on_server?(server_name) && (sub_state == :before) },
+                      if:    ->(server_name) { worker_on_server?(server_name) && (sub_state == :before) },
                       after: :rocket_job_requeue_sub_state_before
         end
 
@@ -68,7 +68,7 @@ module RocketJob
       end
 
       def rocket_job_sub_state_before
-        self.sub_state = :before unless self.sub_state
+        self.sub_state = :before unless sub_state
       end
 
       def rocket_job_clear_sub_state
@@ -96,7 +96,6 @@ module RocketJob
       def rocket_job_requeue_failed_slices
         input.requeue_failed
       end
-
     end
   end
 end

@@ -1,10 +1,10 @@
-require 'tempfile'
+require "tempfile"
 
 module RocketJob
   module Sliced
     class Output < Slices
       def download(header_line: nil)
-        raise(ArgumentError, 'Block is mandatory') unless block_given?
+        raise(ArgumentError, "Block is mandatory") unless block_given?
 
         # Write the header line
         yield(header_line) if header_line

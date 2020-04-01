@@ -1,24 +1,24 @@
-source 'https://rubygems.org'
+source "https://rubygems.org"
 
 gemspec
 
-gem 'activerecord', '~> 5.2.0'
-gem 'mongoid', '~> 7.0.0'
+gem "activerecord", "~> 5.2.0"
+gem "mongoid", "~> 7.0.0"
 
-gem 'appraisal'
-gem 'awesome_print'
-gem 'rake'
-gem 'rubyzip', platform: :ruby
+gem "appraisal"
+gem "awesome_print"
+gem "rake"
+gem "rubyzip", platform: :ruby
 
-gem 'activerecord-jdbcsqlite3-adapter', platform: :jruby
-gem 'jdbc-sqlite3', platform: :jruby
-gem 'sqlite3', '~> 1.3.0', platform: :ruby
+gem "activerecord-jdbcsqlite3-adapter", platform: :jruby
+gem "jdbc-sqlite3", platform: :jruby
+gem "sqlite3", "~> 1.3.0", platform: :ruby
 
 group :development do
-  gem 'rubocop'
+  gem "rubocop"
 
   # Test against master
-  #gem 'iostreams', git: 'https://github.com/rocketjob/iostreams'
+  # gem 'iostreams', git: 'https://github.com/rocketjob/iostreams'
 
   # Testing against locally cloned repos
   # gem 'iostreams', path: '../iostreams'
@@ -27,7 +27,7 @@ group :development do
 end
 
 group :test do
-  gem 'minitest'
-  gem 'minitest-stub_any_instance'
-  gem 'minitest-reporters'
+  gem "minitest"
+  gem "minitest-reporters"
+  gem "minitest-stub_any_instance"
 end

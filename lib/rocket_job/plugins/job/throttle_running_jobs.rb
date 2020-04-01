@@ -1,4 +1,4 @@
-require 'active_support/concern'
+require "active_support/concern"
 
 module RocketJob
   module Plugins
@@ -40,7 +40,7 @@ module RocketJob
 
           # Cannot use this class since it will include instances of parent job classes.
           RocketJob::Job.with(read: {mode: :primary}) do |conn|
-            conn.running.where('_type' => self.class.name, :id.ne => id).count >= throttle_running_jobs
+            conn.running.where("_type" => self.class.name, :id.ne => id).count >= throttle_running_jobs
           end
         end
       end

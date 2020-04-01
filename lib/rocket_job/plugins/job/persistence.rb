@@ -1,4 +1,4 @@
-require 'active_support/concern'
+require "active_support/concern"
 
 module RocketJob
   module Plugins
@@ -9,7 +9,7 @@ module RocketJob
 
         included do
           # Store all job types in this collection
-          store_in collection: 'rocket_job.jobs'
+          store_in collection: "rocket_job.jobs"
         end
 
         module ClassMethods
@@ -45,14 +45,14 @@ module RocketJob
             collection.aggregate(
               [
                 {
-                  '$group' => {
-                    _id:   '$state',
-                    count: {'$sum' => 1}
+                  "$group" => {
+                    _id:   "$state",
+                    count: {"$sum" => 1}
                   }
                 }
               ]
             ).each do |result|
-              counts[result['_id'].to_sym] = result['count']
+              counts[result["_id"].to_sym] = result["count"]
             end
 
             # Calculate :queued_now and :scheduled if there are queued jobs
@@ -73,6 +73,7 @@ module RocketJob
         # Set in-memory job to complete if `destroy_on_complete` and the job has been destroyed
         def reload
           return super unless destroy_on_complete
+
           begin
             super
           rescue ::Mongoid::Errors::DocumentNotFound

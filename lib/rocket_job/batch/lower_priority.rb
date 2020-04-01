@@ -1,4 +1,4 @@
-require 'active_support/concern'
+require "active_support/concern"
 module RocketJob
   module Batch
     # Automatically lower the priority for Jobs with a higher record_count.
@@ -33,7 +33,7 @@ module RocketJob
 
       included do
         unless public_method_defined?(:record_count=)
-          raise(ArgumentError, 'LowerPriority can only be used in conjunction with RocketJob::Plugins::Batch')
+          raise(ArgumentError, "LowerPriority can only be used in conjunction with RocketJob::Plugins::Batch")
         end
 
         # For each of this many records lower the priority by 1.

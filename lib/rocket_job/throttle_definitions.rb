@@ -10,9 +10,7 @@ module RocketJob
       unless filter.is_a?(Symbol) || filter.is_a?(Proc)
         raise(ArgumentError, "Filter for #{method_name} must be a Symbol or Proc")
       end
-      if throttle?(method_name)
-        raise(ArgumentError, "Cannot define #{method_name} twice, undefine previous throttle first")
-      end
+      raise(ArgumentError, "Cannot define #{method_name} twice, undefine previous throttle first") if throttle?(method_name)
 
       @throttles << ThrottleDefinition.new(method_name, filter)
     end

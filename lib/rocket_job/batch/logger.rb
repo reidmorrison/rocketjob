@@ -1,4 +1,4 @@
-require 'active_support/concern'
+require "active_support/concern"
 
 module RocketJob
   module Batch
@@ -31,7 +31,7 @@ module RocketJob
       #   - silence noisy jobs by raising log level
       def rocket_job_batch_slice_logger(&block)
         logger.measure_info(
-          'Completed slice',
+          "Completed slice",
           metric:             "#{self.class.name}/slice",
           log_exception:      :full,
           on_exception_level: :error,

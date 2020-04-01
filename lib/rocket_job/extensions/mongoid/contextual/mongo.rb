@@ -3,9 +3,11 @@ module Mongoid
   module Contextual
     class Mongo
       def initialize(criteria)
-        @criteria, @klass, @cache = criteria, criteria.klass, criteria.options[:cache]
+        @criteria = criteria
+        @klass = criteria.klass
+        @cache = criteria.options[:cache]
         # Only line changed is here, get collection name from criteria, not @klass
-        #@collection = @klass.collection
+        # @collection = @klass.collection
         @collection = criteria.collection
 
         criteria.send(:merge_type_selection)

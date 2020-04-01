@@ -1,5 +1,5 @@
-require 'concurrent-ruby'
-require 'rocket_job/supervisor/shutdown'
+require "concurrent-ruby"
+require "rocket_job/supervisor/shutdown"
 
 module RocketJob
   class WorkerPool
@@ -27,7 +27,7 @@ module RocketJob
     #       The worker also responds faster than max_poll_seconds when a new job is created.
     def rebalance(max_workers, stagger_start = false)
       count = max_workers.to_i - living_count
-      return 0 unless count > 0
+      return 0 unless count.positive?
 
       logger.info("#{'Stagger ' if stagger_start}Starting #{count} workers")
 
@@ -38,6 +38,7 @@ module RocketJob
       count.times.each do
         sleep(delay) if stagger_start
         return -1 if Supervisor.shutdown?
+
         add_one
       end
     end
@@ -90,13 +91,12 @@ module RocketJob
 
     def add_one
       workers << Worker.new(id: next_worker_id, server_name: server_name)
-    rescue StandardError => exc
-      logger.fatal('Cannot start worker', exc)
+    rescue StandardError => e
+      logger.fatal("Cannot start worker", e)
     end
 
     def next_worker_id
       @worker_id += 1
     end
-
   end
 end

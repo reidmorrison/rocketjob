@@ -13,8 +13,8 @@ module RocketJob
     #
     # tabular.render(row)
     class Tabular
-      autoload :Input, 'rocket_job/batch/tabular/input'
-      autoload :Output, 'rocket_job/batch/tabular/output'
+      autoload :Input, "rocket_job/batch/tabular/input"
+      autoload :Output, "rocket_job/batch/tabular/output"
 
       def initialize(map)
         @map = map

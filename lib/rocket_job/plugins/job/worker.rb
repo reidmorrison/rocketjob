@@ -1,4 +1,4 @@
-require 'active_support/concern'
+require "active_support/concern"
 
 # Worker behavior for a job
 module RocketJob
@@ -68,18 +68,18 @@ module RocketJob
         #   Default: false
         def fail_on_exception!(re_raise_exceptions = false, &block)
           SemanticLogger.named_tagged(job: id.to_s, &block)
-        rescue Exception => exc
+        rescue Exception => e
           SemanticLogger.named_tagged(job: id.to_s) do
             if failed? || !may_fail?
-              self.exception        = JobException.from_exception(exc)
+              self.exception        = JobException.from_exception(e)
               exception.worker_name = worker_name
               save! unless new_record? || destroyed?
             elsif new_record? || destroyed?
-              fail(worker_name, exc)
+              fail(worker_name, e)
             else
-              fail!(worker_name, exc)
+              fail!(worker_name, e)
             end
-            raise exc if re_raise_exceptions
+            raise e if re_raise_exceptions
           end
         end
 
@@ -91,8 +91,8 @@ module RocketJob
         # is set in the job itself.
         #
         # Thread-safe, can be called by multiple threads at the same time
-        def rocket_job_work(worker, re_raise_exceptions = false)
-          raise(ArgumentError, 'Job must be started before calling #rocket_job_work') unless running?
+        def rocket_job_work(_worker, re_raise_exceptions = false)
+          raise(ArgumentError, "Job must be started before calling #rocket_job_work") unless running?
 
           fail_on_exception!(re_raise_exceptions) do
             if _perform_callbacks.empty?
@@ -107,7 +107,7 @@ module RocketJob
 
             if collect_output?
               # Result must be a Hash, if not put it in a Hash
-              self.result = @rocket_job_output.is_a?(Hash) ? @rocket_job_output : {'result' => @rocket_job_output}
+              self.result = @rocket_job_output.is_a?(Hash) ? @rocket_job_output : {"result" => @rocket_job_output}
             end
 
             if new_record? || destroyed?
@@ -122,6 +122,7 @@ module RocketJob
         # Returns [Hash<String:[Array<ActiveWorker>]>] All servers actively working on this job
         def rocket_job_active_workers(server_name = nil)
           return [] if !running? || (server_name && !worker_on_server?(server_name))
+
           [ActiveWorker.new(worker_name, started_at, self)]
         end
       end

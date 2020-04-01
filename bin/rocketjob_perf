@@ -1,5 +1,5 @@
 #!/usr/bin/env ruby
-require 'rocketjob'
+require "rocketjob"
 
 # Log to console
 SemanticLogger.add_appender(io: STDOUT, formatter: :color)

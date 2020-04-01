@@ -13,7 +13,7 @@ module RocketJob
       # Throttle methods can be private.
       throttled =
         if args.size.positive?
-          job.method(method_name).arity == 0 ? job.send(method_name) : job.send(method_name, *args)
+          job.method(method_name).arity.zero? ? job.send(method_name) : job.send(method_name, *args)
         else
           job.send(method_name)
         end
@@ -28,7 +28,7 @@ module RocketJob
       return filter.call(job, *args) if filter.is_a?(Proc)
 
       if args.size.positive?
-        job.method(filter).arity == 0 ? job.send(filter) : job.send(filter, *args)
+        job.method(filter).arity.zero? ? job.send(filter) : job.send(filter, *args)
       else
         job.send(filter)
       end

@@ -1,4 +1,4 @@
-require 'yaml'
+require "yaml"
 module RocketJob
   # Rocket Job Configuration
   class Config
@@ -72,8 +72,8 @@ module RocketJob
     self.where_filter = nil
 
     # Configure Mongoid
-    def self.load!(environment = 'development', file_name = nil, encryption_file_name = nil)
-      config_file = file_name ? Pathname.new(file_name) : Pathname.pwd.join('config/mongoid.yml')
+    def self.load!(environment = "development", file_name = nil, encryption_file_name = nil)
+      config_file = file_name ? Pathname.new(file_name) : Pathname.pwd.join("config/mongoid.yml")
 
       raise(ArgumentError, "Mongo Configuration file: #{config_file} not found") unless config_file.file?
 
@@ -84,7 +84,7 @@ module RocketJob
         if encryption_file_name
           Pathname.new(encryption_file_name)
         else
-          Pathname.pwd.join('config/symmetric-encryption.yml')
+          Pathname.pwd.join("config/symmetric-encryption.yml")
         end
 
       return unless config_file.file?
@@ -97,13 +97,11 @@ module RocketJob
     #    include_filter, exclude_filter, and where_filter.
     # Returns nil if no filter should be applied.
     def self.filter
-      if include_filter && exclude_filter
-        raise(ArgumentError, 'Cannot supply both an include_filter and an exclude_filter')
-      end
+      raise(ArgumentError, "Cannot supply both an include_filter and an exclude_filter") if include_filter && exclude_filter
 
       filter                   = where_filter
-      (filter ||= {})['_type'] = include_filter if include_filter
-      (filter ||= {})['_type'] = {'$not' => exclude_filter} if exclude_filter
+      (filter ||= {})["_type"] = include_filter if include_filter
+      (filter ||= {})["_type"] = {"$not" => exclude_filter} if exclude_filter
       filter&.dup
     end
   end

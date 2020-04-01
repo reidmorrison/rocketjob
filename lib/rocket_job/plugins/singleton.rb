@@ -1,4 +1,4 @@
-require 'active_support/concern'
+require "active_support/concern"
 
 module RocketJob
   module Plugins
@@ -25,7 +25,6 @@ module RocketJob
 
         errors.add(:state, "Another instance of #{self.class.name} is already running, queued, or paused")
       end
-
     end
   end
 end

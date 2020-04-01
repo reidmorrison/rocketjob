@@ -1,5 +1,5 @@
-require 'concurrent'
-require 'fileutils'
+require "concurrent"
+require "fileutils"
 module RocketJob
   class DirmonEntry
     include Plugins::Document
@@ -8,9 +8,9 @@ module RocketJob
     # The default archive directory that is used when the job being queued does not respond
     # to #upload, and does not have an `archive_directory` specified in this entry
     class_attribute :default_archive_directory
-    self.default_archive_directory = 'archive'.freeze
+    self.default_archive_directory = "archive".freeze
 
-    store_in collection: 'rocket_job.dirmon_entries'
+    store_in collection: "rocket_job.dirmon_entries"
 
     # User defined name used to identify this DirmonEntry in the Web Interface.
     field :name, type: String
@@ -55,7 +55,7 @@ module RocketJob
     field :archive_directory, type: String, default: default_archive_directory
 
     # If this DirmonEntry is in the failed state, exception contains the cause
-    embeds_one :exception, class_name: 'RocketJob::JobException'
+    embeds_one :exception, class_name: "RocketJob::JobException"
 
     # The maximum number of files that should ever match during a single poll of the pattern.
     #
@@ -175,8 +175,8 @@ module RocketJob
     #   # => {}
     def self.counts_by_state
       counts = {}
-      collection.aggregate([{'$group' => {_id: '$state', count: {'$sum' => 1}}}]).each do |result|
-        counts[result['_id'].to_sym] = result['count']
+      collection.aggregate([{"$group" => {_id: "$state", count: {"$sum" => 1}}}]).each do |result|
+        counts[result["_id"].to_sym] = result["count"]
       end
       counts
     end
@@ -213,7 +213,7 @@ module RocketJob
         exception.worker_name = worker_name
       else
         build_exception(
-          class_name:  'RocketJob::DirmonEntryException',
+          class_name:  "RocketJob::DirmonEntryException",
           message:     exc_or_message,
           backtrace:   [],
           worker_name: worker_name
@@ -224,6 +224,7 @@ module RocketJob
     # Returns the Job to be created.
     def job_class
       return if job_class_name.nil?
+
       job_class_name.constantize
     rescue NameError
       nil
@@ -245,7 +246,7 @@ module RocketJob
       )
 
       logger.info(
-        message: 'Created RocketJob::Jobs::UploadFileJob',
+        message: "Created RocketJob::Jobs::UploadFileJob",
         payload: {
           dirmon_entry_name:  name,
           upload_file_name:   archive_path.to_s,
@@ -282,6 +283,7 @@ module RocketJob
     def job_is_a_rocket_job
       klass = job_class
       return if job_class_name.nil? || klass&.ancestors&.include?(RocketJob::Job)
+
       errors.add(:job_class_name, "Job #{job_class_name} must be defined and inherit from RocketJob::Job")
     end
 
@@ -292,6 +294,7 @@ module RocketJob
 
       properties.each_pair do |k, _v|
         next if klass.public_method_defined?("#{k}=".to_sym)
+
         errors.add(:properties, "Unknown Property: Attempted to set a value for #{k.inspect} which is not allowed on the job #{job_class_name}")
       end
     end

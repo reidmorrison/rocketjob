@@ -1,4 +1,4 @@
-require 'active_support/concern'
+require "active_support/concern"
 
 module RocketJob
   class Server
@@ -54,7 +54,6 @@ module RocketJob
           paused.each(&:resume!)
         end
       end
-
     end
   end
 end

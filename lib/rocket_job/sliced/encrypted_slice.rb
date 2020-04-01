@@ -1,4 +1,4 @@
-require 'symmetric-encryption'
+require "symmetric-encryption"
 module RocketJob
   module Sliced
     # Compress the records within a slice
@@ -6,7 +6,7 @@ module RocketJob
       private
 
       def parse_records
-        records = attributes.delete('records')
+        records = attributes.delete("records")
 
         # Convert BSON::Binary to a string
         binary_str = records.data
@@ -16,14 +16,14 @@ module RocketJob
         # Use the header that is present to decrypt the data, since its version could be different
         str = header.cipher.binary_decrypt(binary_str, header: header)
 
-        @records = Hash.from_bson(BSON::ByteBuffer.new(str))['r']
+        @records = Hash.from_bson(BSON::ByteBuffer.new(str))["r"]
       end
 
       def serialize_records
         return [] if @records.nil? || @records.empty?
 
         # Convert slice of records into a single string
-        str = {'r' => to_a}.to_bson.to_s
+        str = {"r" => to_a}.to_bson.to_s
 
         # Encrypt to binary without applying an encoding such as Base64
         # Use a random_iv with each encryption for better security

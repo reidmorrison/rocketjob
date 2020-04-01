@@ -1,5 +1,5 @@
-require 'concurrent'
-require 'forwardable'
+require "concurrent"
+require "forwardable"
 module RocketJob
   # Worker
   #
@@ -18,7 +18,7 @@ module RocketJob
     #
     # Note:
     # - It is not recommended to catch this exception since it is to shutdown workers quickly.
-    class Shutdown < Interrupt
+    class Shutdown < RuntimeError
     end
 
     def self.before_running(*filters, &blk)
@@ -33,7 +33,7 @@ module RocketJob
       set_callback(:running, :around, *filters, &blk)
     end
 
-    def initialize(id: 0, server_name: 'inline:0', inline: false)
+    def initialize(id: 0, server_name: "inline:0", inline: false)
       @id             = id
       @server_name    = server_name
       @shutdown       = Concurrent::Event.new
@@ -82,8 +82,8 @@ module RocketJob
     #   worker_id [Integer]
     #     The number of this worker for logging purposes
     def run
-      Thread.current.name = format('rocketjob %03i', id)
-      logger.info 'Started'
+      Thread.current.name = format("rocketjob %03i", id)
+      logger.info "Started"
 
       until shutdown?
         sleep_seconds = Config.max_poll_seconds
@@ -102,9 +102,9 @@ module RocketJob
         wait_for_shutdown?(sleep_seconds)
       end
 
-      logger.info 'Stopping'
-    rescue Exception => exc
-      logger.fatal('Unhandled exception in job processing thread', exc)
+      logger.info "Stopping"
+    rescue Exception => e
+      logger.fatal("Unhandled exception in job processing thread", e)
     ensure
       ActiveRecord::Base.clear_active_connections! if defined?(ActiveRecord::Base)
     end
@@ -127,7 +127,7 @@ module RocketJob
     # - Runs job throttles and skips the job if it is throttled.
     #   - Adding that filter to the current filter to exclude from subsequent polling.
     def next_available_job
-      while !shutdown?
+      until shutdown?
         job = find_and_assign_job
         return unless job
 
@@ -173,11 +173,11 @@ module RocketJob
     # Returns nil if no jobs are available for processing.
     def find_and_assign_job
       SemanticLogger.silence(:info) do
-        scheduled = {'$or' => [{run_at: nil}, {:run_at.lte => Time.now}]}
-        working   = {'$or' => [{state: :queued}, {state: :running, sub_state: :processing}]}
+        scheduled = {"$or" => [{run_at: nil}, {:run_at.lte => Time.now}]}
+        working   = {"$or" => [{state: :queued}, {state: :running, sub_state: :processing}]}
         query     = RocketJob::Job.and(working, scheduled)
         query     = query.where(current_filter) unless current_filter.blank?
-        update    = {'$set' => {'worker_name' => name, 'state' => 'running'}}
+        update    = {"$set" => {"worker_name" => name, "state" => "running"}}
         query.sort(priority: 1, _id: 1).find_one_and_update(update, bypass_document_validation: true)
       end
     end

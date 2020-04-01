@@ -1,4 +1,4 @@
-require 'active_support/concern'
+require "active_support/concern"
 
 module RocketJob
   module Plugins
@@ -76,7 +76,7 @@ module RocketJob
       # Returns [Time] when to retry this job at
       # Same basic formula as Delayed Job
       def rocket_job_retry_seconds_to_delay
-        (rocket_job_failure_count ** 4) + 15 + (rand(30) * (rocket_job_failure_count + 1))
+        (rocket_job_failure_count**4) + 15 + (rand(30) * (rocket_job_failure_count + 1))
       end
     end
   end

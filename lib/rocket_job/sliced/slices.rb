@@ -81,9 +81,10 @@ module RocketJob
 
         begin
           slice.save!
-        rescue Mongo::Error::OperationFailure => exc
+        rescue Mongo::Error::OperationFailure => e
           # Ignore duplicates since it means the job was restarted
-          raise(exc) unless exc.message.include?('E11000')
+          raise(e) unless e.message.include?("E11000")
+
           logger.warn "Skipped already processed slice# #{slice.id}"
         end
         slice
@@ -93,7 +94,7 @@ module RocketJob
 
       # Index for find_and_modify only if it is not already present
       def create_indexes
-        all.collection.indexes.create_one(state: 1, _id: 1) if all.collection.indexes.none? { |i| i['name'] == 'state_1__id_1' }
+        all.collection.indexes.create_one(state: 1, _id: 1) if all.collection.indexes.none? { |i| i["name"] == "state_1__id_1" }
       rescue Mongo::Error::OperationFailure
         all.collection.indexes.create_one(state: 1, _id: 1)
       end
@@ -124,13 +125,15 @@ module RocketJob
       end
 
       # Mongoid does not apply ordering, add sort
+      # rubocop:disable Style/RedundantSort
       def first
-        all.sort('_id' => 1).first
+        all.sort("_id" => 1).first
       end
 
       def last
-        all.sort('_id' => -1).first
+        all.sort("_id" => -1).first
       end
+      # rubocop:enable Style/RedundantSort
 
       # Returns [Array<Struct>] grouped exceptions by class name,
       # and unique exception messages by exception class.
@@ -149,19 +152,19 @@ module RocketJob
         result        = all.collection.aggregate(
           [
             {
-              '$match' => {state: 'failed'}
+              "$match" => {state: "failed"}
             },
             {
-              '$group' => {
-                _id:      {error_class: '$exception.class_name'},
-                messages: {'$addToSet' => '$exception.message'},
-                count:    {'$sum' => 1}
+              "$group" => {
+                _id:      {error_class: "$exception.class_name"},
+                messages: {"$addToSet" => "$exception.message"},
+                count:    {"$sum" => 1}
               }
             }
           ]
         )
         result.collect do |errors|
-          result_struct.new(errors['_id']['error_class'], errors['count'], errors['messages'])
+          result_struct.new(errors["_id"]["error_class"], errors["count"], errors["messages"])
         end
       end
     end

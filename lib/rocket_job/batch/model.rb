@@ -1,4 +1,4 @@
-require 'active_support/concern'
+require "active_support/concern"
 module RocketJob
   module Batch
     # Model attributes
@@ -77,8 +77,10 @@ module RocketJob
           # Under some circumstances ActiveModel is passing in a nil value even though the
           # attributes have default values
           Array(value).each do |category|
-            record.errors.add(attr, 'must only contain Symbol values') unless category.kind_of?(Symbol)
-            record.errors.add(attr, 'must only consist of lowercase characters, digits, and _') unless category.to_s =~ /\A[a-z_0-9]+\Z/
+            record.errors.add(attr, "must only contain Symbol values") unless category.is_a?(Symbol)
+            unless category.to_s =~ /\A[a-z_0-9]+\Z/
+              record.errors.add(attr, "must only consist of lowercase characters, digits, and _")
+            end
           end
         end
       end
@@ -97,7 +99,7 @@ module RocketJob
       # Returns 0 if the total record count has not yet been set
       def percent_complete
         return 100 if completed?
-        return 0 unless record_count.to_i > 0
+        return 0 unless record_count.to_i.positive?
 
         # Approximate number of input records
         input_records = input.count.to_f * slice_size
@@ -110,32 +112,31 @@ module RocketJob
       end
 
       # Returns [Hash] status of this job
-      def status(time_zone = 'Eastern Time (US & Canada)')
+      def status(time_zone = "Eastern Time (US & Canada)")
         h = {}
-        case
-        when queued?
-          h['queued_slices'] = input.queued.count
-        when running? || paused? || failed?
-          h['active_slices'] = worker_count
-          h['failed_slices'] = input.failed.count
-          h['queued_slices'] = input.queued.count
+        if queued?
+          h["queued_slices"] = input.queued.count
+        elsif running? || paused? || failed?
+          h["active_slices"] = worker_count
+          h["failed_slices"] = input.failed.count
+          h["queued_slices"] = input.queued.count
           # Very high level estimated time left
-          if record_count && running? && (record_count > 0)
+          if record_count && running? && record_count.positive?
             percent = percent_complete
             if percent >= 5
               secs                        = seconds.to_f
-              h['est_remaining_duration'] = RocketJob.seconds_as_duration((((secs / percent) * 100) - secs))
+              h["est_remaining_duration"] = RocketJob.seconds_as_duration((((secs / percent) * 100) - secs))
             end
           end
-        when completed?
-          secs                  = seconds.to_f
-          h['records_per_hour'] = ((record_count.to_f / secs) * 60 * 60).round if record_count && (record_count > 0) && (secs > 0.0)
+        elsif completed?
+          secs = seconds.to_f
+          h["records_per_hour"] = ((record_count.to_f / secs) * 60 * 60).round if record_count&.positive? && (secs > 0.0)
         end
-        h['output_slices'] = output.count if collect_output? && !completed?
+        h["output_slices"] = output.count if collect_output? && !completed?
         h.merge!(super(time_zone))
-        h.delete('result')
+        h.delete("result")
         # Worker name should be retrieved from the slices when processing
-        h.delete('worker_name') if sub_state == :processing
+        h.delete("worker_name") if sub_state == :processing
         h
       end
 
@@ -147,7 +148,7 @@ module RocketJob
         when :before, :after
           [worker_name]
         when :processing
-          input.running.collect { |slice| slice.worker_name }
+          input.running.collect(&:worker_name)
         else
           []
         end
@@ -171,7 +172,6 @@ module RocketJob
         @worker_count_last = Time.now.to_i
         @worker_count
       end
-
     end
   end
 end

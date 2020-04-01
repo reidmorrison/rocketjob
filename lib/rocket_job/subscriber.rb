@@ -1,4 +1,4 @@
-require 'active_support/concern'
+require "active_support/concern"
 
 module RocketJob
   # Mix-in to publish and subscribe to events.
@@ -66,12 +66,12 @@ module RocketJob
         return
       end
 
-      args = (method(action).arity == 0) || parameters.nil? ? nil : parameters.symbolize_keys
+      args = method(action).arity.zero? || parameters.nil? ? nil : parameters.symbolize_keys
       args ? public_send(action, **args) : public_send(action)
-    rescue ArgumentError => exc
-      logger.error("##{action}: Invalid Arguments. Resuming..", exc)
-    rescue StandardError => exc
-      logger.error("##{action}: Exception caught. Resuming..", exc)
+    rescue ArgumentError => e
+      logger.error("##{action}: Invalid Arguments. Resuming..", e)
+    rescue StandardError => e
+      logger.error("##{action}: Exception caught. Resuming..", e)
     end
 
     def process_event(name, action, parameters)

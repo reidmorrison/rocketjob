@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 
-require 'semantic_logger'
-require 'rocket_job/cli'
+require "semantic_logger"
+require "rocket_job/cli"
 
 # Start a rocketjob server instance from the command line
 # Allow Ruby to catch and display any startup exceptions

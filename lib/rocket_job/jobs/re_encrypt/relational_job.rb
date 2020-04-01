@@ -1,5 +1,5 @@
 begin
-  require 'active_record'
+  require "active_record"
 rescue LoadError
   raise 'RocketJob::Jobs::ReEncrypt::RelationalJob uses ActiveRecord to obtain the database connection, please install the gem "activerecord".'
 end
@@ -20,11 +20,11 @@ module RocketJob
       class RelationalJob < RocketJob::Job
         include RocketJob::Batch
 
-        self.slice_size              = 1000
-        self.priority                = 30
-        self.destroy_on_complete     = false
-        self.compress                = true
-        self.throttle_running_jobs   = 1
+        self.slice_size               = 1000
+        self.priority                 = 30
+        self.destroy_on_complete      = false
+        self.compress                 = true
+        self.throttle_running_jobs    = 1
         self.throttle_running_workers = 10
 
         # Name of the table being re-encrypted
@@ -43,7 +43,7 @@ module RocketJob
           connection.tables.each do |table|
             columns = connection.columns(table)
             columns.each do |column|
-              if column.name.start_with?('encrypted_')
+              if column.name.start_with?("encrypted_")
                 add_column = column.name
                 (h[table] ||= []) << add_column if add_column
               end
@@ -90,7 +90,7 @@ module RocketJob
               end
             end
             if updates.size.positive?
-              sql << updates.join(', ')
+              sql << updates.join(", ")
               sql << " where id=#{row[1]}"
               logger.trace sql
               self.class.connection.execute sql
@@ -114,7 +114,8 @@ module RocketJob
         end
 
         def re_encrypt(encrypted_value)
-          return encrypted_value if (encrypted_value == '') || encrypted_value.nil?
+          return encrypted_value if (encrypted_value == "") || encrypted_value.nil?
+
           SymmetricEncryption.encrypt(SymmetricEncryption.decrypt(encrypted_value))
         end
 

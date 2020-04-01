@@ -1,10 +1,10 @@
-require 'mongo/monitoring/command_log_subscriber'
+require "mongo/monitoring/command_log_subscriber"
 
 module Mongo
   class Monitoring
     class CommandLogSubscriber
       include SemanticLogger::Loggable
-      logger.name = 'Mongo'
+      logger.name = "Mongo"
 
       def started(event)
         @event_command = event.command

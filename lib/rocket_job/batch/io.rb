@@ -1,4 +1,4 @@
-require 'active_support/concern'
+require "active_support/concern"
 
 module RocketJob
   module Batch
@@ -14,7 +14,9 @@ module RocketJob
       #     Default: None ( Uses the single default input collection for this job )
       #     Validates: This value must be one of those listed in #input_categories
       def input(category = :main)
-        raise "Category #{category.inspect}, must be registered in input_categories: #{input_categories.inspect}" unless input_categories.include?(category) || (category == :main)
+        unless input_categories.include?(category) || (category == :main)
+          raise "Category #{category.inspect}, must be registered in input_categories: #{input_categories.inspect}"
+        end
 
         (@inputs ||= {})[category] ||= RocketJob::Sliced::Input.new(rocket_job_io_slice_arguments("inputs", category))
       end
@@ -28,7 +30,9 @@ module RocketJob
       #     Default: None ( Uses the single default output collection for this job )
       #     Validates: This value must be one of those listed in #output_categories
       def output(category = :main)
-        raise "Category #{category.inspect}, must be registered in output_categories: #{output_categories.inspect}" unless output_categories.include?(category) || (category == :main)
+        unless output_categories.include?(category) || (category == :main)
+          raise "Category #{category.inspect}, must be registered in output_categories: #{output_categories.inspect}"
+        end
 
         (@outputs ||= {})[category] ||= RocketJob::Sliced::Output.new(rocket_job_io_slice_arguments("outputs", category))
       end
@@ -110,7 +114,7 @@ module RocketJob
       # * Only use this method for UTF-8 data, for binary data use #input_slice or #input_records.
       # * CSV parsing is slow, so it is usually left for the workers to do.
       def upload(stream = nil, file_name: nil, category: :main, stream_mode: :line, on_first: nil, **args, &block)
-        raise(ArgumentError, 'Either stream, or a block must be supplied') unless stream || block
+        raise(ArgumentError, "Either stream, or a block must be supplied") unless stream || block
 
         stream_mode = stream_mode.to_sym
         # Backward compatibility with existing v4 jobs
@@ -384,7 +388,8 @@ module RocketJob
         if block
           RocketJob::Sliced::Writer::Output.collect(self, input_slice, &block)
         else
-          raise(ArgumentError, 'result parameter is required when no block is supplied') unless result
+          raise(ArgumentError, "result parameter is required when no block is supplied") unless result
+
           RocketJob::Sliced::Writer::Output.collect(self, input_slice) { |writer| writer << result }
         end
       end
@@ -403,7 +408,6 @@ module RocketJob
         end
         args
       end
-
     end
   end
 end

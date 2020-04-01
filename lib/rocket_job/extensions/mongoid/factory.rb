@@ -1,4 +1,4 @@
-require 'mongoid/factory'
+require "mongoid/factory"
 
 module RocketJob
   # Don't convert to Mongoid::Factory since it conflicts with Mongoid use.

@@ -1,5 +1,5 @@
-require 'mongoid/criteria'
-require 'mongoid/document'
+require "mongoid/criteria"
+require "mongoid/document"
 module RocketJob
   module Mongoid5Clients
     module Options
@@ -12,6 +12,7 @@ module RocketJob
 
       def collection
         return (@klass || self.class).with(persistence_options || {}).collection unless @collection_name
+
         (@klass || self.class).mongo_client[@collection_name]
       end
 

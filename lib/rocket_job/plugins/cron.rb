@@ -1,4 +1,4 @@
-require 'active_support/concern'
+require "active_support/concern"
 
 module RocketJob
   module Plugins
@@ -26,6 +26,7 @@ module RocketJob
         # Overrides: RocketJob::Plugins::Restart#rocket_job_restart_new_instance
         def rocket_job_restart_new_instance
           return unless cron_schedule
+
           super
         end
 
@@ -35,6 +36,7 @@ module RocketJob
         # Overrides: RocketJob::Plugins::Restart#rocket_job_restart_abort
         def rocket_job_restart_abort
           return unless cron_schedule
+
           rocket_job_restart_new_instance
           update_attribute(:cron_schedule, nil)
         end
@@ -54,14 +56,16 @@ module RocketJob
 
       def rocket_job_cron_set_run_at
         return unless cron_schedule
+
         self.run_at = rocket_job_cron_next_time if cron_schedule_changed? && !run_at_changed?
       end
 
       def rocket_job_cron_valid
         return unless cron_schedule
+
         RocketJob::Plugins::Rufus::CronLine.new(cron_schedule)
-      rescue ArgumentError => exc
-        errors.add(:cron_schedule, exc.message)
+      rescue ArgumentError => e
+        errors.add(:cron_schedule, e.message)
       end
     end
   end

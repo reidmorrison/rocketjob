@@ -43,7 +43,7 @@ jdk:
 bundler_args: --without development
 
 services:
-- mongodb
+  - mongodb
 
 sudo: false
 

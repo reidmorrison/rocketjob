@@ -1,4 +1,4 @@
-require 'mongoid/factory'
+require "mongoid/factory"
 
 module RocketJob
   module Mongoid5Factory

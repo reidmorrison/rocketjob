@@ -1,5 +1,5 @@
-require 'rocket_job/server/model'
-require 'rocket_job/server/state_machine'
+require "rocket_job/server/model"
+require "rocket_job/server/state_machine"
 
 module RocketJob
   # Server

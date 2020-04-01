@@ -1,4 +1,4 @@
-require 'active_support/concern'
+require "active_support/concern"
 
 module RocketJob
   module Batch
@@ -34,7 +34,6 @@ module RocketJob
           set_callback(:after_batch, :after, *filters, &blk)
         end
       end
-
     end
   end
 end

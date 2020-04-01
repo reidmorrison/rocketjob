@@ -1,4 +1,4 @@
-require 'active_support/concern'
+require "active_support/concern"
 
 module RocketJob
   module Plugins
@@ -87,7 +87,7 @@ module RocketJob
           field :percent_complete, type: Integer, default: 0
 
           # Store the last exception for this job
-          embeds_one :exception, class_name: 'RocketJob::JobException'
+          embeds_one :exception, class_name: "RocketJob::JobException"
 
           # Store the Hash result from this job if collect_output is true,
           # and the job returned actually returned a Hash, otherwise nil
@@ -110,7 +110,7 @@ module RocketJob
           #   job.underscore_name
           #   # => "data_study"
           def underscore_name
-            @underscore_name ||= name.sub(/Job$/, '').underscore
+            @underscore_name ||= name.sub(/Job$/, "").underscore
           end
 
           # Allow the collective name for this job class to be overridden
@@ -125,7 +125,7 @@ module RocketJob
           #   job.human_name
           #   # => "Data Study"
           def human_name
-            @human_name ||= name.sub(/Job$/, '').titleize
+            @human_name ||= name.sub(/Job$/, "").titleize
           end
 
           # Allow the human readable job name for this job class to be overridden
@@ -140,7 +140,7 @@ module RocketJob
           #   job.collective_name
           #   # => "data_studies"
           def collective_name
-            @collective_name ||= name.sub(/Job$/, '').pluralize.underscore
+            @collective_name ||= name.sub(/Job$/, "").pluralize.underscore
           end
 
           # Allow the collective name for this job class to be overridden
@@ -193,7 +193,7 @@ module RocketJob
 
           # DEPRECATED
           def rocket_job
-            warn 'Replace calls to .rocket_job with calls to set class instance variables. For example: self.priority = 50'
+            warn "Replace calls to .rocket_job with calls to set class instance variables. For example: self.priority = 50"
             yield(self)
           end
 
@@ -276,42 +276,42 @@ module RocketJob
         # Returns [Hash] status of this job
         def as_json
           attrs = serializable_hash(methods: %i[seconds duration])
-          attrs.delete('result') unless collect_output?
-          attrs.delete('failure_count') unless failure_count.positive?
+          attrs.delete("result") unless collect_output?
+          attrs.delete("failure_count") unless failure_count.positive?
           if queued?
-            attrs.delete('started_at')
-            attrs.delete('completed_at')
-            attrs.delete('result')
+            attrs.delete("started_at")
+            attrs.delete("completed_at")
+            attrs.delete("result")
             attrs
           elsif running?
-            attrs.delete('completed_at')
-            attrs.delete('result')
+            attrs.delete("completed_at")
+            attrs.delete("result")
             attrs
           elsif completed?
-            attrs.delete('percent_complete')
+            attrs.delete("percent_complete")
             attrs
           elsif paused?
-            attrs.delete('completed_at')
-            attrs.delete('result')
+            attrs.delete("completed_at")
+            attrs.delete("result")
             # Ensure 'paused_at' appears first in the hash
-            {'paused_at' => completed_at}.merge(attrs)
+            {"paused_at" => completed_at}.merge(attrs)
           elsif aborted?
-            attrs.delete('completed_at')
-            attrs.delete('result')
-            {'aborted_at' => completed_at}.merge(attrs)
+            attrs.delete("completed_at")
+            attrs.delete("result")
+            {"aborted_at" => completed_at}.merge(attrs)
           elsif failed?
-            attrs.delete('completed_at')
-            attrs.delete('result')
-            {'failed_at' => completed_at}.merge(attrs)
+            attrs.delete("completed_at")
+            attrs.delete("result")
+            {"failed_at" => completed_at}.merge(attrs)
           else
             attrs
           end
         end
 
         # Returns [Hash] the status of this job
-        def status(time_zone = 'Eastern Time (US & Canada)')
+        def status(time_zone = "Eastern Time (US & Canada)")
           h = as_json
-          h.delete('seconds')
+          h.delete("seconds")
           h.dup.each_pair do |k, v|
             if v.is_a?(Time)
               h[k] = v.in_time_zone(time_zone).to_s
@@ -325,6 +325,7 @@ module RocketJob
         # Returns [Boolean] whether the worker runs on a particular server.
         def worker_on_server?(server_name)
           return false unless worker_name.present? && server_name.present?
+
           worker_name.start_with?(server_name)
         end
       end

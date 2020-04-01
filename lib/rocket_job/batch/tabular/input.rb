@@ -1,4 +1,4 @@
-require 'active_support/concern'
+require "active_support/concern"
 
 module RocketJob
   module Batch
@@ -53,7 +53,7 @@ module RocketJob
           input_stream = stream.nil? ? nil : IOStreams.new(stream)
 
           if stream && (tabular_input_type == :text)
-            input_stream.option_or_stream(:encode, encoding: 'UTF-8', cleaner: :printable, replace: '')
+            input_stream.option_or_stream(:encode, encoding: "UTF-8", cleaner: :printable, replace: "")
           end
 
           # If an input header is not required, then we don't extract it'
@@ -67,14 +67,14 @@ module RocketJob
 
           case tabular_input_mode
           when :line
-            parse_header = -> (line) do
+            parse_header = lambda do |line|
               tabular_input.parse_header(line)
               tabular_input_cleanse_header
               self.tabular_input_header = tabular_input.header.columns
             end
             super(input_stream, on_first: parse_header, stream_mode: :line, **args, &block)
           when :array, :row
-            set_header = -> (row) do
+            set_header = lambda do |row|
               tabular_input.header.columns = row
               tabular_input_cleanse_header
               self.tabular_input_header = tabular_input.header.columns
@@ -101,19 +101,23 @@ module RocketJob
         end
 
         def tabular_input_render
-          @rocket_job_input = tabular_input.record_parse(@rocket_job_input) unless tabular_input_header.blank? && tabular_input.header?
+          unless tabular_input_header.blank? && tabular_input.header?
+            @rocket_job_input = tabular_input.record_parse(@rocket_job_input)
+          end
         end
 
         # Cleanse custom input header if supplied.
         def tabular_input_cleanse_header
           ignored_columns = tabular_input.header.cleanse!
-          logger.warn('Stripped out invalid columns from custom header', ignored_columns) unless ignored_columns.empty?
+          logger.warn("Stripped out invalid columns from custom header", ignored_columns) unless ignored_columns.empty?
 
           self.tabular_input_header = tabular_input.header.columns
         end
 
         def tabular_input_header_present
-          return if tabular_input_header.present? || !tabular_input.header? || (tabular_input_mode == :hash || tabular_input_mode == :record)
+          if tabular_input_header.present? || !tabular_input.header? || (tabular_input_mode == :hash || tabular_input_mode == :record)
+            return
+          end
 
           errors.add(:tabular_input_header, "is required when tabular_input_format is #{tabular_input_format.inspect}")
         end

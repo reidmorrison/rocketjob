@@ -1,5 +1,5 @@
-require 'active_support/concern'
-require 'concurrent'
+require "active_support/concern"
+require "concurrent"
 
 module RocketJob
   class Supervisor
@@ -37,23 +37,23 @@ module RocketJob
         #   Perform clean shutdown
         #
         def self.register_signal_handlers
-          Signal.trap 'SIGTERM' do
+          Signal.trap "SIGTERM" do
             Thread.new do
               shutdown!
-              message = 'Shutdown signal (SIGTERM) received. Will shutdown as soon as active jobs/slices have completed.'
+              message = "Shutdown signal (SIGTERM) received. Will shutdown as soon as active jobs/slices have completed."
               logger.info(message)
             end
           end
 
-          Signal.trap 'INT' do
+          Signal.trap "INT" do
             Thread.new do
               shutdown!
-              message = 'Shutdown signal (INT) received. Will shutdown as soon as active jobs/slices have completed.'
+              message = "Shutdown signal (INT) received. Will shutdown as soon as active jobs/slices have completed."
               logger.info(message)
             end
           end
         rescue StandardError
-          logger.warn 'SIGTERM handler not installed. Not able to shutdown gracefully'
+          logger.warn "SIGTERM handler not installed. Not able to shutdown gracefully"
         end
 
         private_class_method :register_signal_handlers

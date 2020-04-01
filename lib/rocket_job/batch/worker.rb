@@ -1,4 +1,4 @@
-require 'active_support/concern'
+require "active_support/concern"
 
 module RocketJob
   module Batch
@@ -34,7 +34,7 @@ module RocketJob
       #
       # Thread-safe, can be called by multiple threads at the same time
       def rocket_job_work(worker, re_raise_exceptions = false)
-        raise 'Job must be started before calling #rocket_job_work' unless running?
+        raise "Job must be started before calling #rocket_job_work" unless running?
 
         start_time = Time.now
         if sub_state != :processing
@@ -43,7 +43,7 @@ module RocketJob
         end
 
         SemanticLogger.named_tagged(job: id.to_s) do
-          while !worker.shutdown?
+          until worker.shutdown?
             if slice = input.next_slice(worker.name)
               # Grab a slice before checking the throttle to reduce concurrency race condition.
               return true if slice.fail_on_exception!(re_raise_exceptions) { rocket_job_batch_throttled?(slice, worker) }
@@ -53,7 +53,7 @@ module RocketJob
             elsif record_count && rocket_job_batch_complete?(worker.name)
               return false
             else
-              logger.debug 'No more work available for this job'
+              logger.debug "No more work available for this job"
               worker.add_to_current_filter(throttle_filter_id)
               return true
             end
@@ -74,12 +74,14 @@ module RocketJob
       #
       # Note: The slice will be removed from processing when this method completes
       def work_first_slice(&block)
-        raise '#work_first_slice can only be called from within before_batch callbacks' unless sub_state == :before
-        # TODO Make these settings configurable
+        raise "#work_first_slice can only be called from within before_batch callbacks" unless sub_state == :before
+
+        # TODO: Make these settings configurable
         count        = 0
         wait_seconds = 5
         while (slice = input.first).nil?
           break if count > 10
+
           logger.info "First slice has not arrived yet, sleeping for #{wait_seconds} seconds"
           sleep wait_seconds
           count += 1
@@ -87,7 +89,7 @@ module RocketJob
 
         if slice = input.first
           SemanticLogger.named_tagged(slice: slice.id.to_s) do
-            # TODO Persist that the first slice is being processed by this worker
+            # TODO: Persist that the first slice is being processed by this worker
             slice.start
             rocket_job_process_slice(slice, true, &block)
           end
@@ -167,10 +169,11 @@ module RocketJob
         # TODO: Add option to complete slice instead of destroying it to retain input data.
         slice.destroy
         slice_record_number
-      rescue Exception => exc
-        slice.fail!(exc, slice_record_number)
-        raise exc if re_raise_exceptions
-        slice_record_number > 0 ? slice_record_number - 1 : 0
+      rescue Exception => e
+        slice.fail!(e, slice_record_number)
+        raise e if re_raise_exceptions
+
+        slice_record_number.positive? ? slice_record_number - 1 : 0
       end
 
       # Checks for completion and runs after_batch if defined
@@ -182,7 +185,7 @@ module RocketJob
         # Only failed slices left?
         input_count  = input.count
         failed_count = input.failed.count
-        if (failed_count > 0) && (input_count == failed_count)
+        if failed_count.positive? && (input_count == failed_count)
           # Reload to pull in any counters or other data that was modified.
           reload unless new_record?
           if may_fail?
@@ -190,12 +193,12 @@ module RocketJob
             unless new_record?
               # Fail job iff no other worker has already finished it
               # Must set write concern to at least 1 since we need the nModified back
-              result   = self.class.with(write: {w: 1}) do |query|
+              result = self.class.with(write: {w: 1}) do |query|
                 query.
                   where(id: id, state: :running, sub_state: :processing).
-                  update({'$set' => {state: :failed, worker_name: worker_name}})
+                  update({"$set" => {state: :failed, worker_name: worker_name}})
               end
-              fail_job = false unless result.modified_count > 0
+              fail_job = false unless result.modified_count.positive?
             end
             if fail_job
               message        = "#{failed_count} slices failed to process"
@@ -207,7 +210,7 @@ module RocketJob
         end
 
         # Any work left?
-        return false if input_count > 0
+        return false if input_count.positive?
 
         # If the job was not saved to the queue, do not save any changes
         if new_record?
@@ -220,12 +223,12 @@ module RocketJob
         result = self.class.with(write: {w: 1}) do |query|
           query.
             where(id: id, state: :running, sub_state: :processing).
-            update('$set' => {sub_state: :after, worker_name: worker_name})
+            update("$set" => {sub_state: :after, worker_name: worker_name})
         end
 
         # Reload to pull in any counters or other data that was modified.
         reload
-        if result.modified_count > 0
+        if result.modified_count.positive?
           rocket_job_batch_run_after_callbacks(false)
         else
           # Repeat cleanup in case this worker was still running when the job was aborted
@@ -241,7 +244,7 @@ module RocketJob
           self.sub_state = :before
           save! unless new_record? || destroyed?
           logger.measure_info(
-            'before_batch',
+            "before_batch",
             metric:             "#{self.class.name}/before_batch",
             log_exception:      :full,
             on_exception_level: :error,
@@ -261,7 +264,7 @@ module RocketJob
           self.sub_state = :after
           save! if save_before && !new_record? && !destroyed?
           logger.measure_info(
-            'after_batch',
+            "after_batch",
             metric:             "#{self.class.name}/after_batch",
             log_exception:      :full,
             on_exception_level: :error,

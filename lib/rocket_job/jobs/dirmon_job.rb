@@ -1,4 +1,4 @@
-require 'fileutils'
+require "fileutils"
 module RocketJob
   module Jobs
     # Dirmon monitors folders for files matching the criteria specified in DirmonEntry
@@ -79,10 +79,10 @@ module RocketJob
             end
 
             # BSON Keys cannot contain periods
-            key                 = iopath.to_s.tr('.', '_')
-            previous_size       = previous_file_names[key]
+            key           = iopath.to_s.tr(".", "_")
+            previous_size = previous_file_names[key]
             # Check every few minutes for a file size change before trying to process the file.
-            size                = check_file(entry, iopath, previous_size)
+            size = check_file(entry, iopath, previous_size)
             new_file_names[key] = size if size
           end
         end

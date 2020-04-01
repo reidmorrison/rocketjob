@@ -5,9 +5,9 @@ module RocketJob
         # Create indexes before uploading
         create_indexes
         Writer::Input.collect(self, on_first: on_first, &block)
-      rescue StandardError => exc
+      rescue StandardError => e
         drop
-        raise(exc)
+        raise(e)
       end
 
       def upload_mongo_query(criteria, *column_names, &block)
@@ -19,7 +19,7 @@ module RocketJob
           options[:projection] = options.delete(:fields) if options.key?(:fields)
         else
           column_names = column_names.collect(&:to_s)
-          column_names << '_id' if column_names.size.zero?
+          column_names << "_id" if column_names.size.zero?
 
           fields = options.delete(:fields) || {}
           column_names.each { |col| fields[col] = 1 }
@@ -73,9 +73,9 @@ module RocketJob
           count    += 1
         end
         count
-      rescue StandardError => exc
+      rescue StandardError => e
         drop
-        raise(exc)
+        raise(e)
       end
 
       def upload_integer_range_in_reverse_order(start_id, last_id)
@@ -91,9 +91,9 @@ module RocketJob
           count  += 1
         end
         count
-      rescue StandardError => exc
+      rescue StandardError => e
         drop
-        raise(exc)
+        raise(e)
       end
 
       # Iterate over each failed record, if any
@@ -116,16 +116,16 @@ module RocketJob
       # Requeue all failed slices
       def requeue_failed
         failed.update_all(
-          '$unset' => {worker_name: nil, started_at: nil},
-          '$set'   => {state: :queued}
+          "$unset" => {worker_name: nil, started_at: nil},
+          "$set"   => {state: :queued}
         )
       end
 
       # Requeue all running slices for a server or worker that is no longer available
       def requeue_running(worker_name)
         running.where(worker_name: /\A#{worker_name}/).update_all(
-          '$unset' => {worker_name: nil, started_at: nil},
-          '$set'   => {state: :queued}
+          "$unset" => {worker_name: nil, started_at: nil},
+          "$set"   => {state: :queued}
         )
       end
 
@@ -137,11 +137,11 @@ module RocketJob
         # TODO: Will it perform faster without the id sort?
         # I.e. Just process on a FIFO basis?
         document                 = all.queued.
-          sort('_id' => 1).
-          find_one_and_update(
-            {'$set' => {worker_name: worker_name, state: :running, started_at: Time.now}},
-            return_document: :after
-          )
+                                   sort("_id" => 1).
+                                   find_one_and_update(
+                                     {"$set" => {worker_name: worker_name, state: :running, started_at: Time.now}},
+                                     return_document: :after
+                                   )
         document.collection_name = collection_name if document
         document
       end

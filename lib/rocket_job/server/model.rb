@@ -1,5 +1,5 @@
-require 'yaml'
-require 'active_support/concern'
+require "yaml"
+require "active_support/concern"
 
 module RocketJob
   class Server
@@ -8,7 +8,7 @@ module RocketJob
       extend ActiveSupport::Concern
 
       included do
-        store_in collection: 'rocket_job.servers'
+        store_in collection: "rocket_job.servers"
 
         # Unique Name of this server instance
         #   Default: `host name:PID`
@@ -24,7 +24,7 @@ module RocketJob
         field :started_at, type: Time
 
         # The heartbeat information for this server
-        embeds_one :heartbeat, class_name: 'RocketJob::Heartbeat'
+        embeds_one :heartbeat, class_name: "RocketJob::Heartbeat"
 
         # Current state
         #   Internal use only. Do not set this field directly
@@ -58,8 +58,8 @@ module RocketJob
         #   # => {}
         def self.counts_by_state
           counts = {}
-          collection.aggregate([{'$group' => {_id: '$state', count: {'$sum' => 1}}}]).each do |result|
-            counts[result['_id'].to_sym] = result['count']
+          collection.aggregate([{"$group" => {_id: "$state", count: {"$sum" => 1}}}]).each do |result|
+            counts[result["_id"].to_sym] = result["count"]
           end
           counts
         end
@@ -70,6 +70,7 @@ module RocketJob
           count = 0
           each do |server|
             next unless server.zombie?
+
             logger.warn "Destroying zombie server #{server.name}, and requeueing its jobs"
             server.destroy
             count += 1
@@ -83,9 +84,9 @@ module RocketJob
           last_heartbeat_time = Time.now - dead_seconds
           where(
             :state.in => %i[stopping running paused],
-            '$or'     => [
-              {'heartbeat.updated_at' => {'$exists' => false}},
-              {'heartbeat.updated_at' => {'$lte' => last_heartbeat_time}}
+            "$or"     => [
+              {"heartbeat.updated_at" => {"$exists" => false}},
+              {"heartbeat.updated_at" => {"$lte" => last_heartbeat_time}}
             ]
           )
         end
@@ -100,6 +101,7 @@ module RocketJob
       def zombie?(missed = 4)
         return false unless running? || stopping? || paused?
         return true if heartbeat.nil? || heartbeat.updated_at.nil?
+
         dead_seconds = Config.heartbeat_seconds * missed
         (Time.now - heartbeat.updated_at) >= dead_seconds
       end
@@ -108,8 +110,8 @@ module RocketJob
       def refresh(worker_count)
         SemanticLogger.silence(:info) do
           find_and_update(
-            'heartbeat.updated_at' => Time.now,
-            'heartbeat.workers'    => worker_count
+            "heartbeat.updated_at" => Time.now,
+            "heartbeat.workers"    => worker_count
           )
         end
       end
@@ -120,7 +122,6 @@ module RocketJob
       def requeue_jobs
         RocketJob::Job.requeue_dead_server(name)
       end
-
     end
   end
 end

@@ -1,5 +1,5 @@
-require 'fileutils'
-require 'uri'
+require "fileutils"
+require "uri"
 
 module RocketJob
   module Jobs
@@ -40,10 +40,10 @@ module RocketJob
         job.id = job_id if job_id
         upload_file(job)
         job.save!
-      rescue StandardError => exc
+      rescue StandardError => e
         # Prevent partial uploads
         job&.cleanup! if job.respond_to?(:cleanup!)
-        raise(exc)
+        raise(e)
       end
 
       private
@@ -74,6 +74,7 @@ module RocketJob
       def job_is_a_rocket_job
         klass = job_class
         return if klass.nil? || klass.ancestors&.include?(RocketJob::Job)
+
         errors.add(:job_class_name, "Model #{job_class_name} must be defined and inherit from RocketJob::Job")
       end
 
@@ -83,14 +84,17 @@ module RocketJob
       def job_implements_upload
         klass = job_class
         return if klass.nil? || klass.instance_methods.any? { |m| VALID_INSTANCE_METHODS.include?(m) }
+
         errors.add(:job_class_name, "#{job_class} must implement any one of: :#{VALID_INSTANCE_METHODS.join(' :')} instance methods")
       end
 
       def file_exists
         return if upload_file_name.nil?
+
         uri = URI.parse(upload_file_name)
-        return unless uri.scheme.nil? || uri.scheme == 'file'
+        return unless uri.scheme.nil? || uri.scheme == "file"
         return if File.exist?(upload_file_name)
+
         errors.add(:upload_file_name, "Upload file: #{upload_file_name} does not exist.")
       end
     end

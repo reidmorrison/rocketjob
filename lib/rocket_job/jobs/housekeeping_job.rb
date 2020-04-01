@@ -30,9 +30,9 @@ module RocketJob
       include RocketJob::Plugins::Singleton
 
       self.priority    = 25
-      self.description = 'Cleans out historical jobs, and zombie servers.'
+      self.description = "Cleans out historical jobs, and zombie servers."
       # Runs every 15 minutes
-      self.cron_schedule = '*/15 * * * * UTC'
+      self.cron_schedule = "*/15 * * * * UTC"
 
       # Whether to destroy zombie servers automatically
       field :destroy_zombies, type: Boolean, default: true, user_editable: true, copy_on_restart: true
@@ -46,13 +46,13 @@ module RocketJob
       field :queued_retention, type: Integer, user_editable: true, copy_on_restart: true
 
       def perform
-        RocketJob::Job.aborted.where(completed_at: {'$lte' => aborted_retention.seconds.ago}).destroy_all if aborted_retention
+        RocketJob::Job.aborted.where(completed_at: {"$lte" => aborted_retention.seconds.ago}).destroy_all if aborted_retention
         if completed_retention
-          RocketJob::Job.completed.where(completed_at: {'$lte' => completed_retention.seconds.ago}).destroy_all
+          RocketJob::Job.completed.where(completed_at: {"$lte" => completed_retention.seconds.ago}).destroy_all
         end
-        RocketJob::Job.failed.where(completed_at: {'$lte' => failed_retention.seconds.ago}).destroy_all if failed_retention
-        RocketJob::Job.paused.where(completed_at: {'$lte' => paused_retention.seconds.ago}).destroy_all if paused_retention
-        RocketJob::Job.queued.where(created_at: {'$lte' => queued_retention.seconds.ago}).destroy_all if queued_retention
+        RocketJob::Job.failed.where(completed_at: {"$lte" => failed_retention.seconds.ago}).destroy_all if failed_retention
+        RocketJob::Job.paused.where(completed_at: {"$lte" => paused_retention.seconds.ago}).destroy_all if paused_retention
+        RocketJob::Job.queued.where(created_at: {"$lte" => queued_retention.seconds.ago}).destroy_all if queued_retention
 
         if destroy_zombies
           # Cleanup zombie servers

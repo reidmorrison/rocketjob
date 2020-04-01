@@ -1,4 +1,4 @@
-require 'active_support/concern'
+require "active_support/concern"
 
 module RocketJob
   module Plugins
@@ -18,9 +18,9 @@ module RocketJob
         #   - on_exception_level changes log level from info to error on exception
         #   - silence noisy jobs by raising log level
         def rocket_job_around_logger(&block)
-          logger.info('Start #perform')
+          logger.info("Start #perform")
           logger.measure_info(
-            'Completed #perform',
+            "Completed #perform",
             metric:             "#{self.class.name}/perform",
             log_exception:      :full,
             on_exception_level: :error,

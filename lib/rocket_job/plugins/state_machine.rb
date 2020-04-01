@@ -1,5 +1,5 @@
-require 'active_support/concern'
-require 'aasm'
+require "active_support/concern"
+require "aasm"
 
 module RocketJob
   module Plugins
@@ -33,8 +33,8 @@ module RocketJob
         # Adds a :before or :after callback to an event
         #  state_machine_add_event_callback(:start, :before, :my_method)
         def self.state_machine_add_event_callback(event_name, action, *methods, &block)
-          raise(ArgumentError, 'Cannot supply both a method name and a block') if methods.size.positive? && block
-          raise(ArgumentError, 'Must supply either a method name or a block') unless methods.size.positive? || block
+          raise(ArgumentError, "Cannot supply both a method name and a block") if methods.size.positive? && block
+          raise(ArgumentError, "Must supply either a method name or a block") unless methods.size.positive? || block
 
           # TODO: Somehow get AASM to support options such as :if and :unless to be consistent with other callbacks
           # For example:

@@ -1,4 +1,4 @@
-require 'forwardable'
+require "forwardable"
 module RocketJob
   module Sliced
     # A slice is an Array of Records, along with meta-data that is used
@@ -21,7 +21,7 @@ module RocketJob
       include RocketJob::Plugins::StateMachine
       extend Forwardable
 
-      store_in client: 'rocketjob_slices'
+      store_in client: "rocketjob_slices"
 
       # The record number of the first record in this slice.
       #
@@ -46,7 +46,7 @@ module RocketJob
       field :worker_name, type: String
 
       # The last exception for this slice if any
-      embeds_one :exception, class_name: 'RocketJob::JobException'
+      embeds_one :exception, class_name: "RocketJob::JobException"
 
       after_find :parse_records
 
@@ -132,13 +132,13 @@ module RocketJob
       if ::Mongoid::VERSION.to_i >= 6
         def as_attributes
           attrs            = super
-          attrs['records'] = serialize_records if @records
+          attrs["records"] = serialize_records if @records
           attrs
         end
       else
         def as_document
           attrs            = super
-          attrs['records'] = serialize_records if @records
+          attrs["records"] = serialize_records if @records
           attrs
         end
       end
@@ -150,18 +150,18 @@ module RocketJob
       # Fail this slice if an exception occurs during processing.
       def fail_on_exception!(re_raise_exceptions = false, &block)
         SemanticLogger.named_tagged(slice: id.to_s, &block)
-      rescue Exception => exc
+      rescue Exception => e
         SemanticLogger.named_tagged(slice: id.to_s) do
           if failed? || !may_fail?
-            exception       = JobException.from_exception(exc)
+            exception             = JobException.from_exception(e)
             exception.worker_name = worker_name
             save! unless new_record? || destroyed?
           elsif new_record? || destroyed?
-            fail(exc)
+            fail(e)
           else
-            fail!(exc)
+            fail!(e)
           end
-          raise exc if re_raise_exceptions
+          raise e if re_raise_exceptions
         end
       end
 
@@ -170,14 +170,12 @@ module RocketJob
       # Always add records to any updates.
       def atomic_updates(*args)
         r = super(*args)
-        if @records
-          (r['$set'] ||= {})['records'] = serialize_records
-        end
+        (r["$set"] ||= {})["records"] = serialize_records if @records
         r
       end
 
       def parse_records
-        @records = attributes.delete('records')
+        @records = attributes.delete("records")
       end
 
       def serialize_records

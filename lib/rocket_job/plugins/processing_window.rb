@@ -1,4 +1,4 @@
-require 'active_support/concern'
+require "active_support/concern"
 
 module RocketJob
   module Plugins
@@ -49,8 +49,8 @@ module RocketJob
         validates_each :processing_schedule do |record, attr, value|
           begin
             RocketJob::Plugins::Rufus::CronLine.new(value)
-          rescue ArgumentError => exc
-            record.errors.add(attr, exc.message)
+          rescue ArgumentError => e
+            record.errors.add(attr, e.message)
           end
         end
       end
@@ -68,8 +68,9 @@ module RocketJob
       # Only process this job if it is still in its processing window
       def rocket_job_processing_window_check
         return if rocket_job_processing_window_active?
+
         logger.warn("Processing window closed before job was processed. Job is re-scheduled to run at: #{rocket_job_processing_schedule.next_time}")
-        self.worker_name ||= 'inline'
+        self.worker_name ||= "inline"
         requeue!(worker_name)
       end
 

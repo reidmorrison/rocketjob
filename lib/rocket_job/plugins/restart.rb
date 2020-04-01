@@ -1,4 +1,4 @@
-require 'active_support/concern'
+require "active_support/concern"
 
 module RocketJob
   module Plugins
@@ -88,7 +88,7 @@ module RocketJob
       # Run again in the future, even if this run fails with an exception
       def rocket_job_restart_new_instance
         if expired?
-          logger.info('Job has expired. Not creating a new instance.')
+          logger.info("Job has expired. Not creating a new instance.")
           return
         end
         attributes = rocket_job_restart_attributes.each_with_object({}) { |attr, attrs| attrs[attr] = send(attr) }
@@ -109,7 +109,7 @@ module RocketJob
             logger.info("Created a new job instance: #{job.id}")
             return true
           else
-            logger.info('Job already active, retrying after a short sleep')
+            logger.info("Job already active, retrying after a short sleep")
             sleep(sleep_interval)
           end
           count += 1

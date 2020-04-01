@@ -68,7 +68,7 @@ module RocketJob
       include RocketJob::Batch::Statistics
 
       self.priority            = 90
-      self.description         = 'Batch Job'
+      self.description         = "Batch Job"
       self.destroy_on_complete = false
 
       # Code that is performed against every row / record.
@@ -111,23 +111,26 @@ module RocketJob
 
       def validate_code
         return if code.nil?
+
         validate_field(:code) { load_perform_code }
       end
 
       def validate_before_code
         return if before_code.nil?
+
         validate_field(:before_code) { instance_eval("def __before_code\n#{before_code}\nend") }
       end
 
       def validate_after_code
         return if after_code.nil?
+
         validate_field(:after_code) { instance_eval("def __after_code\n#{after_code}\nend") }
       end
 
       def validate_field(field)
         yield
-      rescue Exception => exc
-        errors.add(field, "Failed to load :#{field}, #{exc.inspect}")
+      rescue Exception => e
+        errors.add(field, "Failed to load :#{field}, #{e.inspect}")
       end
     end
   end

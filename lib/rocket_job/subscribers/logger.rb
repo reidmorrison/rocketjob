@@ -1,4 +1,4 @@
-require 'socket'
+require "socket"
 
 module RocketJob
   module Subscribers
@@ -9,8 +9,8 @@ module RocketJob
         @host_name ||= Socket.gethostname
       end
 
-      def self.host_name=(host_name)
-        @host_name = host_name
+      class << self
+        attr_writer :host_name
       end
 
       # Change the log level

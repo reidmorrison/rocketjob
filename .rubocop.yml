@@ -2,11 +2,11 @@ AllCops:
   TargetRubyVersion: 2.3
   Exclude:
     - '.git/**/*'
-    - 'docs/*'
+    - 'docs/**/*'
     - 'gemfiles/*'
     # Keep Rufus files unchanged
     - 'lib/rocket_job/plugins/rufus/*'
-    - 'test/*'
+    - 'test/**/*'
 
 #
 # RuboCop built-in settings.
@@ -113,6 +113,6 @@ Style/SignalException:
 Style/SpecialGlobalVars:
   Enabled: false
 
-# Make it easier for developers to move between languages.
+# Make it easier for developers to move between Elixir and Ruby.
 Style/StringLiterals:
   EnforcedStyle: double_quotes

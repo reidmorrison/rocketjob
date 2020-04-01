@@ -1,4 +1,4 @@
-require 'active_support/concern'
+require "active_support/concern"
 
 module RocketJob
   module Batch
@@ -22,11 +22,12 @@ module RocketJob
         end
 
         def inc_key(key, increment = 1)
-          return if increment == 0
+          return if increment.zero?
+
           if in_memory
             # For tests and in-process execution
             inc_in_memory(key, increment)
-          elsif key && key != ''
+          elsif key && key != ""
             stats["statistics.#{key}"] += increment
           end
           self
@@ -40,11 +41,11 @@ module RocketJob
 
         # Navigates path and creates child hashes as needed at the end is reached
         def inc_in_memory(key, increment)
-          paths = key.to_s.split('.')
+          paths = key.to_s.split(".")
           last  = paths.pop
           return unless last
 
-          target       = paths.inject(in_memory) { |target, key| target.key?(key) ? target[key] : target[key] = Hash.new(0) }
+          target = paths.inject(in_memory) { |target, key| target.key?(key) ? target[key] : target[key] = Hash.new(0) }
           target[last] += increment
         end
       end
@@ -57,7 +58,8 @@ module RocketJob
 
       # Increment a statistic
       def statistics_inc(key, increment = 1)
-        return if key.nil? || key == ''
+        return if key.nil? || key == ""
+
         # Being called within tests outside of a perform
         @slice_statistics ||= Stats.new(new_record? ? statistics : nil)
         key.is_a?(Hash) ? @slice_statistics.inc(key) : @slice_statistics.inc_key(key, increment)
@@ -70,12 +72,12 @@ module RocketJob
       def statistics_capture
         @slice_statistics = Stats.new(new_record? ? statistics : nil)
         yield
-        collection.update_one({_id: id}, {'$inc' => @slice_statistics.stats}) unless @slice_statistics.empty?
+        collection.update_one({_id: id}, {"$inc" => @slice_statistics.stats}) unless @slice_statistics.empty?
       end
 
       # Overrides RocketJob::Batch::Logger#rocket_job_batch_log_payload
       def rocket_job_batch_log_payload
-        h              = {
+        h = {
           from:  aasm.from_state,
           to:    aasm.to_state,
           event: aasm.current_event

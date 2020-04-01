@@ -1,9 +1,9 @@
-require 'optparse'
-require 'json'
-require 'semantic_logger'
-require 'mongoid'
-require 'rocketjob'
-require 'pathname'
+require "optparse"
+require "json"
+require "semantic_logger"
+require "mongoid"
+require "rocketjob"
+require "pathname"
 module RocketJob
   # Command Line Interface parser for Rocket Job
   class CLI
@@ -18,7 +18,7 @@ module RocketJob
       @quiet                       = false
       @environment                 = nil
       @pidfile                     = nil
-      @directory                   = '.'
+      @directory                   = "."
       @log_level                   = nil
       @log_file                    = nil
       @mongo_config                = nil
@@ -36,7 +36,7 @@ module RocketJob
 
     # Run a RocketJob::Server from the command line
     def run
-      Thread.current.name = 'rocketjob main'
+      Thread.current.name = "rocketjob main"
       RocketJob.server! if server
       setup_environment
       setup_logger
@@ -60,7 +60,7 @@ module RocketJob
     def rails?
       @rails ||=
         begin
-          boot_file = Pathname.new(directory).join('config/environment.rb').expand_path
+          boot_file = Pathname.new(directory).join("config/environment.rb").expand_path
           boot_file.file?
         end
     end
@@ -71,13 +71,13 @@ module RocketJob
       logger.info "Loading Rails environment: #{environment}"
       RocketJob.rails!
 
-      require 'rails'
-      require 'rocket_job/railtie'
-      boot_file = Pathname.new(directory).join('config/environment.rb').expand_path
+      require "rails"
+      require "rocket_job/railtie"
+      boot_file = Pathname.new(directory).join("config/environment.rb").expand_path
       require(boot_file.to_s)
 
       begin
-        require 'rails_semantic_logger'
+        require "rails_semantic_logger"
       rescue LoadError
         raise "Add the following line to your Gemfile when running rails:\n gem 'rails_semantic_logger'"
       end
@@ -87,10 +87,10 @@ module RocketJob
 
       return unless Rails.configuration.eager_load
 
-      logger.measure_info('Eager loaded Rails and all Engines') do
+      logger.measure_info("Eager loaded Rails and all Engines") do
         Rails.application.eager_load!
         Rails::Engine.subclasses.each(&:eager_load!)
-        self.class.eager_load_jobs(File.expand_path('jobs', File.dirname(__FILE__)))
+        self.class.eager_load_jobs(File.expand_path("jobs", File.dirname(__FILE__)))
       end
     end
 
@@ -98,13 +98,13 @@ module RocketJob
     def boot_standalone
       # Try to load bundler if present
       begin
-        require 'bundler/setup'
+        require "bundler/setup"
         Bundler.require(environment)
       rescue LoadError
         nil
       end
 
-      require 'rocketjob'
+      require "rocketjob"
 
       # Log to file except when booting rails, when it will add the log file path
       path = log_file ? Pathname.new(log_file) : Pathname.pwd.join("log/#{environment}.log")
@@ -113,7 +113,7 @@ module RocketJob
 
       logger.info "Rails not detected. Running standalone: #{environment}"
       RocketJob::Config.load!(environment, mongo_config, symmetric_encryption_config)
-      self.class.eager_load_jobs(File.expand_path('jobs', File.dirname(__FILE__)))
+      self.class.eager_load_jobs(File.expand_path("jobs", File.dirname(__FILE__)))
       self.class.eager_load_jobs
     end
 
@@ -128,8 +128,9 @@ module RocketJob
     # Create a PID file if requested
     def write_pidfile
       return unless pidfile
+
       pid = $PID
-      File.open(pidfile, 'w') { |f| f.puts(pid) }
+      File.open(pidfile, "w") { |f| f.puts(pid) }
 
       # Remove pidfile on exit
       at_exit do
@@ -140,9 +141,9 @@ module RocketJob
     def setup_environment
       # Override Env vars when environment is supplied
       if environment
-        ENV['RACK_ENV'] = ENV['RAILS_ENV'] = environment
+        ENV["RACK_ENV"] = ENV["RAILS_ENV"] = environment
       else
-        self.environment = ENV['RAILS_ENV'] || ENV['RACK_ENV'] || 'development'
+        self.environment = ENV["RAILS_ENV"] || ENV["RACK_ENV"] || "development"
       end
     end
 
@@ -158,9 +159,10 @@ module RocketJob
     end
 
     # Eager load files in jobs folder
-    def self.eager_load_jobs(job_path = 'jobs')
+    def self.eager_load_jobs(job_path = "jobs")
       Pathname.glob("#{job_path}/**/*.rb").each do |path|
         next if path.directory?
+
         logger.debug "Loading #{path}"
         require path.expand_path.to_s
       end
@@ -169,7 +171,7 @@ module RocketJob
     def perform_list_servers(filter)
       return list_the_servers(filter) unless refresh
 
-      while true
+      loop do
         list_the_servers(filter)
         sleep(refresh)
         puts
@@ -177,10 +179,10 @@ module RocketJob
     end
 
     def list_the_servers(filter)
-      format = "%50.50s %20.20s %20.20s %20.20s %10.10s"
-      puts format % %w[Server\ Name Workers(Current/Max) Started Heartbeat State]
+      layout = "%50.50s %20.20s %20.20s %20.20s %10.10s"
+      puts format(layout, "Server Name", "Workers(Current/Max)", "Started", "Heartbeat", "State")
       header = "=" * 50
-      puts format % [header, header, header, header, header]
+      puts format(layout, header, header, header, header, header)
       query = filter == :all ? RocketJob::Server.all : RocketJob::Server.where(name: /#{filter}/)
       query.each do |server|
         workers   = "#{server&.heartbeat&.workers}/#{server.max_workers}"
@@ -188,14 +190,14 @@ module RocketJob
         started   = "#{RocketJob.seconds_as_duration(duration)} ago"
         duration  = Time.now - (server&.heartbeat&.updated_at || Time.now)
         heartbeat = "#{RocketJob.seconds_as_duration(duration)} ago"
-        puts format % [server.name, workers, started, heartbeat, server.state]
+        puts format(layout, server.name, workers, started, heartbeat, server.state)
       end
       0
     end
 
     def perform_server_action(server_name, action)
       server_ids(server_name).each { |server_id| RocketJob::Subscribers::Server.publish(action, server_id: server_id) }
-      #RocketJob::Subscribers::Worker.publish(:stop, worker_id: 1, server_id: RocketJob::Server.running.last.id)
+      # RocketJob::Subscribers::Worker.publish(:stop, worker_id: 1, server_id: RocketJob::Server.running.last.id)
       0
     end
 
@@ -219,6 +221,7 @@ module RocketJob
       if pid
         server = RocketJob::Server.where(name: server_name).first
         raise(ArgumentError, "No server with exact name: #{server_name} was found.") unless server
+
         return [server.id]
       end
 
@@ -230,90 +233,90 @@ module RocketJob
 
     # Parse command line options placing results in the corresponding instance variables
     def parse(argv)
-      parser        = OptionParser.new do |o|
-        o.on('-n', '--name NAME', 'Unique Name of this server (Default: host_name:PID)') do |arg|
+      parser = OptionParser.new do |o|
+        o.on("-n", "--name NAME", "Unique Name of this server (Default: host_name:PID)") do |arg|
           Config.name = arg
         end
-        o.on('-w', '--workers COUNT', 'Number of workers (threads) to start') do |arg|
+        o.on("-w", "--workers COUNT", "Number of workers (threads) to start") do |arg|
           @max_workers = arg.to_i
         end
-        o.on('--include REGEXP', 'Limit this server to only those job classes that match this regular expression (case-insensitive). Example: "DirmonJob|WeeklyReportJob"') do |arg|
+        o.on("--include REGEXP", 'Limit this server to only those job classes that match this regular expression (case-insensitive). Example: "DirmonJob|WeeklyReportJob"') do |arg|
           @include_filter = Regexp.new(arg, true)
         end
-        o.on('-F', '--filter REGEXP', 'DEPRECATED. Use --include') do |arg|
-          warn '-F and --filter are deprecated, use --include'
+        o.on("-F", "--filter REGEXP", "DEPRECATED. Use --include") do |arg|
+          warn "-F and --filter are deprecated, use --include"
           @include_filter = Regexp.new(arg, true)
         end
-        o.on('-E', '--exclude REGEXP', 'Prevent this server from working on any job classes that match this regular expression (case-insensitive). Example: "DirmonJob|WeeklyReportJob"') do |arg|
+        o.on("-E", "--exclude REGEXP", 'Prevent this server from working on any job classes that match this regular expression (case-insensitive). Example: "DirmonJob|WeeklyReportJob"') do |arg|
           @exclude_filter = Regexp.new(arg, true)
         end
-        o.on('-W', '--where JSON', "Limit this server instance to the supplied mongo query filter. Supply as a string in JSON format. Example: '{\"priority\":{\"$lte\":25}}'") do |arg|
+        o.on("-W", "--where JSON", "Limit this server instance to the supplied mongo query filter. Supply as a string in JSON format. Example: '{\"priority\":{\"$lte\":25}}'") do |arg|
           @where_filter = JSON.parse(arg)
         end
-        o.on('-q', '--quiet', 'Do not write to stdout, only to logfile. Necessary when running as a daemon') do
+        o.on("-q", "--quiet", "Do not write to stdout, only to logfile. Necessary when running as a daemon") do
           @quiet = true
         end
-        o.on('-d', '--dir DIR', 'Directory containing Rails app, if not current directory') do |arg|
+        o.on("-d", "--dir DIR", "Directory containing Rails app, if not current directory") do |arg|
           @directory = arg
         end
-        o.on('-e', '--environment ENVIRONMENT', 'The environment to run the app on (Default: RAILS_ENV || RACK_ENV || development)') do |arg|
+        o.on("-e", "--environment ENVIRONMENT", "The environment to run the app on (Default: RAILS_ENV || RACK_ENV || development)") do |arg|
           @environment = arg
         end
-        o.on('-l', '--log_level trace|debug|info|warn|error|fatal', 'The log level to use') do |arg|
+        o.on("-l", "--log_level trace|debug|info|warn|error|fatal", "The log level to use") do |arg|
           @log_level = arg
         end
-        o.on('-f', '--log_file FILE_NAME', 'The log file to write to. Default: log/<environment>.log') do |arg|
+        o.on("-f", "--log_file FILE_NAME", "The log file to write to. Default: log/<environment>.log") do |arg|
           @log_file = arg
         end
-        o.on('--pidfile PATH', 'Use PATH as a pidfile') do |arg|
+        o.on("--pidfile PATH", "Use PATH as a pidfile") do |arg|
           @pidfile = arg
         end
-        o.on('-m', '--mongo MONGO_CONFIG_FILE_NAME', 'Path and filename of config file. Default: config/mongoid.yml') do |arg|
+        o.on("-m", "--mongo MONGO_CONFIG_FILE_NAME", "Path and filename of config file. Default: config/mongoid.yml") do |arg|
           @mongo_config = arg
         end
-        o.on('-s', '--symmetric-encryption SYMMETRIC_ENCRYPTION_CONFIG_FILE_NAME', 'Path and filename of Symmetric Encryption config file. Default: config/symmetric-encryption.yml') do |arg|
+        o.on("-s", "--symmetric-encryption SYMMETRIC_ENCRYPTION_CONFIG_FILE_NAME", "Path and filename of Symmetric Encryption config file. Default: config/symmetric-encryption.yml") do |arg|
           @symmetric_encryption_config = arg
         end
-        o.on('--list [FILTER]', "List active servers. Supply either an exact server name or a partial name as a filter.") do |filter|
+        o.on("--list [FILTER]", "List active servers. Supply either an exact server name or a partial name as a filter.") do |filter|
           @quiet        = true
           @server       = false
           @list_servers = filter || :all
         end
-        o.on('--refresh [SECONDS]', "When listing active servers, update the list by this number of seconds. Defaults to every 1 second.") do |seconds|
+        o.on("--refresh [SECONDS]", "When listing active servers, update the list by this number of seconds. Defaults to every 1 second.") do |seconds|
           @refresh = (seconds || 1).to_s.to_f
         end
-        o.on('--stop [SERVER_NAME]', "Send event to stop a server once all in-process workers have completed. Optionally supply the complete or partial name of the server(s) to stop. Default: All servers.") do |server_name|
+        o.on("--stop [SERVER_NAME]", "Send event to stop a server once all in-process workers have completed. Optionally supply the complete or partial name of the server(s) to stop. Default: All servers.") do |server_name|
           @quiet       = true
           @server      = false
           @stop_server = server_name || :all
         end
-        o.on('--kill [SERVER_NAME]', "Send event to hard kill a server. Optionally supply the complete or partial name of the server(s) to kill. Default: All servers.") do |server_name|
+        o.on("--kill [SERVER_NAME]", "Send event to hard kill a server. Optionally supply the complete or partial name of the server(s) to kill. Default: All servers.") do |server_name|
           @quiet       = true
           @server      = false
           @kill_server = server_name || :all
         end
-        o.on('--pause [SERVER_NAME]', "Send event to pause a server. Optionally supply the complete or partial name of the server(s) to pause. Default: All servers.") do |server_name|
+        o.on("--pause [SERVER_NAME]", "Send event to pause a server. Optionally supply the complete or partial name of the server(s) to pause. Default: All servers.") do |server_name|
           @quiet        = true
           @server       = false
           @pause_server = server_name || :all
         end
-        o.on('--resume [SERVER_NAME]', "Send event to resume a server. Optionally supply the complete or partial name of the server(s) to resume. Default: All servers.") do |server_name|
+        o.on("--resume [SERVER_NAME]", "Send event to resume a server. Optionally supply the complete or partial name of the server(s) to resume. Default: All servers.") do |server_name|
           @quiet         = true
           @server        = false
           @resume_server = server_name || :all
         end
-        o.on('--dump [SERVER_NAME]', "Send event for a server to send a worker thread dump to its log file. Optionally supply the complete or partial name of the server(s). Default: All servers.") do |server_name|
+        o.on("--dump [SERVER_NAME]", "Send event for a server to send a worker thread dump to its log file. Optionally supply the complete or partial name of the server(s). Default: All servers.") do |server_name|
           @quiet       = true
           @server      = false
           @thread_dump = server_name || :all
         end
-        o.on('-v', '--version', 'Print the version information') do
+        o.on("-v", "--version", "Print the version information") do
           puts "Rocket Job v#{RocketJob::VERSION}"
           exit 1
         end
       end
-      parser.banner = 'rocketjob <options>'
-      parser.on_tail '-h', '--help', 'Show help' do
+      parser.banner = "rocketjob <options>"
+      parser.on_tail "-h", "--help", "Show help" do
         puts parser
         exit 1
       end

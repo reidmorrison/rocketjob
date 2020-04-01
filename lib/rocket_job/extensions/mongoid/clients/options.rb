@@ -1,5 +1,5 @@
-require 'mongoid/criteria'
-require 'mongoid/document'
+require "mongoid/criteria"
+require "mongoid/document"
 module RocketJob
   module MongoidClients
     module Options

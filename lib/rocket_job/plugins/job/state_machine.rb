@@ -1,4 +1,4 @@
-require 'active_support/concern'
+require "active_support/concern"
 
 module RocketJob
   module Plugins
@@ -126,7 +126,7 @@ module RocketJob
             exception.worker_name = worker_name
           else
             build_exception(
-              class_name:  'RocketJob::JobException',
+              class_name:  "RocketJob::JobException",
               message:     exc_or_message,
               backtrace:   [],
               worker_name: worker_name
@@ -135,7 +135,7 @@ module RocketJob
         end
 
         def rocket_job_set_started_at(worker_name = nil)
-          self.started_at = Time.now
+          self.started_at  = Time.now
           self.worker_name = worker_name if worker_name
         end
 
