@@ -190,13 +190,12 @@ module Sliced
           slice = slices.first
           slice.start!
           slice.reload
-          assert_equal true, slice.fail!(exception, 21)
+          assert_equal true, slice.fail!(exception)
           assert_equal 1, slice.failure_count
           assert slice.exception
           assert_equal exception.class.name, slice.exception.class_name
           assert_equal exception.message, slice.exception.message
           assert_equal exception.backtrace, slice.exception.backtrace
-          assert_equal 21, slice.exception.record_number
         end
       end
     end

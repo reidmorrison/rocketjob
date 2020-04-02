@@ -194,7 +194,7 @@ module Batch
           assert exception, -> { failed_slice.attributes.ai }
           assert_equal 'NoMethodError', exception.class_name
           assert exception.message.include?('no_method_error_please')
-          assert_equal 2, exception.record_number
+          assert_equal 2, failed_slice.processing_record_number
           assert exception.worker_name
           assert exception.backtrace
 
@@ -250,7 +250,7 @@ module Batch
           assert exception, -> { failed_slice.attributes.ai }
           assert_equal 'NoMethodError', exception.class_name
           assert exception.message.include?('no_method_error_please')
-          assert_equal 2, exception.record_number
+          assert_equal 2, failed_slice.processing_record_number
           assert exception.worker_name
           assert exception.backtrace
 

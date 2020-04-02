@@ -112,14 +112,13 @@ module Sliced
         it 'with exception' do
           slice.start
           slice.worker_name = 'me'
-          slice.fail!(exception, 21)
+          slice.fail!(exception)
           assert_equal 1, slice.failure_count
           assert slice.exception
           assert_equal exception.class.name, slice.exception.class_name
           assert_equal exception.message, slice.exception.message
           assert_equal exception.backtrace, slice.exception.backtrace
           assert_equal 'me', slice.exception.worker_name
-          assert_equal 21, slice.exception.record_number
           assert_equal collection_name, slice.collection_name
         end
       end

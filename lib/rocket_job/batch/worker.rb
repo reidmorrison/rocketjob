@@ -49,7 +49,7 @@ module RocketJob
               return true if slice.fail_on_exception!(re_raise_exceptions) { rocket_job_batch_throttled?(slice, worker) }
               next if slice.failed?
 
-              slice.fail_on_exception!(re_raise_exceptions) { rocket_job_process_slice(slice, re_raise_exceptions) }
+              slice.fail_on_exception!(re_raise_exceptions) { rocket_job_process_slice(slice) }
             elsif record_count && rocket_job_batch_complete?(worker.name)
               return false
             else
@@ -79,7 +79,7 @@ module RocketJob
         # TODO: Make these settings configurable
         count        = 0
         wait_seconds = 5
-        while (slice = input.first).nil?
+        while input.first.nil?
           break if count > 10
 
           logger.info "First slice has not arrived yet, sleeping for #{wait_seconds} seconds"
@@ -87,15 +87,14 @@ module RocketJob
           count += 1
         end
 
-        if slice = input.first
-          SemanticLogger.named_tagged(slice: slice.id.to_s) do
-            # TODO: Persist that the first slice is being processed by this worker
-            slice.start
-            rocket_job_process_slice(slice, true, &block)
-          end
-        else
-          # No records processed
-          0
+        slice = input.first
+        # No records processed
+        return 0 unless slice
+
+        slice.fail_on_exception!(true) do
+          # TODO: Persist that the first slice is being processed by this worker
+          slice.start
+          rocket_job_process_slice(slice, &block)
         end
       end
 
@@ -132,48 +131,60 @@ module RocketJob
       # Process a single slice from Mongo
       # Once the slice has been successfully processed it will be removed from the input collection
       # Returns [Integer] the number of records successfully processed
-      def rocket_job_process_slice(slice, re_raise_exceptions)
-        slice_record_number       = 0
+      def rocket_job_process_slice(slice)
+        # TODO: Skip records already processed
         @rocket_job_record_number = slice.first_record_number || 0
         @rocket_job_slice         = slice
+
+        processed_records = 0
         run_callbacks(:slice) do
+          # Allow before_slice callbacks to fail, complete or abort this slice.
+          return 0 unless running?
+
           RocketJob::Sliced::Writer::Output.collect(self, slice) do |writer|
             slice.each do |record|
-              slice_record_number += 1
               SemanticLogger.named_tagged(record: @rocket_job_record_number) do
-                if _perform_callbacks.empty?
-                  @rocket_job_output = block_given? ? yield(record) : perform(record)
-                else
-                  # Allows @rocket_job_input to be modified by before/around callbacks
-                  @rocket_job_input = record
-                  # Allow callbacks to fail, complete or abort the job
-                  if running?
-                    if block_given?
-                      run_callbacks(:perform) { @rocket_job_output = yield(@rocket_job_input) }
-                    else
-                      # Allows @rocket_job_output to be modified by after/around callbacks
-                      run_callbacks(:perform) { @rocket_job_output = perform(@rocket_job_input) }
-                    end
-                  end
-                end
-                writer << @rocket_job_output
+                writer << rocket_job_batch_perform(slice, record)
+                processed_records += 1
               end
-              # JRuby says self.rocket_job_record_number= is private and cannot be accessed
+              # JRuby thinks self.rocket_job_record_number= is private and cannot be accessed
               @rocket_job_record_number += 1
             end
           end
-          @rocket_job_input = @rocket_job_slice = @rocket_job_output = nil
+          @rocket_job_slice         = nil
+          @rocket_job_record_number = nil
         end
 
         # On successful completion remove the slice from the input queue
         # TODO: Add option to complete slice instead of destroying it to retain input data.
         slice.destroy
-        slice_record_number
-      rescue Exception => e
-        slice.fail!(e, slice_record_number)
-        raise e if re_raise_exceptions
+        processed_records
+      end
 
-        slice_record_number.positive? ? slice_record_number - 1 : 0
+      # Perform a single record within the current slice.
+      def rocket_job_batch_perform(slice, record)
+        slice.processing_record_number ||= 0
+        slice.processing_record_number += 1
+
+        return block_given? ? yield(record) : perform(record) if _perform_callbacks.empty?
+
+        # @rocket_job_input and @rocket_job_output can be modified by before/around callbacks
+        @rocket_job_input  = record
+        @rocket_job_output = nil
+
+        run_callbacks(:perform) do
+          @rocket_job_output =
+            if block_given?
+              yield(@rocket_job_input)
+            else
+              perform(@rocket_job_input)
+            end
+        end
+
+        @rocket_job_input  = nil
+        result             = @rocket_job_output
+        @rocket_job_output = nil
+        result
       end
 
       # Checks for completion and runs after_batch if defined
@@ -193,7 +204,7 @@ module RocketJob
             unless new_record?
               # Fail job iff no other worker has already finished it
               # Must set write concern to at least 1 since we need the nModified back
-              result = self.class.with(write: {w: 1}) do |query|
+              result   = self.class.with(write: {w: 1}) do |query|
                 query.
                   where(id: id, state: :running, sub_state: :processing).
                   update({"$set" => {state: :failed, worker_name: worker_name}})
@@ -280,7 +291,7 @@ module RocketJob
         end
       end
 
-      # Handle before and after callbacks
+      # Run Batch before and after callbacks
       def rocket_job_batch_callbacks(worker)
         # If this is the first worker to pickup this job
         if sub_state == :before

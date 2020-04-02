@@ -18,9 +18,6 @@ module RocketJob
     # Name of the server on which this exception occurred
     field :worker_name, type: String
 
-    # The record within which this exception occurred
-    field :record_number, type: Integer
-
     # Returns [JobException] built from the supplied exception
     def self.from_exception(exc, **args)
       new(

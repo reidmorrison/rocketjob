@@ -111,15 +111,16 @@ module Sliced
 
         it 'with exception' do
           slice.start
-          slice.worker_name = 'me'
-          slice.fail!(exception, 21)
+          slice.processing_record_number = 21
+          slice.worker_name           = 'me'
+          slice.fail!(exception)
           assert_equal 1, slice.failure_count
           assert slice.exception
           assert_equal exception.class.name, slice.exception.class_name
           assert_equal exception.message, slice.exception.message
           assert_equal exception.backtrace, slice.exception.backtrace
           assert_equal 'me', slice.exception.worker_name
-          assert_equal 21, slice.exception.record_number
+          assert_equal 21, slice.processing_record_number
           assert_equal collection_name, slice.collection_name
         end
       end
@@ -169,27 +170,28 @@ module Sliced
       end
 
       describe 'with slice' do
-        before do
-          @slice = RocketJob::Sliced::EncryptedSlice.new(
-            collection_name: collection_name,
-            records:         dataset,
-            exception:       RocketJob::JobException.from_exception(exception, record_number: 21),
-            worker_name:     'worker',
-            failure_count:   3
+        let(:slice) do
+          RocketJob::Sliced::EncryptedSlice.new(
+            collection_name:       collection_name,
+            records:               dataset,
+            exception:             RocketJob::JobException.from_exception(exception),
+            worker_name:           'worker',
+            failure_count:         3,
+            processing_record_number: 21
           )
         end
 
         describe '#new' do
           it 'creates a new slice' do
-            assert_equal collection_name, @slice.collection_name
+            assert_equal collection_name, slice.collection_name
           end
         end
 
         describe 'serialization' do
           it 'saves and reads back' do
-            @slice.save!
-            found_slice = slices.find(@slice.id)
-            assert_equal @slice.id, found_slice.id
+            slice.save!
+            found_slice = slices.find(slice.id)
+            assert_equal slice.id, found_slice.id
             assert_equal :queued, found_slice.state
             assert_equal dataset, found_slice.records
             assert_equal dataset, found_slice.to_a
@@ -199,7 +201,7 @@ module Sliced
             assert_equal exception.class.name, found_slice.exception.class_name
             assert_equal exception.message, found_slice.exception.message
             assert_equal exception.backtrace, found_slice.exception.backtrace
-            assert_equal 21, found_slice.exception.record_number
+            assert_equal 21, found_slice.processing_record_number
             assert found_slice.is_a?(RocketJob::Sliced::EncryptedSlice)
           end
         end

@@ -1,5 +1,4 @@
 require "active_support/concern"
-require 'sync_attr'
 
 module RocketJob
   module Plugins

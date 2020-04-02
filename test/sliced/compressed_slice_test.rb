@@ -112,14 +112,15 @@ module Sliced
         it 'with exception' do
           slice.start
           slice.worker_name = 'me'
-          slice.fail!(exception, 21)
+          slice.processing_record_number = 21
+          slice.fail!(exception)
           assert_equal 1, slice.failure_count
           assert slice.exception
           assert_equal exception.class.name, slice.exception.class_name
           assert_equal exception.message, slice.exception.message
           assert_equal exception.backtrace, slice.exception.backtrace
           assert_equal 'me', slice.exception.worker_name
-          assert_equal 21, slice.exception.record_number
+          assert_equal 21, slice.processing_record_number
           assert_equal collection_name, slice.collection_name
         end
       end
@@ -171,11 +172,12 @@ module Sliced
       describe 'with slice' do
         before do
           @slice = RocketJob::Sliced::CompressedSlice.new(
-            collection_name: collection_name,
-            records:         dataset,
-            exception:       RocketJob::JobException.from_exception(exception, record_number: 21),
-            worker_name:     'worker',
-            failure_count:   3
+            collection_name:       collection_name,
+            records:               dataset,
+            exception:             RocketJob::JobException.from_exception(exception),
+            worker_name:           'worker',
+            failure_count:         3,
+            processing_record_number: 21
           )
         end
 
@@ -199,7 +201,7 @@ module Sliced
             assert_equal exception.class.name, found_slice.exception.class_name
             assert_equal exception.message, found_slice.exception.message
             assert_equal exception.backtrace, found_slice.exception.backtrace
-            assert_equal 21, found_slice.exception.record_number
+            assert_equal 21, found_slice.processing_record_number
             assert found_slice.is_a?(RocketJob::Sliced::CompressedSlice)
           end
         end

@@ -24,9 +24,8 @@ module RocketJob
       store_in client: "rocketjob_slices"
 
       # The record number of the first record in this slice.
-      #
-      # Optional: If present the record_number is set while the job
-      #           is being processed.
+      # Useful in knowing the line number of each record in this slice
+      # relative to the original file that was uploaded.
       field :first_record_number, type: Integer
 
       #
@@ -41,6 +40,9 @@ module RocketJob
 
       # Number of times that this job has failed to process
       field :failure_count, type: Integer
+
+      # Number of the record within this slice (not the entire file/job) currently being processed. (One based index)
+      field :processing_record_number, type: Integer
 
       # This name of the worker that this job is being processed by, or was processed by
       field :worker_name, type: String
@@ -108,12 +110,16 @@ module RocketJob
       def_instance_delegators :records, :each, :<<, :size, :concat, :at
       def_instance_delegators :records, *(Enumerable.instance_methods - Module.methods)
 
+      # Returns [Integer] the record number of the record currently being processed relative to the entire file.
+      def current_record_number
+        first_record_number.to_i + processing_record_number.to_i
+      end
+
       # Before Fail save the exception to this slice.
-      def set_exception(exc = nil, record_number = nil)
+      def set_exception(exc = nil)
         if exc
-          self.exception          = JobException.from_exception(exc)
-          exception.worker_name   = worker_name
-          exception.record_number = record_number
+          self.exception        = JobException.from_exception(exc)
+          exception.worker_name = worker_name
         end
         self.failure_count = failure_count.to_i + 1
         self.worker_name   = nil
@@ -122,8 +128,8 @@ module RocketJob
       # Returns the failed record.
       # Returns [nil] if there is no failed record
       def failed_record
-        if exception && (record_number = exception.record_number)
-          at(record_number - 1)
+        if exception && processing_record_number
+          at(processing_record_number - 1)
         end
       end
 
@@ -169,7 +175,7 @@ module RocketJob
 
       # Always add records to any updates.
       def atomic_updates(*args)
-        r = super(*args)
+        r                             = super(*args)
         (r["$set"] ||= {})["records"] = serialize_records if @records
         r
       end

@@ -236,6 +236,7 @@ module Sliced
           second = input.new(records: %w[more records and more])
           second.start
           input << second
+          second.processing_record_number = 2
           assert_equal 2, input.count
 
           third = input.new(records: %w[this is the last])
@@ -250,7 +251,7 @@ module Sliced
             exception = exc
           end
 
-          second.fail!(exception, 2)
+          second.fail!(exception)
           second.save!
           count = 0
           input.each_failed_record do |record, slice|
@@ -271,6 +272,7 @@ module Sliced
 
           second = input.new(records: %w[more records and more])
           input << second
+          second.processing_record_number = 2
           assert_equal 2, input.count
 
           third = input.new(records: %w[this is the last])
@@ -285,7 +287,7 @@ module Sliced
           end
 
           second.start
-          second.fail!(exception, 2)
+          second.fail!(exception)
 
           assert_equal 2, input.queued.count
           assert_equal 0, input.running.count
