@@ -241,11 +241,25 @@ class WorkerTest < Minitest::Test
       end
 
       describe 'throttles' do
+        before do
+          if ThrottledJob.rocket_job_throttles.throttles.count.zero?
+            skip "Sometimes a thread concurrency issue with `class_attribute` causes it to ignore throttles"
+          end
+        end
+
         it 'honors job throttles' do
           RocketJob::Job.destroy_all
           throttled_job.start!
-          ThrottledJob.create!
-          assert_nil worker.next_available_job
+          job = ThrottledJob.create!
+
+          assert_equal 1, ThrottledJob.rocket_job_throttles.throttles.count, -> { ThrottledJob.rocket_job_throttles.throttles.ai }
+          assert_equal 2, ThrottledJob.count
+          assert_equal 1, ThrottledJob.running.count
+          assert_equal 1, ThrottledJob.queued.count
+          assert_equal job.id, ThrottledJob.queued.first&.id
+          assert_equal throttled_job.id, ThrottledJob.running.first&.id
+
+          assert_nil worker.next_available_job, -> { ThrottledJob.all.to_a.ai }
         end
 
         it 'return the job when others are queued, paused, failed, or complete' do
@@ -259,17 +273,33 @@ class WorkerTest < Minitest::Test
         end
 
         it 'return nil when other jobs are running' do
-          ThrottledJob.create!
-          job = ThrottledJob.new
+          job1 = ThrottledJob.create!
+          job  = ThrottledJob.new
           job.start!
-          assert_nil worker.next_available_job
+
+          assert_equal 1, ThrottledJob.rocket_job_throttles.throttles.count, -> { ThrottledJob.rocket_job_throttles.throttles.ai }
+          assert_equal 2, ThrottledJob.count
+          assert_equal 1, ThrottledJob.running.count
+          assert_equal 1, ThrottledJob.queued.count
+          assert_equal job.id, ThrottledJob.running.first&.id
+          assert_equal job1.id, ThrottledJob.queued.first&.id
+
+          assert_nil worker.next_available_job, -> { (ThrottledJob.all.to_a + ThrottledJob.rocket_job_throttles.throttles).ai }
         end
 
         it 'add job to filter when other jobs are running' do
-          ThrottledJob.create!
-          job = ThrottledJob.new
+          job1 = ThrottledJob.create!
+          job  = ThrottledJob.new
           job.start!
-          assert_nil worker.next_available_job
+
+          assert_equal 1, ThrottledJob.rocket_job_throttles.throttles.count, -> { ThrottledJob.rocket_job_throttles.throttles.ai }
+          assert_equal 2, ThrottledJob.count
+          assert_equal 1, ThrottledJob.running.count
+          assert_equal 1, ThrottledJob.queued.count
+          assert_equal job.id, ThrottledJob.running.first&.id
+          assert_equal job1.id, ThrottledJob.queued.first&.id
+
+          assert_nil worker.next_available_job, -> { ThrottledJob.all.to_a.ai }
           assert_equal({:_type.nin => [ThrottledJob.name]}, worker.current_filter)
         end
       end

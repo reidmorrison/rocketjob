@@ -31,7 +31,6 @@ module RocketJob
 
       included do
         class_attribute :rocket_job_batch_throttles
-        self.rocket_job_batch_throttles = ThrottleDefinitions.new
       end
 
       module ClassMethods
@@ -48,17 +47,24 @@ module RocketJob
         #
         # Note: Throttles are executed in the order they are defined.
         def define_batch_throttle(method_name, filter: :throttle_filter_class)
-          rocket_job_batch_throttles.add(method_name, filter)
+          # Duplicate to prevent modifying parent class throttles
+          definitions = rocket_job_batch_throttles ? rocket_job_batch_throttles.dup : ThrottleDefinitions.new
+          definitions.add(method_name, filter)
+          self.rocket_job_batch_throttles = definitions
         end
 
         # Undefine a previously defined throttle
         def undefine_batch_throttle(method_name)
-          rocket_job_batch_throttles.remove(method_name)
+          return unless rocket_job_batch_throttles
+
+          definitions = rocket_job_batch_throttles.dup
+          definitions.remove(method_name)
+          self.rocket_job_batch_throttles = definitions
         end
 
         # Has a throttle been defined?
         def batch_throttle?(method_name)
-          rocket_job_batch_throttles.throttle?(method_name)
+          rocket_job_batch_throttles.exist?(method_name)
         end
       end
     end

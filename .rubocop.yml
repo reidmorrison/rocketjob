@@ -13,7 +13,7 @@ AllCops:
 #   For documentation on all settings see: https://docs.rubocop.org/en/stable
 #
 
-# Remove?
+# Trailing periods.
 Layout/DotPosition:
   EnforcedStyle: trailing
 

@@ -1,4 +1,5 @@
 require "active_support/concern"
+require 'sync_attr'
 
 module RocketJob
   module Plugins
@@ -30,7 +31,6 @@ module RocketJob
 
         included do
           class_attribute :rocket_job_throttles
-          self.rocket_job_throttles = ThrottleDefinitions.new
         end
 
         module ClassMethods
@@ -48,17 +48,24 @@ module RocketJob
           #
           # Note: Throttles are executed in the order they are defined.
           def define_throttle(method_name, filter: :throttle_filter_class)
-            rocket_job_throttles.add(method_name, filter)
+            # Duplicate to prevent modifying parent class throttles
+            definitions = rocket_job_throttles ? rocket_job_throttles.dup : ThrottleDefinitions.new
+            definitions.add(method_name, filter)
+            self.rocket_job_throttles = definitions
           end
 
           # Undefine a previously defined throttle
           def undefine_throttle(method_name)
-            rocket_job_throttles.remove(method_name)
+            return unless rocket_job_throttles
+
+            definitions = rocket_job_throttles.dup
+            definitions.remove(method_name)
+            self.rocket_job_throttles = definitions
           end
 
           # Has a throttle been defined?
           def throttle?(method_name)
-            rocket_job_throttles.throttle?(method_name)
+            rocket_job_throttles&.exist?(method_name)
           end
         end
 
