@@ -2,8 +2,8 @@ source "https://rubygems.org"
 
 gemspec
 
-gem "activerecord", "~> 5.2.0"
-gem "mongoid", "~> 7.0.0"
+gem "activerecord", "~> 6.0"
+gem "mongoid", "~> 7.1"
 
 gem "appraisal"
 gem "awesome_print"
@@ -12,7 +12,7 @@ gem "rubyzip", platform: :ruby
 
 gem "activerecord-jdbcsqlite3-adapter", platform: :jruby
 gem "jdbc-sqlite3", platform: :jruby
-gem "sqlite3", "~> 1.3.0", platform: :ruby
+gem "sqlite3", "~> 1.4", platform: :ruby
 
 group :development do
   gem "rubocop"

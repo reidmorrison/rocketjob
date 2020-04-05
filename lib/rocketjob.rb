@@ -9,15 +9,9 @@ require "rocket_job/config"
 require "rocket_job/railtie" if defined?(Rails)
 
 # Apply patches to implement `with_collection`
-if Mongoid::VERSION.to_i >= 6
-  require "rocket_job/extensions/mongoid/clients/options"
-  require "rocket_job/extensions/mongoid/contextual/mongo"
-  require "rocket_job/extensions/mongoid/factory"
-else
-  require "rocket_job/extensions/mongoid_5/clients/options"
-  require "rocket_job/extensions/mongoid_5/contextual/mongo"
-  require "rocket_job/extensions/mongoid_5/factory"
-end
+require "rocket_job/extensions/mongoid/clients/options"
+require "rocket_job/extensions/mongoid/contextual/mongo"
+require "rocket_job/extensions/mongoid/factory"
 
 # @formatter:off
 module RocketJob

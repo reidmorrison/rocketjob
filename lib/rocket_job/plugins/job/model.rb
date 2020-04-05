@@ -155,8 +155,14 @@ module RocketJob
 
           # Scope for queued jobs that can run now
           # I.e. Queued jobs excluding scheduled jobs
-          def queued_now
-            queued.or({run_at: nil}, :run_at.lte => Time.now)
+          if Mongoid::VERSION.to_f >= 7.1
+            def queued_now
+              queued.and(RocketJob::Job.where(run_at: nil).or(:run_at.lte => Time.now))
+            end
+          else
+            def queued_now
+              queued.or({run_at: nil}, :run_at.lte => Time.now)
+            end
           end
 
           # Defines all the fields that are accessible on the Document
