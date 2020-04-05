@@ -91,11 +91,9 @@ module RocketJob
         # No records processed
         return 0 unless slice
 
-        slice.fail_on_exception!(true) do
-          # TODO: Persist that the first slice is being processed by this worker
-          slice.start
-          rocket_job_process_slice(slice, &block)
-        end
+        # TODO: Persist that the first slice is being processed by this worker
+        slice.start
+        rocket_job_process_slice(slice, &block)
       end
 
       # Returns [Array<ActiveWorker>] All workers actively working on this job
