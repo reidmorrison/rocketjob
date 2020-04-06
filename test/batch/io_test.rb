@@ -1,10 +1,10 @@
-require_relative '../test_helper'
+require_relative "../test_helper"
 
 module Batch
   class IOTest < Minitest::Test
     describe RocketJob::Batch::IO do
-      let(:text_file) { IOStreams.path(File.dirname(__FILE__), 'files', 'text.txt') }
-      let(:gzip_file) { IOStreams.path(File.dirname(__FILE__), 'files', 'text.txt.gz') }
+      let(:text_file) { IOStreams.path(File.dirname(__FILE__), "files", "text.txt") }
+      let(:gzip_file) { IOStreams.path(File.dirname(__FILE__), "files", "text.txt.gz") }
 
       class IOJob < RocketJob::Job
         include RocketJob::Batch
@@ -29,8 +29,8 @@ module Batch
       end
 
       describe "#download" do
-        describe 'file' do
-          it 'text' do
+        describe "file" do
+          it "text" do
             IOStreams.temp_file("test", ".txt") do |file_name|
               loaded_job.download(file_name.to_s)
               result = ::File.open(file_name.to_s, &:read)
@@ -38,7 +38,7 @@ module Batch
             end
           end
 
-          it 'gzip' do
+          it "gzip" do
             IOStreams.temp_file("gzip_test", ".gz") do |file_name|
               loaded_job.download(file_name.to_s)
               result = Zlib::GzipReader.open(file_name.to_s, &:read)
@@ -47,17 +47,17 @@ module Batch
           end
         end
 
-        describe 'stream' do
+        describe "stream" do
           let(:io_stream) { StringIO.new }
 
-          it 'text' do
+          it "text" do
             stream = IOStreams.stream(io_stream).file_name(text_file.to_s)
             loaded_job.download(stream)
             result = io_stream.string
             assert_equal delimited_rows, result
           end
 
-          it 'gzip' do
+          it "gzip" do
             stream = IOStreams.stream(io_stream).file_name(gzip_file.to_s)
             loaded_job.download(stream)
             io     = StringIO.new(io_stream.string)
@@ -69,15 +69,15 @@ module Batch
         end
       end
 
-      describe '#upload' do
-        describe 'file' do
-          it 'text' do
+      describe "#upload" do
+        describe "file" do
+          it "text" do
             job.upload(text_file.to_s)
             result = job.input.collect(&:to_a).join("\n") + "\n"
             assert_equal text_file.read, result
           end
 
-          it 'gzip' do
+          it "gzip" do
             job.upload(gzip_file.to_s)
             result = job.input.collect(&:to_a).join("\n") + "\n"
             assert_equal gzip_file.read, result

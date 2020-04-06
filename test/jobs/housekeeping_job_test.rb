@@ -1,4 +1,4 @@
-require_relative '../test_helper'
+require_relative "../test_helper"
 
 module Jobs
   class HousekeepingJobTest < Minitest::Test
@@ -14,7 +14,7 @@ module Jobs
         RocketJob::Server.delete_all
       end
 
-      describe 'job retention' do
+      describe "job retention" do
         before do
           job = HousekeepingJobTest::TestJob.new
           Time.stub(:now, 2.days.ago) do
@@ -58,8 +58,8 @@ module Jobs
           assert_equal 10, HousekeepingJobTest::TestJob.count, -> { HousekeepingJobTest::TestJob.all.to_a.ai }
         end
 
-        describe 'perform' do
-          it 'destroys jobs' do
+        describe "perform" do
+          it "destroys jobs" do
             job = RocketJob::Jobs::HousekeepingJob.new
             job.perform_now
             assert_equal 1, HousekeepingJobTest::TestJob.aborted.count, -> { HousekeepingJobTest::TestJob.aborted.to_a.ai }
@@ -71,7 +71,7 @@ module Jobs
         end
       end
 
-      describe 'zombie cleanup' do
+      describe "zombie cleanup" do
         before do
           server = RocketJob::Server.new
           Time.stub(:now, 1.day.ago) do
@@ -81,14 +81,14 @@ module Jobs
           assert_equal 1, RocketJob::Server.count, -> { RocketJob::Server.all.to_a.ai }
         end
 
-        it 'removes zombies' do
+        it "removes zombies" do
           job = RocketJob::Jobs::HousekeepingJob.new
           assert job.destroy_zombies
           job.perform_now
           assert_equal 0, RocketJob::Server.count, -> { RocketJob::Server.all.to_a.ai }
         end
 
-        it 'leaves zombies' do
+        it "leaves zombies" do
           job = RocketJob::Jobs::HousekeepingJob.new(destroy_zombies: false)
           refute job.destroy_zombies
           assert_equal 1, RocketJob::Server.count, -> { RocketJob::Server.all.to_a.ai }

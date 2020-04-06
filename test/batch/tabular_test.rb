@@ -1,8 +1,7 @@
-require_relative '../test_helper'
+require_relative "../test_helper"
 
 module Batch
   class TabularTest < Minitest::Test
-
     class ArrayInputOutputJob < RocketJob::Job
       include RocketJob::Batch
       include RocketJob::Batch::Tabular::Input
@@ -14,7 +13,7 @@ module Batch
 
       def perform(record)
         # Handle blank lines ( as nil )
-        record.values if record
+        record&.values
       end
     end
 
@@ -43,11 +42,11 @@ module Batch
       self.destroy_on_complete   = false
       self.collect_output        = true
       self.slice_size            = 3
-      self.tabular_output_header = %w(one two three)
+      self.tabular_output_header = %w[one two three]
 
       def perform(record)
         # Handle blank lines ( as nil )
-        record.values if record
+        record&.values
       end
 
       private
@@ -63,47 +62,47 @@ module Batch
     end
 
     describe RocketJob::Batch::Tabular do
-      describe 'csv format' do
+      describe "csv format" do
         before do
-          assert @job = ArrayInputOutputJob.new(tabular_output_header: %w(one two three))
+          assert @job = ArrayInputOutputJob.new(tabular_output_header: %w[one two three])
           @job.upload do |stream|
-            stream << 'first,second,third'
-            stream << '1,2,3'
-            stream << ''
-            stream << '4,5,6'
-            stream << '7,8,9'
+            stream << "first,second,third"
+            stream << "1,2,3"
+            stream << ""
+            stream << "4,5,6"
+            stream << "7,8,9"
           end
           @job.perform_now
           @io = StringIO.new
           @job.download(@io)
         end
 
-        describe '#tabular_input_header' do
-          it 'parses the header' do
+        describe "#tabular_input_header" do
+          it "parses the header" do
             assert header = @job.tabular_input_header
-            assert_equal %w(first second third), header
+            assert_equal %w[first second third], header
           end
         end
 
-        describe '#tabular_input_process_first_slice' do
-          it 'processes the first and subsequent slices' do
+        describe "#tabular_input_process_first_slice" do
+          it "processes the first and subsequent slices" do
             lines = [
-              'one,two,three',
-              '1,2,3',
-              '',
-              '4,5,6',
-              '7,8,9'
+              "one,two,three",
+              "1,2,3",
+              "",
+              "4,5,6",
+              "7,8,9"
             ]
             assert_equal lines, @io.string.lines.collect(&:chomp)
           end
         end
       end
 
-      describe 'json format' do
+      describe "json format" do
         before do
           @json_lines = [
             '{"first":1,"second":2,"third":3}',
-            '',
+            "",
             '{"first":4,"second":5,"third":6}',
             '{"first":7,"second":8,"third":9}'
           ]
@@ -115,76 +114,75 @@ module Batch
           @job.download(@io)
         end
 
-        describe '#tabular_input_header' do
-          it 'does not have headers' do
+        describe "#tabular_input_header" do
+          it "does not have headers" do
             refute @job.tabular_input_header
             refute @job.tabular_output_header
           end
         end
 
-        describe '#tabular_input_process_first_slice' do
-          it 'processes the first and subsequent slices' do
+        describe "#tabular_input_process_first_slice" do
+          it "processes the first and subsequent slices" do
             assert_equal @json_lines, @io.string.lines.collect(&:chomp)
           end
         end
       end
 
-      describe 'custom header job' do
+      describe "custom header job" do
         before do
           assert @job = ArrayInputOutputJob.new(
-            tabular_input_header:  %w(first second third),
-            tabular_output_header: %w(one two three)
+            tabular_input_header:  %w[first second third],
+            tabular_output_header: %w[one two three]
           )
           @job.upload do |stream|
-            stream << '1,2,3'
-            stream << ''
-            stream << '4,5,6'
-            stream << '7,8,9'
+            stream << "1,2,3"
+            stream << ""
+            stream << "4,5,6"
+            stream << "7,8,9"
           end
           @job.perform_now
           @io = StringIO.new
           @job.download(@io)
         end
 
-        describe '#tabular_input_process_first_slice' do
-          it 'processes the first and subsequent slices' do
+        describe "#tabular_input_process_first_slice" do
+          it "processes the first and subsequent slices" do
             lines = [
-              'one,two,three',
-              '1,2,3',
-              '',
-              '4,5,6',
-              '7,8,9'
+              "one,two,three",
+              "1,2,3",
+              "",
+              "4,5,6",
+              "7,8,9"
             ]
             assert_equal lines, @io.string.lines.collect(&:chomp)
           end
         end
-
       end
 
-      describe 'process with block' do
+      describe "process with block" do
         before do
           assert @job = SpecializedFirstSliceJob.new
           @job.upload do |stream|
-            stream << 'first,second,third'
-            stream << '1,2,3'
-            stream << ''
-            stream << '4,5,6'
-            stream << '7,8,9'
+            stream << "first,second,third"
+            stream << "1,2,3"
+            stream << ""
+            stream << "4,5,6"
+            stream << "7,8,9"
           end
           @job.perform_now
           @io = StringIO.new
           @job.download(@io)
-          #assert @job.specialized_first_slice
+          # assert @job.specialized_first_slice
         end
 
-        describe '#tabular_input_process_first_slice' do
-          it 'processes the first and subsequent slices' do
+        describe "#tabular_input_process_first_slice" do
+          it "processes the first and subsequent slices" do
             lines = [
-              'one,two,three',
-              '1,2,3',
-              '',
-              '4,5,6',
-              '7,8,9'
+              "one,two,three",
+              "1,2,3",
+              "",
+              "4,5,6",
+              "7,8,9"
             ]
             assert_equal lines, @io.string.lines.collect(&:chomp)
           end

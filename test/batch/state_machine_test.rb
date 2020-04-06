@@ -1,4 +1,4 @@
-require_relative '../test_helper'
+require_relative "../test_helper"
 
 module Batch
   class StateMachineTest < Minitest::Test
@@ -13,8 +13,8 @@ module Batch
     describe RocketJob::Batch::StateMachine do
       before do
         RocketJob::Job.delete_all
-        @worker_name  = 'server:743934'
-        @worker_name2 = 'server2:2435'
+        @worker_name  = "server:743934"
+        @worker_name2 = "server2:2435"
 
         @job = SimpleJob.new(
           description:         @description,
@@ -28,8 +28,8 @@ module Batch
         @job2.destroy if @job2&.persisted?
       end
 
-      describe '#retry!' do
-        it 'with substate :before' do
+      describe "#retry!" do
+        it "with substate :before" do
           assert_equal [:main], @job.output_categories
           assert_equal [:main], @job.input_categories
 
@@ -38,7 +38,7 @@ module Batch
           assert_equal @worker_name, @job.worker_name
           assert_equal :before, @job.sub_state
 
-          @job.fail!(@worker_name, 'oh no')
+          @job.fail!(@worker_name, "oh no")
           assert @job.failed?
           assert_equal @worker_name, @job.exception.worker_name
 
@@ -48,14 +48,14 @@ module Batch
           assert_nil @job.sub_state
         end
 
-        it 'with substate :after' do
+        it "with substate :after" do
           @job.start!
           assert @job.running?
           assert_equal @worker_name, @job.worker_name
           assert_equal :before, @job.sub_state
 
           @job.sub_state = :after
-          @job.fail!(@worker_name, 'oh no')
+          @job.fail!(@worker_name, "oh no")
           assert @job.failed?
           assert_equal @worker_name, @job.exception.worker_name
 
@@ -65,12 +65,12 @@ module Batch
           assert_equal :processing, @job.sub_state
         end
 
-        it 'not affect parent class' do
+        it "not affect parent class" do
           @job.start!
           assert @job.running?
           assert_equal @worker_name, @job.worker_name
 
-          @job.fail!(@worker_name, 'oh no')
+          @job.fail!(@worker_name, "oh no")
           assert @job.failed?
           assert_equal @worker_name, @job.exception.worker_name
 
@@ -80,8 +80,8 @@ module Batch
         end
       end
 
-      describe '#requeue' do
-        it 'with substate :before' do
+      describe "#requeue" do
+        it "with substate :before" do
           @job.start!
           assert @job.running?
           assert_equal @worker_name, @job.worker_name
@@ -92,7 +92,7 @@ module Batch
           assert_nil @job.worker_name
         end
 
-        it 'with substate :processing' do
+        it "with substate :processing" do
           @job.upload_slice([1, 2, 3, 4, 5])
           @job.upload_slice([6, 7, 8, 9, 10])
           @job.start!
@@ -124,7 +124,7 @@ module Batch
           assert slice2.queued?
         end
 
-        it 'with substate :after' do
+        it "with substate :after" do
           @job.start!
           assert @job.running?
           assert_equal @worker_name, @job.worker_name
@@ -138,7 +138,7 @@ module Batch
         end
       end
 
-      describe '.requeue_dead_server' do
+      describe ".requeue_dead_server" do
         before do
           @job2 = SimpleJob.new(
             description:         @description,
@@ -147,7 +147,7 @@ module Batch
           )
         end
 
-        it 'with substate :before' do
+        it "with substate :before" do
           @job.start!
           assert @job.running?
           assert_equal @worker_name, @job.worker_name
@@ -162,12 +162,12 @@ module Batch
           assert @job.reload.queued?, @job.state
           assert_nil @job.worker_name
 
-          assert @job2.reload.running?, 'Job2 on another worker must not be affected'
+          assert @job2.reload.running?, "Job2 on another worker must not be affected"
           assert_equal @worker_name2, @job2.worker_name
           assert_equal :before, @job2.sub_state
         end
 
-        it 'with substate :processing' do
+        it "with substate :processing" do
           @job.upload_slice([1, 2, 3, 4, 5])
           @job.upload_slice([6, 7, 8, 9, 10])
           @job.start!
@@ -205,11 +205,11 @@ module Batch
           assert_nil slice2.worker_name
           assert slice2.queued?
 
-          assert @job2.reload.running?, 'Job2 on another worker must not be affected'
+          assert @job2.reload.running?, "Job2 on another worker must not be affected"
           assert_equal :processing, @job2.sub_state
         end
 
-        it 'with substate :after' do
+        it "with substate :after" do
           @job.start!
           assert @job.running?
           assert_equal @worker_name, @job.worker_name
@@ -228,7 +228,7 @@ module Batch
           assert @job.reload.running?
           assert_nil @job.worker_name
 
-          assert @job2.reload.running?, 'Job2 on another worker must not be affected'
+          assert @job2.reload.running?, "Job2 on another worker must not be affected"
           assert_equal @worker_name2, @job2.worker_name
           assert_equal :after, @job2.sub_state
         end

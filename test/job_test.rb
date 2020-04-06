@@ -1,4 +1,4 @@
-require_relative 'test_helper'
+require_relative "test_helper"
 
 class JobTest < Minitest::Test
   class SimpleJob < RocketJob::Job
@@ -8,7 +8,7 @@ class JobTest < Minitest::Test
 
   describe RocketJob::Job do
     before do
-      @description = 'Hello World'
+      @description = "Hello World"
       @job         = SimpleJob.new(description: @description)
       @job2        = SimpleJob.new(description: @description, priority: 52)
     end
@@ -18,35 +18,35 @@ class JobTest < Minitest::Test
       @job2.destroy if @job2 && !@job2.new_record?
     end
 
-    describe '#status' do
-      it 'return status for a queued job' do
+    describe "#status" do
+      it "return status for a queued job" do
         assert_equal true, @job.queued?
         h = @job.status
-        assert_equal :queued, h['state']
-        assert_equal @description, h['description']
+        assert_equal :queued, h["state"]
+        assert_equal @description, h["description"]
       end
 
-      it 'return status for a failed job' do
+      it "return status for a failed job" do
         @job.start!
-        @job.fail!('worker:1234', 'oh no')
+        @job.fail!("worker:1234", "oh no")
         assert_equal true, @job.failed?
         h = @job.status
-        assert_equal :failed, h['state']
-        assert_equal @description, h['description']
-        assert_equal 'RocketJob::JobException', h['exception']['class_name'], h
-        assert_equal 'oh no', h['exception']['message'], h
+        assert_equal :failed, h["state"]
+        assert_equal @description, h["description"]
+        assert_equal "RocketJob::JobException", h["exception"]["class_name"], h
+        assert_equal "oh no", h["exception"]["message"], h
       end
     end
 
-    describe '.requeue_dead_server' do
-      it 'requeue jobs from dead workers' do
+    describe ".requeue_dead_server" do
+      it "requeue jobs from dead workers" do
         assert_equal 52, @job2.priority
-        worker_name      = 'server:12345'
+        worker_name      = "server:12345"
         @job.worker_name = worker_name
         @job.start!
         assert @job.running?, @job.state
 
-        worker_name2      = 'server:76467'
+        worker_name2      = "server:76467"
         @job2.worker_name = worker_name2
         @job2.start!
         assert_equal true, @job2.valid?

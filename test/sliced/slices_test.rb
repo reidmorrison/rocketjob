@@ -1,4 +1,4 @@
-require_relative '../test_helper'
+require_relative "../test_helper"
 
 module Sliced
   class SlicesTest < Minitest::Test
@@ -38,14 +38,14 @@ module Sliced
         slices.drop
       end
 
-      describe '#count' do
-        it 'count slices' do
+      describe "#count" do
+        it "count slices" do
           assert_equal 3, slices.count
         end
       end
 
-      describe '#each' do
-        it 'count slices' do
+      describe "#each" do
+        it "count slices" do
           count = 0
           slices.each do |_slice|
             count += 1
@@ -53,7 +53,7 @@ module Sliced
           assert_equal 3, count
         end
 
-        it 'returns slices in id order' do
+        it "returns slices in id order" do
           count = 0
           id    = 1
           slices.each do |slice|
@@ -65,49 +65,49 @@ module Sliced
         end
       end
 
-      describe '#first' do
-        it 'return the first slice' do
+      describe "#first" do
+        it "return the first slice" do
           assert slice = slices.first
           assert_equal @first.id, slice.id
           assert_equal @first.to_a, slice.to_a
         end
       end
 
-      describe '#last' do
-        it 'return the last slice' do
+      describe "#last" do
+        it "return the last slice" do
           assert slice = slices.last
           assert_equal @third.id, slice.id
           assert_equal @third.to_a, slice.to_a
         end
       end
 
-      describe '#<<' do
-        it 'insert a slice' do
+      describe "#<<" do
+        it "insert a slice" do
           count = slices.count
           slices << slices.new(records: [1, 2, 3, 4])
           assert_equal count + 1, slices.count
         end
-        it 'insert an array of records as a new slice' do
+        it "insert an array of records as a new slice" do
           count = slices.count
           slices << [1, 2, 3, 4]
           assert_equal count + 1, slices.count
         end
       end
 
-      describe '#insert' do
-        it 'insert a slice' do
+      describe "#insert" do
+        it "insert a slice" do
           count = slices.count
           slices.insert(slices.new(records: [1, 2, 3, 4]))
           assert_equal count + 1, slices.count
         end
 
-        it 'insert an array of records as a new slice' do
+        it "insert an array of records as a new slice" do
           count = slices.count
           slices.insert([1, 2, 3, 4])
           assert_equal count + 1, slices.count
         end
 
-        it 'insert a slice from an input slice' do
+        it "insert a slice from an input slice" do
           input_slice = slices.new(records: [10, 20, 30])
           count       = slices.count
           slice       = slices.new(records: [1, 2, 3, 4])
@@ -124,8 +124,8 @@ module Sliced
         end
       end
 
-      describe '#find' do
-        it 'find a slice by id' do
+      describe "#find" do
+        it "find a slice by id" do
           count = slices.count
           slice = slices.new(records: [1, 2, 3, 4])
           slices.insert(slice)
@@ -135,7 +135,7 @@ module Sliced
           assert_equal slice.to_a, found_slice.to_a
         end
 
-        it 'find a slice by string id' do
+        it "find a slice by string id" do
           count = slices.count
           slice = slices.new(records: [1, 2, 3, 4])
           slices.insert(slice)
@@ -146,8 +146,8 @@ module Sliced
         end
       end
 
-      describe '#remove' do
-        it 'remove a specific slice' do
+      describe "#remove" do
+        it "remove a specific slice" do
           assert_equal 3, slices.count
           @second.destroy
           assert_equal 2, slices.count
@@ -156,34 +156,34 @@ module Sliced
         end
       end
 
-      describe '#drop' do
-        it 'drop this collection' do
+      describe "#drop" do
+        it "drop this collection" do
           assert_equal 3, slices.count
           slices.drop
           assert_equal 0, slices.count
         end
       end
 
-      describe '#delete_all' do
-        it 'clear out all slices in this collection' do
+      describe "#delete_all" do
+        it "clear out all slices in this collection" do
           assert_equal 3, slices.count
           slices.delete_all
           assert_equal 0, slices.count
         end
       end
 
-      describe '#exception' do
-        it 'saves' do
+      describe "#exception" do
+        it "saves" do
           slice = slices.first
           assert_equal true, slice.save!
         end
 
-        it 'fails' do
+        it "fails" do
           exception = begin
             begin
               blah
-            rescue StandardError => exc
-              exc
+            rescue StandardError => e
+              e
             end
           end
 

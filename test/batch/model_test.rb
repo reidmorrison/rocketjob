@@ -1,4 +1,4 @@
-require_relative '../test_helper'
+require_relative "../test_helper"
 module Batch
   class ModelTest < Minitest::Test
     class SimpleJob < RocketJob::Job
@@ -18,8 +18,8 @@ module Batch
         @blah_exception = begin
           begin
             blah
-          rescue StandardError => exc
-            exc
+          rescue StandardError => e
+            e
           end
         end
       end
@@ -28,14 +28,14 @@ module Batch
         @job.destroy if @job && !@job.new_record?
       end
 
-      describe '#exception' do
-        it 'saves' do
+      describe "#exception" do
+        it "saves" do
           @job           = SimpleJob.new
           @job.exception = RocketJob::JobException.from_exception(@blah_exception)
           assert_equal true, @job.save!
         end
 
-        it 'fails' do
+        it "fails" do
           @job = SimpleJob.new
           assert_equal true, @job.fail!(@blah_exception)
         end

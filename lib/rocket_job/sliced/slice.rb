@@ -128,9 +128,7 @@ module RocketJob
       # Returns the failed record.
       # Returns [nil] if there is no failed record
       def failed_record
-        if exception && processing_record_number
-          at(processing_record_number - 1)
-        end
+        at(processing_record_number - 1) if exception && processing_record_number
       end
 
       # Returns [Hash] the slice as a Hash for storage purposes

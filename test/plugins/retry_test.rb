@@ -1,4 +1,4 @@
-require_relative '../test_helper'
+require_relative "../test_helper"
 
 module Plugins
   class RetryTest < Minitest::Test
@@ -7,8 +7,9 @@ module Plugins
 
       # Fails 5 times before succeeding
       def perform
-        raise 'Oh No' unless rocket_job_failure_count >= 5
-        'DONE'
+        raise "Oh No" unless rocket_job_failure_count >= 5
+
+        "DONE"
       end
     end
 
@@ -21,8 +22,8 @@ module Plugins
         @job.delete if @job && !@job.new_record?
       end
 
-      describe '#perform' do
-        it 're-queues job on failure' do
+      describe "#perform" do
+        it "re-queues job on failure" do
           @job = RetryJob.create!
           assert created_at = @job.created_at
           assert_equal 0, @job.failed_at_list.size
@@ -42,7 +43,7 @@ module Plugins
           assert next_time > failed_at
         end
 
-        it 're-queues until it succeeds' do
+        it "re-queues until it succeeds" do
           @job = RetryJob.create!
 
           # 5 retries
@@ -62,7 +63,7 @@ module Plugins
           assert_equal 5, @job.rocket_job_failure_count
         end
 
-        it 'stops re-queueing after limit is reached' do
+        it "stops re-queueing after limit is reached" do
           @job = RetryJob.create!(retry_limit: 3)
 
           # 3 attempts are retried

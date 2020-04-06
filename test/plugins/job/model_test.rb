@@ -1,4 +1,4 @@
-require_relative '../../test_helper'
+require_relative "../../test_helper"
 
 module Plugins
   module Job
@@ -22,8 +22,8 @@ module Plugins
           RocketJob::Job.destroy_all
         end
 
-        describe '#scheduled?' do
-          it 'returns true if job is queued to run in the future' do
+        describe "#scheduled?" do
+          it "returns true if job is queued to run in the future" do
             job = SimpleJob.new(run_at: 1.day.from_now)
             assert_equal true, job.queued?
             assert_equal true, job.scheduled?
@@ -32,13 +32,13 @@ module Plugins
             assert_equal false, job.scheduled?
           end
 
-          it 'returns false if job is queued and can be run now' do
+          it "returns false if job is queued and can be run now" do
             job = SimpleJob.new
             assert_equal true, job.queued?
             assert_equal false, job.scheduled?
           end
 
-          it 'returns false if job is running' do
+          it "returns false if job is running" do
             job = SimpleJob.new
             job.start
             assert_equal true, job.running?
@@ -46,15 +46,15 @@ module Plugins
           end
         end
 
-        describe 'with queued jobs' do
+        describe "with queued jobs" do
           before do
-            SimpleJob.create!(description: 'first')
-            SimpleJob.create!(description: 'second', run_at: 1.day.from_now)
-            SimpleJob.create!(description: 'third', run_at: 2.days.from_now)
+            SimpleJob.create!(description: "first")
+            SimpleJob.create!(description: "second", run_at: 1.day.from_now)
+            SimpleJob.create!(description: "third", run_at: 2.days.from_now)
           end
 
-          describe '#scheduled' do
-            it 'returns only scheduled jobs' do
+          describe "#scheduled" do
+            it "returns only scheduled jobs" do
               count = 0
               RocketJob::Job.scheduled.each do |job|
                 count += 1
@@ -64,8 +64,8 @@ module Plugins
             end
           end
 
-          describe '#queued_now' do
-            it 'returns only queued jobs, not scheduled ones' do
+          describe "#queued_now" do
+            it "returns only queued jobs, not scheduled ones" do
               count = 0
               RocketJob::Job.queued_now.each do |job|
                 count += 1
@@ -75,8 +75,8 @@ module Plugins
             end
           end
 
-          describe '#queued' do
-            it 'returns all queued jobs' do
+          describe "#queued" do
+            it "returns all queued jobs" do
               count = 0
               RocketJob::Job.queued.each do |_job|
                 count += 1

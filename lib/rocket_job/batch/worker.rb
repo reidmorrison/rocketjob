@@ -202,7 +202,7 @@ module RocketJob
             unless new_record?
               # Fail job iff no other worker has already finished it
               # Must set write concern to at least 1 since we need the nModified back
-              result   = self.class.with(write: {w: 1}) do |query|
+              result = self.class.with(write: {w: 1}) do |query|
                 query.
                   where(id: id, state: :running, sub_state: :processing).
                   update({"$set" => {state: :failed, worker_name: worker_name}})

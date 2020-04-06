@@ -1,4 +1,4 @@
-require_relative '../test_helper'
+require_relative "../test_helper"
 
 module Plugins
   class RestartTest < Minitest::Test
@@ -11,7 +11,7 @@ module Plugins
       def perform
         self.start_at = Date.today
         self.end_at   = Date.today
-        'DONE'
+        "DONE"
       end
     end
 
@@ -27,7 +27,7 @@ module Plugins
       def perform
         self.start_at = Date.today
         self.end_at   = Date.today
-        'DONE'
+        "DONE"
       end
     end
 
@@ -41,16 +41,16 @@ module Plugins
         @job.delete if @job && !@job.new_record?
       end
 
-      describe '#create!' do
-        it 'queues a new job' do
+      describe "#create!" do
+        it "queues a new job" do
           @job = RestartableJob.create!
           assert @job.valid?
           refute @job.new_record?
         end
       end
 
-      describe '#save!' do
-        it 'queues a new job' do
+      describe "#save!" do
+        it "queues a new job" do
           @job = RestartableJob.new
           @job.save!
           assert @job.valid?
@@ -58,8 +58,8 @@ module Plugins
         end
       end
 
-      describe '#abort!' do
-        it 'queues a new job on abort' do
+      describe "#abort!" do
+        it "queues a new job on abort" do
           @job = RestartableJob.create!
           @job.abort!
           assert_equal 2, RestartableJob.count
@@ -68,7 +68,7 @@ module Plugins
           assert other.queued?
         end
 
-        it 'does not queue a new job when expired' do
+        it "does not queue a new job when expired" do
           @job = RestartableJob.create!(expires_at: Time.now - 1.day)
           assert @job.expired?
           @job.abort!
@@ -77,8 +77,8 @@ module Plugins
         end
       end
 
-      describe '#complete' do
-        it 'queues a new job when destroy_on_complete' do
+      describe "#complete" do
+        it "queues a new job when destroy_on_complete" do
           assert_equal 0, RestartableJob.count
           @job = RestartableJob.create!(destroy_on_complete: true)
           @job.perform_now
@@ -86,14 +86,14 @@ module Plugins
           assert_equal 1, RestartableJob.count, RestartableJob.all.to_a.ai
         end
 
-        it 'queues a new job when not destroy_on_complete' do
+        it "queues a new job when not destroy_on_complete" do
           @job = RestartableJob.create!(destroy_on_complete: false)
           @job.perform_now
           assert @job.completed?
           assert_equal 2, RestartableJob.count
         end
 
-        it 'does not queue a new job when expired' do
+        it "does not queue a new job when expired" do
           @job = RestartableJob.create!(expires_at: Time.now - 1.day)
           @job.perform_now
           assert @job.expired?
@@ -102,8 +102,8 @@ module Plugins
         end
       end
 
-      describe '#pause' do
-        it 'does not enqueue a new job when paused' do
+      describe "#pause" do
+        it "does not enqueue a new job when paused" do
           @job = RestartablePausableJob.new
           @job.start
           @job.pause!
@@ -112,15 +112,15 @@ module Plugins
         end
       end
 
-      describe '#fail' do
-        it 'aborts from queued' do
+      describe "#fail" do
+        it "aborts from queued" do
           @job = RestartableJob.new
           assert @job.queued?
           @job.fail
           assert @job.aborted?
         end
 
-        it 'aborts from running' do
+        it "aborts from running" do
           @job = RestartableJob.new
           @job.start
           assert @job.running?
@@ -128,7 +128,7 @@ module Plugins
           assert @job.aborted?
         end
 
-        it 'aborts from paused' do
+        it "aborts from paused" do
           @job = RestartablePausableJob.new
           @job.start
           @job.pause
@@ -137,7 +137,7 @@ module Plugins
           assert @job.aborted?
         end
 
-        it 'does not queue a new job when expired' do
+        it "does not queue a new job when expired" do
           @job = RestartableJob.new(expires_at: Time.now - 1.day)
           @job.start!
           assert @job.running?
@@ -147,8 +147,8 @@ module Plugins
         end
       end
 
-      describe '#create_new_instance' do
-        it 'sets job back to queued state' do
+      describe "#create_new_instance" do
+        it "sets job back to queued state" do
           @job = RestartableJob.create!(destroy_on_complete: true)
           @job.perform_now
           assert_equal 1, RestartableJob.count
@@ -156,7 +156,7 @@ module Plugins
           assert job2.queued?, job2.attributes.ai
         end
 
-        it 'excludes attributes related to running jobs' do
+        it "excludes attributes related to running jobs" do
           @job = RestartableJob.create!(destroy_on_complete: true, expires_at: Time.now + 1.day)
           refute @job.expired?
           @job.perform_now

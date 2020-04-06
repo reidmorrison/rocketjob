@@ -1,4 +1,4 @@
-require_relative '../../test_helper'
+require_relative "../../test_helper"
 
 module Plugins
   module Job
@@ -42,27 +42,27 @@ module Plugins
           RocketJob::Job.delete_all
         end
 
-        describe '.throttle?' do
-          it 'defines the running jobs throttle' do
+        describe ".throttle?" do
+          it "defines the running jobs throttle" do
             assert ThrottleJob.throttle?(:throttle_running_jobs_exceeded?), ThrottleJob.rocket_job_throttles
             refute ThrottleJob.throttle?(:blah?), ThrottleJob.rocket_job_throttles
           end
         end
 
-        describe '.define_throttle' do
-          it 'creates base throttle' do
+        describe ".define_throttle" do
+          it "creates base throttle" do
             assert BaseJob.throttle?(:base_throttle)
             refute BaseJob.throttle?(:child_throttle)
           end
 
-          it 'inherits parent throttles' do
+          it "inherits parent throttles" do
             assert ChildJob.throttle?(:base_throttle)
             assert ChildJob.throttle?(:child_throttle)
           end
         end
 
-        describe '.undefine_throttle' do
-          it 'undefines the running jobs throttle' do
+        describe ".undefine_throttle" do
+          it "undefines the running jobs throttle" do
             assert ThrottleJob.throttle?(:throttle_running_jobs_exceeded?), ThrottleJob.rocket_job_throttles.throttles
             ThrottleJob.undefine_throttle(:throttle_running_jobs_exceeded?)
             refute ThrottleJob.throttle?(:throttle_running_jobs_exceeded?), ThrottleJob.rocket_job_throttles.throttles
@@ -71,21 +71,21 @@ module Plugins
           end
         end
 
-        describe '#throttle_running_jobs_exceeded?' do
-          it 'does not exceed throttle when no other jobs are running' do
+        describe "#throttle_running_jobs_exceeded?" do
+          it "does not exceed throttle when no other jobs are running" do
             ThrottleJob.create!
             job = ThrottleJob.new
             refute job.send(:throttle_running_jobs_exceeded?)
           end
 
-          it 'exceeds throttle when other jobs are running' do
+          it "exceeds throttle when other jobs are running" do
             job1 = ThrottleJob.new
             job1.start!
             job2 = ThrottleJob.new
             assert job2.send(:throttle_running_jobs_exceeded?)
           end
 
-          it 'excludes paused jobs' do
+          it "excludes paused jobs" do
             job1 = ThrottleJob.new
             job1.start
             job1.pause!
@@ -93,7 +93,7 @@ module Plugins
             refute job2.send(:throttle_running_jobs_exceeded?)
           end
 
-          it 'excludes failed jobs' do
+          it "excludes failed jobs" do
             job1 = ThrottleJob.new
             job1.start
             job1.fail!

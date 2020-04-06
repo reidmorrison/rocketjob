@@ -1,4 +1,4 @@
-require_relative '../test_helper'
+require_relative "../test_helper"
 
 module Sliced
   class OutputTest < Minitest::Test
@@ -25,8 +25,8 @@ module Sliced
       end
 
       describe "#download" do
-        describe 'block' do
-          it 'downloads' do
+        describe "block" do
+          it "downloads" do
             lines = []
             loaded_job.download { |line| lines << line }
             assert_equal rows, lines

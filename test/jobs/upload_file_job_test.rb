@@ -1,4 +1,4 @@
-require_relative '../test_helper'
+require_relative "../test_helper"
 
 module Jobs
   class UploadFileJobTest < Minitest::Test
@@ -36,45 +36,45 @@ module Jobs
         RocketJob::Job.delete_all
       end
 
-      describe '#valid?' do
-        it 'validates upload_file_name' do
+      describe "#valid?" do
+        it "validates upload_file_name" do
           job = RocketJob::Jobs::UploadFileJob.new(job_class_name: UploadFileJobTest::TestJob.to_s)
           refute job.valid?
           assert_equal ["can't be blank"], job.errors.messages[:upload_file_name]
         end
 
-        it 'validates file does not exist' do
+        it "validates file does not exist" do
           job = RocketJob::Jobs::UploadFileJob.new(
             job_class_name:   UploadFileJobTest::TestJob.to_s,
-            upload_file_name: '/tmp/blah'
+            upload_file_name: "/tmp/blah"
           )
           refute job.valid?
-          assert_equal ['Upload file: /tmp/blah does not exist.'], job.errors.messages[:upload_file_name]
+          assert_equal ["Upload file: /tmp/blah does not exist."], job.errors.messages[:upload_file_name]
         end
 
-        it 'allows urls other than file for upload_file_name' do
+        it "allows urls other than file for upload_file_name" do
           job = RocketJob::Jobs::UploadFileJob.new(
             job_class_name:   UploadFileJobTest::TestJob.to_s,
-            upload_file_name: 's3:/foo/blah'
+            upload_file_name: "s3:/foo/blah"
           )
           assert job.valid?
         end
 
-        it 'checks the filesystem if the url scheme is file for upload_file_name' do
+        it "checks the filesystem if the url scheme is file for upload_file_name" do
           job = RocketJob::Jobs::UploadFileJob.new(
             job_class_name:   UploadFileJobTest::TestJob.to_s,
-            upload_file_name: 'file:/foo/blah'
+            upload_file_name: "file:/foo/blah"
           )
           refute job.valid?
         end
 
-        it 'validates job_class_name' do
+        it "validates job_class_name" do
           job = RocketJob::Jobs::UploadFileJob.new(job_class_name: UploadFileJobTest::BadJob.to_s)
           refute job.valid?
-          assert_equal ['Jobs::UploadFileJobTest::BadJob must implement any one of: :upload :upload_file_name= :full_file_name= instance methods'], job.errors.messages[:job_class_name]
+          assert_equal ["Jobs::UploadFileJobTest::BadJob must implement any one of: :upload :upload_file_name= :full_file_name= instance methods"], job.errors.messages[:job_class_name]
         end
 
-        it 'with valid job and upload_file_name' do
+        it "with valid job and upload_file_name" do
           job = RocketJob::Jobs::UploadFileJob.new(
             job_class_name:   UploadFileJobTest::TestJob.to_s,
             upload_file_name: __FILE__
@@ -83,7 +83,7 @@ module Jobs
         end
       end
 
-      describe '#perform' do
+      describe "#perform" do
         let :job do
           RocketJob::Jobs::UploadFileJob.new(
             job_class_name:   UploadFileJobTest::TestJob.name,
@@ -91,31 +91,31 @@ module Jobs
           )
         end
 
-        it 'creates the job' do
+        it "creates the job" do
           job.perform_now
           assert_equal 1, UploadFileJobTest::TestJob.count
           assert job = UploadFileJobTest::TestJob.first
         end
 
-        it 'calls upload' do
+        it "calls upload" do
           job.perform_now
           assert job = UploadFileJobTest::TestJob.first
           assert_equal __FILE__, job.upload_file_name
         end
 
-        it 'calls upload with original_file_name' do
+        it "calls upload with original_file_name" do
           job.job_class_name = BatchTestJob.name
           job.perform_now
           assert created_job = UploadFileJobTest::BatchTestJob.first
           assert_equal __FILE__, created_job.upload_file_name
         end
 
-        it 'job retains the original_file_name when present' do
+        it "job retains the original_file_name when present" do
           job.job_class_name     = BatchTestJob.name
-          job.original_file_name = 'file.zip'
+          job.original_file_name = "file.zip"
           job.perform_now
           assert created_job = UploadFileJobTest::BatchTestJob.first
-          assert_equal 'file.zip', created_job.original_file_name
+          assert_equal "file.zip", created_job.original_file_name
           assert_equal __FILE__, created_job.upload_file_name
         end
       end

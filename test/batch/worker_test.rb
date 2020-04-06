@@ -1,4 +1,4 @@
-require_relative '../test_helper'
+require_relative "../test_helper"
 
 module Batch
   class WorkerTest < Minitest::Test
@@ -17,7 +17,7 @@ module Batch
     class ExceptionJob < RocketJob::Job
       include RocketJob::Batch
 
-      self.description         = 'Exception Tester'
+      self.description         = "Exception Tester"
       self.destroy_on_complete = false
       self.collect_output      = true
       self.slice_size          = 10
@@ -30,7 +30,7 @@ module Batch
     class CategoryJob < RocketJob::Job
       include RocketJob::Batch
 
-      self.description         = 'Category Tester'
+      self.description         = "Category Tester"
       self.destroy_on_complete = false
       self.collect_output      = true
       self.slice_size          = 10
@@ -78,10 +78,10 @@ module Batch
       def perform
         result = RocketJob::Batch::Results.new
         # A result for the main collections
-        result << RocketJob::Batch::Result.new(:main, 'main')
+        result << RocketJob::Batch::Result.new(:main, "main")
         # Custom output collections
-        result << RocketJob::Batch::Result.new(:odd, 'odd')
-        result << RocketJob::Batch::Result.new(:even, 'even')
+        result << RocketJob::Batch::Result.new(:odd, "odd")
+        result << RocketJob::Batch::Result.new(:even, "even")
       end
     end
 
@@ -106,8 +106,8 @@ module Batch
         RocketJob::Job.destroy_all
       end
 
-      describe '#work' do
-        it 'calls perform method' do
+      describe "#work" do
+        it "calls perform method" do
           record_count = 24
           job          = SimpleJob.new
           job.upload do |records|
@@ -123,7 +123,7 @@ module Batch
           assert_equal expected, io.string
         end
 
-        it 'process multi-record request' do
+        it "process multi-record request" do
           lines = 5.times.collect { |i| "line#{i + 1}" }
           job   = SimpleJob.new
           job.upload_slice(lines)
@@ -140,10 +140,10 @@ module Batch
           end
         end
 
-        it 'process multi-record file with record_counts' do
-          file_name = 'test/sliced/files/text.txt'
+        it "process multi-record file with record_counts" do
+          file_name = "test/sliced/files/text.txt"
           lines     = []
-          File.open(file_name, 'rb') do |file|
+          File.open(file_name, "rb") do |file|
             file.each_line { |line| lines << line.strip }
           end
           job = RecordNumberJob.new
@@ -162,7 +162,7 @@ module Batch
           end
         end
 
-        it 'fails job on exception' do
+        it "fails job on exception" do
           # Allow slices to fail so that the job as a whole is marked
           # as failed when no more queued slices are available
           record_count = 74
@@ -192,8 +192,8 @@ module Batch
           # Validate exception model on slice
           exception = failed_slice.exception
           assert exception, -> { failed_slice.attributes.ai }
-          assert_equal 'NoMethodError', exception.class_name
-          assert exception.message.include?('no_method_error_please')
+          assert_equal "NoMethodError", exception.class_name
+          assert exception.message.include?("no_method_error_please")
           assert_equal 2, failed_slice.processing_record_number
           assert exception.worker_name
           assert exception.backtrace
@@ -213,7 +213,7 @@ module Batch
           assert_nil slice.worker_name
         end
 
-        it 'fails persisted job on exception' do
+        it "fails persisted job on exception" do
           # Allow slices to fail so that the job as a whole is marked
           # as failed when no more queued slices are available
           record_count = 74
@@ -231,7 +231,7 @@ module Batch
 
           job.stub(:may_fail?, true) do
             # Ensure second call sees the first as failed
-            assert job.send(:rocket_job_batch_complete?, 'blah_worker')
+            assert job.send(:rocket_job_batch_complete?, "blah_worker")
           end
 
           assert_equal 1, job.input.failed.count, job.input.to_a.inspect
@@ -248,8 +248,8 @@ module Batch
           # Validate exception model on slice
           exception = failed_slice.exception
           assert exception, -> { failed_slice.attributes.ai }
-          assert_equal 'NoMethodError', exception.class_name
-          assert exception.message.include?('no_method_error_please')
+          assert_equal "NoMethodError", exception.class_name
+          assert exception.message.include?("no_method_error_please")
           assert_equal 2, failed_slice.processing_record_number
           assert exception.worker_name
           assert exception.backtrace
@@ -270,8 +270,8 @@ module Batch
         end
       end
 
-      describe '#output_categories' do
-        it 'collects results' do
+      describe "#output_categories" do
+        it "collects results" do
           record_count = 1024
           job          = CategoryJob.new
           job.upload do |records|
@@ -292,13 +292,13 @@ module Batch
           assert_equal expected_odds, io.string
         end
 
-        it 'fails on an unregistered category' do
+        it "fails on an unregistered category" do
           record_count = 24
           job          = BadCategoryJob.new
           job.upload do |records|
             (1..record_count).each { |i| records << i }
           end
-          assert_raises 'ArgumentError' do
+          assert_raises "ArgumentError" do
             job.perform_now
           end
           # Since it ran inline above, the exception is re-raised preventing the job from completing
@@ -316,17 +316,17 @@ module Batch
 
           # Validate exception model on slice
           assert exception = failed_slice.exception
-          assert_equal 'ArgumentError', exception.class_name, exception
-          assert 'Invalid RocketJob Output Category: bad', exception.message
+          assert_equal "ArgumentError", exception.class_name, exception
+          assert "Invalid RocketJob Output Category: bad", exception.message
           assert exception.worker_name
           assert exception.backtrace
         end
       end
 
-      describe '#rocket_job_active_workers' do
-        let(:worker) { RocketJob::Worker.new(inline: true, server_name: 'worker1:123', id: 1) }
-        let(:worker2) { RocketJob::Worker.new(inline: true, server_name: 'worker1:5673', id: 1) }
-        let(:worker3) { RocketJob::Worker.new(inline: true, server_name: 'worker1:5673', id: 2) }
+      describe "#rocket_job_active_workers" do
+        let(:worker) { RocketJob::Worker.new(inline: true, server_name: "worker1:123", id: 1) }
+        let(:worker2) { RocketJob::Worker.new(inline: true, server_name: "worker1:5673", id: 1) }
+        let(:worker3) { RocketJob::Worker.new(inline: true, server_name: "worker1:5673", id: 2) }
 
         let(:loaded_job) do
           job = SimpleJob.new(slice_size: 2, worker_name: worker.name, state: :running, sub_state: :processing, started_at: 1.minute.ago)
@@ -338,11 +338,11 @@ module Batch
           job
         end
 
-        it 'should return empty hash for no active jobs' do
+        it "should return empty hash for no active jobs" do
           assert_equal([], SimpleJob.create!.rocket_job_active_workers)
         end
 
-        it 'should return active workers in :before state' do
+        it "should return active workers in :before state" do
           assert job = SimpleJob.new(worker_name: worker.name, state: :running, sub_state: :before, started_at: 1.minute.ago)
           assert_equal :before, job.sub_state
 
@@ -356,7 +356,7 @@ module Batch
           assert active_worker.duration
         end
 
-        it 'should return active workers while :processing' do
+        it "should return active workers while :processing" do
           assert slice1 = loaded_job.input.next_slice(worker.name)
           assert slice2 = loaded_job.input.next_slice(worker2.name)
           assert slice3 = loaded_job.input.next_slice(worker3.name)

@@ -1,4 +1,4 @@
-require_relative '../test_helper'
+require_relative "../test_helper"
 
 module Jobs
   class DirmonJobTest < Minitest::Test
@@ -14,17 +14,17 @@ module Jobs
       end
 
       let :directory do
-        '/tmp/directory'
+        "/tmp/directory"
       end
 
       let :archive_directory do
-        '/tmp/archive_directory'
+        "/tmp/archive_directory"
       end
 
       let :dirmon_entry do
         RocketJob::DirmonEntry.new(
           pattern:           "#{directory}/abc/*",
-          job_class_name:    'Jobs::DirmonJobTest::TestJob',
+          job_class_name:    "Jobs::DirmonJobTest::TestJob",
           properties:        {priority: 23},
           archive_directory: archive_directory
         )
@@ -40,8 +40,8 @@ module Jobs
         IOStreams.path(directory).delete_all
       end
 
-      describe '#check_file' do
-        it 'check growing file' do
+      describe "#check_file" do
+        it "check growing file" do
           previous_size = 5
           new_size      = 10
           file          = create_temp_file(new_size)
@@ -51,7 +51,7 @@ module Jobs
           assert_equal new_size, result
         end
 
-        it 'check completed file' do
+        it "check completed file" do
           previous_size = 10
           new_size      = 10
           file          = create_temp_file(new_size)
@@ -63,27 +63,27 @@ module Jobs
           assert started
         end
 
-        it 'check deleted file' do
+        it "check deleted file" do
           previous_size = 5
-          file_name     = Pathname.new('blah')
+          file_name     = Pathname.new("blah")
           assert_raises Errno::ENOENT do
             dirmon_job.send(:check_file, dirmon_entry, file_name, previous_size)
           end
         end
       end
 
-      describe '#check_directories' do
+      describe "#check_directories" do
         before do
           RocketJob::DirmonEntry.destroy_all
           dirmon_entry.enable!
         end
 
-        it 'no files' do
+        it "no files" do
           result = dirmon_job.send(:check_directories)
           assert_equal 0, result.count
         end
 
-        it 'collect new files without enqueuing them' do
+        it "collect new files without enqueuing them" do
           create_file("#{directory}/abc/file1", 5)
           create_file("#{directory}/abc/file2", 10)
 
@@ -91,7 +91,7 @@ module Jobs
           assert_equal [5, 10], result.values.sort
         end
 
-        it 'allow files to grow' do
+        it "allow files to grow" do
           create_file("#{directory}/abc/file1", 5)
           create_file("#{directory}/abc/file2", 10)
           dirmon_job.send(:check_directories)
@@ -101,7 +101,7 @@ module Jobs
           assert_equal [10, 15], result.values.sort
         end
 
-        it 'start all files' do
+        it "start all files" do
           create_file("#{directory}/abc/file1", 5)
           create_file("#{directory}/abc/file2", 10)
           files = dirmon_job.send(:check_directories)
@@ -119,8 +119,8 @@ module Jobs
           assert 2, count
         end
 
-        it 'skip files in archive directory' do
-          dirmon_entry.archive_directory = 'archive'
+        it "skip files in archive directory" do
+          dirmon_entry.archive_directory = "archive"
           dirmon_entry.pattern           = "#{directory}/abc/**/*"
 
           file_pathname = IOStreams.path(directory, "/abc/file1")
@@ -135,13 +135,13 @@ module Jobs
         end
       end
 
-      describe '#perform' do
-        it 'check directories and reschedule' do
+      describe "#perform" do
+        it "check directories and reschedule" do
           previous_file_names = {
             "#{directory}/abc/file1" => 5,
             "#{directory}/abc/file2" => 10
           }
-          new_file_names      = {
+          new_file_names = {
             "#{directory}/abc/file1" => 10,
             "#{directory}/abc/file2" => 10
           }
@@ -171,7 +171,7 @@ module Jobs
           new_dirmon_job.destroy
         end
 
-        it 'check directories and reschedule even on exception' do
+        it "check directories and reschedule even on exception" do
           RocketJob::Jobs::DirmonJob.destroy_all
           # perform_now does not save the job, just runs it
           dirmon_job = RocketJob::Jobs::DirmonJob.create!(
@@ -179,15 +179,15 @@ module Jobs
             check_seconds:       30,
             destroy_on_complete: false
           )
-          RocketJob::Jobs::DirmonJob.stub_any_instance(:check_directories, -> { raise 'Oh no' }) do
+          RocketJob::Jobs::DirmonJob.stub_any_instance(:check_directories, -> { raise "Oh no" }) do
             assert_raises RuntimeError do
               dirmon_job.perform_now
             end
           end
           dirmon_job.save!
           assert dirmon_job.aborted?, dirmon_job.status.ai
-          assert_equal 'RuntimeError', dirmon_job.exception.class_name, dirmon_job.exception.attributes
-          assert_equal 'Oh no', dirmon_job.exception.message, dirmon_job.exception.attributes
+          assert_equal "RuntimeError", dirmon_job.exception.class_name, dirmon_job.exception.attributes
+          assert_equal "Oh no", dirmon_job.exception.message, dirmon_job.exception.attributes
 
           # Must have enqueued another instance to run in the future
           assert_equal 2, RocketJob::Jobs::DirmonJob.count, -> { RocketJob::Jobs::DirmonJob.all.ai }
@@ -202,13 +202,13 @@ module Jobs
       end
 
       def create_file(file_name, size)
-        IOStreams.new(file_name).write('*' * size)
+        IOStreams.new(file_name).write("*" * size)
       end
 
       def create_temp_file(size)
-        file      = Tempfile.new('check_file')
+        file      = Tempfile.new("check_file")
         file_name = file.path
-        File.open(file_name, 'wb') { |f| f.write('*' * size) }
+        File.open(file_name, "wb") { |f| f.write("*" * size) }
         assert_equal size, File.size(file_name)
         file
       end

@@ -1,4 +1,4 @@
-require_relative '../test_helper'
+require_relative "../test_helper"
 
 module Batch
   class ThrottleTest < Minitest::Test
@@ -28,8 +28,8 @@ module Batch
       let(:job) do
         job = ThrottleJob.new
         job.upload do |stream|
-          stream << 'first'
-          stream << 'second'
+          stream << "first"
+          stream << "second"
         end
         job.save!
         assert_equal 2, job.input.count
@@ -38,15 +38,15 @@ module Batch
 
       let(:worker) { RocketJob::Worker.new(inline: true) }
 
-      describe '.batch_throttle?' do
-        it 'defines the running slices throttle' do
+      describe ".batch_throttle?" do
+        it "defines the running slices throttle" do
           assert ThrottleJob.batch_throttle?(:throttle_running_workers_exceeded?), ThrottleJob.rocket_job_batch_throttles
           refute ThrottleJob.batch_throttle?(:blah?), ThrottleJob.rocket_job_batch_throttles
         end
       end
 
-      describe '.undefine_batch_throttle' do
-        it 'undefines the running jobs throttle' do
+      describe ".undefine_batch_throttle" do
+        it "undefines the running jobs throttle" do
           assert ThrottleJob.batch_throttle?(:throttle_running_workers_exceeded?), ThrottleJob.rocket_job_batch_throttles
           ThrottleJob.undefine_batch_throttle(:throttle_running_workers_exceeded?)
           refute ThrottleJob.batch_throttle?(:throttle_running_workers_exceeded?), ThrottleJob.rocket_job_batch_throttles
@@ -55,62 +55,62 @@ module Batch
         end
       end
 
-      describe '#throttle_running_workers_exceeded?' do
-        it 'does not exceed throttle when no other slices are running' do
+      describe "#throttle_running_workers_exceeded?" do
+        it "does not exceed throttle when no other slices are running" do
           slice = job.input.first
           refute job.send(:throttle_running_workers_exceeded?, slice)
         end
 
-        it 'exceeds throttle when other slices are running' do
+        it "exceeds throttle when other slices are running" do
           job.input.first.start!
           slice = job.input.last
           assert job.send(:throttle_running_workers_exceeded?, slice)
         end
 
-        it 'does not exceed throttle when other slices are failed' do
+        it "does not exceed throttle when other slices are failed" do
           job.input.first.fail!
           slice = job.input.last
           refute job.send(:throttle_running_workers_exceeded?, slice)
         end
       end
 
-      describe '#rocket_job_work' do
+      describe "#rocket_job_work" do
         before do
           job.start!
         end
 
-        it 'process all slices when all are queued' do
-          #skip "TODO: Intermittent test failure"
+        it "process all slices when all are queued" do
+          # skip "TODO: Intermittent test failure"
           refute job.rocket_job_work(worker, true)
           assert job.completed?, -> { job.ai }
         end
 
-        it 'return true when other slices are running' do
+        it "return true when other slices are running" do
           job.input.first.start!
           assert job.rocket_job_work(worker, true)
           assert job.running?
           assert_equal 2, job.input.count
         end
 
-        it 'process non failed slices' do
-          #skip "TODO: Intermittent test failure"
+        it "process non failed slices" do
+          # skip "TODO: Intermittent test failure"
           job.input.first.fail!
           refute job.rocket_job_work(worker, true)
           assert job.failed?
           assert_equal 1, job.input.count
         end
 
-        it 'update filter when other slices are running' do
-          #skip "TODO: Intermittent test failure"
+        it "update filter when other slices are running" do
+          # skip "TODO: Intermittent test failure"
           job.input.first.start!
           assert job.rocket_job_work(worker, true)
           assert job.running?
           assert_equal 2, job.input.count
-          either_filter = [ {:id.nin => [job.id]}, {:_type.nin => [job.class.name]} ]
+          either_filter = [{:id.nin => [job.id]}, {:_type.nin => [job.class.name]}]
           assert(either_filter.include?(worker.current_filter), -> { ThrottleJob.all.to_a.ai })
         end
 
-        it 'returns slice when other slices are running for later processing' do
+        it "returns slice when other slices are running for later processing" do
           job.input.first.start!
           assert job.rocket_job_work(worker, true)
           assert job.running?

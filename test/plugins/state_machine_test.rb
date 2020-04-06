@@ -1,4 +1,4 @@
-require_relative '../test_helper'
+require_relative "../test_helper"
 
 module Plugins
   class StateMachineTest < Minitest::Test
@@ -24,24 +24,24 @@ module Plugins
       before { Test.delete_all }
       let(:job) { Test.new }
 
-      describe '#create!' do
-        it 'raises an exception when a validation fails on create!' do
+      describe "#create!" do
+        it "raises an exception when a validation fails on create!" do
           assert_raises ::Mongoid::Errors::Validations do
             Test.create!
           end
         end
       end
 
-      describe '#save!' do
-        it 'raises an exception when a validation fails on save' do
+      describe "#save!" do
+        it "raises an exception when a validation fails on save" do
           assert_raises ::Mongoid::Errors::Validations do
             job.save!
           end
         end
       end
 
-      describe '#transition!' do
-        it 'raises an exception when a validation fails on state transition with save' do
+      describe "#transition!" do
+        it "raises an exception when a validation fails on state transition with save" do
           assert_raises ::Mongoid::Errors::Validations do
             job.enable!
           end
@@ -50,8 +50,8 @@ module Plugins
         end
       end
 
-      describe '#transition' do
-        it 'does not raise an exception when a validation fails on state transition without save' do
+      describe "#transition" do
+        it "does not raise an exception when a validation fails on state transition without save" do
           job.enable
           assert job.enabled?
         end

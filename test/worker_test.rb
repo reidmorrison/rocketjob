@@ -1,4 +1,4 @@
-require_relative 'test_helper'
+require_relative "test_helper"
 
 class WorkerTest < Minitest::Test
   class SimpleJob < RocketJob::Job
@@ -87,90 +87,90 @@ class WorkerTest < Minitest::Test
       RocketJob::Job.delete_all
     end
 
-    describe '#random_wait_interval' do
-      it 'returns random value between 0 and max_poll_seconds' do
+    describe "#random_wait_interval" do
+      it "returns random value between 0 and max_poll_seconds" do
         assert seconds = worker.random_wait_interval
         assert seconds >= 0, seconds
         assert seconds <= RocketJob::Config.max_poll_seconds, seconds
       end
     end
 
-    describe '#add_to_current_filter' do
-      it 'creates new filter' do
+    describe "#add_to_current_filter" do
+      it "creates new filter" do
         assert_equal({}, worker.current_filter)
-        worker.add_to_current_filter(:id.nin => ['1234'])
-        assert_equal({:id.nin => ['1234']}, worker.current_filter)
+        worker.add_to_current_filter(:id.nin => ["1234"])
+        assert_equal({:id.nin => ["1234"]}, worker.current_filter)
       end
 
-      it 'adds to an existing filter' do
+      it "adds to an existing filter" do
         assert_equal({}, worker.current_filter)
-        worker.add_to_current_filter(:id.nin => ['1234'])
+        worker.add_to_current_filter(:id.nin => ["1234"])
         worker.add_to_current_filter(_type: /MyJob/)
         assert_equal({:id.nin => ["1234"], _type: /MyJob/}, worker.current_filter)
       end
 
-      it 'adds to an existing filter key' do
+      it "adds to an existing filter key" do
         assert_equal({}, worker.current_filter)
-        worker.add_to_current_filter(:id.nin => ['1234'])
-        worker.add_to_current_filter(:id.nin => ['5678'])
-        assert_equal({:id.nin => ["1234", "5678"]}, worker.current_filter)
+        worker.add_to_current_filter(:id.nin => ["1234"])
+        worker.add_to_current_filter(:id.nin => ["5678"])
+        assert_equal({:id.nin => %w[1234 5678]}, worker.current_filter)
       end
 
-      it 'overrides existing key when not an array' do
+      it "overrides existing key when not an array" do
         assert_equal({}, worker.current_filter)
-        worker.add_to_current_filter(id: '1234')
-        worker.add_to_current_filter(id: '5678')
+        worker.add_to_current_filter(id: "1234")
+        worker.add_to_current_filter(id: "5678")
         assert_equal({id: "5678"}, worker.current_filter)
       end
     end
 
-    describe '#find_and_assign_job' do
-      it 'returns nil if no jobs available' do
+    describe "#find_and_assign_job" do
+      it "returns nil if no jobs available" do
         assert_nil worker.find_and_assign_job
       end
 
-      it 'returns the first job' do
+      it "returns the first job" do
         job.save!
-        assert found_job = worker.find_and_assign_job, 'Failed to find job'
+        assert found_job = worker.find_and_assign_job, "Failed to find job"
         assert_equal job.id, found_job.id
       end
 
-      it 'assigns worker name and updates state to running' do
+      it "assigns worker name and updates state to running" do
         job.save!
-        assert found_job = worker.find_and_assign_job, 'Failed to find job'
+        assert found_job = worker.find_and_assign_job, "Failed to find job"
         found_job.reload
         assert_equal worker.name, found_job.worker_name
         assert found_job.running?
       end
 
-      it 'ignores future dated jobs' do
+      it "ignores future dated jobs" do
         job.run_at = Time.now + 1.hour
         job.save!
         assert_nil worker.find_and_assign_job
       end
 
-      it 'Process future dated jobs when time is now' do
+      it "Process future dated jobs when time is now" do
         job.run_at = Time.now
         job.save!
-        assert found_job = worker.find_and_assign_job, 'Failed to find job'
+        assert found_job = worker.find_and_assign_job, "Failed to find job"
         assert_equal job.id, found_job.id
       end
 
-      it 'Process future dated jobs when time is in the past' do
+      it "Process future dated jobs when time is in the past" do
         job.run_at = Time.now - 1.hour
         job.save!
-        assert found_job = worker.find_and_assign_job, 'Failed to find job'
+        assert found_job = worker.find_and_assign_job, "Failed to find job"
         assert_equal job.id, found_job.id
       end
 
-      it 'fetches processing batch jobs' do
+      it "fetches processing batch jobs" do
         batch_job.start!
         assert_equal :before, batch_job.sub_state
         assert_nil worker.find_and_assign_job
 
         batch_job.sub_state = :processing
         batch_job.save!
-        assert found_job = worker.find_and_assign_job, 'Failed to find job'
+        assert found_job = worker.find_and_assign_job, "Failed to find job"
         assert_equal batch_job.id, found_job.id
 
         batch_job.sub_state = :after
@@ -178,44 +178,44 @@ class WorkerTest < Minitest::Test
         assert_nil worker.find_and_assign_job
       end
 
-      it 'excludes filtered jobs' do
+      it "excludes filtered jobs" do
         job.save!
         worker.add_to_current_filter(:id.nin => [job.id])
         assert_nil worker.find_and_assign_job
       end
 
-      it 'sorts based on priority' do
+      it "sorts based on priority" do
         batch_job.priority = 50
         batch_job.save!
         job.priority = 30
         job.save!
-        assert found_job = worker.find_and_assign_job, 'Failed to find job'
+        assert found_job = worker.find_and_assign_job, "Failed to find job"
         assert_equal job.id, found_job.id
 
         job.priority = 90
         job.save!
-        assert found_job = worker.find_and_assign_job, 'Failed to find job'
+        assert found_job = worker.find_and_assign_job, "Failed to find job"
         assert_equal batch_job.id, found_job.id
       end
 
-      it 'excludes running regular jobs' do
+      it "excludes running regular jobs" do
         job.start!
         assert_nil worker.find_and_assign_job
       end
     end
 
-    describe '#next_available_job' do
-      it 'returns nil when no jobs available' do
+    describe "#next_available_job" do
+      it "returns nil when no jobs available" do
         assert_nil worker.next_available_job
       end
 
-      it 'returns a queued job' do
+      it "returns a queued job" do
         job.save!
         assert (found_job = worker.next_available_job), -> { SimpleJob.all.to_a.ai }
         assert_equal job.id, found_job.id
       end
 
-      it 'returns a running batch job' do
+      it "returns a running batch job" do
         batch_job.start
         batch_job.sub_state = :processing
         batch_job.save!
@@ -223,14 +223,14 @@ class WorkerTest < Minitest::Test
         assert_equal batch_job.id, found_job.id
       end
 
-      it 'destroys expired jobs' do
+      it "destroys expired jobs" do
         job.expires_at = 1.day.ago
         job.save!
         assert_nil worker.next_available_job
         assert_nil RocketJob::Job.where(id: job.id).first
       end
 
-      it 'returns the first non-expired job' do
+      it "returns the first non-expired job" do
         job.expires_at = 1.day.ago
         job.save!
 
@@ -241,26 +241,26 @@ class WorkerTest < Minitest::Test
         assert_equal batch_job.id, found_job.id
       end
 
-      it 'handles exceptions when a job starts' do
+      it "handles exceptions when a job starts" do
         job = BeforeStartExceptionJob.create!
         assert_nil worker.next_available_job
         assert job.reload.failed?
       end
 
-      it 'handles exceptions when a job starts' do
+      it "handles exceptions when a job starts" do
         job = AfterStartExceptionJob.create!
         assert_nil worker.next_available_job
         assert job.reload.failed?
       end
 
-      describe 'throttles' do
+      describe "throttles" do
         before do
           if ThrottledJob.rocket_job_throttles.throttles.count.zero?
             skip "Sometimes a thread concurrency issue with `class_attribute` causes it to ignore throttles"
           end
         end
 
-        it 'honors regular job throttles' do
+        it "honors regular job throttles" do
           RocketJob::Job.destroy_all
           throttled_job.start!
           job = ThrottledJob.create!
@@ -275,7 +275,7 @@ class WorkerTest < Minitest::Test
           assert_nil worker.next_available_job, -> { ThrottledJob.all.to_a.ai }
         end
 
-        it 'return the job when others are queued, paused, failed, or complete' do
+        it "return the job when others are queued, paused, failed, or complete" do
           RocketJob::Job.destroy_all
           job = ThrottledJob.create!
           ThrottledJob.create!(state: :failed)
@@ -285,7 +285,7 @@ class WorkerTest < Minitest::Test
           assert_equal job.id, found_job.id
         end
 
-        it 'return nil when other jobs are running' do
+        it "return nil when other jobs are running" do
           job1 = ThrottledJob.create!
           job  = ThrottledJob.new
           job.start!
@@ -300,7 +300,7 @@ class WorkerTest < Minitest::Test
           assert_nil worker.next_available_job, -> { (ThrottledJob.all.to_a + ThrottledJob.rocket_job_throttles.throttles).ai }
         end
 
-        it 'add job to filter when other jobs are running' do
+        it "add job to filter when other jobs are running" do
           job1 = ThrottledJob.create!
           job  = ThrottledJob.new
           job.start!
@@ -316,7 +316,7 @@ class WorkerTest < Minitest::Test
           assert_equal({:_type.nin => [ThrottledJob.name]}, worker.current_filter)
         end
 
-        it 'allows a higher priority Batch queued job to replace a running one with a lower priority' do
+        it "allows a higher priority Batch queued job to replace a running one with a lower priority" do
           running_job = BatchThrottleJob.create!
           assert found_job = worker.next_available_job, -> { BatchThrottleJob.all.to_a.ai }
           assert_equal running_job.id, found_job.id
@@ -330,13 +330,13 @@ class WorkerTest < Minitest::Test
 
     describe "#reset_filter_if_expired" do
       it "does not reset when time has not passed" do
-        worker.add_to_current_filter(:id.nin => ['1234'])
+        worker.add_to_current_filter(:id.nin => ["1234"])
         worker.reset_filter_if_expired
-        assert_equal({:id.nin => ['1234']}, worker.current_filter)
+        assert_equal({:id.nin => ["1234"]}, worker.current_filter)
       end
 
       it "resets filter when time has passed" do
-        worker.add_to_current_filter(:id.nin => ['1234'])
+        worker.add_to_current_filter(:id.nin => ["1234"])
         Time.stub(:now, 1.hour.from_now) do
           worker.reset_filter_if_expired
         end
@@ -344,12 +344,12 @@ class WorkerTest < Minitest::Test
       end
 
       it "resets filter to default where filter" do
-        RocketJob::Config.stub(:where_filter, {:id.nin => ['5678']}) do
-          worker.add_to_current_filter(:id.nin => ['1234'])
+        RocketJob::Config.stub(:where_filter, {:id.nin => ["5678"]}) do
+          worker.add_to_current_filter(:id.nin => ["1234"])
           Time.stub(:now, 1.hour.from_now) do
             worker.reset_filter_if_expired
           end
-          assert_equal({:id.nin => ['5678']}, worker.current_filter)
+          assert_equal({:id.nin => ["5678"]}, worker.current_filter)
         end
       end
     end

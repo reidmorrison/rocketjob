@@ -1,4 +1,4 @@
-require_relative '../test_helper'
+require_relative "../test_helper"
 
 module Jobs
   class OnDemandJobTest < Minitest::Test
@@ -7,8 +7,8 @@ module Jobs
         RocketJob::Jobs::OnDemandJob.delete_all
       end
 
-      describe '#perform' do
-        it 'hello world' do
+      describe "#perform" do
+        it "hello world" do
           code = <<~CODE
             logger.info 'Hello World'
           CODE
@@ -17,7 +17,7 @@ module Jobs
           job.perform_now
         end
 
-        it 'retain output' do
+        it "retain output" do
           code = <<~CODE
             {'value' => 'h' * 24}
           CODE
@@ -27,10 +27,10 @@ module Jobs
             collect_output: true
           )
           job.perform_now
-          assert_equal 'h' * 24, job.result['value']
+          assert_equal "h" * 24, job.result["value"]
         end
 
-        it 'accepts input data' do
+        it "accepts input data" do
           code = <<~CODE
             {'value' => data['a'] * data['b']}
           CODE
@@ -38,13 +38,13 @@ module Jobs
           job = RocketJob::Jobs::OnDemandJob.new(
             code:           code,
             collect_output: true,
-            data:           {'a' => 10, 'b' => 2}
+            data:           {"a" => 10, "b" => 2}
           )
           job.perform_now
-          assert_equal 20, job.result['value']
+          assert_equal 20, job.result["value"]
         end
 
-        it 'validates code' do
+        it "validates code" do
           code = <<~CODE
             def bad code
           CODE

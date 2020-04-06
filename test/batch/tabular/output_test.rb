@@ -1,4 +1,4 @@
-require_relative '../../test_helper'
+require_relative "../../test_helper"
 
 module Batch
   module Tabular
@@ -16,7 +16,7 @@ module Batch
         end
       end
 
-      describe 'csv format' do
+      describe "csv format" do
         before do
           assert @job = SimpleOutputJob.new(tabular_output_header: %w[one two three])
           @job.upload do |stream|
@@ -30,32 +30,32 @@ module Batch
           @job.download(@io)
         end
 
-        describe '#tabular_output_header' do
-          it 'parses the header' do
+        describe "#tabular_output_header" do
+          it "parses the header" do
             assert_equal %w[one two three], @job.tabular_output_header
           end
         end
 
-        describe '#perform' do
-          it 'renders each row with header' do
+        describe "#perform" do
+          it "renders each row with header" do
             lines = [
-              'one,two,three',
-              '1,2,3',
-              '',
-              '4,5,6',
-              '7,8,9'
+              "one,two,three",
+              "1,2,3",
+              "",
+              "4,5,6",
+              "7,8,9"
             ]
             assert_equal lines, @io.string.lines.collect(&:chomp)
           end
         end
       end
 
-      describe 'json format' do
+      describe "json format" do
         before do
           assert @job = SimpleOutputJob.new(tabular_output_format: :json)
           @job.upload do |stream|
             stream << {first: 1, second: 2, third: 3}
-            stream << ''
+            stream << ""
             stream << {first: 4, second: 5, third: 6}
             stream << {first: 7, second: 8, third: 9}
           end
@@ -64,17 +64,17 @@ module Batch
           @job.download(@io)
         end
 
-        describe '#tabular_output_header' do
-          it 'does not have an output header' do
+        describe "#tabular_output_header" do
+          it "does not have an output header" do
             refute @job.tabular_output_header
           end
         end
 
-        describe '#perform' do
-          it 'renders each row with header' do
+        describe "#perform" do
+          it "renders each row with header" do
             lines = [
               '{"first":1,"second":2,"third":3}',
-              '',
+              "",
               '{"first":4,"second":5,"third":6}',
               '{"first":7,"second":8,"third":9}'
             ]
