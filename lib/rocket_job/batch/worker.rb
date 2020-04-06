@@ -129,7 +129,7 @@ module RocketJob
       # Process a single slice from Mongo
       # Once the slice has been successfully processed it will be removed from the input collection
       # Returns [Integer] the number of records successfully processed
-      def rocket_job_process_slice(slice)
+      def rocket_job_process_slice(slice, &block)
         # TODO: Skip records already processed
         @rocket_job_record_number = slice.first_record_number || 0
         @rocket_job_slice         = slice
@@ -142,7 +142,7 @@ module RocketJob
           RocketJob::Sliced::Writer::Output.collect(self, slice) do |writer|
             slice.each do |record|
               SemanticLogger.named_tagged(record: @rocket_job_record_number) do
-                writer << rocket_job_batch_perform(slice, record)
+                writer << rocket_job_batch_perform(slice, record, &block)
                 processed_records += 1
               end
               # JRuby thinks self.rocket_job_record_number= is private and cannot be accessed

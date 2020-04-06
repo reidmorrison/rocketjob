@@ -53,6 +53,19 @@ module RocketJob
           conn.where(:id.ne => slice.id).count >= throttle_running_workers
         end
       end
+
+      # Returns [Boolean] whether the throttle for this job has been exceeded
+      #
+      # With a Batch job, allow a higher priority queued job to replace a running one with
+      # a lower priority.
+      def throttle_running_jobs_exceeded?
+        return unless throttle_running_jobs&.positive?
+
+        # Cannot use this class since it will include instances of parent job classes.
+        RocketJob::Job.with(read: {mode: :primary}) do |conn|
+          conn.running.where("_type" => self.class.name, :id.ne => id, :priority.lt => priority).count >= throttle_running_jobs
+        end
+      end
     end
   end
 end

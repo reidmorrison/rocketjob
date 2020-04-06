@@ -15,6 +15,19 @@ class WorkerTest < Minitest::Test
     end
   end
 
+  class BatchThrottleJob < RocketJob::Job
+    include RocketJob::Batch
+
+    # Only allow one to be processed at a time
+    self.throttle_running_jobs    = 1
+    self.throttle_running_workers = 1
+    self.slice_size               = 1
+
+    def perform(record)
+      record
+    end
+  end
+
   class BeforeStartExceptionJob < RocketJob::Job
     before_start :throw_exception
 
@@ -247,7 +260,7 @@ class WorkerTest < Minitest::Test
           end
         end
 
-        it 'honors job throttles' do
+        it 'honors regular job throttles' do
           RocketJob::Job.destroy_all
           throttled_job.start!
           job = ThrottledJob.create!
@@ -301,6 +314,16 @@ class WorkerTest < Minitest::Test
 
           assert_nil worker.next_available_job, -> { ThrottledJob.all.to_a.ai }
           assert_equal({:_type.nin => [ThrottledJob.name]}, worker.current_filter)
+        end
+
+        it 'allows a higher priority Batch queued job to replace a running one with a lower priority' do
+          running_job = BatchThrottleJob.create!
+          assert found_job = worker.next_available_job, -> { BatchThrottleJob.all.to_a.ai }
+          assert_equal running_job.id, found_job.id
+
+          higher_priority_job = BatchThrottleJob.create!(priority: 10)
+          assert found_job = worker.next_available_job, -> { BatchThrottleJob.all.to_a.ai }
+          assert_equal higher_priority_job.id, found_job.id
         end
       end
     end
