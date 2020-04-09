@@ -74,6 +74,54 @@ module Batch
         end
       end
 
+      describe "#throttle_running_jobs_exceeded?" do
+        it "does not exceed throttle when no jobs are running" do
+          job = ThrottleJob.create!
+          refute job.send(:throttle_running_jobs_exceeded?)
+        end
+
+        it "does not exceed throttle when no other jobs are running" do
+          job = ThrottleJob.new
+          job.start!
+          refute job.send(:throttle_running_jobs_exceeded?)
+        end
+
+        it "exceeds throttle when other jobs are running with same priority" do
+          job1 = ThrottleJob.new
+          job1.start!
+          job = ThrottleJob.create!
+          assert job.send(:throttle_running_jobs_exceeded?)
+        end
+
+        it "exceeds throttle when job has a lower priority" do
+          job1 = ThrottleJob.new
+          job1.start!
+          job = ThrottleJob.create!(priority: 51)
+          assert job.send(:throttle_running_jobs_exceeded?)
+        end
+
+        it "does not exceed throttle when job has a higher priority" do
+          job1 = ThrottleJob.new
+          job1.start!
+          job = ThrottleJob.create!(priority: 49)
+          refute job.send(:throttle_running_jobs_exceeded?)
+        end
+
+        it "does not exceed throttle when other slices are failed" do
+          job1 = ThrottleJob.new
+          job1.start
+          job1.fail!
+          job = ThrottleJob.create!
+          refute job.send(:throttle_running_jobs_exceeded?)
+        end
+
+        it "does not exceed throttle when other slices are paused" do
+          job1 = ThrottleJob.create!(state: :paused)
+          job = ThrottleJob.create!
+          refute job.send(:throttle_running_jobs_exceeded?)
+        end
+      end
+
       describe "#rocket_job_work" do
         before do
           job.start!

@@ -25,8 +25,8 @@ module RocketJob
 
       # The record number of the first record in this slice.
       # Useful in knowing the line number of each record in this slice
-      # relative to the original file that was uploaded.
-      field :first_record_number, type: Integer
+      # relative to the original file that was uploaded. (1-based index)
+      field :first_record_number, type: Integer, default: 1
 
       #
       # Read-only attributes
@@ -41,7 +41,7 @@ module RocketJob
       # Number of times that this job has failed to process
       field :failure_count, type: Integer
 
-      # Number of the record within this slice (not the entire file/job) currently being processed. (One based index)
+      # Number of the record within this slice (not the entire file/job) currently being processed. (1-based index)
       field :processing_record_number, type: Integer
 
       # This name of the worker that this job is being processed by, or was processed by
@@ -112,7 +112,7 @@ module RocketJob
 
       # Returns [Integer] the record number of the record currently being processed relative to the entire file.
       def current_record_number
-        first_record_number.to_i + processing_record_number.to_i
+        first_record_number + (processing_record_number || 1) - 1
       end
 
       # Before Fail save the exception to this slice.
