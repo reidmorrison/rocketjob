@@ -76,15 +76,33 @@ class WorkerTest < Minitest::Test
   describe RocketJob::Worker do
     let(:job) { SimpleJob.new }
     let(:throttled_job) { ThrottledJob.new }
+    let(:batch_throttled_job) do
+      job = BatchThrottleJob.new
+      job.upload do |stream|
+        stream << "first"
+        stream << "second"
+        stream << "third"
+        stream << "fourth"
+      end
+      job.save!
+      assert_equal 4, job.input.queued.count
+      job
+    end
+    let(:processing_throttled_batch_job) do
+      batch_throttled_job.start
+      batch_throttled_job.sub_state = :processing
+      batch_throttled_job.save!
+      batch_throttled_job
+    end
     let(:batch_job) { SimpleBatchJob.new }
     let(:worker) { RocketJob::Worker.new(inline: true) }
 
     before do
-      RocketJob::Job.delete_all
+      RocketJob::Job.destroy_all
     end
 
     after do
-      RocketJob::Job.delete_all
+      RocketJob::Job.destroy_all
     end
 
     describe "#random_wait_interval" do
@@ -260,12 +278,14 @@ class WorkerTest < Minitest::Test
           end
         end
 
+        it "defines the throttles" do
+          assert_equal 1, ThrottledJob.rocket_job_throttles.throttles.count, -> { ThrottledJob.rocket_job_throttles.throttles.ai }
+        end
+
         it "honors regular job throttles" do
-          RocketJob::Job.destroy_all
           throttled_job.start!
           job = ThrottledJob.create!
 
-          assert_equal 1, ThrottledJob.rocket_job_throttles.throttles.count, -> { ThrottledJob.rocket_job_throttles.throttles.ai }
           assert_equal 2, ThrottledJob.count
           assert_equal 1, ThrottledJob.running.count
           assert_equal 1, ThrottledJob.queued.count
@@ -324,6 +344,51 @@ class WorkerTest < Minitest::Test
           higher_priority_job = BatchThrottleJob.create!(priority: 10)
           assert found_job = worker.next_available_job, -> { BatchThrottleJob.all.to_a.ai }
           assert_equal higher_priority_job.id, found_job.id
+        end
+      end
+
+      describe "batch throttles" do
+        before do
+          if BatchThrottleJob.rocket_job_batch_throttles.throttles.count.zero?
+            skip "Sometimes a thread startup concurrency issue with `class_attribute` causes it to ignore batch throttles"
+          end
+        end
+
+        it "defines the throttles" do
+          assert_equal 1, BatchThrottleJob.rocket_job_batch_throttles.throttles.count, -> { ThrottledJob.rocket_job_batch_throttles.throttles.ai }
+        end
+
+        it "does not throttle with no running slices" do
+          processing_throttled_batch_job
+
+          assert found_job = worker.next_available_job, -> { processing_throttled_batch_job.input.all.to_a.ai }
+          assert_equal batch_throttled_job.id, found_job.id
+        end
+
+        it "throttles above one" do
+          processing_throttled_batch_job.input.first.start!
+
+          # Throttle exceeded?
+          assert processing_throttled_batch_job.rocket_job_work(worker, true), -> { processing_throttled_batch_job.input.all.to_a.ai }
+          assert_equal 4, processing_throttled_batch_job.input.count
+          assert processing_throttled_batch_job.running?, -> { processing_throttled_batch_job.input.all.to_a.ai }
+        end
+
+        it "throttles above the limit" do
+          processing_throttled_batch_job.input.first.start!
+
+          # Throttle exceeded?
+          assert processing_throttled_batch_job.rocket_job_work(worker, true), -> { processing_throttled_batch_job.input.all.to_a.ai }
+          assert_equal 4, processing_throttled_batch_job.input.count
+          assert processing_throttled_batch_job.running?, -> { processing_throttled_batch_job.input.all.to_a.ai }
+        end
+
+        it "add job to filter when batch throttle exceeded" do
+          processing_throttled_batch_job.input.first.start!
+
+          assert processing_throttled_batch_job.rocket_job_work(worker, true), -> { processing_throttled_batch_job.input.all.to_a.ai }
+
+          assert_equal({:id.nin => [processing_throttled_batch_job.id]}, worker.current_filter)
         end
       end
     end

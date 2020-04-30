@@ -152,13 +152,15 @@ module RocketJob
         count = 0
         RocketJob::Sliced::Writer::Output.collect(self, slice) do |writer|
           records = slice.records
-          slice.processing_record_number ||= 0
 
           # Skip records already processed, if any.
+          #slice.processing_record_number ||= 0
           # TODO: Must append to existing output slices before this can be enabled.
           # if !collect_output && (slice.processing_record_number > 1)
           #   records = records[slice.processing_record_number - 1..-1]
           # end
+          # Until the changes above have been implemented, reprocess all records in the slice.
+          slice.processing_record_number = 0
 
           records.each do |record|
             slice.processing_record_number += 1
