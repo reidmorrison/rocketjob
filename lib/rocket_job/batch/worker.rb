@@ -28,10 +28,6 @@ module RocketJob
       #
       # If an exception was thrown the entire slice of records is marked as failed.
       #
-      # If the mongo_ha gem has been loaded, then the connection to mongo is
-      # automatically re-established and the job will resume anytime a
-      # Mongo connection failure occurs.
-      #
       # Thread-safe, can be called by multiple threads at the same time
       def rocket_job_work(worker, re_raise_exceptions = false)
         raise "Job must be started before calling #rocket_job_work" unless running?

@@ -36,19 +36,6 @@ gem 'rails_semantic_logger'
 gem 'rocketjob', '~> 3.0'
 ~~~
 
-It is recommended to also add the following 2 lines to your Gemfile to ensure MongoDB high availability:
-~~~ruby
-# For high availability
-gem 'mongo', git: 'https://github.com/mongodb/mongo-ruby-driver.git'
-gem 'mongo_ha', git: 'https://github.com/reidmorrison/mongo_ha.git'
-~~~
-
-Once Mongo Ruby driver v2.5 has been released then only the following will be required:
-~~~ruby
-# For high availability
-gem 'mongo_ha', `~> 2.5`
-~~~
-
 Install gems:
 
 ~~~
