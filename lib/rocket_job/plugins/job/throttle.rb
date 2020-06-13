@@ -7,7 +7,7 @@ module RocketJob
       #
       # Example:
       #   # Do not run this job when the MySQL slave delay exceeds 5 minutes.
-      #   class MyJob < RocketJob
+      #   class MyJob < RocketJob::Job
       #     # Define a custom mysql throttle
       #     # Prevents all jobs of this class from running on the current server.
       #     define_throttle :mysql_throttle_exceeded?

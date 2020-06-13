@@ -5,7 +5,7 @@ module RocketJob
     # Throttle the number of slices of a specific batch job that are processed at the same time.
     #
     # Example:
-    #   class MyJob < RocketJob
+    #   class MyJob < RocketJob::Job
     #     include RocketJob::Batch
     #
     #     # Maximum number of slices to process at the same time for each running instance.

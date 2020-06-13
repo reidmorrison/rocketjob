@@ -6,7 +6,7 @@ module RocketJob
       # Throttle the number of jobs of a specific class that are processed at the same time.
       #
       # Example:
-      #   class MyJob < RocketJob
+      #   class MyJob < RocketJob::Job
       #     # Maximum number of jobs of this class to process at the same time.
       #     self.throttle_running_jobs = 25
       #

@@ -855,7 +855,7 @@ when the running number of jobs of that class drops below the value of `throttle
 
 Example:
 ~~~ruby
-class MyJob < RocketJob
+class MyJob < RocketJob::Job
   # Maximum number of jobs of this class to process at the same time.
   self.throttle_running_jobs = 25
 
@@ -880,7 +880,7 @@ Example:
 
 ~~~ruby
 # Do not run this job when the MySQL slave delay exceeds 5 minutes.
-class MyJob < RocketJob
+class MyJob < RocketJob::Job
   define_throttle :mysql_throttle_exceeded?
 
   def perform

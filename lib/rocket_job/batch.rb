@@ -24,6 +24,7 @@ module RocketJob
     autoload :LowerPriority, "rocket_job/batch/lower_priority"
     autoload :Performance, "rocket_job/batch/performance"
     autoload :Statistics, "rocket_job/batch/statistics"
+    autoload :ThrottleWindows, "rocket_job/batch/throttle_windows"
     autoload :Result, "rocket_job/batch/result"
     autoload :Results, "rocket_job/batch/results"
     autoload :Tabular, "rocket_job/batch/tabular"

@@ -6,7 +6,7 @@ module RocketJob
     #
     # Example:
     #   # Do not run any slices for this job when the MySQL slave delay exceeds 5 minutes.
-    #   class MyJob < RocketJob
+    #   class MyJob < RocketJob::Job
     #     include RocketJob::Batch
     #
     #     # Define a custom mysql throttle
