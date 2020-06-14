@@ -3,9 +3,9 @@
 
 Ruby's missing batch system
 
-Checkout http://rocketjob.io/
+Checkout https://rocketjob.io/
 
-![Rocket Job](http://rocketjob.io/images/rocket/rocket-icon-512x512.png)
+![Rocket Job](https://rocketjob.io/images/rocket/rocket-icon-512x512.png)
 
 ## Documentation
 

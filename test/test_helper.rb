@@ -5,7 +5,7 @@ require "yaml"
 require "minitest/autorun"
 require "minitest/stub_any_instance"
 require "minitest/reporters"
-require "awesome_print"
+require "amazing_print"
 require "rocketjob"
 
 SemanticLogger.add_appender(file_name: "test.log", formatter: :color)

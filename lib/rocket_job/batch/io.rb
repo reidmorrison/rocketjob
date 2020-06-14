@@ -18,7 +18,7 @@ module RocketJob
           raise "Category #{category.inspect}, must be registered in input_categories: #{input_categories.inspect}"
         end
 
-        (@inputs ||= {})[category] ||= RocketJob::Sliced::Input.new(rocket_job_io_slice_arguments("inputs", category))
+        (@inputs ||= {})[category] ||= RocketJob::Sliced::Input.new(**rocket_job_io_slice_arguments("inputs", category))
       end
 
       # Returns [RocketJob::Sliced::Output] output collection for holding output slices
@@ -34,7 +34,7 @@ module RocketJob
           raise "Category #{category.inspect}, must be registered in output_categories: #{output_categories.inspect}"
         end
 
-        (@outputs ||= {})[category] ||= RocketJob::Sliced::Output.new(rocket_job_io_slice_arguments("outputs", category))
+        (@outputs ||= {})[category] ||= RocketJob::Sliced::Output.new(**rocket_job_io_slice_arguments("outputs", category))
       end
 
       # Upload the supplied file, io, IOStreams::Path, or IOStreams::Stream.
