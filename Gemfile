@@ -5,8 +5,8 @@ gemspec
 gem "activerecord", "~> 6.0"
 gem "mongoid", "~> 7.1"
 
-gem "appraisal"
 gem "amazing_print"
+gem "appraisal"
 gem "rake"
 gem "rubyzip", platform: :ruby
 

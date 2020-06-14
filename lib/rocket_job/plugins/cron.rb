@@ -52,8 +52,6 @@ module RocketJob
         RocketJob::Plugins::Rufus::CronLine.new(cron_schedule).next_time(time)
       end
 
-      private
-
       def rocket_job_cron_set_run_at
         return unless cron_schedule
 

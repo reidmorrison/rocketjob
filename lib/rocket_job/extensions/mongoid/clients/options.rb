@@ -22,8 +22,6 @@ module RocketJob
         @collection_name = collection_name&.to_sym
       end
 
-      private
-
       module ClassMethods
         def with_collection(collection_name)
           all.with_collection(collection_name)

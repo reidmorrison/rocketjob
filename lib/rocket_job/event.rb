@@ -104,8 +104,6 @@ module RocketJob
       end
     end
 
-    private
-
     @load_time   = Time.now.utc
     @subscribers = Concurrent::Map.new { Concurrent::Array.new }
 

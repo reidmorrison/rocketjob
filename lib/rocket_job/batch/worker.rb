@@ -110,8 +110,6 @@ module RocketJob
         servers
       end
 
-      private
-
       def rocket_job_batch_throttled?(slice, worker)
         filter = self.class.rocket_job_batch_throttles.matching_filter(self, slice)
         return false unless filter
@@ -150,7 +148,7 @@ module RocketJob
           records = slice.records
 
           # Skip records already processed, if any.
-          #slice.processing_record_number ||= 0
+          # slice.processing_record_number ||= 0
           # TODO: Must append to existing output slices before this can be enabled.
           # if !collect_output && (slice.processing_record_number > 1)
           #   records = records[slice.processing_record_number - 1..-1]
