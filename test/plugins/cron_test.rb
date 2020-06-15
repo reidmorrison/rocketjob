@@ -33,7 +33,7 @@ module Plugins
 
       describe "#create!" do
         it "queues a new job" do
-          @job = CronJob.create!(cron_schedule: "* 1 * * *")
+          @job = CronJob.create!(cron_schedule: "0 1 * * *")
           assert @job.valid?
           refute @job.new_record?
         end
@@ -42,7 +42,7 @@ module Plugins
           it "handles UTC" do
             time = Time.parse("2015-12-09 17:50:05 UTC")
             Time.stub(:now, time) do
-              @job = CronJob.create!(cron_schedule: "* 1 * * * UTC")
+              @job = CronJob.create!(cron_schedule: "0 1 * * * UTC")
             end
             assert @job.valid?
             refute @job.new_record?
@@ -52,7 +52,7 @@ module Plugins
           it "handles Eastern" do
             time = Time.parse("2015-12-09 17:50:05 UTC")
             Time.stub(:now, time) do
-              @job = CronJob.create!(cron_schedule: "* 1 * * * America/New_York")
+              @job = CronJob.create!(cron_schedule: "0 1 * * * America/New_York")
             end
             assert @job.valid?
             refute @job.new_record?
@@ -63,14 +63,14 @@ module Plugins
 
       describe "#save" do
         it "updates run_at for a new record" do
-          @job = CronJob.create!(cron_schedule: "* 1 * * *")
+          @job = CronJob.create!(cron_schedule: "0 1 * * *")
           assert @job.run_at
         end
 
         it "updates run_at for a modified record" do
-          @job = CronJob.create!(cron_schedule: "* 1 * * * UTC")
+          @job = CronJob.create!(cron_schedule: "0 1 * * * UTC")
           assert run_at = @job.run_at
-          @job.cron_schedule = "* 2 * * * UTC"
+          @job.cron_schedule = "0 2 * * * UTC"
           assert_equal run_at, @job.run_at
           @job.save!
           assert run_at != @job.run_at, @job.attributes
@@ -86,11 +86,11 @@ module Plugins
         it "fails on bad cron schedule" do
           @job = CronJob.new(cron_schedule: "blah")
           refute @job.valid?
-          assert_equal "not a valid cronline : 'blah'", @job.errors.messages[:cron_schedule].first
+          assert_equal "Invalid cron_schedule: \"blah\"", @job.errors.messages[:cron_schedule].first
         end
 
         it "passes on valid cron schedule" do
-          @job = CronJob.new(cron_schedule: "* 1 * * *")
+          @job = CronJob.new(cron_schedule: "0 1 * * *")
           assert @job.valid?
         end
       end
@@ -98,7 +98,7 @@ module Plugins
       describe "#fail" do
         describe "with cron_schedule" do
           let :job do
-            job = FailOnceCronJob.create!(cron_schedule: "* 1 * * *")
+            job = FailOnceCronJob.create!(cron_schedule: "0 1 * * *")
             job.start
             assert_raises RuntimeError do
               job.perform_now
@@ -125,7 +125,7 @@ module Plugins
             assert_equal 2, FailOnceCronJob.count
             assert scheduled_job = FailOnceCronJob.last
             assert scheduled_job.queued?
-            assert_equal "* 1 * * *", scheduled_job.cron_schedule
+            assert_equal "0 1 * * *", scheduled_job.cron_schedule
           end
 
           it "restarts on retry" do
@@ -158,6 +158,16 @@ module Plugins
             job
             assert_equal 1, CronJob.count
           end
+        end
+      end
+
+      describe "Fugit" do
+        it "properly handles timezones" do
+          central = Fugit::Cron.new("0 20 * * 5 America/Chicago").next_time.to_utc_time
+          eastern = Fugit::Cron.new("0 20 * * 5 America/New_York").next_time.to_utc_time
+          utc     = Fugit::Cron.new("0 20 * * 5 UTC").next_time.to_utc_time
+          refute_equal central, eastern
+          refute_equal utc, eastern
         end
       end
     end

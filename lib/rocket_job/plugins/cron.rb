@@ -1,4 +1,5 @@
 require "active_support/concern"
+require "fugit"
 
 module RocketJob
   module Plugins
@@ -17,7 +18,9 @@ module RocketJob
 
         field :cron_schedule, type: String, class_attribute: true, user_editable: true, copy_on_restart: true
 
-        validate :rocket_job_cron_valid
+        validates_each :cron_schedule do |record, attr, value|
+          record.errors.add(attr, "Invalid cron_schedule: #{value.inspect}") if value && !Fugit::Cron.new(value)
+        end
         before_save :rocket_job_cron_set_run_at
 
         private
@@ -49,21 +52,13 @@ module RocketJob
       #     The next time as of this time.
       #     Default: Time.now
       def rocket_job_cron_next_time(time = Time.now)
-        RocketJob::Plugins::Rufus::CronLine.new(cron_schedule).next_time(time)
+        Fugit::Cron.new(cron_schedule).next_time.to_utc_time
       end
 
       def rocket_job_cron_set_run_at
         return unless cron_schedule
 
         self.run_at = rocket_job_cron_next_time if cron_schedule_changed? && !run_at_changed?
-      end
-
-      def rocket_job_cron_valid
-        return unless cron_schedule
-
-        RocketJob::Plugins::Rufus::CronLine.new(cron_schedule)
-      rescue ArgumentError => e
-        errors.add(:cron_schedule, e.message)
       end
     end
   end

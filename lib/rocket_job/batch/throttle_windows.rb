@@ -1,4 +1,5 @@
 require "active_support/concern"
+require "fugit"
 
 module RocketJob
   module Batch
@@ -43,6 +44,10 @@ module RocketJob
         field :secondary_duration, type: Integer, class_attribute: true, user_editable: true, copy_on_restart: true
 
         define_batch_throttle :throttle_windows_exceeded?, filter: :throttle_filter_id
+
+        validates_each :primary_schedule, :secondary_schedule do |record, attr, value|
+          record.errors.add(attr, "Invalid #{attr}: #{value.inspect}") if value && !Fugit::Cron.new(value)
+        end
       end
 
       private
@@ -56,10 +61,10 @@ module RocketJob
       end
 
       def throttle_outside_window?(schedule, duration)
-        cron = Plugins::Rufus::CronLine.new(schedule)
-        time = Time.now + 1
+        cron = Fugit::Cron.new(schedule)
+        time = Time.now.utc + 1
         # Add 1 second since right now could be the very beginning of the processing window.
-        previous_time = cron.previous_time(time).to_time
+        previous_time = cron.previous_time(time).to_utc_time
         previous_time + duration < time
       end
     end

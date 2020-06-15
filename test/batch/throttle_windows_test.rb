@@ -123,14 +123,14 @@ module Batch
         end
 
         it "stops outside secondary window" do
-          time = Time.parse("2020-06-08 06:00:00 -0400") # Monday
+          time = Time.parse("2020-06-08 10:00:00 -0400") # Monday
           Time.stub(:now, time) do
             assert job.send(:throttle_windows_exceeded?)
           end
         end
 
         it "stops outside secondary window when primary schedule is nil" do
-          time = Time.parse("2020-06-08 06:00:00 -0400") # Monday
+          time = Time.parse("2020-06-08 10:00:00 -0400") # Monday
           Time.stub(:now, time) do
             assert job.send(:throttle_windows_exceeded?)
           end

@@ -1,4 +1,5 @@
 require "active_support/concern"
+require "fugit"
 
 module RocketJob
   module Plugins
@@ -47,18 +48,14 @@ module RocketJob
 
         validates_presence_of :processing_schedule, :processing_duration
         validates_each :processing_schedule do |record, attr, value|
-          begin
-            RocketJob::Plugins::Rufus::CronLine.new(value)
-          rescue ArgumentError => e
-            record.errors.add(attr, e.message)
-          end
+          record.errors.add(attr, "Invalid schedule: #{value.inspect}") unless Fugit::Cron.new(value)
         end
       end
 
       # Returns [true|false] whether this job is currently inside its processing window
       def rocket_job_processing_window_active?
-        time          = Time.now
-        previous_time = rocket_job_processing_schedule.previous_time(time)
+        time          = Time.now.utc
+        previous_time = Fugit::Cron.new(processing_schedule).previous_time(time).to_utc_time
         # Inside previous processing window?
         previous_time + processing_duration > time
       end
@@ -69,17 +66,14 @@ module RocketJob
       def rocket_job_processing_window_check
         return if rocket_job_processing_window_active?
 
-        logger.warn("Processing window closed before job was processed. Job is re-scheduled to run at: #{rocket_job_processing_schedule.next_time}")
+        next_time = Fugit::Cron.new(processing_schedule).next_time.to_utc_time
+        logger.warn("Processing window closed before job was processed. Job is re-scheduled to run at: #{next_time}")
         self.worker_name ||= "inline"
         requeue!(worker_name)
       end
 
       def rocket_job_processing_window_set_run_at
-        self.run_at = rocket_job_processing_schedule.next_time unless rocket_job_processing_window_active?
-      end
-
-      def rocket_job_processing_schedule
-        RocketJob::Plugins::Rufus::CronLine.new(processing_schedule)
+        self.run_at = Fugit::Cron.new(processing_schedule).next_time.to_utc_time unless rocket_job_processing_window_active?
       end
     end
   end

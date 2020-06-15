@@ -19,4 +19,5 @@ Gem::Specification.new do |s|
   s.add_dependency "mongoid", "~> 7.0"
   s.add_dependency "semantic_logger", "~> 4.1"
   s.add_dependency "symmetric-encryption", ">= 4.0"
+  s.add_dependency "fugit", "~> 1.3"
 end
