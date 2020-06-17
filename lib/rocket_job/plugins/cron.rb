@@ -45,20 +45,10 @@ module RocketJob
         end
       end
 
-      # Returns [Time] the next time this job will be scheduled to run at.
-      #
-      # Parameters
-      #   time: [Time]
-      #     The next time as of this time.
-      #     Default: Time.now
-      def rocket_job_cron_next_time(time = Time.now)
-        Fugit::Cron.new(cron_schedule).next_time.to_utc_time
-      end
-
       def rocket_job_cron_set_run_at
-        return unless cron_schedule
+        return if cron_schedule.nil? || (cron_schedule_changed? && !run_at_changed?)
 
-        self.run_at = rocket_job_cron_next_time if cron_schedule_changed? && !run_at_changed?
+        self.run_at = Fugit::Cron.new(cron_schedule).next_time.to_utc_time
       end
     end
   end

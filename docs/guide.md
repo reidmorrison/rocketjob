@@ -550,7 +550,8 @@ The `cron_schedule` field is formatted as follows:
 * Months or days of the week can be specified by name.                                                            
 * Use the first three letters of the particular day or month (case doesn't matter).                               
 * The timezone is recommended to prevent any issues with possible default timezone                                
-  differences across servers, or environments.                                                                    
+  differences across servers, or environments.
+* For the complete list of timezones, see [Wikipedia List of tz database time zones](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones)                                                                    
 * A day_of_month of `L` means the last day of the month.
                                                               
 #### Creating the scheduled job

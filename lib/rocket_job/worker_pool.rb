@@ -61,6 +61,7 @@ module RocketJob
     # Kill Worker threads
     def kill
       workers.each(&:kill)
+      workers.clear
     end
 
     # Wait for all workers to stop.

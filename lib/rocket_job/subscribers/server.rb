@@ -9,16 +9,22 @@ module RocketJob
         @supervisor = supervisor
       end
 
-      def kill(server_id: nil, name: nil, wait_timeout: 3)
+      def kill(server_id: nil, name: nil, wait_timeout: 5)
         return unless my_server?(server_id, name)
 
         supervisor.synchronize do
+          Supervisor.shutdown!
+
+          supervisor.logger.info("Stopping Pool")
           supervisor.worker_pool.stop
-          supervisor.worker_pool.join(wait_timeout)
+          unless supervisor.worker_pool.living_count == 0
+            supervisor.logger.info("Giving pool #{wait_timeout} seconds to terminate")
+            sleep(wait_timeout)
+          end
+          supervisor.logger.info("Kill Pool")
           supervisor.worker_pool.kill
         end
 
-        Supervisor.shutdown!
         logger.info "Killed"
       end
 
