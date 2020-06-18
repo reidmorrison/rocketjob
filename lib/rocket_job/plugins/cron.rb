@@ -46,7 +46,7 @@ module RocketJob
       end
 
       def rocket_job_cron_set_run_at
-        return if cron_schedule.nil? || (cron_schedule_changed? && !run_at_changed?)
+        return if cron_schedule.nil? || !(cron_schedule_changed? && !run_at_changed?)
 
         self.run_at = Fugit::Cron.new(cron_schedule).next_time.to_utc_time
       end
