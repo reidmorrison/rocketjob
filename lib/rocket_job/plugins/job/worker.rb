@@ -73,12 +73,13 @@ module RocketJob
             if failed? || !may_fail?
               self.exception        = JobException.from_exception(e)
               exception.worker_name = worker_name
-              save! unless new_record? || destroyed?
-            elsif new_record? || destroyed?
-              fail(worker_name, e)
             else
-              fail!(worker_name, e)
+              fail(worker_name, e)
             end
+
+            # Prevent validation failures from failing the job
+            save(validate: false) unless new_record? || destroyed?
+
             raise e if re_raise_exceptions
           end
         end
