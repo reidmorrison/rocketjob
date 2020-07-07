@@ -1,8 +1,5 @@
-begin
-  require "active_record"
-rescue LoadError
-  raise 'RocketJob::Jobs::ReEncrypt::RelationalJob uses ActiveRecord to obtain the database connection, please install the gem "activerecord".'
-end
+require "active_record"
+require "sync_attr"
 
 # Batch Worker to Re-encrypt all encrypted fields in MySQL that start with `encrytped_`.
 #
