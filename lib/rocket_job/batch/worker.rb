@@ -46,7 +46,7 @@ module RocketJob
               next if slice.failed?
 
               slice.fail_on_exception!(re_raise_exceptions) { rocket_job_process_slice(slice) }
-            elsif record_count && rocket_job_batch_complete?(worker.name)
+            elsif record_count && fail_on_exception!(re_raise_exceptions) { rocket_job_batch_complete?(worker.name) }
               return false
             else
               logger.debug "No more work available for this job"

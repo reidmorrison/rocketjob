@@ -97,6 +97,28 @@ module Batch
       end
     end
 
+    class BoomBatchJob < RocketJob::Job
+      include RocketJob::Batch
+
+      def perform(record)
+        record
+      end
+
+      private
+
+      def boom
+        blah
+      end
+    end
+
+    class BadBeforeBatchJob < BoomBatchJob
+      before_batch :boom
+    end
+
+    class BadAfterBatchJob < BoomBatchJob
+      after_batch :boom
+    end
+
     describe RocketJob::Batch::Worker do
       before do
         RocketJob::Job.destroy_all
@@ -108,12 +130,9 @@ module Batch
 
       describe "#work" do
         it "calls perform method" do
+          job = SimpleJob.new
           record_count = 24
-          job          = SimpleJob.new
-          job.upload do |records|
-            (1..record_count).each { |i| records << i }
-          end
-          job.perform_now
+          upload_and_perform(job)
           assert job.completed?, -> { job.as_document.ai }
           assert_equal [:main], job.output_categories
 
@@ -268,6 +287,18 @@ module Batch
           assert_nil slice.started_at
           assert_nil slice.worker_name
         end
+
+        it "fails the job when before_batch raises an exception" do
+          job = BadBeforeBatchJob.new
+          upload_and_perform(job)
+          assert job.failed?, -> { job.as_document.ai }
+        end
+
+        it "fails the job when after_batch raises an exception" do
+          job = BadAfterBatchJob.new
+          upload_and_perform(job)
+          assert job.failed?, -> { job.as_document.ai }
+        end
       end
 
       describe "#output_categories" do
@@ -385,6 +416,17 @@ module Batch
           assert active_worker.duration_s
           assert active_worker.duration
         end
+      end
+
+      def upload_and_perform(job)
+        record_count = 24
+        job.upload do |records|
+          (1..record_count).each { |i| records << i }
+        end
+        worker = RocketJob::Worker.new(inline: true)
+        job.start
+        job.rocket_job_work(worker, false)
+        job.perform_now
       end
     end
   end
