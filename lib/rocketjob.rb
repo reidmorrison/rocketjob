@@ -13,6 +13,9 @@ require "rocket_job/extensions/mongoid/clients/options"
 require "rocket_job/extensions/mongoid/contextual/mongo"
 require "rocket_job/extensions/mongoid/factory"
 
+# Apply patches for deprecated Symbol type
+require "rocket_job/extensions/mongoid/remove_warnings"
+
 # @formatter:off
 module RocketJob
   autoload :ActiveWorker,       "rocket_job/active_worker"
