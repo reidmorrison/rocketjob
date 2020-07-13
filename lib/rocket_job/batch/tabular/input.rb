@@ -12,6 +12,7 @@ module RocketJob
         included do
           field :tabular_input_header, type: Array, class_attribute: true, user_editable: true
           field :tabular_input_format, type: Symbol, default: :csv, class_attribute: true, user_editable: true
+          field :tabular_input_options, type: Hash, class_attribute: true
 
           # tabular_input_mode: [:line | :array | :hash]
           #   :line
@@ -53,11 +54,15 @@ module RocketJob
           input_stream = stream.nil? ? nil : IOStreams.new(stream)
 
           if stream && (tabular_input_type == :text)
-            input_stream.option_or_stream(:encode, encoding: "UTF-8", cleaner: :printable, replace: "")
+            # Cannot change the length of fixed width lines
+            replace = tabular_input_format == :fixed ? " " : ""
+            input_stream.option_or_stream(:encode, encoding: "UTF-8", cleaner: :printable, replace: replace)
           end
 
           # If an input header is not required, then we don't extract it'
-          return super(input_stream, stream_mode: tabular_input_mode, **args, &block) unless tabular_input.header?
+          return super(input_stream, stream_mode: tabular_input_mode, **args, &block) if !tabular_input.header? || (tabular_input_format == :fixed)
+          # TODO: Use line below once IOStreams > v.1.3.0
+          # return super(input_stream, stream_mode: tabular_input_mode, **args, &block) unless tabular_input.header?
 
           # If the header is already set then it is not expected in the file
           if tabular_input_header.present?
@@ -96,14 +101,15 @@ module RocketJob
             allowed_columns:  tabular_input_white_list,
             required_columns: tabular_input_required,
             skip_unknown:     tabular_input_skip_unknown,
-            format:           tabular_input_format
+            format:           tabular_input_format,
+            format_options:   tabular_input_options&.deep_symbolize_keys
           )
         end
 
         def tabular_input_render
-          unless tabular_input_header.blank? && tabular_input.header?
-            @rocket_job_input = tabular_input.record_parse(@rocket_job_input)
-          end
+          return if tabular_input_header.blank? && tabular_input.header?
+
+          @rocket_job_input = tabular_input.record_parse(@rocket_job_input)
         end
 
         # Cleanse custom input header if supplied.
