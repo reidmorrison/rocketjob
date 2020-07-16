@@ -60,9 +60,7 @@ module RocketJob
           end
 
           # If an input header is not required, then we don't extract it'
-          return super(input_stream, stream_mode: tabular_input_mode, **args, &block) if !tabular_input.header? || (tabular_input_format == :fixed)
-          # TODO: Use line below once IOStreams > v.1.3.0
-          # return super(input_stream, stream_mode: tabular_input_mode, **args, &block) unless tabular_input.header?
+          return super(input_stream, stream_mode: tabular_input_mode, **args, &block) unless tabular_input.header?
 
           # If the header is already set then it is not expected in the file
           if tabular_input_header.present?
