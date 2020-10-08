@@ -5,7 +5,7 @@ module RocketJob
         # Create indexes before uploading
         create_indexes
         Writer::Input.collect(self, on_first: on_first, &block)
-      rescue StandardError => e
+      rescue Exception => e
         drop
         raise(e)
       end
@@ -73,7 +73,7 @@ module RocketJob
           count    += 1
         end
         count
-      rescue StandardError => e
+      rescue Exception => e
         drop
         raise(e)
       end
@@ -91,7 +91,7 @@ module RocketJob
           count  += 1
         end
         count
-      rescue StandardError => e
+      rescue Exception => e
         drop
         raise(e)
       end

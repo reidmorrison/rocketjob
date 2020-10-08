@@ -40,7 +40,7 @@ module RocketJob
         job.id = job_id if job_id
         upload_file(job)
         job.save!
-      rescue StandardError => e
+      rescue Exception => e
         # Prevent partial uploads
         job&.cleanup! if job.respond_to?(:cleanup!)
         raise(e)
