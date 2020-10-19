@@ -48,10 +48,6 @@ module RocketJob
       autoload :Transaction,         "rocket_job/plugins/job/transaction"
       autoload :Worker,              "rocket_job/plugins/job/worker"
     end
-    module Rufus
-      autoload :CronLine,       "rocket_job/plugins/rufus/cron_line"
-      autoload :ZoTime,         "rocket_job/plugins/rufus/zo_time"
-    end
     autoload :Cron,             "rocket_job/plugins/cron"
     autoload :Document,         "rocket_job/plugins/document"
     autoload :ProcessingWindow, "rocket_job/plugins/processing_window"

@@ -596,11 +596,12 @@ specified schedule. In Rails a common way to do this is via a migration.
 
 To try out a new cron entry to see if it returns the expected timestamps:
 ~~~ruby
-   RocketJob::Plugins::Rufus::CronLine.new('/5 * * * *').next_time.to_time
+   Fugit::Cron.new("/5 * * * *").next_time.to_utc_time
 ~~~
 Or, relative to a specific time:
 ~~~ruby
-   RocketJob::Plugins::Rufus::CronLine.new('/5 * * * *').next_time(Time.parse('2018-01-01 10:00:00')).to_time
+   current_time = Time.parse("2018-01-01 10:00:00")
+   Fugit::Cron.new("/5 * * * *").next_time(current_time).to_utc_time
 ~~~
 
 Example, to make a scheduled job run now:

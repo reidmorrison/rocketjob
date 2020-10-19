@@ -4,8 +4,6 @@ AllCops:
     - ".git/**/*"
     - "docs/**/*"
     - "gemfiles/*"
-    # Keep Rufus files unchanged
-    - "lib/rocket_job/plugins/rufus/*"
 
 #
 # RuboCop built-in settings.
