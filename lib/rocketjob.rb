@@ -29,6 +29,7 @@ module RocketJob
   autoload :Worker,             "rocket_job/worker"
   autoload :Performance,        "rocket_job/performance"
   autoload :Server,             "rocket_job/server"
+  autoload :Sliced,             "rocket_job/sliced"
   autoload :Subscriber,         "rocket_job/subscriber"
   autoload :Supervisor,         "rocket_job/supervisor"
   autoload :ThrottleDefinition, "rocket_job/throttle_definition"
@@ -73,21 +74,6 @@ module RocketJob
       if defined?(ActiveRecord) && defined?(SyncAttr)
         autoload :RelationalJob, "rocket_job/jobs/re_encrypt/relational_job"
       end
-    end
-  end
-
-  module Sliced
-    autoload :CompressedSlice,  "rocket_job/sliced/compressed_slice"
-    autoload :EncryptedSlice,   "rocket_job/sliced/encrypted_slice"
-    autoload :Input,            "rocket_job/sliced/input"
-    autoload :Output,           "rocket_job/sliced/output"
-    autoload :Slice,            "rocket_job/sliced/slice"
-    autoload :Slices,           "rocket_job/sliced/slices"
-    autoload :Store,            "rocket_job/sliced/store"
-
-    module Writer
-      autoload :Input,          "rocket_job/sliced/writer/input"
-      autoload :Output,         "rocket_job/sliced/writer/output"
     end
   end
 

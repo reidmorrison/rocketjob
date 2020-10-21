@@ -18,7 +18,7 @@ module RocketJob
           raise "Category #{category.inspect}, must be registered in input_categories: #{input_categories.inspect}"
         end
 
-        (@inputs ||= {})[category] ||= RocketJob::Sliced::Input.new(**rocket_job_io_slice_arguments("inputs", category))
+        (@inputs ||= {})[category] ||= RocketJob::Sliced.factory(:input, category, self)
       end
 
       # Returns [RocketJob::Sliced::Output] output collection for holding output slices
@@ -34,7 +34,7 @@ module RocketJob
           raise "Category #{category.inspect}, must be registered in output_categories: #{output_categories.inspect}"
         end
 
-        (@outputs ||= {})[category] ||= RocketJob::Sliced::Output.new(**rocket_job_io_slice_arguments("outputs", category))
+        (@outputs ||= {})[category] ||= RocketJob::Sliced.factory(:output, category, self)
       end
 
       # Upload the supplied file, io, IOStreams::Path, or IOStreams::Stream.
@@ -355,8 +355,18 @@ module RocketJob
 
         return output(category).download(header_line: header_line, &block) if block
 
-        IOStreams.new(stream).writer(:line, **args) do |io|
-          output(category).download(header_line: header_line) { |record| io << record }
+        output_collection = output(category)
+
+        if output_collection.binary?
+          IOStreams.new(stream).stream(:none).writer(**args) do |io|
+            raise(ArgumenError, "A `header_line` is not supported with binary output collections") if header_line
+
+            output_collection.download { |record| io << record[:binary] }
+          end
+        else
+          IOStreams.new(stream).writer(:line, **args) do |io|
+            output_collection.download(header_line: header_line) { |record| io << record }
+          end
         end
       end
 
@@ -392,21 +402,6 @@ module RocketJob
 
           RocketJob::Sliced::Writer::Output.collect(self, input_slice) { |writer| writer << result }
         end
-      end
-
-      private
-
-      def rocket_job_io_slice_arguments(collection_type, category)
-        collection_name = "rocket_job.#{collection_type}.#{id}"
-        collection_name << ".#{category}" unless category == :main
-
-        args = {collection_name: collection_name, slice_size: slice_size}
-        if encrypt
-          args[:slice_class] = Sliced::EncryptedSlice
-        elsif compress
-          args[:slice_class] = Sliced::CompressedSlice
-        end
-        args
       end
     end
   end

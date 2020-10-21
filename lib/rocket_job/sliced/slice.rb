@@ -94,6 +94,12 @@ module RocketJob
         end
       end
 
+      # Returns whether this is a specialized binary slice for creating binary data from each slice
+      # that is then just downloaded as-is into output files.
+      def self.binary?
+        false
+      end
+
       # `records` array has special handling so that it can be modified in place instead of having
       # to replace the entire array every time. For example, when appending lines with `<<`.
       def records
