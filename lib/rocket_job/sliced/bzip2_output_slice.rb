@@ -33,7 +33,7 @@ module RocketJob
       def serialize_records
         return [] if @records.nil? || @records.empty?
 
-        lines = records.to_a.join("\n")
+        lines = records.to_a.join("\n") + "\n"
         s = StringIO.new
         IOStreams::Bzip2::Writer.stream(s) { |io| io.write(lines) }
         BSON::Binary.new(s.string)
