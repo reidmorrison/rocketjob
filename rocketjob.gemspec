@@ -12,7 +12,7 @@ Gem::Specification.new do |s|
   s.executables           = %w[rocketjob rocketjob_perf]
   s.files                 = Dir["lib/**/*", "bin/*", "LICENSE.txt", "README.md"]
   s.license               = "Apache-2.0"
-  s.required_ruby_version = ">= 2.3"
+  s.required_ruby_version = ">= 2.5"
   s.add_dependency "aasm", ">= 4.12"
   s.add_dependency "concurrent-ruby", "~> 1.1"
   s.add_dependency "iostreams", "~> 1.2"

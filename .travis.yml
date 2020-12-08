@@ -2,9 +2,6 @@ language: ruby
 
 matrix:
   include:
-    - name: "Mongoid 7 on Ruby 2.4.10"
-      rvm: 2.4.10
-      gemfile: gemfiles/mongoid_7.gemfile
     - name: "Mongoid 7 on Ruby 2.5.8"
       rvm: 2.5.8
       gemfile: gemfiles/mongoid_7.gemfile
@@ -15,8 +12,8 @@ matrix:
     - name: "Mongoid 7.1 on Ruby 2.6.6"
       rvm: 2.6.6
       gemfile: gemfiles/mongoid_7_1.gemfile
-    - name: "Mongoid 7.1 on Ruby 2.7.1"
-      rvm: 2.7.1
+    - name: "Mongoid 7.1 on Ruby 2.7.2"
+      rvm: 2.7.2
       gemfile: gemfiles/mongoid_7_1.gemfile
     - name: "Mongoid 7.1 on JRuby 9.2.9.0"
       rvm: jruby-9.2.11.1
