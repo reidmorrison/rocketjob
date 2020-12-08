@@ -29,6 +29,9 @@ module RocketJob
           class_attribute :throttle_running_jobs
           self.throttle_running_jobs = nil
 
+          # Allow jobs to be throttled by group name instance of the job class name.
+          field :throttle_group, type: String, class_attribute: true, user_editable: true, copy_on_restart: true
+
           define_throttle :throttle_running_jobs_exceeded?
         end
 
@@ -38,9 +41,10 @@ module RocketJob
         def throttle_running_jobs_exceeded?
           return unless throttle_running_jobs&.positive?
 
-          # Cannot use this class since it will include instances of parent job classes.
           RocketJob::Job.with(read: {mode: :primary}) do |conn|
-            conn.running.where("_type" => self.class.name, :id.ne => id).count >= throttle_running_jobs
+            query = {:id.ne => id}
+            throttle_group ? query["throttle_group"] = throttle_group : query["_type"] = self.class.name
+            conn.running.where(query).count >= throttle_running_jobs
           end
         end
       end
