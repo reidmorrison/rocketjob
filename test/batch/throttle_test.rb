@@ -15,6 +15,34 @@ module Batch
       end
     end
 
+    class ThrottleGroupJob < RocketJob::Job
+      include RocketJob::Batch
+
+      # Only allow one to be processed at a time
+      self.throttle_running_jobs    = 1
+      self.throttle_running_workers = 1
+      self.slice_size               = 1
+      self.throttle_group           = "only_one"
+
+      def perform(record)
+        record
+      end
+    end
+
+    class ThrottleGroupOtherJob < RocketJob::Job
+      include RocketJob::Batch
+
+      # Only allow one to be processed at a time
+      self.throttle_running_jobs    = 1
+      self.throttle_running_workers = 1
+      self.slice_size               = 1
+      self.throttle_group           = "only_one"
+
+      def perform(record)
+        record
+      end
+    end
+
     describe RocketJob::Batch::Throttle do
       before do
         skip("Throttle tests fail intermittently on Travis CI") if ENV["TRAVIS"]
@@ -93,6 +121,13 @@ module Batch
           assert job.send(:throttle_running_jobs_exceeded?)
         end
 
+        it "exceeds throttle when other group jobs are running with same priority" do
+          job1 = ThrottleGroupJob.new
+          job1.start!
+          job = ThrottleGroupOtherJob.create!
+          assert job.send(:throttle_running_jobs_exceeded?)
+        end
+
         it "exceeds throttle when job has a lower priority" do
           job1 = ThrottleJob.new
           job1.start!
@@ -105,6 +140,13 @@ module Batch
           job1.start!
           job = ThrottleJob.create!(priority: 49)
           refute job.send(:throttle_running_jobs_exceeded?)
+        end
+
+        it "does not exceed throttle when job has a higher priority and no worker throttle" do
+          job1 = ThrottleJob.new
+          job1.start!
+          job = ThrottleJob.create!(priority: 49, throttle_running_workers: 0)
+          assert job.send(:throttle_running_jobs_exceeded?)
         end
 
         it "does not exceed throttle when other slices are failed" do

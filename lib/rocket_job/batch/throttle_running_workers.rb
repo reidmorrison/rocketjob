@@ -47,24 +47,19 @@ module RocketJob
 
       # Returns [Boolean] whether the throttle for this job has been exceeded
       def throttle_running_workers_exceeded?(slice)
-        return unless throttle_running_workers&.positive?
+        return false unless throttle_running_workers&.positive?
 
         input.running.with(read: {mode: :primary}) do |conn|
           conn.where(:id.ne => slice.id).count >= throttle_running_workers
         end
       end
 
-      # Returns [Boolean] whether the throttle for this job has been exceeded
-      #
-      # With a Batch job, allow a higher priority queued job to replace a running one with
-      # a lower priority.
-      def throttle_running_jobs_exceeded?
-        return unless throttle_running_jobs&.positive?
-
-        # Cannot use this class since it will include instances of parent job classes.
-        RocketJob::Job.with(read: {mode: :primary}) do |conn|
-          conn.running.where("_type" => self.class.name, :id.ne => id, :priority.lte => priority).count >= throttle_running_jobs
-        end
+      # Allows another job with a higher priority to start even though this one is running already
+      # @overrides RocketJob::Plugins::Job::ThrottleRunningJobs#throttle_running_jobs_base_query
+      def throttle_running_jobs_base_query
+        query = super
+        query[:priority.lte] = priority if throttle_running_workers&.positive?
+        query
       end
     end
   end

@@ -5,8 +5,8 @@ matrix:
     - name: "Mongoid 7 on Ruby 2.5.8"
       rvm: 2.5.8
       gemfile: gemfiles/mongoid_7.gemfile
-    - name: "Mongoid 7 on JRuby 9.2.13.0"
-      rvm: jruby-9.2.13.0
+    - name: "Mongoid 7 on JRuby 9.2.14.0"
+      rvm: jruby-9.2.14.0
       gemfile: gemfiles/mongoid_7.gemfile
 
     - name: "Mongoid 7.1 on Ruby 2.6.6"
@@ -15,12 +15,12 @@ matrix:
     - name: "Mongoid 7.1 on Ruby 2.7.2"
       rvm: 2.7.2
       gemfile: gemfiles/mongoid_7_1.gemfile
-    - name: "Mongoid 7.1 on JRuby 9.2.9.0"
-      rvm: jruby-9.2.13.0
+    - name: "Mongoid 7.1 on JRuby 9.2.14.0"
+      rvm: jruby-9.2.14.0
       gemfile: gemfiles/mongoid_7_1.gemfile
 
   allow_failures:
-    - rvm: jruby-9.2.13.0
+    - rvm: jruby-9.2.14.0
 
 jdk:
   - openjdk9

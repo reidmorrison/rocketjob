@@ -39,13 +39,17 @@ module RocketJob
 
         # Returns [Boolean] whether the throttle for this job has been exceeded
         def throttle_running_jobs_exceeded?
-          return unless throttle_running_jobs&.positive?
+          return false unless throttle_running_jobs&.positive?
 
           RocketJob::Job.with(read: {mode: :primary}) do |conn|
-            query = {:id.ne => id}
+            query = throttle_running_jobs_base_query
             throttle_group ? query["throttle_group"] = throttle_group : query["_type"] = self.class.name
             conn.running.where(query).count >= throttle_running_jobs
           end
+        end
+
+        def throttle_running_jobs_base_query
+          {:id.ne => id}
         end
       end
     end
