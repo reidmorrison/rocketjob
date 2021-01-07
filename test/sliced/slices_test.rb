@@ -181,7 +181,7 @@ module Sliced
         it "fails" do
           exception = begin
             begin
-              blah
+              RocketJob.blah
             rescue StandardError => e
               e
             end

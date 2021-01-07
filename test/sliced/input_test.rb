@@ -246,7 +246,7 @@ module Sliced
 
           exception = nil
           begin
-            blah
+            RocketJob.blah
           rescue StandardError => e
             exception = e
           end
@@ -281,7 +281,7 @@ module Sliced
 
           exception = nil
           begin
-            blah
+            RocketJob.blah
           rescue StandardError => e
             exception = e
           end

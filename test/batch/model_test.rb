@@ -17,7 +17,7 @@ module Batch
       before do
         @blah_exception = begin
           begin
-            blah
+            RocketJob.blah
           rescue StandardError => e
             e
           end

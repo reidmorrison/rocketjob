@@ -47,9 +47,9 @@ module RocketJob
       args[:slice_class] = klass if klass
 
       if type == :input
-        RocketJob::Sliced::Input.new(args)
+        RocketJob::Sliced::Input.new(**args)
       else
-        RocketJob::Sliced::Output.new(args)
+        RocketJob::Sliced::Output.new(**args)
       end
     end
 

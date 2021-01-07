@@ -107,7 +107,7 @@ class DirmonEntryTest < Minitest::Test
       it "fail with exception" do
         exception = nil
         begin
-          blah
+          RocketJob.blah
         rescue Exception => e
           exception = e
         end
@@ -115,7 +115,7 @@ class DirmonEntryTest < Minitest::Test
 
         assert_equal true, dirmon_entry.failed?
         assert_equal exception.class.name.to_s, dirmon_entry.exception.class_name
-        assert dirmon_entry.exception.message.include?("undefined local variable or method"), dirmon_entry.attributes.inspect
+        assert dirmon_entry.exception.message.include?("undefined method"), dirmon_entry.attributes.inspect
       end
     end
 

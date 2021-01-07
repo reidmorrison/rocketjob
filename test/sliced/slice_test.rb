@@ -21,7 +21,7 @@ module Sliced
 
       let :exception do
         begin
-          blah
+          RocketJob.blah
         rescue StandardError => e
           e
         end

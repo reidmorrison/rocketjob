@@ -16,6 +16,9 @@ require "rocket_job/extensions/mongoid/factory"
 # Apply patches for deprecated Symbol type
 require "rocket_job/extensions/mongoid/remove_warnings"
 
+# Apply patches for translate keyword arguments for Ruby v3
+require "rocket_job/extensions/mongoid/errors/mongoid_error"
+
 # @formatter:off
 module RocketJob
   autoload :ActiveWorker,       "rocket_job/active_worker"

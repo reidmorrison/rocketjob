@@ -107,7 +107,7 @@ module Batch
       private
 
       def boom
-        blah
+        RocketJob.blah
       end
     end
 
