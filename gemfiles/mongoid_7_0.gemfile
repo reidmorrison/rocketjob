@@ -3,7 +3,7 @@
 source "https://rubygems.org"
 
 gem "activerecord", "~> 5.2.0"
-gem "mongoid", "~> 7.1.0"
+gem "mongoid", "~> 7.0.0"
 gem "amazing_print"
 gem "appraisal"
 gem "rake"

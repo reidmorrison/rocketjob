@@ -22,7 +22,7 @@ module RocketJob
         # Only applicable if `collect_output` is `true`
         # Set to `false` to prevent collecting output from the perform
         # method when it returns `nil`.
-        field :collect_nil_output, type: Boolean, default: true, class_attribute: true
+        field :collect_nil_output, type: Mongoid::Boolean, default: true, class_attribute: true
 
         # Optional Array<Symbol> list of categories that this job can output to
         #

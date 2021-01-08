@@ -2,28 +2,43 @@ language: ruby
 
 matrix:
   include:
-    - name: "Mongoid 7 on Ruby 2.5.8"
+    - name: "Mongoid 7.0 on Ruby 2.5.8"
       rvm: 2.5.8
-      gemfile: gemfiles/mongoid_7.gemfile
-    - name: "Mongoid 7 on JRuby 9.2.14.0"
+      gemfile: gemfiles/mongoid_7_0.gemfile
+    - name: "Mongoid 7.0 on JRuby 9.2.14.0"
       rvm: jruby-9.2.14.0
-      gemfile: gemfiles/mongoid_7.gemfile
+      gemfile: gemfiles/mongoid_7_0.gemfile
 
     - name: "Mongoid 7.1 on Ruby 2.6.6"
       rvm: 2.6.6
       gemfile: gemfiles/mongoid_7_1.gemfile
-    - name: "Mongoid 7.1 on Ruby 2.7.2"
-      rvm: 2.7.2
-      gemfile: gemfiles/mongoid_7_1.gemfile
     - name: "Mongoid 7.1 on JRuby 9.2.14.0"
       rvm: jruby-9.2.14.0
       gemfile: gemfiles/mongoid_7_1.gemfile
-    - name: "Mongoid 7.1 on Ruby 3.0.0"
+
+    - name: "Mongoid 7.2 on Ruby 2.7.2"
+      rvm: 2.7.2
+      gemfile: gemfiles/mongoid_7_2.gemfile
+    - name: "Mongoid 7.2 on JRuby 9.2.14.0"
+      rvm: jruby-9.2.14.0
+      gemfile: gemfiles/mongoid_7_2.gemfile
+    - name: "Mongoid 7.2 on Ruby 3.0.0"
       rvm: 3.0.0
-      gemfile: gemfiles/mongoid_7_1.gemfile
+      gemfile: gemfiles/mongoid_7_2.gemfile
+
+    - name: "Mongoid 7.3 on Ruby 2.7.2"
+      rvm: 2.7.2
+      gemfile: gemfiles/mongoid_7_3.gemfile
+    - name: "Mongoid 7.3 on JRuby 9.2.14.0"
+      rvm: jruby-9.2.14.0
+      gemfile: gemfiles/mongoid_7_3.gemfile
+    - name: "Mongoid 7.3 on Ruby 3.0.0"
+      rvm: 3.0.0
+      gemfile: gemfiles/mongoid_7_3.gemfile
 
   allow_failures:
     - rvm: jruby-9.2.14.0
+    - gemfile: gemfiles/mongoid_7_3.gemfile
 
 jdk:
   - openjdk9

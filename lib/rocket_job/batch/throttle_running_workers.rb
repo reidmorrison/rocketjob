@@ -45,7 +45,7 @@ module RocketJob
 
       private
 
-      # Returns [Boolean] whether the throttle for this job has been exceeded
+      # Returns [true|false] whether the throttle for this job has been exceeded
       def throttle_running_workers_exceeded?(slice)
         return false unless throttle_running_workers&.positive?
 

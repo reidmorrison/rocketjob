@@ -35,7 +35,7 @@ module RocketJob
       self.cron_schedule = "*/15 * * * * UTC"
 
       # Whether to destroy zombie servers automatically
-      field :destroy_zombies, type: Boolean, default: true, user_editable: true, copy_on_restart: true
+      field :destroy_zombies, type: Mongoid::Boolean, default: true, user_editable: true, copy_on_restart: true
 
       # Retention intervals in seconds.
       # Set to nil to retain everything.

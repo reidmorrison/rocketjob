@@ -39,10 +39,10 @@ module RocketJob
           field :priority, type: Integer, default: 50, class_attribute: true, user_editable: true, copy_on_restart: true
 
           # When the job completes destroy it from both the database and the UI
-          field :destroy_on_complete, type: Boolean, default: true, class_attribute: true, copy_on_restart: true
+          field :destroy_on_complete, type: Mongoid::Boolean, default: true, class_attribute: true, copy_on_restart: true
 
           # Whether to store the results from this job
-          field :collect_output, type: Boolean, default: false, class_attribute: true
+          field :collect_output, type: Mongoid::Boolean, default: false, class_attribute: true
 
           # Run this job no earlier than this time
           field :run_at, type: Time, user_editable: true
@@ -328,7 +328,7 @@ module RocketJob
           h
         end
 
-        # Returns [Boolean] whether the worker runs on a particular server.
+        # Returns [true|false] whether the worker runs on a particular server.
         def worker_on_server?(server_name)
           return false unless worker_name.present? && server_name.present?
 
