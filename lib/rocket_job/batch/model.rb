@@ -69,7 +69,7 @@ module RocketJob
 
         # Breaks the :running state up into multiple sub-states:
         #   :running -> :before -> :processing -> :after -> :complete
-        field :sub_state, type: Symbol
+        field :sub_state, type: Mongoid::StringifiedSymbol
 
         validates_presence_of :slice_size
 

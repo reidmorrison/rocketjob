@@ -11,7 +11,7 @@ module RocketJob
 
         included do
           field :tabular_input_header, type: Array, class_attribute: true, user_editable: true
-          field :tabular_input_format, type: Symbol, default: :csv, class_attribute: true, user_editable: true
+          field :tabular_input_format, type: Mongoid::StringifiedSymbol, default: :csv, class_attribute: true, user_editable: true
           field :tabular_input_options, type: Hash, class_attribute: true
 
           # tabular_input_mode: [:line | :array | :hash]
@@ -22,7 +22,7 @@ module RocketJob
           #   :hash
           #     Parses each line from the file into a Hash and uploads each hash for processing by workers.
           #   See IOStreams#each.
-          field :tabular_input_mode, type: Symbol, default: :line, class_attribute: true, user_editable: true, copy_on_restart: true
+          field :tabular_input_mode, type: Mongoid::StringifiedSymbol, default: :line, class_attribute: true, user_editable: true, copy_on_restart: true
 
           validates_inclusion_of :tabular_input_format, in: IOStreams::Tabular.registered_formats
           validates_inclusion_of :tabular_input_mode, in: %i[line array hash row record]

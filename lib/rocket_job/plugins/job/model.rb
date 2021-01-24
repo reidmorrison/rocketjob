@@ -54,14 +54,14 @@ module RocketJob
           # Can be used to reduce log noise, especially during high volume calls
           # For debugging a single job can be logged at a low level such as :trace
           #   Levels supported: :trace, :debug, :info, :warn, :error, :fatal
-          field :log_level, type: Symbol, class_attribute: true, user_editable: true, copy_on_restart: true
+          field :log_level, type: Mongoid::StringifiedSymbol, class_attribute: true, user_editable: true, copy_on_restart: true
 
           #
           # Read-only attributes
           #
 
           # Current state, as set by the state machine. Do not modify this value directly.
-          field :state, type: Symbol, default: :queued
+          field :state, type: Mongoid::StringifiedSymbol, default: :queued
 
           # When the job was created
           field :created_at, type: Time, default: -> { Time.now }

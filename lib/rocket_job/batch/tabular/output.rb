@@ -11,7 +11,7 @@ module RocketJob
 
         included do
           field :tabular_output_header, type: Array, class_attribute: true, user_editable: true, copy_on_restart: true
-          field :tabular_output_format, type: Symbol, default: :csv, class_attribute: true, user_editable: true, copy_on_restart: true
+          field :tabular_output_format, type: Mongoid::StringifiedSymbol, default: :csv, class_attribute: true, user_editable: true, copy_on_restart: true
           field :tabular_output_options, type: Hash, class_attribute: true
 
           validates_inclusion_of :tabular_output_format, in: IOStreams::Tabular.registered_formats

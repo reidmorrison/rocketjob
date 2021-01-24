@@ -35,7 +35,7 @@ module RocketJob
     #     :shutdown
     #     :pause
     #     :updated
-    field :action, type: Symbol
+    field :action, type: Mongoid::StringifiedSymbol
 
     # Hash Parameters to be sent with the event (event specific).
     field :parameters, type: Hash

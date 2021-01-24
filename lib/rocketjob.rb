@@ -13,11 +13,8 @@ require "rocket_job/extensions/mongoid/clients/options"
 require "rocket_job/extensions/mongoid/contextual/mongo"
 require "rocket_job/extensions/mongoid/factory"
 
-# Apply patches for deprecated Symbol type
-require "rocket_job/extensions/mongoid/remove_warnings"
-
-# Apply patches for translate keyword arguments for Ruby v3
-require "rocket_job/extensions/mongoid/errors/mongoid_error"
+# Backport New StringifiedSymbol type in Mongoid v7.2
+require "rocket_job/extensions/mongoid/stringified_symbol" unless defined?(Mongoid::StringifiedSymbol)
 
 # @formatter:off
 module RocketJob

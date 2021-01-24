@@ -28,7 +28,7 @@ module RocketJob
 
         # Current state
         #   Internal use only. Do not set this field directly
-        field :state, type: Symbol, default: :starting
+        field :state, type: Mongoid::StringifiedSymbol, default: :starting
 
         index({name: 1}, background: true, unique: true)
 

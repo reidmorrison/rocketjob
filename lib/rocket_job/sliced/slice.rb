@@ -33,7 +33,7 @@ module RocketJob
       #
 
       # Current state, as set by AASM
-      field :state, type: Symbol, default: :queued
+      field :state, type: Mongoid::StringifiedSymbol, default: :queued
 
       # When processing started on this slice
       field :started_at, type: Time

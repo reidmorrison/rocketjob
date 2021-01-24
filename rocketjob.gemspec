@@ -7,7 +7,7 @@ Gem::Specification.new do |s|
   s.version               = RocketJob::VERSION
   s.platform              = Gem::Platform::RUBY
   s.authors               = ["Reid Morrison"]
-  s.homepage              = "http://rocketjob.io"
+  s.homepage              = "https://rocketjob.io"
   s.summary               = "Ruby's missing batch processing system."
   s.executables           = %w[rocketjob rocketjob_perf]
   s.files                 = Dir["lib/**/*", "bin/*", "LICENSE.txt", "README.md"]

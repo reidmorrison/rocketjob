@@ -70,7 +70,7 @@ module RocketJob
     #
 
     # Current state, as set by the state machine. Do not modify directly.
-    field :state, type: Symbol, default: :pending
+    field :state, type: Mongoid::StringifiedSymbol, default: :pending
 
     # Unique index on pattern to help prevent two entries from scanning the same files
     index({pattern: 1}, background: true, unique: true)
