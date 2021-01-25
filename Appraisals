@@ -20,6 +20,6 @@ end
 appraise "mongoid_7_3" do
   gem "activerecord", "~> 6.1.0"
   gem "activerecord-jdbcsqlite3-adapter", "~> 61.0", platform: :jruby
-  gem "mongoid", git: "https://github.com/mongodb/mongoid"
+  gem "mongoid", git: "https://github.com/reidmorrison/mongoid", branch: "ruby_3"
   gem "sqlite3", "~> 1.4", platform: :ruby
 end

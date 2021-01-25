@@ -3,8 +3,8 @@ source "https://rubygems.org"
 gemspec
 
 gem "activerecord", "~> 6.0"
-# gem "mongoid", "~> 7.1"
-gem "mongoid", git: "https://github.com/mongodb/mongoid"
+# gem "mongoid", "~> 7.3"
+gem "mongoid", git: "https://github.com/reidmorrison/mongoid", branch: "ruby_3"
 
 gem "amazing_print"
 gem "appraisal"
