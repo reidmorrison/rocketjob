@@ -54,12 +54,12 @@ module RocketJob
         RocketJob::Job.paused.where(completed_at: {"$lte" => paused_retention.seconds.ago}).destroy_all if paused_retention
         RocketJob::Job.queued.where(created_at: {"$lte" => queued_retention.seconds.ago}).destroy_all if queued_retention
 
-        if destroy_zombies
-          # Cleanup zombie servers
-          RocketJob::Server.destroy_zombies
-          # Requeue jobs where the worker is in the zombie state and its server has gone away
-          RocketJob::ActiveWorker.requeue_zombies
-        end
+        return unless destroy_zombies
+
+        # Cleanup zombie servers
+        RocketJob::Server.destroy_zombies
+        # Requeue jobs where the worker is in the zombie state and its server has gone away
+        RocketJob::ActiveWorker.requeue_zombies
       end
     end
   end

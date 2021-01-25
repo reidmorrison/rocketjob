@@ -295,7 +295,10 @@ module RocketJob
       properties.each_pair do |k, _v|
         next if klass.public_method_defined?("#{k}=".to_sym)
 
-        errors.add(:properties, "Unknown Property: Attempted to set a value for #{k.inspect} which is not allowed on the job #{job_class_name}")
+        errors.add(
+          :properties,
+          "Unknown Property: Attempted to set a value for #{k.inspect} which is not allowed on the job #{job_class_name}"
+        )
       end
     end
   end

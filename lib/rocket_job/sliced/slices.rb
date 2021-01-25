@@ -50,8 +50,8 @@ module RocketJob
 
       # Returns output slices in the order of their id
       # which is usually the order in which they were written.
-      def each
-        all.sort(id: 1).each { |document| yield(document) }
+      def each(&block)
+        all.sort(id: 1).each(&block)
       end
 
       # Insert a new slice into the collection

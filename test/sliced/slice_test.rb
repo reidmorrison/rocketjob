@@ -20,11 +20,9 @@ module Sliced
       end
 
       let :exception do
-        begin
-          RocketJob.blah
-        rescue StandardError => e
-          e
-        end
+        RocketJob.blah
+      rescue StandardError => e
+        e
       end
 
       before do

@@ -173,7 +173,7 @@ class DirmonEntryTest < Minitest::Test
     describe "with valid entry" do
       let :file do
         file = Tempfile.new("archive")
-        File.open(file.path, "w") { |file| file.write("Hello World") }
+        File.open(file.path, "w") { |io| io.write("Hello World") }
         file
       end
 

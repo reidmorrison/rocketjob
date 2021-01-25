@@ -2,17 +2,17 @@ require_relative "../test_helper"
 
 module Batch
   class IOTest < Minitest::Test
+    class IOJob < RocketJob::Job
+      include RocketJob::Batch
+
+      def perform(record)
+        record
+      end
+    end
+
     describe RocketJob::Batch::IO do
       let(:text_file) { IOStreams.path(File.dirname(__FILE__), "files", "text.txt") }
       let(:gzip_file) { IOStreams.path(File.dirname(__FILE__), "files", "text.txt.gz") }
-
-      class IOJob < RocketJob::Job
-        include RocketJob::Batch
-
-        def perform(record)
-          record
-        end
-      end
 
       let(:job) { IOJob.new(slice_size: 2) }
       let(:rows) { %w[hello world last slice] }

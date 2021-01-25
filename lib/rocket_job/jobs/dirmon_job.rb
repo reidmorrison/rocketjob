@@ -18,7 +18,7 @@ module RocketJob
     #   file name of the archived file is passed into the job as either
     #   `upload_file_name` or `full_file_name`.
 
-    # Note:
+    # Notes:
     # - Jobs that do not implement #upload _must_ have either `upload_file_name` or `full_file_name` as an attribute.
     #
     # With RocketJob Pro, the file is automatically uploaded into the job itself

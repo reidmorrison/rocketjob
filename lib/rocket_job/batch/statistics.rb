@@ -45,8 +45,10 @@ module RocketJob
           last  = paths.pop
           return unless last
 
-          target = paths.inject(in_memory) { |target, key| target.key?(key) ? target[key] : target[key] = Hash.new(0) }
-          target[last] += increment
+          last_target = paths.inject(in_memory) do |target, sub_key|
+            target.key?(sub_key) ? target[sub_key] : target[sub_key] = Hash.new(0)
+          end
+          last_target[last] += increment
         end
       end
 

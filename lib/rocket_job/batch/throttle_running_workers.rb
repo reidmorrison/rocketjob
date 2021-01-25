@@ -37,10 +37,6 @@ module RocketJob
         validates :throttle_running_workers, numericality: {greater_than_or_equal_to: 0}, allow_nil: true
 
         define_batch_throttle :throttle_running_workers_exceeded?, filter: :throttle_filter_id
-
-        # Deprecated. For backward compatibility.
-        alias_method :throttle_running_slices, :throttle_running_workers
-        alias_method :throttle_running_slices=, :throttle_running_workers=
       end
 
       private

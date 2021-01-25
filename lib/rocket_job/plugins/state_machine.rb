@@ -51,7 +51,8 @@ module RocketJob
               # Validate methods are any of Symbol String Proc
               methods.each do |method|
                 unless method.is_a?(Symbol) || method.is_a?(String)
-                  raise(ArgumentError, "#{action}_#{event_name} currently does not support any options. Only Symbol and String method names can be supplied.")
+                  raise(ArgumentError,
+                        "#{action}_#{event_name} currently does not support any options. Only Symbol and String method names can be supplied.")
                 end
               end
               methods

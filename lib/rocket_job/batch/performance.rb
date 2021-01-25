@@ -37,7 +37,15 @@ module RocketJob
         sleep 3 until job.reload.completed?
 
         duration = job.completed_at - job.started_at
-        {count: count, duration: duration, records_per_second: (count.to_f / duration).round(3), workers: workers, servers: servers, compress: compress, encrypt: encrypt}
+        {
+          count:              count,
+          duration:           duration,
+          records_per_second: (count.to_f / duration).round(3),
+          workers:            workers,
+          servers:            servers,
+          compress:           compress,
+          encrypt:            encrypt
+        }
       end
 
       # Export the Results hash to a CSV file
@@ -60,7 +68,8 @@ module RocketJob
           o.on("-m", "--mongo MONGO_CONFIG_FILE_NAME", "Location of mongoid.yml config file") do |arg|
             self.mongo_config = arg
           end
-          o.on("-e", "--environment ENVIRONMENT", "The environment to run the app on (Default: RAILS_ENV || RACK_ENV || development)") do |arg|
+          o.on("-e", "--environment ENVIRONMENT",
+               "The environment to run the app on (Default: RAILS_ENV || RACK_ENV || development)") do |arg|
             self.environment = arg
           end
           o.on("-z", "--compress", "Turn on compression") do

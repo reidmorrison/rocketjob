@@ -98,7 +98,7 @@ module RocketJob
       private
 
       def load_perform_code
-        instance_eval("def perform(row)\n#{code}\nend")
+        instance_eval("def perform(row)\n#{code}\nend", __FILE__, __LINE__)
       end
 
       def run_before_code
@@ -118,13 +118,13 @@ module RocketJob
       def validate_before_code
         return if before_code.nil?
 
-        validate_field(:before_code) { instance_eval("def __before_code\n#{before_code}\nend") }
+        validate_field(:before_code) { instance_eval("def __before_code\n#{before_code}\nend", __FILE__, __LINE__) }
       end
 
       def validate_after_code
         return if after_code.nil?
 
-        validate_field(:after_code) { instance_eval("def __after_code\n#{after_code}\nend") }
+        validate_field(:after_code) { instance_eval("def __after_code\n#{after_code}\nend", __FILE__, __LINE__) }
       end
 
       def validate_field(field)

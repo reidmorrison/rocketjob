@@ -94,7 +94,7 @@ module Jobs
         it "creates the job" do
           job.perform_now
           assert_equal 1, UploadFileJobTest::TestJob.count
-          assert job = UploadFileJobTest::TestJob.first
+          assert UploadFileJobTest::TestJob.first
         end
 
         it "calls upload" do

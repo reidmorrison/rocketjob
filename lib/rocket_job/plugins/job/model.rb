@@ -183,30 +183,21 @@ module RocketJob
           #
           # @return [ Field ] The generated field
           def field(name, options)
-            if options.delete(:user_editable) == true
-              self.user_editable_fields += [name.to_sym] unless user_editable_fields.include?(name.to_sym)
+            if (options.delete(:user_editable) == true) && !user_editable_fields.include?(name.to_sym)
+              self.user_editable_fields += [name.to_sym]
             end
+
             if options.delete(:class_attribute) == true
               class_attribute(name, instance_accessor: false)
               public_send("#{name}=", options[:default]) if options.key?(:default)
               options[:default] = -> { self.class.public_send(name) }
             end
-            if options.delete(:copy_on_restart) == true
-              self.rocket_job_restart_attributes += [name.to_sym] unless rocket_job_restart_attributes.include?(name.to_sym)
+
+            if (options.delete(:copy_on_restart) == true) && !rocket_job_restart_attributes.include?(name.to_sym)
+              self.rocket_job_restart_attributes += [name.to_sym]
             end
+
             super(name, options)
-          end
-
-          # DEPRECATED
-          def rocket_job
-            warn "Replace calls to .rocket_job with calls to set class instance variables. For example: self.priority = 50"
-            yield(self)
-          end
-
-          # DEPRECATED
-          def public_rocket_job_properties(*args)
-            warn "Replace calls to .public_rocket_job_properties by adding `user_editable: true` option to the field declaration in #{name} for: #{args.inspect}"
-            self.user_editable_fields += args.collect(&:to_sym)
           end
         end
 
@@ -319,9 +310,10 @@ module RocketJob
           h = as_json
           h.delete("seconds")
           h.dup.each_pair do |k, v|
-            if v.is_a?(Time)
+            case v
+            when Time
               h[k] = v.in_time_zone(time_zone).to_s
-            elsif v.is_a?(BSON::ObjectId)
+            when BSON::ObjectId
               h[k] = v.to_s
             end
           end

@@ -66,7 +66,8 @@ module RocketJob
         elsif job.respond_to?(:full_file_name=)
           job.full_file_name = upload_file_name
         else
-          raise(ArgumentError, "Model #{job_class_name} must implement '#upload', or have attribute 'upload_file_name' or 'full_file_name'")
+          raise(ArgumentError,
+                "Model #{job_class_name} must implement '#upload', or have attribute 'upload_file_name' or 'full_file_name'")
         end
       end
 
@@ -85,7 +86,8 @@ module RocketJob
         klass = job_class
         return if klass.nil? || klass.instance_methods.any? { |m| VALID_INSTANCE_METHODS.include?(m) }
 
-        errors.add(:job_class_name, "#{job_class} must implement any one of: :#{VALID_INSTANCE_METHODS.join(' :')} instance methods")
+        errors.add(:job_class_name,
+                   "#{job_class} must implement any one of: :#{VALID_INSTANCE_METHODS.join(' :')} instance methods")
       end
 
       def file_exists

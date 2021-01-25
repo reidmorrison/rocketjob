@@ -69,12 +69,10 @@ module RocketJob
     # Return [false] on timeout
     def join(timeout = 5)
       while (worker = workers.first)
-        if worker.join(timeout)
-          # Worker thread is dead
-          workers.shift
-        else
-          return false
-        end
+        return false unless worker.join(timeout)
+
+        # Worker thread is dead
+        workers.shift
       end
       true
     end

@@ -1,12 +1,9 @@
 # frozen_string_literal: true
-# encoding: utf-8
 
 # A class which sends values to the database as Strings but returns them to the user as Symbols.
 module Mongoid
   class StringifiedSymbol
-
     class << self
-
       # Convert the object from its mongo friendly ruby type to this type.
       #
       # @example Demongoize the object.
@@ -37,11 +34,11 @@ module Mongoid
       #
       # @api private
       def mongoize(object)
-         if object.nil?
-           object
-         else
-           object.to_s
-         end
+        if object.nil?
+          object
+        else
+          object.to_s
+        end
       end
 
       # @api private

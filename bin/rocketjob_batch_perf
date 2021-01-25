@@ -2,7 +2,7 @@
 require "rocketjob_batch"
 
 # Log to console
-SemanticLogger.add_appender(io: STDOUT, formatter: :color)
+SemanticLogger.add_appender(io: $stdout, formatter: :color)
 
 perf = RocketJob::Batch::Performance.new
 perf.parse(ARGV)

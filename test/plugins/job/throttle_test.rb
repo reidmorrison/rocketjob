@@ -134,42 +134,42 @@ module Plugins
             assert_equal "writer-group", ThrottleGroupOtherJob.throttle_group
           end
 
-            it "does not exceed throttle when no other jobs are running" do
-              ThrottleGroupJob.create!
-              ThrottleGroupOtherJob.create!
-              job = ThrottleGroupJob.new
-              refute job.send(:throttle_running_jobs_exceeded?)
-            end
+          it "does not exceed throttle when no other jobs are running" do
+            ThrottleGroupJob.create!
+            ThrottleGroupOtherJob.create!
+            job = ThrottleGroupJob.new
+            refute job.send(:throttle_running_jobs_exceeded?)
+          end
 
-            it "exceeds throttle when other jobs are running" do
-              job1 = ThrottleGroupJob.new
-              job1.start!
-              job2 = ThrottleGroupJob.new
-              assert job2.send(:throttle_running_jobs_exceeded?)
-            end
+          it "exceeds throttle when other jobs are running" do
+            job1 = ThrottleGroupJob.new
+            job1.start!
+            job2 = ThrottleGroupJob.new
+            assert job2.send(:throttle_running_jobs_exceeded?)
+          end
 
-            it "exceeds throttle when other group jobs are running" do
-              job1 = ThrottleGroupOtherJob.new
-              job1.start!
-              job2 = ThrottleGroupJob.new
-              assert job2.send(:throttle_running_jobs_exceeded?)
-            end
+          it "exceeds throttle when other group jobs are running" do
+            job1 = ThrottleGroupOtherJob.new
+            job1.start!
+            job2 = ThrottleGroupJob.new
+            assert job2.send(:throttle_running_jobs_exceeded?)
+          end
 
-            it "excludes paused jobs" do
-              job1 = ThrottleGroupOtherJob.new
-              job1.start
-              job1.pause!
-              job2 = ThrottleGroupJob.new
-              refute job2.send(:throttle_running_jobs_exceeded?)
-            end
+          it "excludes paused jobs" do
+            job1 = ThrottleGroupOtherJob.new
+            job1.start
+            job1.pause!
+            job2 = ThrottleGroupJob.new
+            refute job2.send(:throttle_running_jobs_exceeded?)
+          end
 
-            it "excludes failed jobs" do
-              job1 = ThrottleGroupOtherJob.new
-              job1.start
-              job1.fail!
-              job2 = ThrottleGroupJob.new
-              refute job2.send(:throttle_running_jobs_exceeded?)
-            end
+          it "excludes failed jobs" do
+            job1 = ThrottleGroupOtherJob.new
+            job1.start
+            job1.fail!
+            job2 = ThrottleGroupJob.new
+            refute job2.send(:throttle_running_jobs_exceeded?)
+          end
         end
       end
     end

@@ -1,9 +1,12 @@
 AllCops:
-  TargetRubyVersion: 2.4
+  TargetRubyVersion: 2.5
+  NewCops: enable
   Exclude:
     - ".git/**/*"
     - "docs/**/*"
     - "gemfiles/*"
+    - "lib/rocket_job/cli.rb"
+    - "rocketjob/lib/rocket_job/railtie.rb"
 
 #
 # RuboCop built-in settings.
@@ -37,6 +40,10 @@ Layout/LineLength:
 Layout/SpaceInsideHashLiteralBraces:
   EnforcedStyle: no_space
 
+# Rocket Job uses Exception to ensure all exceptions are captured.
+Lint/RescueException:
+  Enabled: false
+
 # TODO: Soften Limits for phase 1 only
 Metrics/AbcSize:
   Max: 40
@@ -46,7 +53,7 @@ Metrics/BlockLength:
   Exclude:
     - "test/**/*"
     - "**/*/cli.rb"
-  ExcludedMethods:
+  IgnoredMethods:
     - "aasm"
     - "included"
 
@@ -77,7 +84,7 @@ Metrics/PerceivedComplexity:
 
 # Initialization Vector abbreviation
 Naming/MethodParameterName:
-  AllowedNames: ['iv', '_', 'io', 'ap']
+  AllowedNames: ["iv", "_", "io", "ap", "id"]
 
 # Does not allow Symbols to load
 Security/YAMLLoad:
@@ -108,6 +115,10 @@ Style/SignalException:
 
 # Since English may not be loaded, cannot force its use.
 Style/SpecialGlobalVars:
+  Enabled: false
+
+# Just painful to replace all these.
+Style/StringConcatenation:
   Enabled: false
 
 # Make it easier for developers to move between Elixir and Ruby.

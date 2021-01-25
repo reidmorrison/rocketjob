@@ -158,7 +158,7 @@ module Batch
         end
 
         it "does not exceed throttle when other slices are paused" do
-          job1 = ThrottleJob.create!(state: :paused)
+          ThrottleJob.create!(state: :paused)
           job = ThrottleJob.create!
           refute job.send(:throttle_running_jobs_exceeded?)
         end
@@ -170,7 +170,6 @@ module Batch
         end
 
         it "process all slices when all are queued" do
-          # skip "TODO: Intermittent test failure"
           refute job.rocket_job_work(worker, true)
           assert job.completed?, -> { job.ai }
         end
@@ -183,7 +182,6 @@ module Batch
         end
 
         it "process non failed slices" do
-          # skip "TODO: Intermittent test failure"
           job.input.first.fail!
           refute job.rocket_job_work(worker, true)
           assert job.failed?
@@ -191,7 +189,6 @@ module Batch
         end
 
         it "update filter when other slices are running" do
-          # skip "TODO: Intermittent test failure"
           job.input.first.start!
           assert job.rocket_job_work(worker, true)
           assert job.running?

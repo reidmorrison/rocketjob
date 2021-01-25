@@ -240,17 +240,16 @@ module RocketJob
         o.on("-w", "--workers COUNT", "Number of workers (threads) to start") do |arg|
           @max_workers = arg.to_i
         end
-        o.on("--include REGEXP", 'Limit this server to only those job classes that match this regular expression (case-insensitive). Example: "DirmonJob|WeeklyReportJob"') do |arg|
+        o.on("--include REGEXP",
+             'Limit this server to only those job classes that match this regular expression (case-insensitive). Example: "DirmonJob|WeeklyReportJob"') do |arg|
           @include_filter = Regexp.new(arg, true)
         end
-        o.on("-F", "--filter REGEXP", "DEPRECATED. Use --include") do |arg|
-          warn "-F and --filter are deprecated, use --include"
-          @include_filter = Regexp.new(arg, true)
-        end
-        o.on("-E", "--exclude REGEXP", 'Prevent this server from working on any job classes that match this regular expression (case-insensitive). Example: "DirmonJob|WeeklyReportJob"') do |arg|
+        o.on("-E", "--exclude REGEXP",
+             'Prevent this server from working on any job classes that match this regular expression (case-insensitive). Example: "DirmonJob|WeeklyReportJob"') do |arg|
           @exclude_filter = Regexp.new(arg, true)
         end
-        o.on("-W", "--where JSON", "Limit this server instance to the supplied mongo query filter. Supply as a string in JSON format. Example: '{\"priority\":{\"$lte\":25}}'") do |arg|
+        o.on("-W", "--where JSON",
+             "Limit this server instance to the supplied mongo query filter. Supply as a string in JSON format. Example: '{\"priority\":{\"$lte\":25}}'") do |arg|
           @where_filter = JSON.parse(arg)
         end
         o.on("-q", "--quiet", "Do not write to stdout, only to logfile. Necessary when running as a daemon") do
@@ -259,7 +258,8 @@ module RocketJob
         o.on("-d", "--dir DIR", "Directory containing Rails app, if not current directory") do |arg|
           @directory = arg
         end
-        o.on("-e", "--environment ENVIRONMENT", "The environment to run the app on (Default: RAILS_ENV || RACK_ENV || development)") do |arg|
+        o.on("-e", "--environment ENVIRONMENT",
+             "The environment to run the app on (Default: RAILS_ENV || RACK_ENV || development)") do |arg|
           @environment = arg
         end
         o.on("-l", "--log_level trace|debug|info|warn|error|fatal", "The log level to use") do |arg|
@@ -274,38 +274,46 @@ module RocketJob
         o.on("-m", "--mongo MONGO_CONFIG_FILE_NAME", "Path and filename of config file. Default: config/mongoid.yml") do |arg|
           @mongo_config = arg
         end
-        o.on("-s", "--symmetric-encryption SYMMETRIC_ENCRYPTION_CONFIG_FILE_NAME", "Path and filename of Symmetric Encryption config file. Default: config/symmetric-encryption.yml") do |arg|
+        o.on("-s", "--symmetric-encryption SYMMETRIC_ENCRYPTION_CONFIG_FILE_NAME",
+             "Path and filename of Symmetric Encryption config file. Default: config/symmetric-encryption.yml") do |arg|
           @symmetric_encryption_config = arg
         end
-        o.on("--list [FILTER]", "List active servers. Supply either an exact server name or a partial name as a filter.") do |filter|
+        o.on("--list [FILTER]",
+             "List active servers. Supply either an exact server name or a partial name as a filter.") do |filter|
           @quiet        = true
           @server       = false
           @list_servers = filter || :all
         end
-        o.on("--refresh [SECONDS]", "When listing active servers, update the list by this number of seconds. Defaults to every 1 second.") do |seconds|
+        o.on("--refresh [SECONDS]",
+             "When listing active servers, update the list by this number of seconds. Defaults to every 1 second.") do |seconds|
           @refresh = (seconds || 1).to_s.to_f
         end
-        o.on("--stop [SERVER_NAME]", "Send event to stop a server once all in-process workers have completed. Optionally supply the complete or partial name of the server(s) to stop. Default: All servers.") do |server_name|
+        o.on("--stop [SERVER_NAME]",
+             "Send event to stop a server once all in-process workers have completed. Optionally supply the complete or partial name of the server(s) to stop. Default: All servers.") do |server_name|
           @quiet       = true
           @server      = false
           @stop_server = server_name || :all
         end
-        o.on("--kill [SERVER_NAME]", "Send event to hard kill a server. Optionally supply the complete or partial name of the server(s) to kill. Default: All servers.") do |server_name|
+        o.on("--kill [SERVER_NAME]",
+             "Send event to hard kill a server. Optionally supply the complete or partial name of the server(s) to kill. Default: All servers.") do |server_name|
           @quiet       = true
           @server      = false
           @kill_server = server_name || :all
         end
-        o.on("--pause [SERVER_NAME]", "Send event to pause a server. Optionally supply the complete or partial name of the server(s) to pause. Default: All servers.") do |server_name|
+        o.on("--pause [SERVER_NAME]",
+             "Send event to pause a server. Optionally supply the complete or partial name of the server(s) to pause. Default: All servers.") do |server_name|
           @quiet        = true
           @server       = false
           @pause_server = server_name || :all
         end
-        o.on("--resume [SERVER_NAME]", "Send event to resume a server. Optionally supply the complete or partial name of the server(s) to resume. Default: All servers.") do |server_name|
+        o.on("--resume [SERVER_NAME]",
+             "Send event to resume a server. Optionally supply the complete or partial name of the server(s) to resume. Default: All servers.") do |server_name|
           @quiet         = true
           @server        = false
           @resume_server = server_name || :all
         end
-        o.on("--dump [SERVER_NAME]", "Send event for a server to send a worker thread dump to its log file. Optionally supply the complete or partial name of the server(s). Default: All servers.") do |server_name|
+        o.on("--dump [SERVER_NAME]",
+             "Send event for a server to send a worker thread dump to its log file. Optionally supply the complete or partial name of the server(s). Default: All servers.") do |server_name|
           @quiet       = true
           @server      = false
           @thread_dump = server_name || :all

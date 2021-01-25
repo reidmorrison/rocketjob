@@ -17,7 +17,7 @@ module RocketJob
 
           supervisor.logger.info("Stopping Pool")
           supervisor.worker_pool.stop
-          unless supervisor.worker_pool.living_count == 0
+          unless supervisor.worker_pool.living_count.zero?
             supervisor.logger.info("Giving pool #{wait_timeout} seconds to terminate")
             sleep(wait_timeout)
           end

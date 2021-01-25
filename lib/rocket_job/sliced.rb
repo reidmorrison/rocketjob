@@ -53,8 +53,6 @@ module RocketJob
       end
     end
 
-    private
-
     # Parses the encrypt and compress options to determine which slice serializer to use.
     # `encrypt` takes priority over any `compress` option.
     def self.slice_class(type, job)
@@ -67,6 +65,7 @@ module RocketJob
           EncryptedSlice
         else
           raise(ArgumentError, "Unknown job `encrypt` value: #{compress}") unless compress.is_a?(Slices)
+
           # Returns the supplied class to use for encryption.
           encrypt
         end
@@ -78,6 +77,7 @@ module RocketJob
           BZip2OutputSlice
         else
           raise(ArgumentError, "Unknown job `compress` value: #{compress}") unless compress.is_a?(Slices)
+
           # Returns the supplied class to use for compression.
           compress
         end

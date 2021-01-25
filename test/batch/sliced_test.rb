@@ -2,39 +2,39 @@ require_relative "../test_helper"
 
 module Batch
   class SlicedTest < Minitest::Test
+    class CompressedJob < RocketJob::Job
+      include RocketJob::Batch
+
+      self.compress = true
+
+      def perform(record)
+        record
+      end
+    end
+
+    class EncryptedJob < RocketJob::Job
+      include RocketJob::Batch
+
+      self.encrypt = true
+
+      def perform(record)
+        record
+      end
+    end
+
+    class CompressedAndEncryptedJob < RocketJob::Job
+      include RocketJob::Batch
+
+      self.compress = true
+      self.encrypt  = true
+
+      def perform(record)
+        record
+      end
+    end
+
     describe RocketJob::Sliced do
       let(:text_file) { IOStreams.path(File.dirname(__FILE__), "files", "text.txt") }
-
-      class CompressedJob < RocketJob::Job
-        include RocketJob::Batch
-
-        self.compress = true
-
-        def perform(record)
-          record
-        end
-      end
-
-      class EncryptedJob < RocketJob::Job
-        include RocketJob::Batch
-
-        self.encrypt = true
-
-        def perform(record)
-          record
-        end
-      end
-
-      class CompressedAndEncryptedJob < RocketJob::Job
-        include RocketJob::Batch
-
-        self.compress = true
-        self.encrypt  = true
-
-        def perform(record)
-          record
-        end
-      end
 
       let(:job) { CompressedJob.new(slice_size: 2) }
 

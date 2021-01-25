@@ -62,7 +62,7 @@ module Batch
         it "logs state transitions" do
           description = nil
           payload     = nil
-          job.logger.stub(:info, ->(_description, _payload) { description = _description, payload = _payload }) do
+          job.logger.stub(:info, ->(description_, payload_) { description = description_, payload = payload_ }) do
             job.start
           end
 

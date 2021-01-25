@@ -205,7 +205,7 @@ module Batch
         it "logs statistics on completion" do
           description = nil
           payload     = nil
-          job.logger.stub(:info, ->(_description, _payload) { description = _description, payload = _payload }) do
+          job.logger.stub(:info, ->(description_, payload_) { description = description_, payload = payload_ }) do
             job.perform_now
           end
           assert job.completed?, job.attributes.ai
@@ -227,7 +227,7 @@ module Batch
           payload     = nil
           job.start
           job.statistics = {"bad" => "one"}
-          job.logger.stub(:info, ->(_description, _payload) { description = _description, payload = _payload }) do
+          job.logger.stub(:info, ->(description_, payload_) { description = description_, payload = payload_ }) do
             job.fail
           end
           assert job.failed?, job.attributes.ai

@@ -119,7 +119,9 @@ module RocketJob
         end
 
         def tabular_input_header_present
-          if tabular_input_header.present? || !tabular_input.header? || (tabular_input_mode == :hash || tabular_input_mode == :record)
+          if tabular_input_header.present? ||
+             !tabular_input.header? ||
+             (tabular_input_mode == :hash || tabular_input_mode == :record)
             return
           end
 

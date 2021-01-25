@@ -2,15 +2,15 @@ require_relative "../test_helper"
 
 module Sliced
   class OutputTest < Minitest::Test
-    describe RocketJob::Sliced::Output do
-      class OutputJob < RocketJob::Job
-        include RocketJob::Batch
+    class OutputJob < RocketJob::Job
+      include RocketJob::Batch
 
-        def perform(record)
-          record
-        end
+      def perform(record)
+        record
       end
+    end
 
+    describe RocketJob::Sliced::Output do
       let(:job) { OutputJob.new(slice_size: 2) }
       let(:rows) { %w[hello world last slice] }
 

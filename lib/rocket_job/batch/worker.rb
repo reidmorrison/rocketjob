@@ -40,7 +40,8 @@ module RocketJob
 
         SemanticLogger.named_tagged(job: id.to_s) do
           until worker.shutdown?
-            if slice = input.next_slice(worker.name)
+            slice = input.next_slice(worker.name)
+            if slice
               # Grab a slice before checking the throttle to reduce concurrency race condition.
               return true if slice.fail_on_exception!(re_raise_exceptions) { rocket_job_batch_throttled?(slice, worker) }
               next if slice.failed?
@@ -97,7 +98,7 @@ module RocketJob
         servers = []
         case sub_state
         when :before, :after
-          unless server_name && !worker_on_server?(server_name)
+          if running? && (server_name.nil? || worker_on_server?(server_name))
             servers << ActiveWorker.new(worker_name, started_at, self) if running?
           end
         when :processing
@@ -174,8 +175,8 @@ module RocketJob
         return block_given? ? yield(record) : perform(record) if _perform_callbacks.empty?
 
         # @rocket_job_input and @rocket_job_output can be modified by before/around callbacks
-        @rocket_job_input         = record
-        @rocket_job_output        = nil
+        @rocket_job_input  = record
+        @rocket_job_output = nil
 
         run_callbacks(:perform) do
           @rocket_job_output =
@@ -186,9 +187,9 @@ module RocketJob
             end
         end
 
-        @rocket_job_input         = nil
-        result                    = @rocket_job_output
-        @rocket_job_output        = nil
+        @rocket_job_input  = nil
+        result             = @rocket_job_output
+        @rocket_job_output = nil
         result
       end
 
@@ -305,11 +306,12 @@ module RocketJob
       # Run Batch before and after callbacks
       def rocket_job_batch_callbacks(worker)
         # If this is the first worker to pickup this job
-        if sub_state == :before
+        case sub_state
+        when :before
           rocket_job_batch_run_before_callbacks
           # Check for 0 record jobs
           rocket_job_batch_complete?(worker.name) if running?
-        elsif sub_state == :after
+        when sub_state == :after
           rocket_job_batch_run_after_callbacks
         end
       end

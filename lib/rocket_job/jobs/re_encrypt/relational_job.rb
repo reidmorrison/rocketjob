@@ -73,7 +73,7 @@ module RocketJob
 
           # Use AR to fetch all the records
           self.class.connection.select_rows(sql).each do |row|
-            row     = row.unshift(nil)
+            row.unshift(nil)
             index   = 1
             sql     = "update #{quoted_table_name} set "
             updates = []
@@ -120,7 +120,8 @@ module RocketJob
         def upload_records
           start_id          = self.class.connection.select_value("select min(id) from #{quoted_table_name}").to_i
           last_id           = self.class.connection.select_value("select max(id) from #{quoted_table_name}").to_i
-          self.record_count = last_id.positive? ? (input.upload_integer_range_in_reverse_order(start_id, last_id) * slice_size) : 0
+          self.record_count =
+            last_id.positive? ? (input.upload_integer_range_in_reverse_order(start_id, last_id) * slice_size) : 0
         end
       end
     end
