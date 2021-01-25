@@ -22,9 +22,6 @@ matrix:
     - name: "Mongoid 7.2 on JRuby 9.2.14.0"
       rvm: jruby-9.2.14.0
       gemfile: gemfiles/mongoid_7_2.gemfile
-    - name: "Mongoid 7.2 on Ruby 3.0.0"
-      rvm: 3.0.0
-      gemfile: gemfiles/mongoid_7_2.gemfile
 
     - name: "Mongoid 7.3 on Ruby 2.7.2"
       rvm: 2.7.2
@@ -35,10 +32,6 @@ matrix:
     - name: "Mongoid 7.3 on Ruby 3.0.0"
       rvm: 3.0.0
       gemfile: gemfiles/mongoid_7_3.gemfile
-
-  allow_failures:
-    - rvm: jruby-9.2.14.0
-    - gemfile: gemfiles/mongoid_7_3.gemfile
 
 jdk:
   - openjdk9
