@@ -43,7 +43,7 @@ module Batch
         job
       end
 
-      let(:worker) { RocketJob::Worker.new(inline: true) }
+      let(:worker) { RocketJob::Worker.new }
 
       describe "#throttle_outside_window?" do
         it "outside window" do

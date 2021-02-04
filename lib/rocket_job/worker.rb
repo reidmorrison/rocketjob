@@ -1,5 +1,3 @@
-require "concurrent"
-require "forwardable"
 module RocketJob
   # Worker
   #
@@ -7,12 +5,9 @@ module RocketJob
   # Is usually started under a Rocket Job server process.
   class Worker
     include SemanticLogger::Loggable
-    include ActiveSupport::Callbacks
-
-    define_callbacks :running
 
     attr_accessor :id, :current_filter
-    attr_reader :thread, :name, :inline, :server_name
+    attr_reader :name, :server_name
 
     # Raised when a worker is killed so that it shutdown immediately, yet cleanly.
     #
@@ -21,59 +16,41 @@ module RocketJob
     class Shutdown < RuntimeError
     end
 
-    def self.before_running(*filters, &blk)
-      set_callback(:running, :before, *filters, &blk)
-    end
-
-    def self.after_running(*filters, &blk)
-      set_callback(:running, :after, *filters, &blk)
-    end
-
-    def self.around_running(*filters, &blk)
-      set_callback(:running, :around, *filters, &blk)
-    end
-
-    def initialize(id: 0, server_name: "inline:0", inline: false)
+    def initialize(id: 0, server_name: "inline:0")
       @id             = id
       @server_name    = server_name
-      @shutdown       = Concurrent::Event.new
       @name           = "#{server_name}:#{id}"
       @re_check_start = Time.now
       @current_filter = Config.filter || {}
-      @thread         = Thread.new { run } unless inline
-      @inline         = inline
     end
 
     def alive?
-      inline ? true : @thread.alive?
+      true
     end
 
     def backtrace
-      inline ? Thread.current.backtrace : @thread.backtrace
+      Thread.current.backtrace
     end
 
-    def join(*args)
-      @thread.join(*args) unless inline
+    def join(*_args)
+      true
     end
 
-    # Send each active worker the RocketJob::ShutdownException so that stops processing immediately.
     def kill
-      return true if inline
-
-      @thread.raise(Shutdown, "Shutdown due to kill request for worker: #{name}") if @thread.alive?
+      true
     end
 
     def shutdown?
-      @shutdown.set?
+      false
     end
 
     def shutdown!
-      @shutdown.set
+      true
     end
 
     # Returns [true|false] whether the shutdown indicator was set
-    def wait_for_shutdown?(timeout = nil)
-      @shutdown.wait(timeout)
+    def wait_for_shutdown?(_timeout = nil)
+      false
     end
 
     # Process jobs until it shuts down

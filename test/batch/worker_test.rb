@@ -189,7 +189,7 @@ module Batch
           job.upload do |records|
             (1..record_count).each { |i| records << i }
           end
-          worker = RocketJob::Worker.new(inline: true)
+          worker = RocketJob::Worker.new
           job.start
           # Do not raise exceptions, process all slices
           job.rocket_job_work(worker, false)
@@ -240,7 +240,7 @@ module Batch
           job.upload do |records|
             (1..record_count).each { |i| records << i }
           end
-          worker = RocketJob::Worker.new(inline: true)
+          worker = RocketJob::Worker.new
           job.start!
           # Do not raise exceptions, process all slices
           job.rocket_job_work(worker, false)
@@ -355,9 +355,9 @@ module Batch
       end
 
       describe "#rocket_job_active_workers" do
-        let(:worker) { RocketJob::Worker.new(inline: true, server_name: "worker1:123", id: 1) }
-        let(:worker2) { RocketJob::Worker.new(inline: true, server_name: "worker1:5673", id: 1) }
-        let(:worker3) { RocketJob::Worker.new(inline: true, server_name: "worker1:5673", id: 2) }
+        let(:worker) { RocketJob::Worker.new(server_name: "worker1:123", id: 1) }
+        let(:worker2) { RocketJob::Worker.new(server_name: "worker1:5673", id: 1) }
+        let(:worker3) { RocketJob::Worker.new(server_name: "worker1:5673", id: 2) }
 
         let(:loaded_job) do
           job = SimpleJob.new(slice_size: 2, worker_name: worker.name, state: :running, sub_state: :processing, started_at: 1.minute.ago)
@@ -423,7 +423,7 @@ module Batch
         job.upload do |records|
           (1..record_count).each { |i| records << i }
         end
-        worker = RocketJob::Worker.new(inline: true)
+        worker = RocketJob::Worker.new
         job.start
         job.rocket_job_work(worker, false)
         job.perform_now

@@ -89,7 +89,7 @@ module RocketJob
     private
 
     def add_one
-      workers << Worker.new(id: next_worker_id, server_name: server_name)
+      workers << ThreadWorker.new(id: next_worker_id, server_name: server_name)
     rescue StandardError => e
       logger.fatal("Cannot start worker", e)
     end

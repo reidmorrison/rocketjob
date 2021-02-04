@@ -64,7 +64,7 @@ module Batch
         job
       end
 
-      let(:worker) { RocketJob::Worker.new(inline: true) }
+      let(:worker) { RocketJob::Worker.new }
 
       describe ".batch_throttle?" do
         it "defines the running slices throttle" do

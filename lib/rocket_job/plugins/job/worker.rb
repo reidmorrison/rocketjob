@@ -48,7 +48,7 @@ module RocketJob
         def perform_now
           raise(::Mongoid::Errors::Validations, self) unless valid?
 
-          worker = RocketJob::Worker.new(inline: true)
+          worker = RocketJob::Worker.new
           start if may_start?
           # Re-Raise exceptions
           rocket_job_work(worker, true) if running?

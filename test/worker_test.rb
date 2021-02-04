@@ -95,7 +95,7 @@ class WorkerTest < Minitest::Test
       batch_throttled_job
     end
     let(:batch_job) { SimpleBatchJob.new }
-    let(:worker) { RocketJob::Worker.new(inline: true) }
+    let(:worker) { RocketJob::Worker.new }
 
     before do
       RocketJob::Job.destroy_all

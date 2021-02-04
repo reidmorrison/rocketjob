@@ -32,6 +32,7 @@ module RocketJob
   autoload :Sliced,             "rocket_job/sliced"
   autoload :Subscriber,         "rocket_job/subscriber"
   autoload :Supervisor,         "rocket_job/supervisor"
+  autoload :ThreadWorker,       "rocket_job/thread_worker"
   autoload :ThrottleDefinition, "rocket_job/throttle_definition"
   autoload :ThrottleDefinitions, "rocket_job/throttle_definitions"
   autoload :WorkerPool, "rocket_job/worker_pool"
