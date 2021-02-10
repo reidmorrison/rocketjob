@@ -14,9 +14,7 @@ module RocketJob
       #     Default: None ( Uses the single default input collection for this job )
       #     Validates: This value must be one of those listed in #input_categories
       def input(category = :main)
-        unless input_categories.include?(category) || (category == :main)
-          raise "Category #{category.inspect}, must be registered in input_categories: #{input_categories.inspect}"
-        end
+        input_categories.validate!(category)
 
         (@inputs ||= {})[category] ||= RocketJob::Sliced.factory(:input, category, self)
       end
@@ -30,9 +28,7 @@ module RocketJob
       #     Default: None ( Uses the single default output collection for this job )
       #     Validates: This value must be one of those listed in #output_categories
       def output(category = :main)
-        unless output_categories.include?(category) || (category == :main)
-          raise "Category #{category.inspect}, must be registered in output_categories: #{output_categories.inspect}"
-        end
+        output_categories.validate!(category)
 
         (@outputs ||= {})[category] ||= RocketJob::Sliced.factory(:output, category, self)
       end

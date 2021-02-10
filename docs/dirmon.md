@@ -56,7 +56,7 @@ The attributes of DirmonEntry:
         * Hash
         * True
         * False
-        * Symbol
+        * Mongoid::StringifiedSymbol
         * nil
         * Regular Expression
         * _Note_: Date is not supported, convert it to a UTC time

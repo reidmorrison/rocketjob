@@ -152,7 +152,7 @@ module RocketJob
       def find_and_assign_job
         SemanticLogger.silence(:info) do
           scheduled = RocketJob::Job.where(run_at: nil).or(:run_at.lte => Time.now)
-          working   = RocketJob::Job.queued.or(state: :running, sub_state: :processing)
+          working   = RocketJob::Job.queued.or(state: "running", sub_state: "processing")
           query     = RocketJob::Job.and(working, scheduled)
           query     = query.and(current_filter) unless current_filter.blank?
           update    = {"$set" => {"worker_name" => name, "state" => "running"}}
@@ -163,7 +163,7 @@ module RocketJob
       def find_and_assign_job
         SemanticLogger.silence(:info) do
           scheduled = {"$or" => [{run_at: nil}, {:run_at.lte => Time.now}]}
-          working   = {"$or" => [{state: :queued}, {state: :running, sub_state: :processing}]}
+          working   = {"$or" => [{state: :queued}, {state: "running", sub_state: "processing"}]}
           query     = RocketJob::Job.and(working, scheduled)
           query     = query.where(current_filter) unless current_filter.blank?
           update    = {"$set" => {"worker_name" => name, "state" => "running"}}

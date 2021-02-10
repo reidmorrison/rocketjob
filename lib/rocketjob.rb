@@ -28,6 +28,7 @@ module RocketJob
   autoload :JobException,       "rocket_job/job_exception"
   autoload :Worker,             "rocket_job/worker"
   autoload :Performance,        "rocket_job/performance"
+  autoload :RactorWorker,       "rocket_job/ractor_worker"
   autoload :Server,             "rocket_job/server"
   autoload :Sliced,             "rocket_job/sliced"
   autoload :Subscriber,         "rocket_job/subscriber"

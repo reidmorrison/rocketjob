@@ -139,7 +139,7 @@ module RocketJob
         document                 = all.queued.
                                    sort("_id" => 1).
                                    find_one_and_update(
-                                     {"$set" => {worker_name: worker_name, state: :running, started_at: Time.now}},
+                                     {"$set" => {worker_name: worker_name, state: "running", started_at: Time.now}},
                                      return_document: :after
                                    )
         document.collection_name = collection_name if document

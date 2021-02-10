@@ -31,10 +31,10 @@ module RocketJob
         #
         # Categories must be declared in advance to avoid a #perform method
         # accidentally writing its results to an unknown category
-        field :output_categories, type: Array, default: [:main], class_attribute: true
+        field :output_categories, type: Batch::Categories, default: [:main], class_attribute: true
 
         # Optional Array<Symbol> list of categories that this job can load input data into
-        field :input_categories, type: Array, default: [:main], class_attribute: true
+        field :input_categories, type: Batch::Categories, default: [:main], class_attribute: true
 
         # The file name of the uploaded file, if any.
         # Set by #upload if a file name was supplied, but can also be set explicitly.
@@ -129,7 +129,7 @@ module RocketJob
             end
           end
         elsif completed?
-          secs = seconds.to_f
+          secs                  = seconds.to_f
           h["records_per_hour"] = ((record_count.to_f / secs) * 60 * 60).round if record_count&.positive? && (secs > 0.0)
         end
         h["output_slices"] = output.count if collect_output? && !completed?

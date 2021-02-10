@@ -134,7 +134,7 @@ end
 Valid field types:
 * Array
 * BigDecimal
-* Boolean
+* Mongoid::Boolean
 * Date
 * DateTime
 * Float
@@ -145,7 +145,7 @@ Valid field types:
 * Range
 * Regexp
 * String
-* Symbol
+* Mongoid::StringifiedSymbol
 * Time
 * TimeWithZone
 

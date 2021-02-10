@@ -53,7 +53,7 @@ module RocketJob
           if result.is_a?(RocketJob::Batch::Result)
             category = result.category
             value    = result.value
-            raise(ArgumentError, "Invalid RocketJob Output Category: #{category}") if job.output_categories.exclude?(category)
+            job.output_categories.validate!(category)
           end
           (categorized_records[category] ||= []) << value unless value.nil? && !job.collect_nil_output?
         end
