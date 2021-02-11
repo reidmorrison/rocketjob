@@ -5,7 +5,7 @@ module RocketJob
       include Enumerable
       extend Forwardable
 
-      def_delegators :@categories, :size, :each
+      def_delegators :@categories, :size, :each, :[]
 
       def initialize(categories = [:main])
         @categories = Array(categories).collect(&:to_sym)
