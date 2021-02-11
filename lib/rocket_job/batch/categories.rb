@@ -3,6 +3,9 @@ module RocketJob
     # Custom Mongoid Type to hold categories
     class Categories
       include Enumerable
+      extend Forwardable
+
+      def_delegators :@categories, :size, :each
 
       def initialize(categories = [:main])
         @categories = Array(categories).collect(&:to_sym)
@@ -26,10 +29,6 @@ module RocketJob
         raise(ArgumentError, "Category: #{category}, is not one of the registered categories: #{@categories.inspect}")
       end
 
-      def each(&block)
-        @categories.each(&block)
-      end
-
       # Set the categories
       def ==(categories)
         case categories
@@ -45,11 +44,6 @@ module RocketJob
       def to_a(*args)
         @categories.dup
       end
-
-      # Compare categories
-      # def =(categories)
-      #   @categories = Array(categories).collect(&:to_sym)
-      # end
 
       # Converts an object of this instance into a database friendly value.
       def mongoize
