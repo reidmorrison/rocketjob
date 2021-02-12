@@ -134,7 +134,7 @@ module Batch
           record_count = 24
           upload_and_perform(job)
           assert job.completed?, -> { job.as_document.ai }
-          assert_equal [:main], job.output_categories.to_a
+          assert_equal [:main], job.output_categories.names
 
           io = StringIO.new
           job.download(io)
@@ -194,7 +194,7 @@ module Batch
           # Do not raise exceptions, process all slices
           job.rocket_job_work(worker, false)
 
-          assert_equal [:main], job.output_categories.to_a
+          assert_equal [:main], job.output_categories.names
           assert job.failed?
 
           assert_equal 1, job.input.failed.count, job.input.to_a.inspect
@@ -245,7 +245,7 @@ module Batch
           # Do not raise exceptions, process all slices
           job.rocket_job_work(worker, false)
 
-          assert_equal [:main], job.output_categories.to_a
+          assert_equal [:main], job.output_categories.names
           assert job.failed?, -> { job.ai }
 
           job.stub(:may_fail?, true) do
@@ -310,7 +310,7 @@ module Batch
           end
           job.perform_now
           assert job.completed?, job.attributes.ai
-          assert_equal %i[main odd even], job.output_categories.to_a
+          assert_equal %i[main odd even], job.output_categories.names
 
           io = StringIO.new
           job.download(io)

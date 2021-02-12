@@ -41,15 +41,16 @@ module RocketJob
         # May or may not include the fully qualified path name.
         field :upload_file_name, type: String
 
-        # Compress uploaded records.
-        # The fields are not affected in any way, only the data stored in the
-        # records and results collections will compressed
-        field :compress, type: Object, default: false, class_attribute: true
+        # Compress data in flight and at rest in the database.
+        # Often improves performance since data is smaller.
+        # Can be overridden on a per category basis, see Batch::Categories.
+        field :compress, type: Mongoid::Boolean, default: false, class_attribute: true
 
-        # Encrypt uploaded records.
-        # The fields are not affected in any way, only the data stored in the
-        # records and results collections will be encrypted
-        field :encrypt, type: Object, default: false, class_attribute: true
+        # Encrypt and compress data in flight and at rest in the database.
+        # Using the Symmetric Encryption Library encrypts data to keep it secure.
+        # Compression is also turned on so that less data is encrypted which improves performance.
+        # Can be overridden on a per category basis, see Batch::Categories.
+        field :encrypt, type: Mongoid::Boolean, default: false, class_attribute: true
 
         #
         # Values that jobs can also update during processing
@@ -72,17 +73,6 @@ module RocketJob
         field :sub_state, type: Mongoid::StringifiedSymbol
 
         validates_presence_of :slice_size
-
-        validates_each :output_categories, :input_categories do |record, attr, value|
-          # Under some circumstances ActiveModel is passing in a nil value even though the
-          # attributes have default values
-          Array(value).each do |category|
-            record.errors.add(attr, "must only contain Symbol values") unless category.is_a?(Symbol)
-            unless category.to_s =~ /\A[a-z_0-9]+\Z/
-              record.errors.add(attr, "must only consist of lowercase characters, digits, and _")
-            end
-          end
-        end
       end
 
       # Returns [true|false] whether the slices for this job are encrypted

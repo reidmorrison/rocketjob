@@ -1,6 +1,7 @@
 require "active_support/concern"
 require "rocket_job/batch/callbacks"
 require "rocket_job/batch/categories"
+require "rocket_job/batch/category"
 require "rocket_job/batch/io"
 require "rocket_job/batch/logger"
 require "rocket_job/batch/model"

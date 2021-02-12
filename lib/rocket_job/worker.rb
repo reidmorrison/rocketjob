@@ -123,6 +123,8 @@ module RocketJob
 
         # Should this job be throttled?
         next if job.fail_on_exception! { throttled_job?(job) }
+        # Job failed during throttle execution?
+        next if job.failed?
 
         # Start this job!
         job.fail_on_exception! { job.start!(name) }

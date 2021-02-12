@@ -14,7 +14,7 @@ module RocketJob
       #     Default: None ( Uses the single default input collection for this job )
       #     Validates: This value must be one of those listed in #input_categories
       def input(category = :main)
-        input_categories.validate!(category)
+        category = input_categories[category] unless category.is_a?(Category)
 
         (@inputs ||= {})[category] ||= RocketJob::Sliced.factory(:input, category, self)
       end
@@ -28,7 +28,7 @@ module RocketJob
       #     Default: None ( Uses the single default output collection for this job )
       #     Validates: This value must be one of those listed in #output_categories
       def output(category = :main)
-        output_categories.validate!(category)
+        category = output_categories[category] unless category.is_a?(Category)
 
         (@outputs ||= {})[category] ||= RocketJob::Sliced.factory(:output, category, self)
       end

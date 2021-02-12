@@ -10,6 +10,8 @@ gem "amazing_print"
 gem "appraisal"
 gem "rake"
 gem "rubyzip", platform: :ruby
+# BZip2 file support
+gem "bzip2-ffi"
 
 gem "activerecord-jdbcsqlite3-adapter", platform: :jruby
 gem "jdbc-sqlite3", platform: :jruby
