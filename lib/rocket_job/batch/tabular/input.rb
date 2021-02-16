@@ -3,13 +3,13 @@ require "active_support/concern"
 module RocketJob
   module Batch
     class Tabular
-      # For the simple case where all `input_categories` have the same format,
-      # If multiple input categories are used with different formats, then use IOStreams::Tabular directly
-      # instead of this plugin.
+      # @deprecated
       module Input
         extend ActiveSupport::Concern
 
         included do
+          warn "#{name} is using RocketJob::Batch::Tabular::Input which is deprecated and will be removed in v5.1"
+
           field :tabular_input_header, type: Array, class_attribute: true, user_editable: true
           field :tabular_input_format, type: Mongoid::StringifiedSymbol, default: :csv, class_attribute: true, user_editable: true
           field :tabular_input_options, type: Hash, class_attribute: true

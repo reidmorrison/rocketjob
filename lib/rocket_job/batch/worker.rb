@@ -8,6 +8,7 @@ module RocketJob
       included do
         # While working on a slice, the current slice is available via this reader
         attr_reader :rocket_job_slice, :rocket_job_record_number
+        after_perform :rocketjob_batch_render
 
         private
 
@@ -314,6 +315,15 @@ module RocketJob
         when sub_state == :after
           rocket_job_batch_run_after_callbacks
         end
+      end
+
+      private
+
+      # Render the output from the perform.
+      def rocketjob_batch_render
+        return unless collect_output?
+
+        @rocket_job_output = output_categories.render(@rocket_job_output)
       end
     end
   end

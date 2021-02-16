@@ -12,6 +12,8 @@ module RocketJob
     # )
     #
     # tabular.render(row)
+    #
+    # @deprecated
     class Tabular
       autoload :Input, "rocket_job/batch/tabular/input"
       autoload :Output, "rocket_job/batch/tabular/output"

@@ -16,7 +16,7 @@ module RocketJob
       def input(category = :main)
         category = input_categories[category] unless category.is_a?(Category)
 
-        (@inputs ||= {})[category] ||= RocketJob::Sliced.factory(:input, category, self)
+        (@inputs ||= {})[category.name] ||= RocketJob::Sliced.factory(:input, category, self)
       end
 
       # Returns [RocketJob::Sliced::Output] output collection for holding output slices
@@ -30,7 +30,7 @@ module RocketJob
       def output(category = :main)
         category = output_categories[category] unless category.is_a?(Category)
 
-        (@outputs ||= {})[category] ||= RocketJob::Sliced.factory(:output, category, self)
+        (@outputs ||= {})[category.name] ||= RocketJob::Sliced.factory(:output, category, self)
       end
 
       # Upload the supplied file, io, IOStreams::Path, or IOStreams::Stream.
@@ -349,17 +349,22 @@ module RocketJob
       def download(stream = nil, category: :main, header_line: nil, **args, &block)
         raise "Cannot download incomplete job: #{id}. Currently in state: #{state}-#{sub_state}" if rocket_job_processing?
 
-        return output(category).download(header_line: header_line, &block) if block
-
+        category          = output_categories[category]
         output_collection = output(category)
 
         if output_collection.binary?
-          IOStreams.new(stream).stream(:none).writer(**args) do |io|
-            raise(ArgumenError, "A `header_line` is not supported with binary output collections") if header_line
+          raise(ArgumentError, "A `header_line` is not supported with binary output collections") if header_line
 
+          return output_collection.download(&block) if block
+
+          IOStreams.new(stream).stream(:none).writer(**args) do |io|
             output_collection.download { |record| io << record[:binary] }
           end
         else
+          header_line ||= category.render_header
+
+          return output_collection.download(header_line: header_line, &block) if block
+
           IOStreams.new(stream).writer(:line, **args) do |io|
             output_collection.download(header_line: header_line) { |record| io << record }
           end
