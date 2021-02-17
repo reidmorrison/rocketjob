@@ -1,5 +1,5 @@
 # Rocket Job
-[![Gem Version](https://img.shields.io/gem/v/rocketjob.svg)](https://rubygems.org/gems/rocketjob) [![Build Status](https://travis-ci.org/rocketjob/rocketjob.svg?branch=master)](https://travis-ci.org/rocketjob/rocketjob) [![Downloads](https://img.shields.io/gem/dt/rocketjob.svg)](https://rubygems.org/gems/semantic_logger) [![License](https://img.shields.io/badge/license-Apache%202.0-brightgreen.svg)](http://opensource.org/licenses/Apache-2.0) ![](https://img.shields.io/badge/status-Production%20Ready-blue.svg) [![Support](https://img.shields.io/badge/IRC%20(gitter)-Support-brightgreen.svg)](https://gitter.im/rocketjob/support)
+[![Gem Version](https://img.shields.io/gem/v/rocketjob.svg)](https://rubygems.org/gems/rocketjob) [![Downloads](https://img.shields.io/gem/dt/rocketjob.svg)](https://rubygems.org/gems/rocketjob) [![License](https://img.shields.io/badge/license-Apache%202.0-brightgreen.svg)](http://opensource.org/licenses/Apache-2.0) ![](https://img.shields.io/badge/status-Production%20Ready-blue.svg) [![Support](https://img.shields.io/badge/IRC%20(gitter)-Support-brightgreen.svg)](https://gitter.im/rocketjob/support)
 
 Ruby's missing batch system
 
@@ -17,11 +17,23 @@ Checkout https://rocketjob.io/
 * Questions? Join the chat room on Gitter for [rocketjob support](https://gitter.im/rocketjob/support)
 * [Report bugs](https://github.com/rocketjob/rocketjob/issues)
 
-## Rocket Job 4
+## Rocket Job v5
 
-Rocket Job Pro is now open sourced and included within Rocket Job. 
+- Support for Ruby v3 and Rails 6.
+- Multiple output file support through extended `output_categories` capability.
+    - File output formats for each category. For example: CSV, PSV, JSON, etc.
+- Support for AWS DocumentDB as the data store.
+- Removed use of Symbols to meet Symbol deprecation in MongoDB and Mongoid.
 
-The `RocketJob::Batch` plugin now adds batch processing capabilites to break up a single task into many
+The following plugins have been deprecated and will be removed in Rocket Job v5.1
+- RocketJob::Batch::Tabular::Input
+- RocketJob::Batch::Tabular::Output
+
+## Rocket Job v4
+
+Rocket Job Pro is now open source and included in Rocket Job. 
+
+The `RocketJob::Batch` plugin now adds batch processing capabilities to break up a single task into many
 concurrent workers processing slices of the entire job at the same time. 
 
 

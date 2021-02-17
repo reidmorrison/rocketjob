@@ -5,8 +5,8 @@ module Batch
     describe RocketJob::Batch::Categories do
       let(:categories) { RocketJob::Batch::Categories.new }
       let(:single_categories) { RocketJob::Batch::Categories.new(:other) }
-      let(:two_categories) { RocketJob::Batch::Categories.new([:first, :second]) }
-      let(:complex_categories) { RocketJob::Batch::Categories.new(first: { serializer: :compress }, second: { serializer: :encrypt }) }
+      let(:two_categories) { RocketJob::Batch::Categories.new(%i[first second]) }
+      let(:complex_categories) { RocketJob::Batch::Categories.new(first: {serializer: :compress}, second: {serializer: :encrypt}) }
 
       describe "initialize" do
         it "defaults to :main" do
@@ -18,12 +18,12 @@ module Batch
         end
 
         it "accepts an array of categories" do
-          assert_equal [:first, :second], two_categories.names
+          assert_equal %i[first second], two_categories.names
         end
 
         it "accepts a hash of categories" do
-          assert_equal [:first, :second], complex_categories.names
-          assert_equal [:compress, :encrypt], complex_categories.collect(&:serializer)
+          assert_equal %i[first second], complex_categories.names
+          assert_equal %i[compress encrypt], complex_categories.collect(&:serializer)
         end
 
         it "accepts a Category instance" do
@@ -36,23 +36,23 @@ module Batch
       describe "#<<" do
         it "accepts a single category" do
           categories << :other
-          assert_equal [:main, :other], categories.names
+          assert_equal %i[main other], categories.names
         end
 
         it "accepts an array of categories" do
-          categories << [:first, :second]
-          assert_equal [:main, :first, :second], categories.names
+          categories << %i[first second]
+          assert_equal %i[main first second], categories.names
         end
 
         it "accepts a hash of categories" do
-          categories << { first: { serializer: :compress }, second: { serializer: :encrypt } }
-          assert_equal [:main, :first, :second], categories.names
+          categories << {first: {serializer: :compress}, second: {serializer: :encrypt}}
+          assert_equal %i[main first second], categories.names
         end
 
         it "accepts a Category instance" do
-          category   = RocketJob::Batch::Category.new(name: :second, serializer: :compress)
+          category = RocketJob::Batch::Category.new(name: :second, serializer: :compress)
           categories << category
-          assert_equal [:main, :second], categories.names
+          assert_equal %i[main second], categories.names
         end
       end
 
@@ -88,14 +88,40 @@ module Batch
 
       describe "names" do
         it "returns category names" do
-          assert [:first, :second], two_categories.names
+          assert %i[first second], two_categories.names
         end
       end
 
       describe "mongoize" do
         it "serializes" do
-          expected = [{"name"=>"first", "serializer"=>"compress"}, {"name"=>"second", "serializer"=>"encrypt"}]
+          expected = [{"name" => "first", "serializer" => "compress"}, {"name" => "second", "serializer" => "encrypt"}]
           assert_equal expected, complex_categories.mongoize
+        end
+      end
+
+      describe "#render" do
+        it "with no format set" do
+        end
+
+        it "with main format set" do
+        end
+
+        it "with main format set" do
+        end
+
+        it "nil value" do
+        end
+
+        it "blank row with format" do
+        end
+
+        it "blank row without format" do
+        end
+
+        it "batch result" do
+        end
+
+        it "batch results" do
         end
       end
     end
