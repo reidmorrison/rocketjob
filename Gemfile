@@ -17,6 +17,9 @@ gem "activerecord-jdbcsqlite3-adapter", platform: :jruby
 gem "jdbc-sqlite3", platform: :jruby
 gem "sqlite3", "~> 1.4", platform: :ruby
 
+# v1.8.9 blows up with `NoMethodError: undefined method 'deep_merge!' for {}:Concurrent::Hash` on JRuby
+gem "i18n", "1.8.7"
+
 group :development do
   gem "rubocop"
 

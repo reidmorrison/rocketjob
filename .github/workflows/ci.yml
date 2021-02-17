@@ -19,10 +19,10 @@ jobs:
         include:
           - name: "Mongoid 7.0 on Ruby 2.5.8"
             ruby: 2.5.8
-            mongoid: 7.0
+            mongoid: "7.0"
           - name: "Mongoid 7.0 on JRuby 9.2.14.0"
             ruby: jruby-9.2.14.0
-            mongoid: 7.0
+            mongoid: "7.0"
 
           - name: "Mongoid 7.1 on Ruby 2.6.6"
             ruby: 2.6.6
@@ -33,7 +33,7 @@ jobs:
 
           - name: "Mongoid 7.2 on Ruby 2.7.2"
             ruby: 2.7.2
-            mongoid: 7_2
+            mongoid: 7.2
           - name: "Mongoid 7.2 on JRuby 9.2.14.0"
             ruby: jruby-9.2.14.0
             mongoid: 7.2
