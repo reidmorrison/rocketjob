@@ -1,0 +1,64 @@
+name: Test
+
+on:
+  - push
+  - pull_request
+
+jobs:
+  test:
+    name: "Test: ${{ matrix.name }}"
+    runs-on: ubuntu-latest
+    services:
+      mongodb:
+        image: mongo
+        ports:
+          - 27017:27017
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: "Mongoid 7.0 on Ruby 2.5.8"
+            ruby: 2.5.8
+            mongoid: 7_0
+          - name: "Mongoid 7.0 on JRuby 9.2.14.0"
+            ruby: jruby-9.2.14.0
+            mongoid: 7_0
+
+          - name: "Mongoid 7.1 on Ruby 2.6.6"
+            ruby: 2.6.6
+            mongoid: 7_1
+          - name: "Mongoid 7.1 on JRuby 9.2.14.0"
+            ruby: jruby-9.2.14.0
+            mongoid: 7_1
+
+          - name: "Mongoid 7.2 on Ruby 2.7.2"
+            ruby: 2.7.2
+            mongoid: 7_2
+          - name: "Mongoid 7.2 on JRuby 9.2.14.0"
+            ruby: jruby-9.2.14.0
+            mongoid: 7_2
+
+          - name: "Mongoid 7.3 on Ruby 2.7.2"
+            ruby: 2.7.2
+            mongoid: 7_3
+          - name: "Mongoid 7.3 on JRuby 9.2.14.0"
+            ruby: jruby-9.2.14.0
+            mongoid: 7_3
+          - name: "Mongoid 7.3 on Ruby 3.0.0"
+            ruby: 3.0.0
+            mongoid: 7_3
+
+    env:
+      BUNDLE_GEMFILE: gemfiles/mongoid_${{ matrix.mongoid }}.gemfile
+      DISPLAY: ":99.0"
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          # runs 'bundle install' and caches installed gems automatically
+          bundler-cache: true
+      - name: Run tests
+        run: bundle exec rake test
