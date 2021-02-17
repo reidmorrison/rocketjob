@@ -3,11 +3,12 @@
 source "https://rubygems.org"
 
 gem "activerecord", "~> 5.2.0"
-gem "mongoid", "~> 7.0.0"
+gem "mongoid", "~> 7.1.0"
 gem "amazing_print"
 gem "appraisal"
 gem "rake"
 gem "rubyzip", platform: :ruby
+gem "bzip2-ffi"
 gem "activerecord-jdbcsqlite3-adapter", "~> 52.5", platform: :jruby
 gem "jdbc-sqlite3", platform: :jruby
 gem "sqlite3", "~> 1.4", platform: :ruby
