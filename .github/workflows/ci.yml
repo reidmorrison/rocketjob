@@ -17,36 +17,29 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: "Mongoid 7.0 on Ruby 2.5.8"
-            ruby: 2.5.8
-            mongoid: "7.0"
-          - name: "Mongoid 7.0 on JRuby 9.2.14.0"
-            ruby: jruby-9.2.14.0
-            mongoid: "7.0"
+          - mongoid: "7.0"
+            ruby: 2.5
+          - mongoid: "7.0"
+            ruby: jruby
 
-          - name: "Mongoid 7.1 on Ruby 2.6.6"
-            ruby: 2.6.6
-            mongoid: 7.1
-          - name: "Mongoid 7.1 on JRuby 9.2.14.0"
-            ruby: jruby-9.2.14.0
-            mongoid: 7.1
+          - mongoid: 7.1
+            ruby: 2.6
+          - mongoid: 7.1
+            ruby: jruby
 
-          - name: "Mongoid 7.2 on Ruby 2.7.2"
-            ruby: 2.7.2
-            mongoid: 7.2
-          - name: "Mongoid 7.2 on JRuby 9.2.14.0"
-            ruby: jruby-9.2.14.0
-            mongoid: 7.2
+          - mongoid: 7.2
+            ruby: 2.7
+          - mongoid: 7.2
+            ruby: jruby
 
-          - name: "Mongoid 7.3 on Ruby 2.7.2"
-            ruby: 2.7.2
-            mongoid: 7.3
-          - name: "Mongoid 7.3 on JRuby 9.2.14.0"
-            ruby: jruby-9.2.14.0
-            mongoid: 7.3
-          - name: "Mongoid 7.3 on Ruby 3.0.0"
-            ruby: 3.0.0
-            mongoid: 7.3
+          - mongoid: 7.3
+            ruby: 2.7
+          - mongoid: 7.3
+            ruby: "3.0"
+          - mongoid: 7.3
+            ruby: jruby
+          - mongoid: 7.3
+            ruby: truffleruby
 
     env:
       BUNDLE_GEMFILE: gemfiles/mongoid_${{ matrix.mongoid }}.gemfile
@@ -60,5 +53,12 @@ jobs:
           ruby-version: ${{ matrix.ruby }}
           # runs 'bundle install' and caches installed gems automatically
           bundler-cache: true
-      - name: Run tests
+
+      - name: Gemfile
+        run: echo $BUNDLE_GEMFILE
+
+      - name: Ruby Version
+        run: ruby --version
+
+      - name: Run Tests
         run: bundle exec rake test
