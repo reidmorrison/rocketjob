@@ -2,11 +2,11 @@ require_relative "../test_helper"
 
 module Batch
   class CategoriesTest < Minitest::Test
-    describe RocketJob::Batch::Categories do
-      let(:categories) { RocketJob::Batch::Categories.new }
-      let(:single_categories) { RocketJob::Batch::Categories.new(:other) }
-      let(:two_categories) { RocketJob::Batch::Categories.new(%i[first second]) }
-      let(:complex_categories) { RocketJob::Batch::Categories.new(first: {serializer: :compress}, second: {serializer: :encrypt}) }
+    describe RocketJob::Categories::Input do
+      let(:categories) { RocketJob::Categories::Input.new }
+      let(:single_categories) { RocketJob::Categories::Input.new(:other) }
+      let(:two_categories) { RocketJob::Categories::Input.new(%i[first second]) }
+      let(:complex_categories) { RocketJob::Categories::Input.new(first: {serializer: :compress}, second: {serializer: :encrypt}) }
 
       describe "initialize" do
         it "defaults to :main" do
@@ -27,8 +27,8 @@ module Batch
         end
 
         it "accepts a Category instance" do
-          category   = RocketJob::Batch::Category.new(name: :other, serializer: :compress)
-          categories = RocketJob::Batch::Categories.new(category)
+          category   = RocketJob::Category::Input.new(name: :other, serializer: :compress)
+          categories = RocketJob::Categories::Input.new(category)
           assert_equal [:other], categories.names
         end
       end
@@ -50,7 +50,7 @@ module Batch
         end
 
         it "accepts a Category instance" do
-          category = RocketJob::Batch::Category.new(name: :second, serializer: :compress)
+          category = RocketJob::Category::Input.new(name: :second, serializer: :compress)
           categories << category
           assert_equal %i[main second], categories.names
         end

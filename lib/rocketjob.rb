@@ -18,25 +18,38 @@ require "rocket_job/extensions/mongoid/stringified_symbol" unless defined?(Mongo
 
 # @formatter:off
 module RocketJob
-  autoload :ActiveWorker,       "rocket_job/active_worker"
-  autoload :Batch,              "rocket_job/batch"
-  autoload :CLI,                "rocket_job/cli"
-  autoload :DirmonEntry,        "rocket_job/dirmon_entry"
-  autoload :Event,              "rocket_job/event"
-  autoload :Heartbeat,          "rocket_job/heartbeat"
-  autoload :Job,                "rocket_job/job"
-  autoload :JobException,       "rocket_job/job_exception"
-  autoload :Worker,             "rocket_job/worker"
-  autoload :Performance,        "rocket_job/performance"
-  autoload :RactorWorker,       "rocket_job/ractor_worker"
-  autoload :Server,             "rocket_job/server"
-  autoload :Sliced,             "rocket_job/sliced"
-  autoload :Subscriber,         "rocket_job/subscriber"
-  autoload :Supervisor,         "rocket_job/supervisor"
-  autoload :ThreadWorker,       "rocket_job/thread_worker"
-  autoload :ThrottleDefinition, "rocket_job/throttle_definition"
-  autoload :ThrottleDefinitions, "rocket_job/throttle_definitions"
-  autoload :WorkerPool, "rocket_job/worker_pool"
+  autoload :ActiveWorker,            "rocket_job/active_worker"
+  autoload :Batch,                   "rocket_job/batch"
+  autoload :CLI,                     "rocket_job/cli"
+  autoload :DirmonEntry,             "rocket_job/dirmon_entry"
+  autoload :Event,                   "rocket_job/event"
+  autoload :Heartbeat,               "rocket_job/heartbeat"
+  autoload :Job,                     "rocket_job/job"
+  autoload :JobException,            "rocket_job/job_exception"
+  autoload :LookupCollection,        "rocket_job/lookup_collection"
+  autoload :Worker,                  "rocket_job/worker"
+  autoload :Performance,             "rocket_job/performance"
+  autoload :RactorWorker,            "rocket_job/ractor_worker"
+  autoload :Server,                  "rocket_job/server"
+  autoload :Sliced,                  "rocket_job/sliced"
+  autoload :Subscriber,              "rocket_job/subscriber"
+  autoload :Supervisor,              "rocket_job/supervisor"
+  autoload :ThreadWorker,            "rocket_job/thread_worker"
+  autoload :ThrottleDefinition,      "rocket_job/throttle_definition"
+  autoload :ThrottleDefinitions,     "rocket_job/throttle_definitions"
+  autoload :WorkerPool,              "rocket_job/worker_pool"
+
+  module Categories
+    autoload :Base,                  "rocket_job/categories/base"
+    autoload :Input,                 "rocket_job/categories/input"
+    autoload :Output,                "rocket_job/categories/output"
+  end
+
+  module Category
+    autoload :Base,                  "rocket_job/category/base"
+    autoload :Input,                 "rocket_job/category/input"
+    autoload :Output,                "rocket_job/category/output"
+  end
 
   module Plugins
     module Job
@@ -51,36 +64,38 @@ module RocketJob
       autoload :Transaction,         "rocket_job/plugins/job/transaction"
       autoload :Worker,              "rocket_job/plugins/job/worker"
     end
-    autoload :Cron,             "rocket_job/plugins/cron"
-    autoload :Document,         "rocket_job/plugins/document"
-    autoload :ProcessingWindow, "rocket_job/plugins/processing_window"
-    autoload :Restart,          "rocket_job/plugins/restart"
-    autoload :Retry,            "rocket_job/plugins/retry"
-    autoload :Singleton,        "rocket_job/plugins/singleton"
-    autoload :StateMachine,     "rocket_job/plugins/state_machine"
-    autoload :Transaction,      "rocket_job/plugins/transaction"
+    autoload :Cron,                  "rocket_job/plugins/cron"
+    autoload :Document,              "rocket_job/plugins/document"
+    autoload :ProcessingWindow,      "rocket_job/plugins/processing_window"
+    autoload :Restart,               "rocket_job/plugins/restart"
+    autoload :Retry,                 "rocket_job/plugins/retry"
+    autoload :Singleton,             "rocket_job/plugins/singleton"
+    autoload :StateMachine,          "rocket_job/plugins/state_machine"
+    autoload :Transaction,           "rocket_job/plugins/transaction"
   end
 
   module Jobs
-    autoload :ActiveJob,               "rocket_job/jobs/active_job"
-    autoload :CopyFileJob,             "rocket_job/jobs/copy_file_job"
-    autoload :DirmonJob,               "rocket_job/jobs/dirmon_job"
-    autoload :OnDemandBatchJob,        "rocket_job/jobs/on_demand_batch_job"
-    autoload :OnDemandBatchTabularJob, "rocket_job/jobs/on_demand_batch_tabular_job"
-    autoload :OnDemandJob,             "rocket_job/jobs/on_demand_job"
-    autoload :HousekeepingJob,         "rocket_job/jobs/housekeeping_job"
-    autoload :PerformanceJob,          "rocket_job/jobs/performance_job"
-    autoload :SimpleJob,               "rocket_job/jobs/simple_job"
-    autoload :UploadFileJob,           "rocket_job/jobs/upload_file_job"
+    autoload :ActiveJob,             "rocket_job/jobs/active_job"
+    autoload :CopyFileJob,           "rocket_job/jobs/copy_file_job"
+    autoload :DirmonJob,             "rocket_job/jobs/dirmon_job"
+    autoload :OnDemandBatchJob,      "rocket_job/jobs/on_demand_batch_job"
+    autoload :OnDemandJob,           "rocket_job/jobs/on_demand_job"
+    autoload :HousekeepingJob,       "rocket_job/jobs/housekeeping_job"
+    autoload :PerformanceJob,        "rocket_job/jobs/performance_job"
+    autoload :SimpleJob,             "rocket_job/jobs/simple_job"
+    autoload :UploadFileJob,         "rocket_job/jobs/upload_file_job"
+
     module ReEncrypt
-      autoload :RelationalJob, "rocket_job/jobs/re_encrypt/relational_job" if defined?(ActiveRecord) && defined?(SyncAttr)
+      if defined?(ActiveRecord) && defined?(SyncAttr)
+        autoload :RelationalJob,     "rocket_job/jobs/re_encrypt/relational_job"
+      end
     end
   end
 
   module Subscribers
-    autoload :Logger,           "rocket_job/subscribers/logger"
-    autoload :Server,           "rocket_job/subscribers/server"
-    autoload :Worker,           "rocket_job/subscribers/worker"
+    autoload :Logger,                "rocket_job/subscribers/logger"
+    autoload :Server,                "rocket_job/subscribers/server"
+    autoload :Worker,                "rocket_job/subscribers/worker"
   end
 end
 

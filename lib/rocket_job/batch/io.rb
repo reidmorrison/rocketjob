@@ -14,7 +14,7 @@ module RocketJob
       #     Default: None ( Uses the single default input collection for this job )
       #     Validates: This value must be one of those listed in #input_categories
       def input(category = :main)
-        category = input_categories[category] unless category.is_a?(Category)
+        category = input_categories[category] unless category.is_a?(Category::Input)
 
         (@inputs ||= {})[category.name] ||= RocketJob::Sliced.factory(:input, category, self)
       end
@@ -28,9 +28,46 @@ module RocketJob
       #     Default: None ( Uses the single default output collection for this job )
       #     Validates: This value must be one of those listed in #output_categories
       def output(category = :main)
-        category = output_categories[category] unless category.is_a?(Category)
+        raise(ArgumentError, "Cannot supply Input Category to output category") if category.is_a?(Category::Input)
+        category = output_categories[category] unless category.is_a?(Category::Output)
 
         (@outputs ||= {})[category.name] ||= RocketJob::Sliced.factory(:output, category, self)
+      end
+
+      # Rapidly upload individual records in batches.
+      #
+      # Operates directly on a Mongo Collection to avoid the overhead of creating Mongoid objects
+      # for each and every row.
+      #
+      #   input_category(:my_lookup).find(id: 123).first
+      #
+      # Lookup collection.
+      #
+      # Upload side / secondary lookup tables that can be accessed during job processing.
+      #
+      # Example:
+      #   lookup_collection(:my_lookup).upload do |io|
+      #     io << {id: 123, data: "first record"}
+      #     io << {id: 124, data: "second record"}
+      #   end
+      #
+      # Parameters:
+      #   category [Symbol]
+      #     The name of the category to access or download data from
+      #     Default: None ( Uses the single default output collection for this job )
+      #     Validates: This value must be one of those listed in #input_categories
+      def lookup_collection(category = :main)
+        category = input_categories[category] unless category.is_a?(Category::Input)
+
+        collection = (@lookup_collections ||= {})[category.name]
+
+        unless collection
+          collection_name = "rocket_job.inputs.#{id}"
+          collection_name << ".#{category.name}" unless category.name == :main
+
+          @lookup_collections[category.name] ||=
+            LookupCollection.new(Sliced::Slice.collection.database, collection_name)
+        end
       end
 
       # Upload the supplied file, io, IOStreams::Path, or IOStreams::Stream.

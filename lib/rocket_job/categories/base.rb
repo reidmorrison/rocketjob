@@ -1,7 +1,7 @@
 module RocketJob
-  module Batch
+  module Categories
     # Custom Mongoid Type to hold categories
-    class Categories
+    class Base
       include Enumerable
       extend Forwardable
 
@@ -34,29 +34,6 @@ module RocketJob
       # Names of the registered categories.
       def names
         categories.collect(&:name)
-      end
-
-      # Render the row using tabular for each category
-      def render(row)
-        return if row.nil?
-
-        if row.is_a?(Batch::Result)
-          category  = self[row.category]
-          row.value = category.tabular.render(row.value) if category.tabular?
-          return row
-        end
-
-        if row.is_a?(Batch::Results)
-          results = Batch::Results.new
-          row.each { |result| results << render(result) }
-          return results
-        end
-
-        category = self[:main]
-        return row unless category.tabular?
-        return nil if row.blank?
-
-        category.tabular.render(row)
       end
 
       # Converts an object of this instance into a database friendly value.
@@ -101,13 +78,17 @@ module RocketJob
 
       attr_reader :categories
 
+      def category_class
+        raise(NotImplementedError, "RocketJob::Category is an abstract base class")
+      end
+
       def add_categories(categories)
         case categories
         when Hash
           categories.each_pair do |name, values|
             raise(ArgumentError, "Duplicate Category: #{name}") if exist?(name)
 
-            @categories << Batch::Category.new(name: name, **values)
+            @categories << category_class.new(name: name, **values)
           end
         else
           Array(categories).each do |category|
@@ -122,13 +103,15 @@ module RocketJob
       def build_category(category)
         case category
         when Hash
-          Batch::Category.new(**category.symbolize_keys)
+          category_class.new(**category.symbolize_keys)
         when Symbol
-          Batch::Category.new(name: category)
+          category_class.new(name: category)
         when String
-          Batch::Category.new(name: category.to_sym)
-        when Batch::Category
+          category_class.new(name: category.to_sym)
+        when category_class
           category
+        when Category::Base
+          raise(ArgumentError, "Invalid category class: #{category.inspect}")
         else
           raise(ArgumentError, "Unknown category: #{category.inspect}")
         end

@@ -31,10 +31,10 @@ module RocketJob
         #
         # Categories must be declared in advance to avoid a #perform method
         # accidentally writing its results to an unknown category
-        field :output_categories, type: Batch::Categories, default: [:main], class_attribute: true
+        field :output_categories, type: Categories::Output, default: [:main], class_attribute: true
 
         # Optional Array<Symbol> list of categories that this job can load input data into
-        field :input_categories, type: Batch::Categories, default: [:main], class_attribute: true
+        field :input_categories, type: Categories::Input, default: [:main], class_attribute: true
 
         # The file name of the uploaded file, if any.
         # Set by #upload if a file name was supplied, but can also be set explicitly.
@@ -43,13 +43,13 @@ module RocketJob
 
         # Compress data in flight and at rest in the database.
         # Often improves performance since data is smaller.
-        # Can be overridden on a per category basis, see Batch::Categories.
+        # Can be overridden on a per category basis, see Categories.
         field :compress, type: Mongoid::Boolean, default: false, class_attribute: true
 
         # Encrypt and compress data in flight and at rest in the database.
         # Using the Symmetric Encryption Library encrypts data to keep it secure.
         # Compression is also turned on so that less data is encrypted which improves performance.
-        # Can be overridden on a per category basis, see Batch::Categories.
+        # Can be overridden on a per category basis, see Categories.
         field :encrypt, type: Mongoid::Boolean, default: false, class_attribute: true
 
         #
@@ -73,6 +73,28 @@ module RocketJob
         field :sub_state, type: Mongoid::StringifiedSymbol
 
         validates_presence_of :slice_size
+      end
+
+      # Cache input categories.
+      def input_categories
+        @input_categories ||= super
+      end
+
+      # Cache output categories.
+      def output_categories
+        @output_categories ||= super
+      end
+
+      # Cache input categories.
+      def input_categories=(input_categories)
+        super(input_categories)
+        @input_categories = input_categories.is_a?(Batch::InputCategories) ? input_categories : nil
+      end
+
+      # Cache output categories.
+      def output_categories=(output_categories)
+        super(output_categories)
+        @output_categories = output_categories.is_a?(Categories::Output) ? output_categories : nil
       end
 
       # Returns [true|false] whether the slices for this job are encrypted

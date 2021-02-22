@@ -2,12 +2,12 @@ require_relative "../test_helper"
 
 module Batch
   class CategoryTest < Minitest::Test
-    describe RocketJob::Batch::Category do
+    describe RocketJob::Category::Input do
       let(:mongoized) { { "name" => "blah", "serializer" => "encrypt", "file_name" => "MyFile.txt", "columns" => ["abc", "def"], "format" => "psv", "format_options" => { "blah" => 23 }, "mode" => "array" } }
 
       describe "initialize" do
         it "converts string arguments" do
-          category = RocketJob::Batch::Category.new(
+          category = RocketJob::Category::Input.new(
             name:           "blah",
             serializer:     "compress",
             file_name:      "MyFile.txt",
@@ -26,7 +26,7 @@ module Batch
         end
 
         it "accepts symbol arguments" do
-          category = RocketJob::Batch::Category.new(
+          category = RocketJob::Category::Input.new(
             name:           "blah",
             serializer:     :encrypt,
             file_name:      "MyFile.txt",
@@ -45,7 +45,7 @@ module Batch
         end
 
         it "accepts string keys" do
-          category = RocketJob::Batch::Category.new(**mongoized.symbolize_keys)
+          category = RocketJob::Category::Input.new(**mongoized.symbolize_keys)
           assert_equal :blah, category.name
           assert_equal :encrypt, category.serializer
           assert_equal "MyFile.txt", category.file_name
@@ -57,13 +57,13 @@ module Batch
 
         it "rejects bad serializers" do
           assert_raises ArgumentError do
-            RocketJob::Batch::Category.new(name: :blah, serializer: :blah)
+            RocketJob::Category::Input.new(name: :blah, serializer: :blah)
           end
         end
       end
 
       describe "serializer_class" do
-        let(:category) { RocketJob::Batch::Category.new(name: :blah) }
+        let(:category) { RocketJob::Category::Input.new(name: :blah) }
 
         it "uses default none" do
           assert_equal RocketJob::Sliced::Slice, category.serializer_class
@@ -78,24 +78,24 @@ module Batch
         end
 
         it "compress" do
-          category = RocketJob::Batch::Category.new(name: :blah, serializer: :compress)
+          category = RocketJob::Category::Input.new(name: :blah, serializer: :compress)
           assert_equal RocketJob::Sliced::CompressedSlice, category.serializer_class(default_encrypt: false, default_compress: false)
         end
 
         it "encrypt" do
-          category = RocketJob::Batch::Category.new(name: :blah, serializer: :encrypt)
+          category = RocketJob::Category::Input.new(name: :blah, serializer: :encrypt)
           assert_equal RocketJob::Sliced::EncryptedSlice, category.serializer_class(default_encrypt: false, default_compress: false)
         end
 
         it "bzip2" do
-          category = RocketJob::Batch::Category.new(name: :blah, serializer: :bzip2)
+          category = RocketJob::Category::Input.new(name: :blah, serializer: :bzip2)
           assert_equal RocketJob::Sliced::BZip2OutputSlice, category.serializer_class(default_encrypt: false, default_compress: false)
         end
       end
 
       describe "mongoize" do
         it "serializes" do
-          category = RocketJob::Batch::Category.new(
+          category = RocketJob::Category::Input.new(
             name:           "blah",
             serializer:     :encrypt,
             file_name:      "MyFile.txt",
