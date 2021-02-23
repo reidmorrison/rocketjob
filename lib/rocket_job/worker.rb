@@ -150,27 +150,14 @@ module RocketJob
     # Applies the current filter to exclude filtered jobs.
     #
     # Returns nil if no jobs are available for processing.
-    if Mongoid::VERSION.to_f >= 7.1
-      def find_and_assign_job
-        SemanticLogger.silence(:info) do
-          scheduled = RocketJob::Job.where(run_at: nil).or(:run_at.lte => Time.now)
-          working   = RocketJob::Job.queued.or(state: "running", sub_state: "processing")
-          query     = RocketJob::Job.and(working, scheduled)
-          query     = query.and(current_filter) unless current_filter.blank?
-          update    = {"$set" => {"worker_name" => name, "state" => "running"}}
-          query.sort(priority: 1, _id: 1).find_one_and_update(update, bypass_document_validation: true)
-        end
-      end
-    else
-      def find_and_assign_job
-        SemanticLogger.silence(:info) do
-          scheduled = {"$or" => [{run_at: nil}, {:run_at.lte => Time.now}]}
-          working   = {"$or" => [{state: :queued}, {state: "running", sub_state: "processing"}]}
-          query     = RocketJob::Job.and(working, scheduled)
-          query     = query.where(current_filter) unless current_filter.blank?
-          update    = {"$set" => {"worker_name" => name, "state" => "running"}}
-          query.sort(priority: 1, _id: 1).find_one_and_update(update, bypass_document_validation: true)
-        end
+    def find_and_assign_job
+      SemanticLogger.silence(:info) do
+        scheduled = RocketJob::Job.where(run_at: nil).or(:run_at.lte => Time.now)
+        working   = RocketJob::Job.queued.or(state: "running", sub_state: "processing")
+        query     = RocketJob::Job.and(working, scheduled)
+        query     = query.and(current_filter) unless current_filter.blank?
+        update    = {"$set" => {"worker_name" => name, "state" => "running"}}
+        query.sort(priority: 1, _id: 1).find_one_and_update(update, bypass_document_validation: true)
       end
     end
 

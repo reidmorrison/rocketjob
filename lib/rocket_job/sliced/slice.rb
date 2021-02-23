@@ -139,18 +139,10 @@ module RocketJob
 
       # Returns [Hash] the slice as a Hash for storage purposes
       # Compresses / Encrypts the slice according to the job setting
-      if ::Mongoid::VERSION.to_i >= 6
-        def as_attributes
-          attrs            = super
-          attrs["records"] = serialize_records if @records
-          attrs
-        end
-      else
-        def as_document
-          attrs            = super
-          attrs["records"] = serialize_records if @records
-          attrs
-        end
+      def as_attributes
+        attrs            = super
+        attrs["records"] = serialize_records if @records
+        attrs
       end
 
       def inspect

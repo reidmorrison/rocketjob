@@ -17,11 +17,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - mongoid: "7.0"
-            ruby: 2.5
-          - mongoid: "7.0"
-            ruby: jruby
-
           - mongoid: 7.1
             ruby: 2.6
           - mongoid: 7.1
