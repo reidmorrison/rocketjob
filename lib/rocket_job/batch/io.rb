@@ -149,10 +149,22 @@ module RocketJob
       def upload(stream = nil, file_name: nil, category: :main, stream_mode: :line, on_first: nil, **args, &block)
         raise(ArgumentError, "Either stream, or a block must be supplied") unless stream || block
 
-        stream_mode = stream_mode.to_sym
-        # Backward compatibility with existing v4 jobs
-        stream_mode = :array if stream_mode == :row
-        stream_mode = :hash if stream_mode == :record
+        # Tabular transformations required for upload?
+        category = input_categories.main_category
+        # If an input header is not required, or
+        # if the header is already set then don't need additional tabular processing
+        if category&.tabular? && category.tabular.header?
+          on_first = rocket_job_upload_header_lambda(category, on_first)
+        end
+
+        #input_stream = stream.nil? ? nil : IOStreams.new(stream)
+        # TODO: Implement input data cleansers
+        # if stream && (tabular_input_type == :text)
+        #   # Cannot change the length of fixed width lines
+        #   replace = category.format == :fixed ? " " : ""
+        #   input_stream.option_or_stream(:encode, encoding: "UTF-8", cleaner: :printable, replace: replace)
+        # end
+        #super(input_stream, on_first: on_first, stream_mode: category.mode, **args, &block)
 
         count             =
           if block
@@ -439,6 +451,32 @@ module RocketJob
           raise(ArgumentError, "result parameter is required when no block is supplied") unless result
 
           RocketJob::Sliced::Writer::Output.collect(self, input_slice) { |writer| writer << result }
+        end
+      end
+
+      private
+
+      # Return a lambda to extract the header row from the uploaded file.
+      def rocket_job_upload_header_lambda(category, on_first)
+        case category.mode
+        when :line
+          lambda do |line|
+            category.tabular.parse_header(line)
+            category.cleanse_header!
+            category.columns = category.tabular.header.columns
+            input_categories_will_change!
+            # Call chained on_first if present
+            on_first&.call(line)
+          end
+        when :array
+          lambda do |row|
+            category.tabular.header.columns = row
+            category.cleanse_header!
+            category.columns = category.tabular.header.columns
+            input_categories_will_change!
+            # Call chained on_first if present
+            on_first&.call(line)
+          end
         end
       end
     end

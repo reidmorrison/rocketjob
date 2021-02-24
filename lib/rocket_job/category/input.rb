@@ -55,7 +55,7 @@ module RocketJob
       #     Whether to cleans the input header?
       #     Removes issues when the input header varies in case and other small ways. See IOStreams::Tabular
       #     Default: true
-      def initialize(mode: nil,
+      def initialize(mode: :line,
                      allowed_columns: nil,
                      required_columns: nil,
                      skip_unknown: nil,
@@ -70,14 +70,36 @@ module RocketJob
         @cleanse_header   = cleanse_header
       end
 
+      # Cleanses the header column names when `cleanse_header` is true
+      def cleanse_header!
+        return unless cleanse_header
+
+        ignored_columns = tabular.header.cleanse!
+        logger.warn("Stripped out invalid columns from custom header", ignored_columns) unless ignored_columns.empty?
+
+        self.columns = tabular.header.columns
+      end
+
+      def tabular
+        @tabular ||= IOStreams::Tabular.new(
+          columns:          columns,
+          format:           format,
+          format_options:   format_options,
+          file_name:        file_name,
+          allowed_columns:  allowed_columns,
+          required_columns: required_columns,
+          skip_unknown:     skip_unknown
+        )
+      end
+
       # Converts an object of this instance into a database friendly value.
       def mongoize
         h                     = super
-        h["mode"]             = serialize(mode) if mode
+        h["mode"]             = serialize(mode) if mode != :line
         h["allowed_columns"]  = serialize(allowed_columns) if allowed_columns
         h["required_columns"] = serialize(required_columns) if required_columns
         h["skip_unknown"]     = skip_unknown unless skip_unknown.nil?
-        h["cleanse_header"]   = cleanse_header unless cleanse_header == true
+        h["cleanse_header"]   = cleanse_header unless cleanse_header
         h
       end
     end

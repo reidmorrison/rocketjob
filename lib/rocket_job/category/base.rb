@@ -68,18 +68,6 @@ module RocketJob
         end
       end
 
-      # Converts an object of this instance into a database friendly value.
-      def mongoize
-        h                   = {}
-        h["name"]           = serialize(name)
-        h["serializer"]     = serialize(serializer) if serializer
-        h["file_name"]      = serialize(file_name) if file_name
-        h["columns"]        = serialize(columns) if columns
-        h["format"]         = serialize(format) if format
-        h["format_options"] = serialize(format_options) if format_options
-        h
-      end
-
       def tabular
         @tabular ||= IOStreams::Tabular.new(
           columns:        columns,
@@ -92,6 +80,18 @@ module RocketJob
       # Returns [true|false] whether this category has the attributes defined for tabular to work.
       def tabular?
         format.present? || file_name.present?
+      end
+
+      # Converts an object of this instance into a database friendly value.
+      def mongoize
+        h                   = {}
+        h["name"]           = serialize(name)
+        h["serializer"]     = serialize(serializer) if serializer
+        h["file_name"]      = serialize(file_name) if file_name
+        h["columns"]        = serialize(columns) if columns
+        h["format"]         = serialize(format) if format
+        h["format_options"] = serialize(format_options) if format_options
+        h
       end
 
       private

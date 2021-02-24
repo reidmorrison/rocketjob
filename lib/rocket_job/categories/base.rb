@@ -22,7 +22,7 @@ module RocketJob
       def [](category_name)
         category_name = category_name.to_sym
         categories.find { |category| category.name == category_name } ||
-          raise(ArgumentError, "Unknown Category: #{category_name.inspect}. Registered categories: #{names.join(",")}")
+          raise(ArgumentError, "Unknown Category: #{category_name.inspect}. Registered categories: #{names.join(',')}")
       end
 
       # Whether the named category is valid.
@@ -54,7 +54,6 @@ module RocketJob
         when Categories
           object.mongoize
         when Array
-          #object.collect { |category| new(category).mongoize }
           new(object).mongoize
         when Hash
           new(object).mongoize

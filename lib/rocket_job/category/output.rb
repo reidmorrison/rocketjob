@@ -5,9 +5,9 @@ module RocketJob
       # Renders [String] the header line.
       # Returns [nil] if no header is needed.
       def render_header
-        return unless tabular?
+        return if !tabular? || !tabular.requires_header?
 
-        tabular.render_header if tabular.requires_header?
+        tabular.render_header
       end
     end
   end

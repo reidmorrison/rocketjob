@@ -24,18 +24,6 @@ module RocketJob
         # method when it returns `nil`.
         field :collect_nil_output, type: Mongoid::Boolean, default: true, class_attribute: true
 
-        # Optional Array<Symbol> list of categories that this job can output to
-        #
-        # By using categories the output from #perform can be placed in different
-        # output collections, and therefore different output files
-        #
-        # Categories must be declared in advance to avoid a #perform method
-        # accidentally writing its results to an unknown category
-        field :output_categories, type: Categories::Output, default: [:main], class_attribute: true
-
-        # Optional Array<Symbol> list of categories that this job can load input data into
-        field :input_categories, type: Categories::Input, default: [:main], class_attribute: true
-
         # The file name of the uploaded file, if any.
         # Set by #upload if a file name was supplied, but can also be set explicitly.
         # May or may not include the fully qualified path name.
@@ -73,28 +61,6 @@ module RocketJob
         field :sub_state, type: Mongoid::StringifiedSymbol
 
         validates_presence_of :slice_size
-      end
-
-      # Cache input categories.
-      def input_categories
-        @input_categories ||= super
-      end
-
-      # Cache output categories.
-      def output_categories
-        @output_categories ||= super
-      end
-
-      # Cache input categories.
-      def input_categories=(input_categories)
-        super(input_categories)
-        @input_categories = input_categories.is_a?(Batch::InputCategories) ? input_categories : nil
-      end
-
-      # Cache output categories.
-      def output_categories=(output_categories)
-        super(output_categories)
-        @output_categories = output_categories.is_a?(Categories::Output) ? output_categories : nil
       end
 
       # Returns [true|false] whether the slices for this job are encrypted
