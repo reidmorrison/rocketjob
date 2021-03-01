@@ -3,7 +3,7 @@ require_relative "../test_helper"
 module Batch
   class CategoryTest < Minitest::Test
     describe RocketJob::Category::Input do
-      let(:mongoized) { {"name"=>"blah", "serializer"=>"encrypt", "file_name"=>"MyFile.txt", "columns"=>["abc", "def"], "format"=>"psv", "format_options"=>{"blah"=>23}, "mode"=>"hash", "allowed_columns"=>["name", "address", "zip_code"], "required_columns"=>["name", "address"], "skip_unknown"=>false} }
+      let(:mongoized) { {"name" => "blah", "serializer" => "encrypt", "file_name" => "MyFile.txt", "columns" => ["abc", "def"], "format" => "psv", "format_options" => {"blah" => 23}, "mode" => "hash", "allowed_columns" => ["name", "address", "zip_code"], "required_columns" => ["name", "address"], "skip_unknown" => true} }
 
       describe "initialize" do
         it "converts string arguments" do
@@ -92,16 +92,16 @@ module Batch
       describe "mongoize" do
         it "serializes" do
           category = RocketJob::Category::Input.new(
-            name:           "blah",
-            serializer:     :encrypt,
-            file_name:      "MyFile.txt",
-            columns:        [:abc, :def],
-            format:         :psv,
-            format_options: {blah: 23},
-            mode:           :hash,
+            name:             "blah",
+            serializer:       :encrypt,
+            file_name:        "MyFile.txt",
+            columns:          [:abc, :def],
+            format:           :psv,
+            format_options:   {blah: 23},
+            mode:             :hash,
             allowed_columns:  %i[name address zip_code],
             required_columns: %i[name address],
-            skip_unknown:     false
+            skip_unknown:     true
           )
           assert_equal mongoized, category.mongoize
         end

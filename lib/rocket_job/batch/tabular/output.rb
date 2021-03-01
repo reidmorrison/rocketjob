@@ -10,7 +10,7 @@ module RocketJob
         extend ActiveSupport::Concern
 
         included do
-          warn "#{name} is using RocketJob::Batch::Tabular::Output which is deprecated and will be removed in v5.1"
+          warn "#{name} is using RocketJob::Batch::Tabular::Output which is deprecated"
 
           field :tabular_output_header, type: Array, class_attribute: true, user_editable: true, copy_on_restart: true
           field :tabular_output_format, type: Mongoid::StringifiedSymbol, default: :csv, class_attribute: true, user_editable: true, copy_on_restart: true

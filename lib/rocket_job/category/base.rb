@@ -2,7 +2,9 @@ module RocketJob
   module Category
     # Define the layout for each category of input or output data
     class Base
-      attr_accessor :name, :serializer, :file_name, :columns, :format, :format_options
+      attr_accessor :name, :serializer, :columns, :format, :format_options
+      attr_reader :file_name
+      attr_writer :tabular
 
       # Parameters:
       #   serializer: [:compress|:encrypt|:bzip2]
@@ -21,27 +23,33 @@ module RocketJob
       #   format_options: [Hash]
       #     Any specialized format specific options. For example, `:fixed` format requires the file definition.
       #
-      #   file_name: [String]
+      #   file_name: [IOStreams::Path | String]
       #     When `:format` is not supplied the file name can be used to infer the required format.
       #     Optional. Default: nil
+      #     Note: When a String is supplied it is converted to an IOStreams::Path
       def initialize(name: :main,
                      serializer: nil,
                      file_name: nil,
                      columns: nil,
                      format: nil,
                      format_options: nil)
-        serializer = deserialize(serializer)
+        @name           = deserialize(name)
+        @serializer     = deserialize(serializer)
+        @columns        = deserialize(columns)
+        @format         = deserialize(format)
+        @format_options = deserialize(format_options)
+        @file_name      = IOStreams.path(file_name) if file_name
 
-        if [nil, :compress, :encrypt, :bzip2].exclude?(serializer)
-          raise(ArgumentError, "serialize: #{serializer.inspect} must be nil, :compress, :encrypt, or :bzip2")
+        if [nil, :compress, :encrypt, :bzip2].exclude?(@serializer)
+          raise(ArgumentError, "serializer: #{@serializer.inspect} must be nil, :compress, :encrypt, or :bzip2")
         end
+        unless @format.nil? || @format == :auto || IOStreams::Tabular.registered_formats.include?(@format)
+          raise(ArgumentError, "Invalid format: #{@format.inspect}")
+        end
+      end
 
-        @name             = deserialize(name)
-        @serializer       = serializer
-        @columns          = deserialize(columns)
-        @format           = deserialize(format)
-        @format_options   = deserialize(format_options)
-        @file_name        = file_name
+      def file_name=(file_name)
+        @file_name = file_name.nil? ? nil : IOStreams.path(file_name)
       end
 
       # Return which slice serializer class to use that matches the current options.
@@ -71,7 +79,7 @@ module RocketJob
       def tabular
         @tabular ||= IOStreams::Tabular.new(
           columns:        columns,
-          format:         format,
+          format:         format == :auto ? nil : format,
           format_options: format_options,
           file_name:      file_name
         )
@@ -79,7 +87,7 @@ module RocketJob
 
       # Returns [true|false] whether this category has the attributes defined for tabular to work.
       def tabular?
-        format.present? || file_name.present?
+        format.present?
       end
 
       # Converts an object of this instance into a database friendly value.

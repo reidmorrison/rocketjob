@@ -17,7 +17,7 @@ module Batch
           )
           assert_equal :blah, category.name
           assert_equal :compress, category.serializer
-          assert_equal "MyFile.txt", category.file_name
+          assert_equal "MyFile.txt", category.file_name.to_s
           assert_equal(["abc", "def"], category.columns)
           assert_equal :csv, category.format
           assert_equal({blah: 23}, category.format_options)
@@ -34,7 +34,7 @@ module Batch
           )
           assert_equal :blah, category.name
           assert_equal :encrypt, category.serializer
-          assert_equal "MyFile.txt", category.file_name
+          assert_equal "MyFile.txt", category.file_name.to_s
           assert_equal(["abc", "def"], category.columns)
           assert_equal :psv, category.format
           assert_equal({blah: 23}, category.format_options)
@@ -49,7 +49,7 @@ module Batch
           category = RocketJob::Category::Base.new(**mongoized.symbolize_keys)
           assert_equal :blah, category.name
           assert_equal :encrypt, category.serializer
-          assert_equal "MyFile.txt", category.file_name
+          assert_equal "MyFile.txt", category.file_name.to_s
           assert_equal(["abc", "def"], category.columns)
           assert_equal :psv, category.format
           assert_equal({blah: 23}, category.format_options)
@@ -131,9 +131,9 @@ module Batch
           assert category.tabular?
         end
 
-        it "is tabular when filename is set" do
+        it "not tabular when only filename is set" do
           category = RocketJob::Category::Base.new(file_name: "sample.json")
-          assert category.tabular?
+          refute category.tabular?
         end
 
         it "otherwise not tabular" do

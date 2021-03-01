@@ -2,6 +2,8 @@ module RocketJob
   module Category
     # Define the layout for each category of input or output data
     class Input < Base
+      include SemanticLogger::Loggable
+
       attr_accessor :mode, :allowed_columns, :required_columns, :skip_unknown, :cleanse_header
 
       # Parameters:
@@ -58,7 +60,7 @@ module RocketJob
       def initialize(mode: :line,
                      allowed_columns: nil,
                      required_columns: nil,
-                     skip_unknown: nil,
+                     skip_unknown: false,
                      cleanse_header: true,
                      **args)
         super(**args)
@@ -83,7 +85,7 @@ module RocketJob
       def tabular
         @tabular ||= IOStreams::Tabular.new(
           columns:          columns,
-          format:           format,
+          format:           format == :auto ? nil : format,
           format_options:   format_options,
           file_name:        file_name,
           allowed_columns:  allowed_columns,
@@ -98,7 +100,7 @@ module RocketJob
         h["mode"]             = serialize(mode) if mode != :line
         h["allowed_columns"]  = serialize(allowed_columns) if allowed_columns
         h["required_columns"] = serialize(required_columns) if required_columns
-        h["skip_unknown"]     = skip_unknown unless skip_unknown.nil?
+        h["skip_unknown"]     = skip_unknown if skip_unknown
         h["cleanse_header"]   = cleanse_header unless cleanse_header
         h
       end

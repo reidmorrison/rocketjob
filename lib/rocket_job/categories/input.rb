@@ -20,7 +20,7 @@ module RocketJob
                 "The tabular header columns _must_ be set before attempting to parse data that requires it.")
         end
 
-        tabular.render(row)
+        tabular.record_parse(row)
       end
 
       def main_category

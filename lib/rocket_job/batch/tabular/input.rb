@@ -8,7 +8,7 @@ module RocketJob
         extend ActiveSupport::Concern
 
         included do
-          warn "#{name} is using RocketJob::Batch::Tabular::Input which is deprecated and will be removed in v5.1"
+          warn "#{name} is using RocketJob::Batch::Tabular::Input which is deprecated"
 
           field :tabular_input_header, type: Array, class_attribute: true, user_editable: true
           field :tabular_input_format, type: Mongoid::StringifiedSymbol, default: :csv, class_attribute: true, user_editable: true

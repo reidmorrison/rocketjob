@@ -34,7 +34,7 @@ module RocketJob
 
       # Cache input categories.
       def input_categories=(input_categories)
-        if input_categories.is_a?(Categories::Input)
+        if input_categories.is_a?(RocketJob::Categories::Input)
           @input_categories = input_categories
           super(input_categories.mongoize)
         else
@@ -45,7 +45,7 @@ module RocketJob
 
       # Cache output categories.
       def output_categories=(output_categories)
-        if output_categories.is_a?(Categories::Output)
+        if output_categories.is_a?(RocketJob::Categories::Output)
           @output_categories = output_categories
           super(output_categories.mongoize)
         else

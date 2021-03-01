@@ -29,6 +29,7 @@ module RocketJob
       #     Validates: This value must be one of those listed in #output_categories
       def output(category = :main)
         raise(ArgumentError, "Cannot supply Input Category to output category") if category.is_a?(Category::Input)
+
         category = output_categories[category] unless category.is_a?(Category::Output)
 
         (@outputs ||= {})[category.name] ||= RocketJob::Sliced.factory(:output, category, self)
@@ -151,28 +152,42 @@ module RocketJob
 
         # Tabular transformations required for upload?
         category = input_categories.main_category
-        # If an input header is not required, or
-        # if the header is already set then don't need additional tabular processing
-        if category&.tabular? && category.tabular.header?
-          on_first = rocket_job_upload_header_lambda(category, on_first)
+        stream   ||= category.file_name
+        path     = nil
+
+        if stream
+          path                  = IOStreams.new(stream)
+          path.file_name        = file_name if file_name
+          category.file_name    = path.file_name
+          self.upload_file_name = path.file_name if category.name == :main
+
+          # Auto detect the format based on the upload file name if present.
+          if category.format == :auto
+            format = path.format
+            if format
+              # Rebuild tabular with the above file name
+              category.tabular = nil
+              category.format  = format
+            end
+          end
         end
 
-        #input_stream = stream.nil? ? nil : IOStreams.new(stream)
+        # Extract the header line during the file upload when needed.
+        on_first = rocket_job_upload_header_lambda(category, on_first) if category.tabular? && category.tabular.header?
+
+        # input_stream = stream.nil? ? nil : IOStreams.new(stream)
         # TODO: Implement input data cleansers
         # if stream && (tabular_input_type == :text)
         #   # Cannot change the length of fixed width lines
         #   replace = category.format == :fixed ? " " : ""
         #   input_stream.option_or_stream(:encode, encoding: "UTF-8", cleaner: :printable, replace: replace)
         # end
-        #super(input_stream, on_first: on_first, stream_mode: category.mode, **args, &block)
+        # super(input_stream, on_first: on_first, stream_mode: category.mode, **args, &block)
 
         count             =
           if block
             input(category).upload(on_first: on_first, &block)
           else
-            path                  = IOStreams.new(stream)
-            path.file_name        = file_name if file_name
-            self.upload_file_name = path.file_name
             input(category).upload(on_first: on_first) do |io|
               path.each(stream_mode, **args) { |line| io << line }
             end
@@ -406,7 +421,7 @@ module RocketJob
 
           return output_collection.download(&block) if block
 
-          IOStreams.new(stream).stream(:none).writer(**args) do |io|
+          IOStreams.new(stream || category.file_name).stream(:none).writer(**args) do |io|
             output_collection.download { |record| io << record[:binary] }
           end
         else
@@ -414,7 +429,7 @@ module RocketJob
 
           return output_collection.download(header_line: header_line, &block) if block
 
-          IOStreams.new(stream).writer(:line, **args) do |io|
+          IOStreams.new(stream || category.file_name).writer(:line, **args) do |io|
             output_collection.download(header_line: header_line) { |record| io << record }
           end
         end
