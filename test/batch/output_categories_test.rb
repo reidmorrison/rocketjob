@@ -62,6 +62,20 @@ module Batch
       end
     end
 
+    class ComplexCategoryClearJob < RocketJob::Job
+      include RocketJob::Batch
+
+      output_category name: :first, serializer: :compress
+      output_category name: :second, serializer: :encrypt
+
+      def perform(record)
+        results = RocketJob::Batch::Results.new
+        results << RocketJob::Batch::Result.new(:first, record)
+        results << RocketJob::Batch::Result.new(:second, record)
+        results
+      end
+    end
+
     class BZip2CategoryJob < RocketJob::Job
       include RocketJob::Batch
 
@@ -124,6 +138,17 @@ module Batch
       describe "complex category job" do
         it "writes compressed to one category and encrypted to another" do
           @job = ComplexCategoryJob.new
+          @job.upload_slice(lines)
+          @job.perform_now
+          assert @job.completed?, -> { @job.attributes.ai }
+          assert_equal lines, @job.output(:first).first.to_a
+          assert_equal lines, @job.output(:second).first.to_a
+        end
+      end
+
+      describe "complex category clear job" do
+        it "writes compressed to one category and encrypted to another" do
+          @job = ComplexCategoryClearJob.new
           @job.upload_slice(lines)
           @job.perform_now
           assert @job.completed?, -> { @job.attributes.ai }

@@ -36,6 +36,17 @@ module RocketJob
         categories.collect(&:name)
       end
 
+      # Add or Replace the category if it already exists.
+      def replace(category)
+        unless category.is_a?(Category::Base)
+          raise(ArgumentError, ":category must be derived from RocketJob::Category::Base")
+        end
+
+        index = categories.find_index { |cat| cat.name == category.name }
+        index ? categories[index] = category : categories << category
+        category
+      end
+
       # Converts an object of this instance into a database friendly value.
       def mongoize
         categories.collect(&:mongoize)

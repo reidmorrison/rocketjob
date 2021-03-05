@@ -20,6 +20,23 @@ module RocketJob
 
         # Optional Array<Symbol> list of categories that this job can load input data into
         field :input_categories, type: RocketJob::Categories::Input, default: [:main], class_attribute: true
+
+        def self.input_category(slice_size: nil, **args)
+          categories = input_categories
+          categories = RocketJob::Categories::Input.new(categories) unless categories.is_a?(RocketJob::Categories::Input)
+          categories.replace(RocketJob::Category::Input.new(**args))
+          self.slice_size       = slice_size if slice_size
+          self.input_categories = categories.mongoize
+        end
+
+        def self.output_category(name: :main, nils: nil, **args)
+          categories = output_categories
+          categories = RocketJob::Categories::Output.new(categories) unless categories.is_a?(RocketJob::Categories::Output)
+          categories.replace(RocketJob::Category::Output.new(name: name, **args))
+          self.collect_output     = true
+          self.collect_nil_output = nils unless nils.nil?
+          self.output_categories  = categories.mongoize
+        end
       end
 
       # Cache input categories.
