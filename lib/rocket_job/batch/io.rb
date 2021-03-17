@@ -156,6 +156,7 @@ module RocketJob
         path     = nil
 
         if stream
+          input_categories_will_change!
           path                  = IOStreams.new(stream)
           path.file_name        = file_name if file_name
           category.file_name    = path.file_name
@@ -172,19 +173,17 @@ module RocketJob
           end
         end
 
-        # Extract the header line during the file upload when needed.
-        on_first = rocket_job_upload_header_lambda(category, on_first) if category.tabular? && category.tabular.header?
+        if category.tabular?
+          # Remove non-printable characters from tabular input formats
+          # Cannot change the length of fixed width lines
+          replace = category.format == :fixed ? " " : ""
+          path.option_or_stream(:encode, encoding: "UTF-8", cleaner: :printable, replace: replace)
 
-        # input_stream = stream.nil? ? nil : IOStreams.new(stream)
-        # TODO: Implement input data cleansers
-        # if stream && (tabular_input_type == :text)
-        #   # Cannot change the length of fixed width lines
-        #   replace = category.format == :fixed ? " " : ""
-        #   input_stream.option_or_stream(:encode, encoding: "UTF-8", cleaner: :printable, replace: replace)
-        # end
-        # super(input_stream, on_first: on_first, stream_mode: category.mode, **args, &block)
+          # Extract the header line during the file upload when needed.
+          on_first = rocket_job_upload_header_lambda(category, on_first) if category.tabular.header?
+        end
 
-        count             =
+        count =
           if block
             input(category).upload(on_first: on_first, &block)
           else
@@ -192,6 +191,7 @@ module RocketJob
               path.each(stream_mode, **args) { |line| io << line }
             end
           end
+
         self.record_count = (record_count || 0) + count
         count
       end
@@ -479,7 +479,6 @@ module RocketJob
             category.tabular.parse_header(line)
             category.cleanse_header!
             category.columns = category.tabular.header.columns
-            input_categories_will_change!
             # Call chained on_first if present
             on_first&.call(line)
           end
@@ -488,7 +487,6 @@ module RocketJob
             category.tabular.header.columns = row
             category.cleanse_header!
             category.columns = category.tabular.header.columns
-            input_categories_will_change!
             # Call chained on_first if present
             on_first&.call(line)
           end

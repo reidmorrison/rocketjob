@@ -25,3 +25,10 @@ reporters = [
   SemanticLogger::Reporters::Minitest.new
 ]
 Minitest::Reporters.use!(reporters)
+
+# Weed out usages of the BSON Symbol type
+class Symbol
+  def bson_type
+    raise(Mongo::Error::OperationFailure, "Unsupported BSON Symbol: :#{to_s}")
+  end
+end

@@ -16,7 +16,7 @@ module Sliced
       end
 
       let :dataset do
-        ["hello", "world", 1, 3.25, Time.at(Time.now.to_i), [1, 2], {"a" => 43}, true, false, :symbol, nil]
+        ["hello", "world", 1, 3.25, Time.at(Time.now.to_i), [1, 2], {"a" => 43}, true, false, nil]
       end
 
       let :exception do
