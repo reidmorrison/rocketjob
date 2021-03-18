@@ -30,8 +30,8 @@ module Batch
 
       describe "#retry!" do
         it "with substate :before" do
-          assert_equal [:main], @job.output_categories.names
-          assert_equal [:main], @job.input_categories.names
+          assert_equal [:main], @job.output_categories.collect(&:name)
+          assert_equal [:main], @job.input_categories.collect(&:name)
 
           @job.start!
           assert @job.running?

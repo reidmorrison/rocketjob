@@ -48,14 +48,14 @@ module RocketJob
 
         # Stores the categorized result from one result
         def extract_categorized_result(result)
-          category = :main
-          value    = result
+          named_category = :main
+          value          = result
           if result.is_a?(RocketJob::Batch::Result)
-            category = result.category
-            value    = result.value
-            job.output_categories[category]
+            named_category = result.category
+            value          = result.value
+            job.output_category(named_category)
           end
-          (categorized_records[category] ||= []) << value unless value.nil? && !job.collect_nil_output?
+          (categorized_records[named_category] ||= []) << value unless value.nil? && !job.collect_nil_output?
         end
       end
 

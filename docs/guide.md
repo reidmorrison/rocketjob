@@ -169,7 +169,7 @@ class ReportJob < RocketJob::Job
   self.destroy_on_complete = false
   
   # Retain the output from perform
-  self.collect_output = true 
+  output_category
   
   field :username, type: String
   field :user_count, type: Integer
@@ -375,8 +375,9 @@ total document size of 16MB.
 class ReportJob < RocketJob::Job
   # Don't destroy the job when it completes
   self.destroy_on_complete = false
+  
   # Collect the output from the perform method
-  self.collect_output      = true
+  output_category
 
   field :count, type: Integer
 
@@ -1328,7 +1329,7 @@ class ReportJob < RocketJob::Job
   self.destroy_on_complete = false
   
   # Retain the result returned by perform
-  self.collect_output = true   
+  output_category
   
   def perform
     puts "Hello World"
@@ -1837,10 +1838,11 @@ outputting for example the lines that were too short.
 class MultiFileJob < RocketJob::Job
   include RocketJob::Batch
 
-  self.collect_output      = true
   self.destroy_on_complete = false
+
+  output_category
   # Register additional `:invalid` output category for this job
-  self.output_categories   = [ :main, :invalid ]
+  output_category(name: :invalid)
 
   def perform(line)
     if line.length < 10

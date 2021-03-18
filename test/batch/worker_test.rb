@@ -34,8 +34,11 @@ module Batch
       self.destroy_on_complete = false
       self.collect_output      = true
       self.slice_size          = 10
+
       # Register additional output categories for the job
-      self.output_categories = %i[main odd even]
+      output_category(name: :main)
+      output_category(name: :odd)
+      output_category(name: :even)
 
       # Send Even counts to the main collection with odd results to the :odd
       # category
@@ -55,8 +58,11 @@ module Batch
 
       self.destroy_on_complete = false
       self.collect_output      = true
+
       # Register additional output categories for the job
-      self.output_categories = %i[main odd even]
+      output_category(name: :main)
+      output_category(name: :odd)
+      output_category(name: :even)
 
       # Return an undefined category
       def perform(count)
@@ -71,8 +77,11 @@ module Batch
       self.destroy_on_complete = false
       self.collect_output      = true
       self.slice_size          = 10
+
       # Register additional output categories for the job
-      self.output_categories = %i[main odd even]
+      output_category(name: :main)
+      output_category(name: :odd)
+      output_category(name: :even)
 
       # Returns multiple results, each
       def perform
@@ -134,7 +143,7 @@ module Batch
           record_count = 24
           upload_and_perform(job)
           assert job.completed?, -> { job.as_document.ai }
-          assert_equal [:main], job.output_categories.names
+          assert_equal [:main], job.output_categories.collect(&:name)
 
           io = StringIO.new
           job.download(io)
@@ -194,7 +203,7 @@ module Batch
           # Do not raise exceptions, process all slices
           job.rocket_job_work(worker, false)
 
-          assert_equal [:main], job.output_categories.names
+          assert_equal [:main], job.output_categories.collect(&:name)
           assert job.failed?
 
           assert_equal 1, job.input.failed.count, job.input.to_a.inspect
@@ -245,7 +254,7 @@ module Batch
           # Do not raise exceptions, process all slices
           job.rocket_job_work(worker, false)
 
-          assert_equal [:main], job.output_categories.names
+          assert_equal [:main], job.output_categories.collect(&:name)
           assert job.failed?, -> { job.ai }
 
           job.stub(:may_fail?, true) do
@@ -310,7 +319,7 @@ module Batch
           end
           job.perform_now
           assert job.completed?, job.attributes.ai
-          assert_equal %i[main odd even], job.output_categories.names
+          assert_equal %i[main odd even], job.output_categories.collect(&:name)
 
           io = StringIO.new
           job.download(io)

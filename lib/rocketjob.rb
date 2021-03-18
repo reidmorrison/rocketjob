@@ -3,6 +3,7 @@ require "semantic_logger"
 require "symmetric-encryption"
 require "mongoid"
 require "rocket_job/extensions/mongo/logging"
+require "rocket_job/extensions/iostreams/path"
 require "rocket_job/version"
 require "rocket_job/rocket_job"
 require "rocket_job/config"
@@ -38,12 +39,6 @@ module RocketJob
   autoload :ThrottleDefinition,      "rocket_job/throttle_definition"
   autoload :ThrottleDefinitions,     "rocket_job/throttle_definitions"
   autoload :WorkerPool,              "rocket_job/worker_pool"
-
-  module Categories
-    autoload :Base,                  "rocket_job/categories/base"
-    autoload :Input,                 "rocket_job/categories/input"
-    autoload :Output,                "rocket_job/categories/output"
-  end
 
   module Category
     autoload :Base,                  "rocket_job/category/base"

@@ -9,12 +9,14 @@ module RocketJob
       # Returns [RocketJob::Sliced::Input] input collection for holding input slices
       #
       # Parameters:
-      #   category [Symbol]
-      #     The name of the category to access or upload data into
+      #   category [Symbol|RocketJob::Category::Input]
+      #     The category or the name of the category to access or upload data into
       #     Default: None ( Uses the single default input collection for this job )
       #     Validates: This value must be one of those listed in #input_categories
       def input(category = :main)
-        category = input_categories[category] unless category.is_a?(Category::Input)
+        raise(ArgumentError, "Cannot supply Output Category to input category") if category.is_a?(Category::Output)
+
+        category = input_category(category) unless category.is_a?(Category::Input)
 
         (@inputs ||= {})[category.name] ||= RocketJob::Sliced.factory(:input, category, self)
       end
@@ -23,14 +25,14 @@ module RocketJob
       # Returns nil if no output is being collected
       #
       # Parameters:
-      #   category [Symbol]
-      #     The name of the category to access or download data from
+      #   category [Symbol|RocketJob::Category::Input]
+      #     The category or the name of the category to access or download data from
       #     Default: None ( Uses the single default output collection for this job )
       #     Validates: This value must be one of those listed in #output_categories
       def output(category = :main)
         raise(ArgumentError, "Cannot supply Input Category to output category") if category.is_a?(Category::Input)
 
-        category = output_categories[category] unless category.is_a?(Category::Output)
+        category = output_category(category) unless category.is_a?(Category::Output)
 
         (@outputs ||= {})[category.name] ||= RocketJob::Sliced.factory(:output, category, self)
       end
@@ -53,12 +55,12 @@ module RocketJob
       #   end
       #
       # Parameters:
-      #   category [Symbol]
-      #     The name of the category to access or download data from
+      #   category [Symbol|RocketJob::Category::Input]
+      #     The category or the name of the category to access or download data from
       #     Default: None ( Uses the single default output collection for this job )
       #     Validates: This value must be one of those listed in #input_categories
       def lookup_collection(category = :main)
-        category = input_categories[category] unless category.is_a?(Category::Input)
+        category = input_category(category) unless category.is_a?(Category::Input)
 
         collection = (@lookup_collections ||= {})[category.name]
 
@@ -98,6 +100,11 @@ module RocketJob
       #     :hash
       #       Parses each line from the file into a Hash and uploads each hash for processing by workers.
       #     See IOStreams::Stream#each.
+      #
+      #   category [Symbol|RocketJob::Category::Input]
+      #     The category or the name of the category to access or download data from
+      #     Default: None ( Uses the single default output collection for this job )
+      #     Validates: This value must be one of those listed in #input_categories
       #
       # Example:
       #   # Load plain text records from a file
@@ -150,13 +157,11 @@ module RocketJob
       def upload(stream = nil, file_name: nil, category: :main, stream_mode: :line, on_first: nil, **args, &block)
         raise(ArgumentError, "Either stream, or a block must be supplied") unless stream || block
 
-        # Tabular transformations required for upload?
-        category = input_categories.main_category
+        category = input_category(category) unless category.is_a?(Category::Input)
         stream   ||= category.file_name
         path     = nil
 
         if stream
-          input_categories_will_change!
           path                  = IOStreams.new(stream)
           path.file_name        = file_name if file_name
           category.file_name    = path.file_name
@@ -167,12 +172,13 @@ module RocketJob
             format = path.format
             if format
               # Rebuild tabular with the above file name
-              category.tabular = nil
-              category.format  = format
+              category.reset_tabular
+              category.format = format
             end
           end
         end
 
+        # Tabular transformations required for upload?
         if category.tabular?
           # Remove non-printable characters from tabular input formats
           # Cannot change the length of fixed width lines
@@ -203,6 +209,9 @@ module RocketJob
       #     When a block is not supplied, supply the names of the columns to be returned
       #     and uploaded into the job
       #     These columns are automatically added to the select list to reduce overhead
+      #
+      #   category [Symbol|RocketJob::Category::Input]
+      #     The category or the name of the category to upload to.
       #
       # If a Block is supplied it is passed the model returned from the database and should
       # return the work item to be uploaded into the job.
@@ -349,8 +358,8 @@ module RocketJob
       #
       # Note:
       #   Not thread-safe. Only call from one thread at a time
-      def upload_slice(slice)
-        input.insert(slice)
+      def upload_slice(slice, category: :main)
+        input(category).insert(slice)
         count             = slice.size
         self.record_count = (record_count || 0) + count
         count
@@ -413,7 +422,7 @@ module RocketJob
       def download(stream = nil, category: :main, header_line: nil, **args, &block)
         raise "Cannot download incomplete job: #{id}. Currently in state: #{state}-#{sub_state}" if rocket_job_processing?
 
-        category          = output_categories[category]
+        category          = output_category(category) unless category.is_a?(Category::Output)
         output_collection = output(category)
 
         if output_collection.binary?

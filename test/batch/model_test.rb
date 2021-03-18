@@ -5,8 +5,9 @@ module Batch
       include RocketJob::Batch
 
       self.destroy_on_complete = false
-      self.collect_output      = true
-      self.slice_size          = 10
+
+      input_category(slice_size: 10)
+      output_category
 
       def perform(record)
         record

@@ -45,7 +45,9 @@ class MyJob < RocketJob::Job
   
   self.description         = "Reverse names"
   self.destroy_on_complete = false
-  self.collect_output      = true
+  
+  # Collect the output for this job in the default output category: `:main`
+  output_category
 
   # Method to call by all available workers at the same time.
   # Reverse the characters for each line: 

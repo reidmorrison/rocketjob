@@ -12,10 +12,11 @@ class MultiFileJob < RocketJob::Job
   include RocketJob::Batch
   include RocketJob::Batch::Tabular
 
-  self.collect_output      = true
   self.destroy_on_complete = false
+  
   # Register additional `:invalid` output category for this job
-  self.output_categories   = [ :main, :invalid ]
+  output_category(name: :main)
+  output_category(name: :invalid)
   
   # row = {
   #        'first_field' => 100,
@@ -68,9 +69,10 @@ class MultiFileJob < RocketJob::Job
   include RocketJob::Batch
   include RocketJob::Batch::Tabular
 
-  self.collect_output      = true
   self.destroy_on_complete = false
-  self.output_categories   = [ :main, :invalid ]
+
+  output_category(name: :main)
+  output_category(name: :invalid)
   
   field :output_path, type: String
   field :pgp_public_key, type: String

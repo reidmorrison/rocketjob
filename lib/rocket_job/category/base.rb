@@ -1,55 +1,37 @@
+require "active_support/concern"
+
 module RocketJob
   module Category
     # Define the layout for each category of input or output data
-    class Base
-      attr_accessor :name, :serializer, :columns, :format, :format_options
-      attr_reader :file_name
-      attr_writer :tabular
+    module Base
+      extend ActiveSupport::Concern
 
-      # Parameters:
-      #   serializer: [:compress|:encrypt|:bzip2]
-      #     Whether to compress, encrypt, or use the bzip2 serialization for data in this category.
-      #     Overrides the jobs `.compress`, or `.encrypt` options if any.
-      #
-      #   columns [Array<String>]
-      #     The header columns when the file does not include a header row.
-      #     Note:
-      #       All column names must be strings so that it can be serialized into MongoDB.
-      #
-      #   format: [Symbol]
-      #     :csv, :hash, :array, :json, :psv, :fixed
-      #     Default: `nil`, no transformation is performed on the data returned by the `#perform` method.
-      #
-      #   format_options: [Hash]
-      #     Any specialized format specific options. For example, `:fixed` format requires the file definition.
-      #
-      #   file_name: [IOStreams::Path | String]
-      #     When `:format` is not supplied the file name can be used to infer the required format.
-      #     Optional. Default: nil
-      #     Note: When a String is supplied it is converted to an IOStreams::Path
-      def initialize(name: :main,
-                     serializer: nil,
-                     file_name: nil,
-                     columns: nil,
-                     format: nil,
-                     format_options: nil)
-        @name           = deserialize(name)
-        @serializer     = deserialize(serializer)
-        @columns        = deserialize(columns)
-        @format         = deserialize(format)
-        @format_options = deserialize(format_options)
-        @file_name      = IOStreams.path(file_name) if file_name
+      included do
+        field :name, type: ::Mongoid::StringifiedSymbol, default: :main
 
-        if [nil, :compress, :encrypt, :bzip2].exclude?(@serializer)
-          raise(ArgumentError, "serializer: #{@serializer.inspect} must be nil, :compress, :encrypt, or :bzip2")
-        end
-        unless @format.nil? || @format == :auto || IOStreams::Tabular.registered_formats.include?(@format)
-          raise(ArgumentError, "Invalid format: #{@format.inspect}")
-        end
-      end
+        # Whether to compress, encrypt, or use the bzip2 serialization for data in this category.
+        #     Overrides the jobs `.compress`, or `.encrypt` options if any.
+        field :serializer, type: ::Mongoid::StringifiedSymbol
+        # validates nil, :compress|:encrypt|:bzip2
 
-      def file_name=(file_name)
-        @file_name = file_name.nil? ? nil : IOStreams.path(file_name)
+        #     The header columns when the file does not include a header row.
+        #     Note:
+        #       All column names must be strings so that it can be serialized into MongoDB.
+        field :columns, type: Array
+
+        #
+        #     Default: `nil`, no transformation is performed on the data returned by the `#perform` method.
+        field :format, type: ::Mongoid::StringifiedSymbol
+        # validates nil, :csv, :hash, :array, :json, :psv, :fixed
+
+        #   format_options: [Hash]
+        #     Any specialized format specific options. For example, `:fixed` format requires a `:layout`.
+        field :format_options, type: Hash
+
+        #   file_name: [String]
+        #     When `:format` is not supplied the file name can be used to infer the required format.
+        #     Optional. Default: nil
+        field :file_name, type: IOStreams::Path
       end
 
       # Return which slice serializer class to use that matches the current options.
@@ -85,71 +67,13 @@ module RocketJob
         )
       end
 
+      def reset_tabular
+        @tabular = nil
+      end
+
       # Returns [true|false] whether this category has the attributes defined for tabular to work.
       def tabular?
         format.present?
-      end
-
-      # Converts an object of this instance into a database friendly value.
-      def mongoize
-        h                   = {}
-        h["name"]           = serialize(name)
-        h["serializer"]     = serialize(serializer) if serializer
-        h["file_name"]      = serialize(file_name) if file_name
-        h["columns"]        = serialize(columns) if columns
-        h["format"]         = serialize(format) if format
-        h["format_options"] = serialize(format_options) if format_options
-        h
-      end
-
-      private
-
-      def serialize(value)
-        case value
-        when true
-          true
-        when false
-          false
-        when nil
-          nil
-        when Array
-          value.collect { |val| val.is_a?(Symbol) ? val.to_s : val }
-        when Hash
-          h = {}
-          value.each_pair do |key, val|
-            key    = key.to_s if key.is_a?(Symbol)
-            val    = val.to_s if val.is_a?(Symbol)
-            h[key] = val
-          end
-          value.symbolize_keys!
-          h
-        else
-          value.to_s
-        end
-      end
-
-      def deserialize(value)
-        case value
-        when true
-          true
-        when false
-          false
-        when nil
-          nil
-        when Array
-          value.collect { |val| val.is_a?(Symbol) ? val.to_s : val }
-        when Hash
-          h = {}
-          value.each_pair do |key, val|
-            key    = key.to_sym if key.is_a?(String)
-            val    = val.to_sym if val.is_a?(String)
-            h[key] = val
-          end
-          value.symbolize_keys!
-          h
-        else
-          value.to_sym
-        end
       end
     end
   end
