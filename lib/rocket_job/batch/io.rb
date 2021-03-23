@@ -183,7 +183,7 @@ module RocketJob
           # Remove non-printable characters from tabular input formats
           # Cannot change the length of fixed width lines
           replace = category.format == :fixed ? " " : ""
-          path.option_or_stream(:encode, encoding: "UTF-8", cleaner: :printable, replace: replace)
+          path&.option_or_stream(:encode, encoding: "UTF-8", cleaner: :printable, replace: replace)
 
           # Extract the header line during the file upload when needed.
           on_first = rocket_job_upload_header_lambda(category, on_first) if category.tabular.header?
@@ -437,6 +437,8 @@ module RocketJob
           header_line ||= category.render_header
 
           return output_collection.download(header_line: header_line, &block) if block
+
+          raise(ArgumentError, "Missing mandatory `stream` or `category.file_name`") unless stream || category.file_name
 
           IOStreams.new(stream || category.file_name).writer(:line, **args) do |io|
             output_collection.download(header_line: header_line) { |record| io << record }

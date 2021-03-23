@@ -10,7 +10,7 @@ module IOStreams
     def self.demongoize(object)
       case object
       when String
-        new(object)
+        IOStreams.new(object)
       else
         object
       end
