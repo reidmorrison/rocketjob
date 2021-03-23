@@ -8,34 +8,25 @@ module IOStreams
     # Get the object as it was stored in the database, and instantiate
     # this custom class from it.
     def self.demongoize(object)
-      case object
-      when String
-        IOStreams.new(object)
-      else
-        object
-      end
+      return if object.nil?
+
+      IOStreams.new(object)
     end
 
     # Takes any possible object and converts it to how it would be
     # stored in the database.
     def self.mongoize(object)
-      case object
-      when self.class
-        object.mongoize
-      else
-        object
-      end
+      return if object.nil?
+
+      object.to_s
     end
 
     # Converts the object that was supplied to a criteria and converts it
     # into a database friendly form.
     def self.evolve(object)
-      case object
-      when self.class
-        object.mongoize
-      else
-        object
-      end
+      return if object.nil?
+
+      object.to_s
     end
   end
 end
