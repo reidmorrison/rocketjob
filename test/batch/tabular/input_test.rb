@@ -8,7 +8,6 @@ module Batch
         include RocketJob::Batch::Tabular::Input
 
         self.destroy_on_complete = false
-        self.collect_output      = true
 
         input_category(slice_size: 3)
         output_category

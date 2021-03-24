@@ -17,6 +17,9 @@ module RocketJob
         #   When slices are supplied directly, their size is not modified to match this number
         field :slice_size, type: Integer, default: 100, class_attribute: true, user_editable: true, copy_on_restart: true
 
+        # Whether to store the results from this job
+        field :collect_output, type: Mongoid::Boolean, default: false, class_attribute: true
+
         # Whether to retain nil results.
         #
         # Only applicable if `collect_output` is `true`
@@ -149,6 +152,16 @@ module RocketJob
           end
         @worker_count_last = Time.now.to_i
         @worker_count
+      end
+
+      # Returns [true|false] whether to collect nil results from running this batch
+      def collect_nil_output?
+        collect_output? ? (collect_nil_output == true) : false
+      end
+
+      # Returns [true|false] whether to collect the results from running this batch
+      def collect_output?
+        collect_output == true
       end
     end
   end

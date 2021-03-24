@@ -52,7 +52,7 @@ module RocketJob
           start if may_start?
           # Re-Raise exceptions
           rocket_job_work(worker, true) if running?
-          result
+          @rocket_job_output
         end
 
         def perform(*)
@@ -104,11 +104,6 @@ module RocketJob
                 # Allow callbacks to fail, complete or abort the job
                 @rocket_job_output = perform if running?
               end
-            end
-
-            if collect_output?
-              # Result must be a Hash, if not put it in a Hash
-              self.result = @rocket_job_output.is_a?(Hash) ? @rocket_job_output : {"result" => @rocket_job_output}
             end
 
             if new_record? || destroyed?

@@ -184,7 +184,6 @@ module Plugins
           assert_nil job2.worker_name
           assert_equal 0, job2.percent_complete
           assert_nil job2.exception
-          refute job2.result
         end
       end
     end

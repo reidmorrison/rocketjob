@@ -41,9 +41,6 @@ module RocketJob
           # When the job completes destroy it from both the database and the UI
           field :destroy_on_complete, type: Mongoid::Boolean, default: true, class_attribute: true, copy_on_restart: true
 
-          # Whether to store the results from this job
-          field :collect_output, type: Mongoid::Boolean, default: false, class_attribute: true
-
           # Run this job no earlier than this time
           field :run_at, type: Time, user_editable: true
 
@@ -88,12 +85,6 @@ module RocketJob
 
           # Store the last exception for this job
           embeds_one :exception, class_name: "RocketJob::JobException"
-
-          # Store the Hash result from this job if collect_output is true,
-          # and the job returned actually returned a Hash, otherwise nil
-          # Not applicable to SlicedJob jobs, since its output is stored in a
-          # separate collection
-          field :result, type: Hash
 
           index({state: 1, priority: 1, _id: 1}, background: true)
 
@@ -195,16 +186,6 @@ module RocketJob
           end
         end
 
-        # Returns [true|false] whether to collect nil results from running this batch
-        def collect_nil_output?
-          collect_output? ? (collect_nil_output == true) : false
-        end
-
-        # Returns [true|false] whether to collect the results from running this batch
-        def collect_output?
-          collect_output == true
-        end
-
         # Returns [Float] the number of seconds the job has taken
         # - Elapsed seconds to process the job from when a worker first started working on it
         #   until now if still running, or until it was completed
@@ -267,7 +248,6 @@ module RocketJob
         # Returns [Hash] status of this job
         def as_json
           attrs = serializable_hash(methods: %i[seconds duration])
-          attrs.delete("result") unless collect_output?
           attrs.delete("failure_count") unless failure_count.positive?
           if queued?
             attrs.delete("started_at")

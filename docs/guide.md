@@ -1474,7 +1474,7 @@ class ReverseJob < RocketJob::Job
   self.destroy_on_complete = false
 
   # Collect any output from the job
-  self.collect_output      = true
+  output_category
 
   def perform(line)
     # Work on a single record at a time across many workers
@@ -2166,12 +2166,11 @@ RocketJob::Jobs::OnDemandJob.create!(
 Example: Retain output:
 ~~~ruby
 code = <<~CODE
-  {'value' => data['a'] * data['b']}
+  data["result"] = data['a'] * data['b']
 CODE
 
 RocketJob::Jobs::OnDemandJob.create!(
   code:           code,
-  collect_output: true,
   data:           {'a' => 10, 'b' => 2}
 )
 ~~~

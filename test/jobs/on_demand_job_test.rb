@@ -19,29 +19,25 @@ module Jobs
 
         it "retain output" do
           code = <<~CODE
-            {'value' => 'h' * 24}
+            data["result"] = "h" * 24
           CODE
 
-          job = RocketJob::Jobs::OnDemandJob.new(
-            code:           code,
-            collect_output: true
-          )
+          job = RocketJob::Jobs::OnDemandJob.new(code: code)
           job.perform_now
-          assert_equal "h" * 24, job.result["value"]
+          assert_equal "h" * 24, job.data["result"]
         end
 
         it "accepts input data" do
           code = <<~CODE
-            {'value' => data['a'] * data['b']}
+            data["result"] = data["a"] * data["b"]
           CODE
 
           job = RocketJob::Jobs::OnDemandJob.new(
-            code:           code,
-            collect_output: true,
-            data:           {"a" => 10, "b" => 2}
+            code: code,
+            data: {"a" => 10, "b" => 2}
           )
           job.perform_now
-          assert_equal 20, job.result["value"]
+          assert_equal 20, job.data["result"]
         end
 
         it "validates code" do

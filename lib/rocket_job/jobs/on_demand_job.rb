@@ -38,12 +38,11 @@
 #
 # Example: Retain output:
 #   code = <<~CODE
-#     {'value' => data['a'] * data['b']}
+#     data['result'] = data['a'] * data['b']
 #   CODE
 #
 #   RocketJob::Jobs::OnDemandJob.create!(
 #     code:           code,
-#     collect_output: true,
 #     data:           {'a' => 10, 'b' => 2}
 #   )
 #

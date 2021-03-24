@@ -19,14 +19,14 @@ module Plugins
 
       class SumJob < RocketJob::Job
         self.destroy_on_complete = false
-        self.collect_output      = true
         self.priority            = 51
 
         field :first, type: Integer
         field :second, type: Integer
+        field :result, type: Integer
 
         def perform
-          first + second
+          self.result = first + second
         end
       end
 
@@ -43,16 +43,16 @@ module Plugins
         describe "#perform_now" do
           it "calls perform method" do
             @job = SumJob.new(first: 10, second: 5)
-            assert_equal 15, @job.perform_now["result"]
+            assert_equal 15, @job.perform_now
             assert @job.completed?, @job.attributes.ai
-            assert_equal 15, @job.result["result"]
+            assert_equal 15, @job.result
           end
 
           it "converts type" do
             @job = SumJob.new(first: "10", second: 5)
-            assert_equal 15, @job.perform_now["result"]
+            assert_equal 15, @job.perform_now
             assert @job.completed?, @job.attributes.ai
-            assert_equal 15, @job.result["result"]
+            assert_equal 15, @job.result
           end
 
           it "silence logging when log_level is set" do
@@ -85,7 +85,7 @@ module Plugins
           it "run the job immediately" do
             @job = SumJob.perform_now(first: 1, second: 5)
             assert_equal true, @job.completed?
-            assert_equal 6, @job.result["result"]
+            assert_equal 6, @job.result
           end
         end
 

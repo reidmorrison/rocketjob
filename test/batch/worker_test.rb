@@ -6,8 +6,9 @@ module Batch
       include RocketJob::Batch
 
       self.destroy_on_complete = false
-      self.collect_output      = true
-      self.slice_size          = 10
+
+      input_category slice_size: 10
+      output_category
 
       def perform(record)
         record
@@ -19,8 +20,9 @@ module Batch
 
       self.description         = "Exception Tester"
       self.destroy_on_complete = false
-      self.collect_output      = true
-      self.slice_size          = 10
+
+      input_category slice_size: 10
+      output_category
 
       def perform(count)
         nil.no_method_error_please if count == 42
@@ -32,8 +34,9 @@ module Batch
 
       self.description         = "Category Tester"
       self.destroy_on_complete = false
-      self.collect_output      = true
-      self.slice_size          = 10
+
+      input_category slice_size: 10
+      output_category
 
       # Register additional output categories for the job
       output_category(name: :main)
@@ -57,7 +60,6 @@ module Batch
       include RocketJob::Batch
 
       self.destroy_on_complete = false
-      self.collect_output      = true
 
       # Register additional output categories for the job
       output_category(name: :main)
@@ -75,8 +77,8 @@ module Batch
       include RocketJob::Batch
 
       self.destroy_on_complete = false
-      self.collect_output      = true
-      self.slice_size          = 10
+
+      input_category slice_size: 10
 
       # Register additional output categories for the job
       output_category(name: :main)
@@ -98,8 +100,9 @@ module Batch
       include RocketJob::Batch
 
       self.destroy_on_complete = false
-      self.collect_output      = true
-      self.slice_size          = 1
+
+      input_category slice_size: 1
+      output_category
 
       def perform(_record)
         rocket_job_record_number
