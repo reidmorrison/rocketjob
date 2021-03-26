@@ -290,7 +290,7 @@ module RocketJob
       # for each slice processed
       #
       # Example
-      #   job.slice_size = 100
+      #   job.input_category.slice_size = 100
       #   job.upload_integer_range(200, 421)
       #
       #   # Equivalent to calling:
@@ -322,7 +322,7 @@ module RocketJob
       # in a database based on the id column
       #
       # Example
-      #   job.slice_size = 100
+      #   job.input_category.slice_size = 100
       #   job.upload_integer_range_in_reverse_order(200, 421)
       #
       #   # Equivalent to calling:
@@ -354,7 +354,7 @@ module RocketJob
       #     For example the following types are not supported: Date
       #
       # Note:
-      #   The caller should honor `:slice_size`, the entire slice is loaded as-is.
+      #   The caller should implement `:slice_size`, since the entire slice is saved as-is.
       #
       # Note:
       #   Not thread-safe. Only call from one thread at a time
@@ -443,40 +443,6 @@ module RocketJob
           IOStreams.new(stream || category.file_name).writer(:line, **args) do |io|
             output_collection.download(header_line: header_line) { |record| io << record }
           end
-        end
-      end
-
-      # Writes the supplied result, Batch::Result or Batch::Results to the relevant collections.
-      #
-      # If a block is supplied, the block is supplied with a writer that should be used to
-      # accumulate the results.
-      #
-      # Examples
-      #
-      # job.write_output('hello world')
-      #
-      # job.write_output do |writer|
-      #   writer << 'hello world'
-      # end
-      #
-      # job.write_output do |writer|
-      #   result = RocketJob::Batch::Results
-      #   result << RocketJob::Batch::Result.new(:main, 'hello world')
-      #   result << RocketJob::Batch::Result.new(:errors, 'errors')
-      #   writer << result
-      # end
-      #
-      # result = RocketJob::Batch::Results
-      # result << RocketJob::Batch::Result.new(:main, 'hello world')
-      # result << RocketJob::Batch::Result.new(:errors, 'errors')
-      # job.write_output(result)
-      def write_output(result = nil, input_slice = nil, &block)
-        if block
-          RocketJob::Sliced::Writer::Output.collect(self, input_slice, &block)
-        else
-          raise(ArgumentError, "result parameter is required when no block is supplied") unless result
-
-          RocketJob::Sliced::Writer::Output.collect(self, input_slice) { |writer| writer << result }
         end
       end
 

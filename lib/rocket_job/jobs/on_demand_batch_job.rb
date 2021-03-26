@@ -31,16 +31,17 @@
 #   job.perform_now
 #   job.cleanup!
 #
-# By default output is not collected, add the option `collect_output: true` to collect output.
+# By default output is not collected, call the method `#collect_output` to collect output.
 #
 # Example:
 #   job = RocketJob::Jobs::OnDemandBatchJob(
 #     description:              'Fix data',
 #     code:                     code,
 #     throttle_running_workers: 5,
-#     priority:                 30,
-#     collect_output:           true
+#     priority:                 30
 #   )
+#   job.collect_output
+#   job.save!
 #
 # Example: Move the upload operation into a before_batch.
 #   upload_code = <<-CODE
@@ -94,6 +95,14 @@ module RocketJob
       before_slice :load_perform_code
       before_batch :run_before_code
       after_batch :run_after_code
+
+      # Make this job collect its output
+      # :nils [true|false]
+      #   Whether to skip the output from `code` when it is nil
+      #   Default: false
+      def collect_output(nils: false)
+        self.output_categories = [RocketJob::Category::Output.new(nils: nils)]
+      end
 
       private
 

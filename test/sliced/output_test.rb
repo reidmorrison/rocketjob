@@ -5,13 +5,16 @@ module Sliced
     class OutputJob < RocketJob::Job
       include RocketJob::Batch
 
+      input_category slice_size: 2
+      output_category nils: true
+
       def perform(record)
         record
       end
     end
 
     describe RocketJob::Sliced::Output do
-      let(:job) { OutputJob.new(slice_size: 2) }
+      let(:job) { OutputJob.new }
       let(:rows) { %w[hello world last slice] }
 
       let(:loaded_job) do

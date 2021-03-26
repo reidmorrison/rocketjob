@@ -16,7 +16,7 @@ module Batch
       # Slices are allowed to run until 5am on Monday morning, which is 60 hours long:
       self.secondary_duration = 63.hours
 
-      self.slice_size = 1
+      input_category slice_size: 1
 
       def perform(record)
         record

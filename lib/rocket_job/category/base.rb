@@ -37,16 +37,10 @@ module RocketJob
       # Return which slice serializer class to use that matches the current options.
       # Notes:
       #  - The `default_encrypt` and `default_compress` options are only used when the serializer is nil.
-      def serializer_class(default_encrypt: false, default_compress: false)
+      def serializer_class
         case serializer
         when nil
-          if default_encrypt
-            Sliced::EncryptedSlice
-          elsif default_compress
-            Sliced::CompressedSlice
-          else
-            Sliced::Slice
-          end
+          Sliced::Slice
         when :compress
           Sliced::CompressedSlice
         when :encrypt

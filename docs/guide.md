@@ -1467,11 +1467,11 @@ priority job arrives, and then to resume processing once the higher priority job
 class ReverseJob < RocketJob::Job
   include RocketJob::Batch
 
-  # Number of lines/records for each slice
-  self.slice_size          = 100
-
   # Keep the job around after it has finished
   self.destroy_on_complete = false
+
+  # Number of lines/records for each slice
+  input_category slice_size: 100
 
   # Collect any output from the job
   output_category
@@ -1523,8 +1523,7 @@ This makes it easy to correlate an input record with its corresponding output re
 There are cases however where the exact input and output record ordering can be changed:
 - When an input file has a header row, for example CSV, but the output file does not require one, for example JSON or XML.
     - In this case the output file is just missing the header row, so every record / line will be off by 1.
-- By specifying `self.collect_nil_output = false` on the job it skips any records for which `nil` was returned by
-  the `perform` method. 
+- By specifying `nils: false` on the output category it skips any records for which `nil` was returned by the `perform` method. 
 
 ### Job Completion
 
@@ -2240,12 +2239,14 @@ job.perform_now
 job.cleanup!
 ~~~
 
-By default output is not collected, add the option `collect_output: true` to collect output.
+By default output is not collected, call `#collect_output` to collect output.
 
 Example:
 
 ~~~ruby
-job = RocketJob::Jobs::OnDemandBatchJob(description: 'Fix data', code: code, throttle_running_workers: 5, priority: 30, collect_output: true)
+job = RocketJob::Jobs::OnDemandBatchJob(description: 'Fix data', code: code, throttle_running_workers: 5, priority: 30)
+job.collect_output
+job.save!
 ~~~
 
 Example: Move the upload operation into a before_batch.

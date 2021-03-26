@@ -19,9 +19,8 @@ module RocketJob
 
         # Define a new input category
         # @see RocketJob::Category::Input
-        def self.input_category(slice_size: nil, **args)
-          self.slice_size = slice_size if slice_size
-          category        = RocketJob::Category::Input.new(slice_size: slice_size, **args)
+        def self.input_category(**args)
+          category = RocketJob::Category::Input.new(**args)
           if defined_input_categories.nil?
             self.defined_input_categories = [category]
           else
@@ -31,11 +30,8 @@ module RocketJob
 
         # Define a new output category
         # @see RocketJob::Category::Output
-        def self.output_category(nils: nil, **args)
-          self.collect_output     = true
-          self.collect_nil_output = nils unless nils.nil?
-
-          category = RocketJob::Category::Output.new(nils: nils, **args)
+        def self.output_category(**args)
+          category = RocketJob::Category::Output.new(**args)
           if defined_output_categories.nil?
             self.defined_output_categories = [category]
           else
@@ -62,7 +58,13 @@ module RocketJob
         # .find does not work against this association
         input_categories.each { |catg| category = catg if catg.name == category_name }
         unless category
-          raise(ArgumentError, "Unknown Input Category: #{category_name.inspect}. Registered categories: #{input_categories.collect(&:name).join(',')}")
+          # Auto-register main input category if missing
+          if category_name == :main
+            category              = Category::Input.new
+            self.input_categories = [category]
+          else
+            raise(ArgumentError, "Unknown Input Category: #{category_name.inspect}. Registered categories: #{input_categories.collect(&:name).join(',')}")
+          end
         end
         category
       end
@@ -80,36 +82,17 @@ module RocketJob
 
       private
 
-      # def rocketjob_categories_assign
-      #   self.input_categories =
-      #     if self.class.defined_input_categories
-      #       self.class.defined_input_categories.deep_dup
-      #     else
-      #       [RocketJob::Category::Input.new]
-      #     end
-      #
-      #   self.output_categories =
-      #     if self.class.defined_output_categories
-      #       self.class.defined_output_categories.deep_dup
-      #     else
-      #       [RocketJob::Category::Output.new]
-      #     end
-      # end
       def rocketjob_categories_assign
-        self.input_categories  = rocketjob_categories_assign_categories(
-          input_categories,
-          self.class.defined_input_categories,
-          RocketJob::Category::Input
-        )
-        self.output_categories = rocketjob_categories_assign_categories(
-          output_categories,
-          self.class.defined_output_categories,
-          RocketJob::Category::Output
-        )
-      end
+        # Input categories defaults to :main if none was set in the class
+        self.input_categories  =
+          if self.class.defined_input_categories
+            self.class.defined_input_categories.deep_dup
+          else
+            [RocketJob::Category::Input.new]
+          end
 
-      def rocketjob_categories_assign_categories(categories, defined_categories, category_class)
-        defined_categories ? defined_categories.deep_dup : [category_class.new]
+        # Input categories defaults to nil if none was set in the class
+        self.output_categories = self.class.defined_output_categories.deep_dup if self.class.defined_output_categories
       end
 
       # Render the output from the perform.
@@ -170,16 +153,56 @@ module RocketJob
         category.tabular.render(row)
       end
 
+      # Migrate existing v4 batch jobs to v5.0
       def rocketjob_categories_migrate
-        unless self[:input_categories].blank? || !self[:input_categories].first.is_a?(Symbol)
-          self[:input_categories] =
-            self[:input_categories].collect { |category_name| RocketJob::Category::Input.new(name: category_name).as_document }
+        return if self[:input_categories].blank? || !self[:input_categories].first.is_a?(Symbol)
+
+        serializer = nil
+        if attribute_present?(:compress)
+          serializer = :compress if self[:compress]
+          remove_attribute(:compress)
         end
 
-        return if self[:output_categories].blank? || !self[:output_categories].first.is_a?(Symbol)
+        if attribute_present?(:encrypt)
+          serializer = :encrypt if self[:encrypt]
+          remove_attribute(:encrypt)
+        end
 
-        self[:output_categories] =
-          self[:output_categories].collect { |category_name| RocketJob::Category::Output.new(name: category_name).as_document }
+        slice_size = 100
+        if attribute_present?(:slice_size)
+          slice_size = self[:slice_size].to_i
+          remove_attribute(:slice_size)
+        end
+
+        existing = self[:input_categories]
+        self[:input_categories] = []
+        self[:input_categories] = existing.collect do |category_name|
+          RocketJob::Category::Input.new(name: category_name, serializer: serializer, slice_size: slice_size).as_document
+        end
+
+        collect_output = false
+        if attribute_present?(:collect_output)
+          collect_output = self[:collect_output]
+          remove_attribute(:collect_output)
+        end
+
+        collect_nil_output = true
+        if attribute_present?(:collect_nil_output)
+          collect_nil_output = self[:collect_nil_output]
+          remove_attribute(:collect_nil_output)
+        end
+
+        existing = self[:output_categories]
+        self[:output_categories] = []
+        if existing.blank?
+          if collect_output
+            self[:output_categories] = [RocketJob::Category::Output.new(nils: collect_nil_output).as_document]
+          end
+        elsif existing.first.is_a?(Symbol)
+          self[:output_categories] = existing.collect do |category_name|
+            RocketJob::Category::Output.new(name: category_name, serializer: serializer, nils: collect_nil_output).as_document
+          end
+        end
       end
     end
   end

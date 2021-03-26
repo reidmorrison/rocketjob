@@ -8,8 +8,9 @@ module Batch
       include RocketJob::Batch::Tabular::Output
 
       self.destroy_on_complete = false
-      self.collect_output      = true
-      self.slice_size          = 3
+
+      input_category slice_size: 3
+      output_category nils: true
 
       def perform(record)
         # Handle blank lines ( as nil )
@@ -23,8 +24,9 @@ module Batch
       include RocketJob::Batch::Tabular::Output
 
       self.destroy_on_complete = false
-      self.collect_output      = true
-      self.slice_size          = 3
+
+      input_category slice_size: 3
+      output_category nils: true
 
       def perform(record)
         record
@@ -40,9 +42,10 @@ module Batch
       attr_accessor :specialized_first_slice
 
       self.destroy_on_complete   = false
-      self.collect_output        = true
-      self.slice_size            = 3
       self.tabular_output_header = %w[one two three]
+
+      input_category slice_size: 3
+      output_category nils: true
 
       def perform(record)
         # Handle blank lines ( as nil )

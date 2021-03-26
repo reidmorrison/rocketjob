@@ -23,9 +23,6 @@ module RocketJob
       #
       # Slices are destroyed after their records are successfully processed
       #
-      # Results are stored in the output collection if `collect_output?`
-      # `nil` results from workers are kept if `collect_nil_output`
-      #
       # If an exception was thrown the entire slice of records is marked as failed.
       #
       # Thread-safe, can be called by multiple threads at the same time
@@ -245,7 +242,7 @@ module RocketJob
         unless new_record?
           # Fail job iff no other worker has already finished it
           # Must set write concern to at least 1 since we need the nModified back
-          result = self.class.with(write: {w: 1}) do |query|
+          result   = self.class.with(write: {w: 1}) do |query|
             query.
               where(id: id, state: :running, sub_state: :processing).
               update({"$set" => {state: :failed, worker_name: worker_name}})

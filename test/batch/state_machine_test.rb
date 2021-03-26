@@ -5,6 +5,8 @@ module Batch
     class SimpleJob < RocketJob::Job
       include RocketJob::Batch
 
+      output_category nils: true
+
       def perform(record)
         record
       end

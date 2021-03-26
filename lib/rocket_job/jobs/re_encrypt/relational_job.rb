@@ -17,12 +17,12 @@ module RocketJob
       class RelationalJob < RocketJob::Job
         include RocketJob::Batch
 
-        self.slice_size               = 1000
         self.priority                 = 30
         self.destroy_on_complete      = false
-        self.compress                 = true
         self.throttle_running_jobs    = 1
         self.throttle_running_workers = 10
+
+        input_category serializer: :compress, slice_size: 1_000
 
         # Name of the table being re-encrypted
         field :table_name, type: String
@@ -121,7 +121,7 @@ module RocketJob
           start_id          = self.class.connection.select_value("select min(id) from #{quoted_table_name}").to_i
           last_id           = self.class.connection.select_value("select max(id) from #{quoted_table_name}").to_i
           self.record_count =
-            last_id.positive? ? (input.upload_integer_range_in_reverse_order(start_id, last_id) * slice_size) : 0
+            last_id.positive? ? (input.upload_integer_range_in_reverse_order(start_id, last_id) * input_category.slice_size) : 0
         end
       end
     end

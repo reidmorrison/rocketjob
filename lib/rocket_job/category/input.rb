@@ -9,44 +9,78 @@ module RocketJob
       embedded_in :job, class_name: "RocketJob::Job", inverse_of: :input_categories
 
       # Slice size for this input collection
-      field :slice_size, type: Integer #, default: 100
+      field :slice_size, type: Integer, default: 100
 
-      #   allowed_columns [Array<String>]
-      #     List of columns to allow.
-      #     Default: nil ( Allow all columns )
-      #     Note:
-      #       When supplied any columns that are rejected will be returned in the cleansed columns
-      #       as nil so that they can be ignored during processing.
+      #
+      # The fields below only apply if the field `format` has been set:
+      #
+
+      # List of columns to allow.
+      # Default: nil ( Allow all columns )
+      # Note:
+      #   When supplied any columns that are rejected will be returned in the cleansed columns
+      #   as nil so that they can be ignored during processing.
       field :allowed_columns, type: Array
 
-      #   required_columns [Array<String>]
-      #     List of columns that must be present, otherwise an Exception is raised.
+      # List of columns that must be present, otherwise an Exception is raised.
       field :required_columns, type: Array
 
-      #   skip_unknown [true|false]
-      #     true:
-      #       Skip columns not present in the `allowed_columns` by cleansing them to nil.
-      #       #as_hash will skip these additional columns entirely as if they were not in the file at all.
-      #     false:
-      #       Raises Tabular::InvalidHeader when a column is supplied that is not in the whitelist.
-      field :skip_unknown, type: ::Mongoid::Boolean
+      # Whether to skip unknown columns in the uploaded file.
+      # Ignores any column that was not found in the `allowed_columns` list.
+      #
+      # false:
+      #   Raises IOStreams::Tabular::InvalidHeader when a column is supplied that is not in `allowed_columns`.
+      # true:
+      #   Ignore additional columns in a file that are not listed in `allowed_columns`
+      #   Job processing will skip the additional columns entirely as if they were not supplied at all.
+      #   A warning is logged with the names of the columns that were ignored.
+      #   The `columns` field will list all skipped columns with a nil value so that downstream workers
+      #   know to ignore those columns.
+      #
+      # Notes:
+      # - Only applicable when `allowed_columns` has been set.
+      # - Recommended to leave as `false` otherwise a misspelled column can result in missed columns.
+      field :skip_unknown, type: ::Mongoid::Boolean, default: false
 
-      #   mode: [:line | :array | :hash]
-      #     :line
-      #       Uploads the file a line (String) at a time for processing by workers.
-      #     :array
-      #       Parses each line from the file as an Array and uploads each array for processing by workers.
-      #     :hash
-      #       Parses each line from the file into a Hash and uploads each hash for processing by workers.
-      #     See IOStreams#each.
+      # When `#upload` is called with a file_name, it uploads the file using any of the following approaches:
+      # :line
+      #   Uploads the file a line (String) at a time for processing by workers.
+      #   This is the default behavior and is the most performant since it leaves the parsing of each line
+      #   up to the workers themselves.
+      # :array
+      #   Parses each line from the file as an Array and uploads each array for processing by workers.
+      #   Every line in the input file is parsed and converted into an array before uploading.
+      #   This approach ensures that the entire files is valid before starting to process it.
+      #   Ideal for when files may contain invalid lines.
+      #   Not recommended for large files since the CSV or other parsing is performed sequentially during the
+      #   upload process.
+      # :hash
+      #   Parses each line from the file into a Hash and uploads each hash for processing by workers.
+      #   Similar to :array above in that the entire file is parsed before processing is started.
+      #   Slightly less efficient than :array since it stores every record as a hash with both the key and value.
+      #
+      # Recommend using :array when the entire file must be parsed/validated before processing is started, and
+      # upload time is not important.
+      # See IOStreams#each for more details.
       field :mode, type: ::Mongoid::StringifiedSymbol, default: :line
 
-      #   cleanse_header: [true|false]
-      #     Whether to cleans the input header?
-      #     Removes issues when the input header varies in case and other small ways. See IOStreams::Tabular
-      #     Default: Apply default cleansing rules
-      #     nil: Don't perform header cleansing
+      # When reading tabular input data (e.g. CSV, PSV) the header is automatically cleansed.
+      # This removes issues when the input header varies in case and other small ways. See IOStreams::Tabular
+      # Currently Supported:
+      #   :default
+      #     Each column is cleansed as follows:
+      #     - Leading and trailing whitespace is stripped.
+      #     - All characters converted to lower case.
+      #     - Spaces and '-' are converted to '_'.
+      #     - All characters except for letters, digits, and '_' are stripped.
+      #   :none
+      #     Do not cleanse the columns names supplied in the header row.
+      #
+      # Note: Submit a ticket if you have other cleansers that you want added.
       field :header_cleanser, type: ::Mongoid::StringifiedSymbol, default: :default
+
+      validates :header_cleanser, inclusion: %i[default none]
+      validates_presence_of :slice_size
 
       # Cleanses the header column names when `cleanse_header` is true
       def cleanse_header!

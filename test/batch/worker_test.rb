@@ -189,7 +189,7 @@ module Batch
           slice_record_count = 1
           job.output.each do |slice|
             assert_equal slice_record_count, slice.first, slice
-            slice_record_count += job.slice_size
+            slice_record_count += job.input_category.slice_size
           end
         end
 
@@ -197,7 +197,8 @@ module Batch
           # Allow slices to fail so that the job as a whole is marked
           # as failed when no more queued slices are available
           record_count = 74
-          job          = ExceptionJob.new(slice_size: 10)
+          job          = ExceptionJob.new
+          job.input_category.slice_size = 10
           job.upload do |records|
             (1..record_count).each { |i| records << i }
           end
@@ -248,7 +249,8 @@ module Batch
           # Allow slices to fail so that the job as a whole is marked
           # as failed when no more queued slices are available
           record_count = 74
-          job          = ExceptionJob.new(slice_size: 10)
+          job          = ExceptionJob.new
+          job.input_category.slice_size = 10
           job.upload do |records|
             (1..record_count).each { |i| records << i }
           end
@@ -372,7 +374,8 @@ module Batch
         let(:worker3) { RocketJob::Worker.new(server_name: "worker1:5673", id: 2) }
 
         let(:loaded_job) do
-          job = SimpleJob.new(slice_size: 2, worker_name: worker.name, state: :running, sub_state: :processing, started_at: 1.minute.ago)
+          job = SimpleJob.new(worker_name: worker.name, state: :running, sub_state: :processing, started_at: 1.minute.ago)
+          job.input_category.slice_size = 2
           job.upload do |stream|
             10.times { |i| stream << "line#{i + 1}" }
           end

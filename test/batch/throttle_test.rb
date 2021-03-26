@@ -8,7 +8,8 @@ module Batch
       # Only allow one to be processed at a time
       self.throttle_running_jobs    = 1
       self.throttle_running_workers = 1
-      self.slice_size               = 1
+
+      input_category slice_size: 1
 
       def perform(record)
         record
@@ -21,8 +22,9 @@ module Batch
       # Only allow one to be processed at a time
       self.throttle_running_jobs    = 1
       self.throttle_running_workers = 1
-      self.slice_size               = 1
       self.throttle_group           = "only_one"
+
+      input_category slice_size: 1
 
       def perform(record)
         record
@@ -35,8 +37,9 @@ module Batch
       # Only allow one to be processed at a time
       self.throttle_running_jobs    = 1
       self.throttle_running_workers = 1
-      self.slice_size               = 1
       self.throttle_group           = "only_one"
+
+      input_category slice_size: 1
 
       def perform(record)
         record

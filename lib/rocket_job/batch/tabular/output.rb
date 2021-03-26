@@ -57,7 +57,7 @@ module RocketJob
 
         # Render the output from the perform.
         def tabular_output_render
-          return unless collect_output?
+          return unless output_categories.present?
 
           @rocket_job_output = tabular_output.render(@rocket_job_output)
         end

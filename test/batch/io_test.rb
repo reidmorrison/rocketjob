@@ -5,6 +5,9 @@ module Batch
     class IOJob < RocketJob::Job
       include RocketJob::Batch
 
+      input_category slice_size: 2
+      output_category nils: true
+
       def perform(record)
         record
       end
@@ -14,7 +17,7 @@ module Batch
       let(:text_file) { IOStreams.path(File.dirname(__FILE__), "files", "text.txt") }
       let(:gzip_file) { IOStreams.path(File.dirname(__FILE__), "files", "text.txt.gz") }
 
-      let(:job) { IOJob.new(slice_size: 2) }
+      let(:job) { IOJob.new }
       let(:rows) { %w[hello world last slice] }
       let(:delimited_rows) { rows.join("\n") + "\n" }
 

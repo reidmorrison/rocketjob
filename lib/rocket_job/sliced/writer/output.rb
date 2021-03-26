@@ -11,7 +11,7 @@ module RocketJob
         # Notes:
         #   Nothing is saved if an exception is raised inside the block
         def self.collect(job, input_slice = nil)
-          if job.collect_output?
+          if job.output_categories.present?
             writer = new(job, input_slice)
             yield(writer)
             writer.close
@@ -53,9 +53,8 @@ module RocketJob
           if result.is_a?(RocketJob::Batch::Result)
             named_category = result.category
             value          = result.value
-            job.output_category(named_category)
           end
-          (categorized_records[named_category] ||= []) << value unless value.nil? && !job.collect_nil_output?
+          (categorized_records[named_category] ||= []) << value unless value.nil? && !job.output_category(named_category).nils
         end
       end
 

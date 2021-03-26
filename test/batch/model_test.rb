@@ -6,7 +6,7 @@ module Batch
 
       self.destroy_on_complete = false
 
-      input_category(slice_size: 10)
+      input_category slice_size: 10
       output_category
 
       def perform(record)

@@ -5,7 +5,7 @@ module Batch
     class CompressedJob < RocketJob::Job
       include RocketJob::Batch
 
-      self.compress = true
+      input_category slice_size: 2, serializer: :compress
 
       def perform(record)
         record
@@ -15,18 +15,7 @@ module Batch
     class EncryptedJob < RocketJob::Job
       include RocketJob::Batch
 
-      self.encrypt = true
-
-      def perform(record)
-        record
-      end
-    end
-
-    class CompressedAndEncryptedJob < RocketJob::Job
-      include RocketJob::Batch
-
-      self.compress = true
-      self.encrypt  = true
+      input_category slice_size: 2, serializer: :encrypt
 
       def perform(record)
         record
@@ -36,7 +25,7 @@ module Batch
     describe RocketJob::Sliced do
       let(:text_file) { IOStreams.path(File.dirname(__FILE__), "files", "text.txt") }
 
-      let(:job) { CompressedJob.new(slice_size: 2) }
+      let(:job) { CompressedJob.new }
 
       after do
         job.cleanup!
@@ -57,7 +46,7 @@ module Batch
         end
 
         describe "encrypted" do
-          let(:job) { EncryptedJob.new(slice_size: 2) }
+          let(:job) { EncryptedJob.new }
 
           it "readable" do
             job.upload(text_file.to_s)
@@ -66,21 +55,6 @@ module Batch
           end
 
           it "is encrypted" do
-            job.upload(text_file.to_s)
-            assert_equal RocketJob::Sliced::EncryptedSlice, job.input.first.class
-          end
-        end
-
-        describe "compressed and encrypted" do
-          let(:job) { CompressedAndEncryptedJob.new(slice_size: 2) }
-
-          it "readable" do
-            job.upload(text_file.to_s)
-            result = job.input.collect(&:to_a).join("\n") + "\n"
-            assert_equal text_file.read, result
-          end
-
-          it "is compressed" do
             job.upload(text_file.to_s)
             assert_equal RocketJob::Sliced::EncryptedSlice, job.input.first.class
           end

@@ -19,17 +19,15 @@ module RocketJob
       collection_name = "rocket_job.#{direction}s.#{job.id}"
       collection_name << ".#{category.name}" unless category.name == :main
 
-      args = {
-        collection_name: collection_name,
-        slice_size:      job.slice_size,
-        slice_class:     category.serializer_class(default_encrypt: job.encrypt, default_compress: job.compress)
-      }
-
       case direction
       when :input
-        RocketJob::Sliced::Input.new(**args)
+        RocketJob::Sliced::Input.new(
+          collection_name: collection_name,
+          slice_class:     category.serializer_class,
+          slice_size:      category.slice_size
+        )
       when :output
-        RocketJob::Sliced::Output.new(**args)
+        RocketJob::Sliced::Output.new(collection_name: collection_name, slice_class: category.serializer_class)
       else
         raise(ArgumentError, "Unknown direction: #{direction.inspect}")
       end

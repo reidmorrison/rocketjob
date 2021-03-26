@@ -166,7 +166,8 @@ module Batch
 
     describe RocketJob::Batch::Statistics do
       let :job do
-        job = BatchSlicesJob.new(slice_size: 4)
+        job = BatchSlicesJob.new
+        job.input_category.slice_size = 4
         job.upload do |stream|
           7.times.each { |i| stream << i }
         end

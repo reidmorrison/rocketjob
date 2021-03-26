@@ -6,7 +6,7 @@ module Batch
       include RocketJob::Batch
       include RocketJob::Batch::LowerPriority
 
-      self.slice_size = 2
+      input_category slice_size: 2
 
       before_batch :upload_test, :lower_priority
 
