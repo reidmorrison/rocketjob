@@ -91,8 +91,16 @@ module RocketJob
           logger.info("Job has expired. Not creating a new instance.")
           return
         end
-        attributes = rocket_job_restart_attributes.each_with_object({}) { |attr, attrs| attrs[attr] = send(attr) }
-        rocket_job_restart_create(attributes)
+        job_attrs              =
+          rocket_job_restart_attributes.each_with_object({}) { |attr, attrs| attrs[attr] = send(attr) }
+        job                    = self.class.new(job_attrs)
+
+        # Copy across input and output categories to new scheduled job so that all of the
+        # settings are remembered between instance. Example: slice_size
+        job.input_categories  = input_categories if respond_to?(:input_categories)
+        job.output_categories = output_categories if respond_to?(:output_categories)
+
+        rocket_job_restart_save(job)
       end
 
       def rocket_job_restart_abort
@@ -101,11 +109,10 @@ module RocketJob
 
       # Allow Singleton to prevent the creation of a new job if one is already running
       # Retry since the delete may not have persisted to disk yet.
-      def rocket_job_restart_create(attrs, retry_limit = 3, sleep_interval = 0.1)
+      def rocket_job_restart_save(job, retry_limit = 10, sleep_interval = 0.5)
         count = 0
         while count < retry_limit
-          job = self.class.create(attrs)
-          if job.persisted?
+          if job.save
             logger.info("Created a new job instance: #{job.id}")
             return true
           else

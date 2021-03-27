@@ -15,6 +15,41 @@ module Plugins
       end
     end
 
+    class RestartableBatchJob < RocketJob::Job
+      include RocketJob::Batch
+      include RocketJob::Plugins::Restart
+
+      field :start_at, type: Date
+      field :end_at, type: Date
+
+      input_category format: :csv, slice_size: 251
+      output_category format: :csv, columns: %w[first_name last_name age zip_code]
+
+      before_batch :set_dates, :upload_data
+
+      def perform(hash)
+        hash
+      end
+
+      private
+
+      def set_dates
+        self.start_at             = Date.today
+        self.end_at               = Date.today
+        output_category.file_name = "#{start_at}.czv.gz"
+      end
+
+      def upload_data
+        str = <<~STRING
+          First Name, Last name, age, zip code
+          Jack,Jones,21,12345
+          Mary,Jane,32,55512
+        STRING
+        path = IOStreams.stream(StringIO.new(str))
+        upload(path)
+      end
+    end
+
     class RestartablePausableJob < RocketJob::Job
       include RocketJob::Plugins::Restart
 
@@ -34,6 +69,7 @@ module Plugins
     describe RocketJob::Plugins::Restart do
       before do
         RestartableJob.delete_all
+        RestartableBatchJob.delete_all
         RestartablePausableJob.delete_all
       end
 
@@ -148,12 +184,25 @@ module Plugins
       end
 
       describe "#create_new_instance" do
-        it "sets job back to queued state" do
+        it "creates new job in queued state" do
           @job = RestartableJob.create!(destroy_on_complete: true)
           @job.perform_now
           assert_equal 1, RestartableJob.count
           assert job2 = RestartableJob.where(:id.ne => @job.id).first
           assert job2.queued?, job2.attributes.ai
+        end
+
+        it "copies categories when restarting batch jobs" do
+          @job                           = RestartableBatchJob.create!(destroy_on_complete: true)
+          @job.input_category.slice_size = 378
+          @job.output_category.nils      = true
+          @job.perform_now
+          assert_equal 1, RestartableBatchJob.count
+          assert job2 = RestartableBatchJob.where(:id.ne => @job.id).first
+          assert job2.queued?, job2.attributes.ai
+          assert_equal 378, job2.input_category.slice_size
+          assert job2.output_category.nils
+          assert_equal "#{Date.today}.czv.gz", job2.output_category.file_name.to_s
         end
 
         it "excludes attributes related to running jobs" do
