@@ -62,6 +62,10 @@ module RocketJob
           h["active_slices"] = worker_count
           h["failed_slices"] = input.failed.count
           h["queued_slices"] = input.queued.count
+          output_categories.each do |category|
+            name_str                      = category.name == :main ? "" : "_#{category.name}"
+            h["output_slices#{name_str}"] = output(category).count
+          end
           # Very high level estimated time left
           if record_count && running? && record_count.positive?
             percent = percent_complete
@@ -74,7 +78,6 @@ module RocketJob
           secs                  = seconds.to_f
           h["records_per_hour"] = ((record_count.to_f / secs) * 60 * 60).round if record_count&.positive? && (secs > 0.0)
         end
-        h["output_slices"] = output.count if output_categories.present? && !completed?
         h.merge!(super(time_zone))
         h.delete("result")
         # Worker name should be retrieved from the slices when processing

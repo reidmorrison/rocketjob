@@ -155,7 +155,7 @@ module RocketJob
 
       # Migrate existing v4 batch jobs to v5.0
       def rocketjob_categories_migrate
-        return if self[:input_categories].blank? || !self[:input_categories].first.is_a?(Symbol)
+        return unless attribute_present?(:input_categories) && self[:input_categories]&.first.is_a?(Symbol)
 
         serializer = nil
         if attribute_present?(:compress)
