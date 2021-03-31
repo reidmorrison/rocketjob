@@ -57,14 +57,6 @@ module RocketJob
     # If this DirmonEntry is in the failed state, exception contains the cause
     embeds_one :exception, class_name: "RocketJob::JobException"
 
-    # The maximum number of files that should ever match during a single poll of the pattern.
-    #
-    # Too many files could be as a result of an invalid pattern specification.
-    # Exceeding this number will result in an exception being logged in a failed Dirmon instance.
-    # Dirmon processing will continue with new instances.
-    # TODO: Implement max_hits
-    # field :max_hits, type: Integer, default: 100
-
     #
     # Read-only attributes
     #
@@ -294,6 +286,21 @@ module RocketJob
 
       properties.each_pair do |k, _v|
         next if klass.public_method_defined?("#{k}=".to_sym)
+
+        if %i[output_categories input_categories].include?(k)
+          category_class = k == :input_categories ? RocketJob::Category::Input : RocketJob::Category::Output
+          properties[k].each do |category|
+            category.each_pair do |key, _value|
+              next if category_class.public_method_defined?("#{key}=".to_sym)
+
+              errors.add(
+                :properties,
+                "Unknown Property in #{k}: Attempted to set a value for #{key}.#{k} which is not allowed on the job #{job_class_name}"
+              )
+            end
+          end
+          next
+        end
 
         errors.add(
           :properties,

@@ -80,19 +80,38 @@ module RocketJob
         category
       end
 
+      # Returns [true|false] whether the named category has already been defined
+      def input_category?(category_name)
+        category_name = category_name.to_sym
+        # .find does not work against this association
+        input_categories.each { |catg| return true if catg.name == category_name }
+        false
+      end
+
+      def output_category?(category_name)
+        category_name = category_name.to_sym
+        # .find does not work against this association
+        output_categories.each { |catg| return true if catg.name == category_name }
+        false
+      end
+
       private
 
       def rocketjob_categories_assign
         # Input categories defaults to :main if none was set in the class
-        self.input_categories  =
-          if self.class.defined_input_categories
-            self.class.defined_input_categories.deep_dup
-          else
-            [RocketJob::Category::Input.new]
-          end
+        if input_categories.empty?
+          self.input_categories =
+            if self.class.defined_input_categories
+              self.class.defined_input_categories.deep_dup
+            else
+              [RocketJob::Category::Input.new]
+            end
+        end
+
+        return if !self.class.defined_output_categories || !output_categories.empty?
 
         # Input categories defaults to nil if none was set in the class
-        self.output_categories = self.class.defined_output_categories.deep_dup if self.class.defined_output_categories
+        self.output_categories = self.class.defined_output_categories.deep_dup
       end
 
       # Render the output from the perform.
@@ -174,7 +193,7 @@ module RocketJob
           remove_attribute(:slice_size)
         end
 
-        existing = self[:input_categories]
+        existing                = self[:input_categories]
         self[:input_categories] = []
         self[:input_categories] = existing.collect do |category_name|
           RocketJob::Category::Input.new(name: category_name, serializer: serializer, slice_size: slice_size).as_document
@@ -192,7 +211,7 @@ module RocketJob
           remove_attribute(:collect_nil_output)
         end
 
-        existing = self[:output_categories]
+        existing                 = self[:output_categories]
         self[:output_categories] = []
         if existing.blank?
           if collect_output

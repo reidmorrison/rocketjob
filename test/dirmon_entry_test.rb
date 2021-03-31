@@ -12,6 +12,21 @@ class DirmonEntryTest < Minitest::Test
     end
   end
 
+  class BatchTestJob < RocketJob::Job
+    include RocketJob::Batch
+
+    # An input_category of :main is automatically created if none is specified
+
+    # Collect output from this job
+    output_category
+
+    field :user_id, type: Integer
+
+    def perform(row)
+      row
+    end
+  end
+
   describe RocketJob::DirmonEntry do
     let :archive_directory do
       "/tmp/archive_directory"
@@ -27,6 +42,30 @@ class DirmonEntryTest < Minitest::Test
         job_class_name:    "DirmonEntryTest::TestJob",
         pattern:           "test/files/**",
         properties:        {user_id: 341},
+        archive_directory: archive_directory
+      )
+      dirmon_entry.enable!
+      assert dirmon_entry.valid?, dirmon_entry.errors.messages.ai
+      dirmon_entry
+    end
+
+    let :batch_dirmon_entry do
+      dirmon_entry = RocketJob::DirmonEntry.new(
+        name:              "Batch Test",
+        job_class_name:    "DirmonEntryTest::BatchTestJob",
+        pattern:           "test/files/**",
+        properties:        {
+          "user_id"           => 341,
+          "input_categories"  => [
+            {"format" => "csv"}
+          ],
+          "output_categories" => [
+            {
+              "format"  => "csv",
+              "columns" => %w[first_name last_name]
+            }
+          ]
+        },
         archive_directory: archive_directory
       )
       dirmon_entry.enable!
@@ -262,6 +301,26 @@ class DirmonEntryTest < Minitest::Test
           assert_equal dirmon_entry.properties, job.properties
           assert_equal upload_file_name, job.upload_file_name
           assert_equal "#{dirmon_entry.name}: #{iopath.basename}", job.description
+          assert_equal iopath.to_s, job.original_file_name
+          assert job.job_id
+        end
+
+        it "enqueues batch job" do
+          job = batch_dirmon_entry.later(iopath)
+          assert created_job = RocketJob::Jobs::UploadFileJob.last
+          assert_equal job.id, created_job.id
+          assert job.queued?
+        end
+
+        it "sets batch attributes" do
+          job = batch_dirmon_entry.later(iopath)
+
+          upload_file_name = IOStreams.path(archive_directory).join("#{job.job_id}_#{File.basename(file_name)}").to_s
+
+          assert_equal batch_dirmon_entry.job_class_name, job.job_class_name
+          assert_equal batch_dirmon_entry.properties, job.properties
+          assert_equal upload_file_name, job.upload_file_name
+          assert_equal "#{batch_dirmon_entry.name}: #{iopath.basename}", job.description
           assert_equal iopath.to_s, job.original_file_name
           assert job.job_id
         end

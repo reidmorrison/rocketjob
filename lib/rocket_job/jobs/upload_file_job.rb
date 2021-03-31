@@ -33,10 +33,11 @@ module RocketJob
       validate :job_is_a_rocket_job
       validate :job_implements_upload
       validate :file_exists
+      validate :job_has_properties
 
       # Create the job and upload the file into it.
       def perform
-        job    = job_class.new(properties)
+        job    = build_job
         job.id = job_id if job_id
         upload_file(job)
         job.save!
@@ -47,6 +48,37 @@ module RocketJob
       end
 
       private
+
+      def build_job
+        return job_class.new(properties) unless properties.key?("input_categories") || properties.key?("output_categories")
+
+        properties        = self.properties.dup
+        input_categories  = properties.delete("input_categories")
+        output_categories = properties.delete("output_categories")
+        job               = job_class.new(properties)
+
+        input_categories&.each do |category_properties|
+          category_name = (category_properties["name"] || :main).to_sym
+          if job.input_category?(category_name)
+            category = job.input_category(category_name)
+            category_properties.each { |key, value| category.public_send("#{key}=".to_sym, value) }
+          else
+            job.input_categories << Category::Input.new(category_properties.symbolize_keys)
+          end
+        end
+
+        output_categories&.each do |category_properties|
+          category_name = (category_properties["name"] || :main).to_sym
+          if job.output_category?(category_name)
+            category = job.output_category(category_name)
+            category_properties.each { |key, value| category.public_send("#{key}=".to_sym, value) }
+          else
+            job.output_categories << Category::Output.new(category_properties.symbolize_keys)
+          end
+        end
+
+        job
+      end
 
       def job_class
         @job_class ||= job_class_name.constantize
@@ -66,8 +98,10 @@ module RocketJob
         elsif job.respond_to?(:full_file_name=)
           job.full_file_name = upload_file_name
         else
-          raise(ArgumentError,
-                "Model #{job_class_name} must implement '#upload', or have attribute 'upload_file_name' or 'full_file_name'")
+          raise(
+            ArgumentError,
+            "Model #{job_class_name} must implement '#upload', or have attribute 'upload_file_name' or 'full_file_name'"
+          )
         end
       end
 
@@ -98,6 +132,35 @@ module RocketJob
         return if File.exist?(upload_file_name)
 
         errors.add(:upload_file_name, "Upload file: #{upload_file_name} does not exist.")
+      end
+
+      def job_has_properties
+        klass = job_class
+        return unless klass
+
+        properties.each_pair do |k, _v|
+          next if klass.public_method_defined?("#{k}=".to_sym)
+
+          if %i[output_categories input_categories].include?(k)
+            category_class = k == :input_categories ? RocketJob::Category::Input : RocketJob::Category::Output
+            properties[k].each do |category|
+              category.each_pair do |key, _value|
+                next if category_class.public_method_defined?("#{key}=".to_sym)
+
+                errors.add(
+                  :properties,
+                  "Unknown Property in #{k}: Attempted to set a value for #{key}.#{k} which is not allowed on the job #{job_class_name}"
+                )
+              end
+            end
+            next
+          end
+
+          errors.add(
+            :properties,
+            "Unknown Property: Attempted to set a value for #{k.inspect} which is not allowed on the job #{job_class_name}"
+          )
+        end
       end
     end
   end
