@@ -37,7 +37,7 @@ module RocketJob
 
       # Create the job and upload the file into it.
       def perform
-        job    = build_job
+        job    = job_class.from_properties(properties)
         job.id = job_id if job_id
         upload_file(job)
         job.save!
@@ -48,37 +48,6 @@ module RocketJob
       end
 
       private
-
-      def build_job
-        return job_class.new(properties) unless properties.key?("input_categories") || properties.key?("output_categories")
-
-        properties        = self.properties.dup
-        input_categories  = properties.delete("input_categories")
-        output_categories = properties.delete("output_categories")
-        job               = job_class.new(properties)
-
-        input_categories&.each do |category_properties|
-          category_name = (category_properties["name"] || :main).to_sym
-          if job.input_category?(category_name)
-            category = job.input_category(category_name)
-            category_properties.each { |key, value| category.public_send("#{key}=".to_sym, value) }
-          else
-            job.input_categories << Category::Input.new(category_properties.symbolize_keys)
-          end
-        end
-
-        output_categories&.each do |category_properties|
-          category_name = (category_properties["name"] || :main).to_sym
-          if job.output_category?(category_name)
-            category = job.output_category(category_name)
-            category_properties.each { |key, value| category.public_send("#{key}=".to_sym, value) }
-          else
-            job.output_categories << Category::Output.new(category_properties.symbolize_keys)
-          end
-        end
-
-        job
-      end
 
       def job_class
         @job_class ||= job_class_name.constantize

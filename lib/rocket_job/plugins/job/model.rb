@@ -184,6 +184,12 @@ module RocketJob
 
             super(name, options)
           end
+
+          # Builds this job instance from the supplied properties hash.
+          # Overridden by batch to support child objects.
+          def from_properties(properties)
+            new(properties)
+          end
         end
 
         # Returns [Float] the number of seconds the job has taken

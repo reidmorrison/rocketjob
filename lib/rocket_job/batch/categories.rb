@@ -17,9 +17,15 @@ module RocketJob
         # List of categories that this job can save output data into
         embeds_many :output_categories, class_name: "RocketJob::Category::Output"
 
+        # Internal attributes
+        class_attribute :defined_input_categories, instance_accessor: false, instance_predicate: false
+        class_attribute :defined_output_categories, instance_accessor: false, instance_predicate: false
+      end
+
+      module ClassMethods
         # Define a new input category
         # @see RocketJob::Category::Input
-        def self.input_category(**args)
+        def input_category(**args)
           category = RocketJob::Category::Input.new(**args)
           if defined_input_categories.nil?
             self.defined_input_categories = [category]
@@ -30,7 +36,7 @@ module RocketJob
 
         # Define a new output category
         # @see RocketJob::Category::Output
-        def self.output_category(**args)
+        def output_category(**args)
           category = RocketJob::Category::Output.new(**args)
           if defined_output_categories.nil?
             self.defined_output_categories = [category]
@@ -39,13 +45,42 @@ module RocketJob
           end
         end
 
-        # Internal attributes
-        class_attribute :defined_input_categories, instance_accessor: false, instance_predicate: false
-        class_attribute :defined_output_categories, instance_accessor: false, instance_predicate: false
+        # Builds this job instance from the supplied properties hash that may contain input and output categories.
+        # Keeps the defaults and merges in settings without replacing existing categories.
+        def from_properties(properties)
+          return super(properties) unless properties.key?("input_categories") || properties.key?("output_categories")
+
+          properties        = properties.dup
+          input_categories  = properties.delete("input_categories")
+          output_categories = properties.delete("output_categories")
+          job               = new(properties)
+
+          input_categories&.each do |category_properties|
+            category_name = (category_properties["name"] || :main).to_sym
+            if job.input_category?(category_name)
+              category = job.input_category(category_name)
+              category_properties.each { |key, value| category.public_send("#{key}=".to_sym, value) }
+            else
+              job.input_categories << Category::Input.new(category_properties.symbolize_keys)
+            end
+          end
+
+          output_categories&.each do |category_properties|
+            category_name = (category_properties["name"] || :main).to_sym
+            if job.output_category?(category_name)
+              category = job.output_category(category_name)
+              category_properties.each { |key, value| category.public_send("#{key}=".to_sym, value) }
+            else
+              job.output_categories << Category::Output.new(category_properties.symbolize_keys)
+            end
+          end
+
+          job
+        end
 
         private
 
-        def self.rocketjob_categories_set(category, categories)
+        def rocketjob_categories_set(category, categories)
           index = categories.find_index { |cat| cat.name == category.name }
           index ? categories[index] = category : categories << category
           category
