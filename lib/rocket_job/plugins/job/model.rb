@@ -37,6 +37,7 @@ module RocketJob
           # arrives, then the current job will complete the current slices and process
           # the new higher priority job
           field :priority, type: Integer, default: 50, class_attribute: true, user_editable: true, copy_on_restart: true
+          validates_inclusion_of :priority, in: 1..100
 
           # When the job completes destroy it from both the database and the UI
           field :destroy_on_complete, type: Mongoid::Boolean, default: true, class_attribute: true, copy_on_restart: true
@@ -52,6 +53,7 @@ module RocketJob
           # For debugging a single job can be logged at a low level such as :trace
           #   Levels supported: :trace, :debug, :info, :warn, :error, :fatal
           field :log_level, type: Mongoid::StringifiedSymbol, class_attribute: true, user_editable: true, copy_on_restart: true
+          validates_inclusion_of :log_level, in: SemanticLogger::LEVELS + [nil]
 
           #
           # Read-only attributes
@@ -89,8 +91,6 @@ module RocketJob
           index({state: 1, priority: 1, _id: 1}, background: true)
 
           validates_presence_of :state, :failure_count, :created_at
-          validates :priority, inclusion: 1..100
-          validates :log_level, inclusion: SemanticLogger::LEVELS + [nil]
         end
 
         module ClassMethods

@@ -41,6 +41,7 @@ module RocketJob
       # - Only applicable when `allowed_columns` has been set.
       # - Recommended to leave as `false` otherwise a misspelled column can result in missed columns.
       field :skip_unknown, type: ::Mongoid::Boolean, default: false
+      validates_inclusion_of :skip_unknown, in: [true, false]
 
       # When `#upload` is called with a file_name, it uploads the file using any of the following approaches:
       # :line
@@ -63,6 +64,7 @@ module RocketJob
       # upload time is not important.
       # See IOStreams#each for more details.
       field :mode, type: ::Mongoid::StringifiedSymbol, default: :line
+      validates_inclusion_of :mode, in: %i[line array hash]
 
       # When reading tabular input data (e.g. CSV, PSV) the header is automatically cleansed.
       # This removes issues when the input header varies in case and other small ways. See IOStreams::Tabular
@@ -78,8 +80,8 @@ module RocketJob
       #
       # Note: Submit a ticket if you have other cleansers that you want added.
       field :header_cleanser, type: ::Mongoid::StringifiedSymbol, default: :default
-
       validates :header_cleanser, inclusion: %i[default none]
+
       validates_presence_of :slice_size
 
       # Cleanses the header column names when `cleanse_header` is true
