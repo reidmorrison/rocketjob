@@ -143,6 +143,8 @@ Highly recommended when processing large files, or large amounts of data.
 By setting the input and output categories `serializer` to `:compress` it ensures that all data uploaded into
 this job is compressed.
 
+By default with Rocket Job v6 the default serializer is now `:compress`. Set it to `:none` to disable compression.
+
 ~~~ruby
 class ReverseJob < RocketJob::Job
   include RocketJob::Batch

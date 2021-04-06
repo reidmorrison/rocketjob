@@ -211,7 +211,7 @@ module RocketJob
       def rocketjob_categories_migrate
         return unless attribute_present?(:input_categories) && self[:input_categories]&.first.is_a?(Symbol)
 
-        serializer = nil
+        serializer = :none
         if attribute_present?(:compress)
           serializer = :compress if self[:compress]
           remove_attribute(:compress)

@@ -22,7 +22,7 @@ module RocketJob
         self.throttle_running_jobs    = 1
         self.throttle_running_workers = 10
 
-        input_category serializer: :compress, slice_size: 1_000
+        input_category slice_size: 1_000
 
         # Name of the table being re-encrypted
         field :table_name, type: String

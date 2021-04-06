@@ -27,9 +27,9 @@ module RocketJob
         if encrypt
           job.input_category.serializer  = :encrypt
           job.output_category.serializer = :encrypt
-        elsif compress
-          job.input_category.serializer  = :compress
-          job.output_category.serializer = :compress
+        elsif !compress
+          job.input_category.serializer  = :none
+          job.output_category.serializer = :none
         end
         job.upload do |writer|
           count.times { |i| writer << i }
