@@ -425,6 +425,9 @@ module RocketJob
         category          = output_category(category) unless category.is_a?(Category::Output)
         output_collection = output(category)
 
+        # Store the output file name in the category
+        category.file_name = stream if !block && (stream.is_a?(String) || stream.is_a?(IOStreams::Path))
+
         if output_collection.binary?
           raise(ArgumentError, "A `header_line` is not supported with binary output collections") if header_line
 

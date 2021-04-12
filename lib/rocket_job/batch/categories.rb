@@ -248,13 +248,13 @@ module RocketJob
 
         existing                 = self[:output_categories]
         self[:output_categories] = []
-        if existing.blank?
-          if collect_output
+        if collect_output
+          if existing.blank?
             self[:output_categories] = [RocketJob::Category::Output.new(nils: collect_nil_output).as_document]
-          end
-        elsif existing.first.is_a?(Symbol)
-          self[:output_categories] = existing.collect do |category_name|
-            RocketJob::Category::Output.new(name: category_name, serializer: serializer, nils: collect_nil_output).as_document
+          elsif existing.first.is_a?(Symbol)
+            self[:output_categories] = existing.collect do |category_name|
+              RocketJob::Category::Output.new(name: category_name, serializer: serializer, nils: collect_nil_output).as_document
+            end
           end
         end
       end
