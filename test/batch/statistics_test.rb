@@ -18,6 +18,30 @@ module Batch
       end
     end
 
+    class RetryJob < RocketJob::Job
+      include RocketJob::Batch
+      include RocketJob::Batch::Statistics
+
+      self.destroy_on_complete = false
+
+      input_category slice_size: 5
+
+      field :exception_record, type: Integer
+
+      def perform(record)
+        # Ensure stats before the exception are not duplicated
+        statistics_inc(:record_count)
+
+        statistics_inc(record.to_s => record)
+
+        raise(ArgumentError, "This is the bad record") if record == exception_record
+
+        logger.info("Processing record: #{record}")
+
+        record
+      end
+    end
+
     describe RocketJob::Batch::Statistics::Stats do
       describe "#inc_key" do
         describe "in_memory" do
@@ -166,7 +190,7 @@ module Batch
 
     describe RocketJob::Batch::Statistics do
       let :job do
-        job = BatchSlicesJob.new
+        job                           = BatchSlicesJob.new
         job.input_category.slice_size = 4
         job.upload do |stream|
           7.times.each { |i| stream << i }
@@ -175,7 +199,7 @@ module Batch
       end
 
       after do
-        BatchSlicesJob.delete_all
+        BatchSlicesJob.destroy_all
       end
 
       describe "#statistics_inc" do
@@ -240,6 +264,58 @@ module Batch
 
           assert statistics = payload[:statistics]
           assert_equal({"bad" => "one"}, statistics)
+        end
+
+        describe "with Retry Job" do
+          let(:record_count) { 24 }
+
+          let(:exception_record) { 4 }
+
+          let :job do
+            job = RetryJob.new(exception_record: exception_record)
+            job.upload do |records|
+              (1..record_count).each { |i| records << i }
+            end
+            job.start
+            job
+          end
+
+          after do
+            RetryJob.destroy_all
+          end
+
+          it "handles retries" do
+            job.rocket_job_work(RocketJob::Worker.new, false)
+            assert job.failed?, -> { job.as_document.ai }
+            job.exception_record = nil
+            job.retry
+            job.perform_now
+            assert job.completed?, -> { job.as_document.ai }
+            stats = job.statistics.dup
+
+            assert_equal record_count, stats.delete("record_count")
+            (1..record_count).each do |count|
+              assert_equal count, stats.delete(count.to_s)
+            end
+            assert stats.empty?, stats.ai
+          end
+
+          it "handles persisted retries" do
+            job.save!
+            job.rocket_job_work(RocketJob::Worker.new, false)
+            assert job.failed?, -> { job.as_document.ai }
+            job.exception_record = nil
+            job.retry!
+            job.perform_now
+            assert job.completed?, -> { job.as_document.ai }
+            stats = job.statistics.dup
+
+            assert_equal record_count, stats.delete("record_count")
+            (1..record_count).each do |count|
+              assert_equal count, stats.delete(count.to_s)
+            end
+            assert stats.empty?, stats.ai
+          end
         end
       end
     end

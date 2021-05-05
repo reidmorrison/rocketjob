@@ -141,19 +141,23 @@ module RocketJob
 
       # Perform individual slice without callbacks
       def rocket_job_perform_slice(slice, &block)
-        count = 0
-        RocketJob::Sliced::Writer::Output.collect(self, slice) do |writer|
-          records = slice.records
+        slice.processing_record_number ||= 0
+        records                        = []
+        append                         = false
 
-          # Skip records already processed, if any.
-          # slice.processing_record_number ||= 0
-          # TODO: Must append to existing output slices before this can be enabled.
-          # if !collect_output && (slice.processing_record_number > 1)
-          #   records = records[slice.processing_record_number - 1..-1]
-          # end
-          # Until the changes above have been implemented, reprocess all records in the slice.
+        # Skip processed records in this slice if it has no output categpries.
+        if slice.processing_record_number > 1
+          records = slice.records[slice.processing_record_number - 1..-1]
+          append  = true
+          logger.info("Resuming previously incomplete slice from record number #{slice.processing_record_number}")
+        else
+          # Reprocess all records in this slice.
           slice.processing_record_number = 0
+          records                        = slice.records
+        end
 
+        count = 0
+        RocketJob::Sliced::Writer::Output.collect(self, input_slice: slice, append: append) do |writer|
           records.each do |record|
             slice.processing_record_number += 1
             SemanticLogger.named_tagged(record: slice.current_record_number) do

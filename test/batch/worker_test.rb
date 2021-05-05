@@ -86,7 +86,7 @@ module Batch
       output_category(name: :even)
 
       # Returns multiple results, each
-      def perform
+      def perform(_)
         result = RocketJob::Batch::Results.new
         # A result for the main collections
         result << RocketJob::Batch::Result.new(:main, "main")
@@ -131,6 +131,64 @@ module Batch
       after_batch :boom
     end
 
+    class NoOutputRetryJob < RocketJob::Job
+      include RocketJob::Batch
+
+      self.destroy_on_complete = false
+
+      input_category slice_size: 5
+
+      field :exception_record, type: Integer
+
+      # Do not try this at home. For quick testing only.
+      class << self
+        attr_reader :processed_records
+      end
+
+      # Do not try this at home. For quick testing only.
+      def self.clear_processed_records
+        @processed_records = []
+      end
+
+      @processed_records = []
+
+      def perform(record)
+        raise(ArgumentError, "This is the bad record") if record == exception_record
+
+        self.class.processed_records << record
+
+        logger.info("Processing record: #{record}")
+
+        record
+      end
+    end
+
+    class WithOutputRetryJob < NoOutputRetryJob
+      output_category
+    end
+
+    class MultipleOutputRetryJob < NoOutputRetryJob
+      output_category(name: :main)
+      output_category(name: :odd)
+      output_category(name: :even)
+
+      # Returns multiple results, each
+      def perform(record)
+        raise(ArgumentError, "This is the bad record") if record == exception_record
+
+        self.class.processed_records << record
+
+        logger.info("Processing record: #{record}")
+
+        results = RocketJob::Batch::Results.new
+        results << RocketJob::Batch::Result.new(:main, record)
+
+        category_name = record.even? ? :even : :odd
+        results << RocketJob::Batch::Result.new(category_name, record)
+        results
+      end
+    end
+
     describe RocketJob::Batch::Worker do
       before do
         RocketJob::Job.destroy_all
@@ -142,7 +200,7 @@ module Batch
 
       describe "#work" do
         it "calls perform method" do
-          job = SimpleJob.new
+          job          = SimpleJob.new
           record_count = 24
           upload_and_perform(job)
           assert job.completed?, -> { job.as_document.ai }
@@ -196,8 +254,8 @@ module Batch
         it "fails job on exception" do
           # Allow slices to fail so that the job as a whole is marked
           # as failed when no more queued slices are available
-          record_count = 74
-          job          = ExceptionJob.new
+          record_count                  = 74
+          job                           = ExceptionJob.new
           job.input_category.slice_size = 10
           job.upload do |records|
             (1..record_count).each { |i| records << i }
@@ -248,8 +306,8 @@ module Batch
         it "fails persisted job on exception" do
           # Allow slices to fail so that the job as a whole is marked
           # as failed when no more queued slices are available
-          record_count = 74
-          job          = ExceptionJob.new
+          record_count                  = 74
+          job                           = ExceptionJob.new
           job.input_category.slice_size = 10
           job.upload do |records|
             (1..record_count).each { |i| records << i }
@@ -313,6 +371,182 @@ module Batch
           upload_and_perform(job)
           assert job.failed?, -> { job.as_document.ai }
         end
+
+        describe "retry handling with no output categories" do
+          it "processes all records without retry" do
+            NoOutputRetryJob.clear_processed_records
+            job          = NoOutputRetryJob.new
+            record_count = 24
+            upload_and_perform(job, record_count: record_count)
+            assert job.completed?, -> { job.as_document.ai }
+
+            expected = (1..record_count).to_a
+            assert_equal expected, NoOutputRetryJob.processed_records
+          end
+
+          it "skips processed records in failed first slice" do
+            NoOutputRetryJob.clear_processed_records
+            job          = NoOutputRetryJob.new(exception_record: 3)
+            record_count = 24
+            upload_and_perform(job, record_count: record_count)
+            assert job.failed?, -> { job.as_document.ai }
+            assert_equal "ArgumentError", job.input.first.exception.class_name
+
+            expected = (1..2).to_a + (6..record_count).to_a
+            assert_equal expected, NoOutputRetryJob.processed_records
+            NoOutputRetryJob.clear_processed_records
+
+            # Allow job to continue processing
+            job.exception_record = nil
+            job.retry
+            job.perform_now
+
+            assert job.completed?, -> { job.as_document.ai }
+
+            # Only the remaining records on the failed slice need to be processed on retry
+            expected = (3..5).to_a
+            assert_equal expected, NoOutputRetryJob.processed_records
+          end
+
+          it "skips processed records in failed last slice" do
+            NoOutputRetryJob.clear_processed_records
+            job          = NoOutputRetryJob.new(exception_record: 24)
+            record_count = 24
+            upload_and_perform(job, record_count: record_count)
+            assert job.failed?, -> { job.as_document.ai }
+            assert_equal "ArgumentError", job.input.first.exception.class_name
+
+            expected = (1..23).to_a
+            assert_equal expected, NoOutputRetryJob.processed_records
+            NoOutputRetryJob.clear_processed_records
+
+            # Allow job to continue processing
+            job.exception_record = nil
+            job.retry
+            job.perform_now
+
+            assert job.completed?, -> { job.as_document.ai }
+
+            # Only the remaining records on the failed slice need to be processed on retry
+            expected = [24]
+            assert_equal expected, NoOutputRetryJob.processed_records
+          end
+        end
+
+        describe "retry handling with output categories" do
+          it "processes all records without retry" do
+            WithOutputRetryJob.clear_processed_records
+            job          = WithOutputRetryJob.new
+            record_count = 24
+            upload_and_perform(job, record_count: record_count)
+            assert job.completed?, -> { job.as_document.ai }
+
+            expected = (1..record_count).to_a
+            assert_equal expected, WithOutputRetryJob.processed_records
+
+            io = StringIO.new
+            job.download(io)
+            expected = (1..record_count).collect { |i| i }.join("\n") + "\n"
+            assert_equal expected, io.string
+          end
+
+          it "skips processed records in failed first slice" do
+            WithOutputRetryJob.clear_processed_records
+            job          = WithOutputRetryJob.new(exception_record: 3)
+            record_count = 24
+            upload_and_perform(job, record_count: record_count)
+            assert job.failed?, -> { job.as_document.ai }
+            assert_equal "ArgumentError", job.input.first.exception.class_name
+
+            expected = (1..2).to_a + (6..record_count).to_a
+            assert_equal expected, WithOutputRetryJob.processed_records
+            WithOutputRetryJob.clear_processed_records
+
+            # Allow job to continue processing
+            job.exception_record = nil
+            job.retry
+            job.perform_now
+
+            assert job.completed?, -> { job.as_document.ai }
+
+            # Only the remaining records on the failed slice need to be processed on retry
+            expected = (3..5).to_a
+            assert_equal expected, WithOutputRetryJob.processed_records
+
+            io = StringIO.new
+            job.download(io)
+            expected = (1..record_count).collect { |i| i }.join("\n") + "\n"
+            assert_equal expected, io.string
+          end
+
+          it "skips processed records in failed last slice" do
+            WithOutputRetryJob.clear_processed_records
+            job          = WithOutputRetryJob.new(exception_record: 24)
+            record_count = 24
+            upload_and_perform(job, record_count: record_count)
+            assert job.failed?, -> { job.as_document.ai }
+            assert_equal "ArgumentError", job.input.first.exception.class_name
+
+            expected = (1..23).to_a
+            assert_equal expected, WithOutputRetryJob.processed_records
+            WithOutputRetryJob.clear_processed_records
+
+            # Allow job to continue processing
+            job.exception_record = nil
+            job.retry
+            job.perform_now
+
+            assert job.completed?, -> { job.as_document.ai }
+
+            # Only the remaining records on the failed slice need to be processed on retry
+            expected = [24]
+            assert_equal expected, WithOutputRetryJob.processed_records
+
+            io = StringIO.new
+            job.download(io)
+            expected = (1..record_count).collect { |i| i }.join("\n") + "\n"
+            assert_equal expected, io.string
+          end
+
+          it "skips processed records in failed last slice of multiple categories" do
+            MultipleOutputRetryJob.clear_processed_records
+            job          = MultipleOutputRetryJob.new(exception_record: 24)
+            record_count = 24
+            upload_and_perform(job, record_count: record_count)
+            assert job.failed?, -> { job.as_document.ai }
+            assert_equal "ArgumentError", job.input.first.exception.class_name
+
+            expected = (1..23).to_a
+            assert_equal expected, MultipleOutputRetryJob.processed_records
+            MultipleOutputRetryJob.clear_processed_records
+
+            # Allow job to continue processing
+            job.exception_record = nil
+            job.retry
+            job.perform_now
+
+            assert job.completed?, -> { job.as_document.ai }
+
+            # Only the remaining records on the failed slice need to be processed on retry
+            expected = [24]
+            assert_equal expected, MultipleOutputRetryJob.processed_records
+
+            io = StringIO.new
+            job.download(io)
+            expected = (1..record_count).collect { |i| i }.join("\n") + "\n"
+            assert_equal expected, io.string
+
+            io = StringIO.new
+            job.download(io, category: :even)
+            expected = (1..record_count).collect { |i| i if i.even? }.compact.join("\n") + "\n"
+            assert_equal expected, io.string
+
+            io = StringIO.new
+            job.download(io, category: :odd)
+            expected = (1..record_count).collect { |i| i unless i.even? }.compact.join("\n") + "\n"
+            assert_equal expected, io.string
+          end
+        end
       end
 
       describe "#output_categories" do
@@ -374,7 +608,7 @@ module Batch
         let(:worker3) { RocketJob::Worker.new(server_name: "worker1:5673", id: 2) }
 
         let(:loaded_job) do
-          job = SimpleJob.new(worker_name: worker.name, state: :running, sub_state: :processing, started_at: 1.minute.ago)
+          job                           = SimpleJob.new(worker_name: worker.name, state: :running, sub_state: :processing, started_at: 1.minute.ago)
           job.input_category.slice_size = 2
           job.upload do |stream|
             10.times { |i| stream << "line#{i + 1}" }
@@ -433,8 +667,7 @@ module Batch
         end
       end
 
-      def upload_and_perform(job)
-        record_count = 24
+      def upload_and_perform(job, record_count: 24)
         job.upload do |records|
           (1..record_count).each { |i| records << i }
         end

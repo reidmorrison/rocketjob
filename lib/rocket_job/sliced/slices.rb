@@ -96,6 +96,17 @@ module RocketJob
         slice
       end
 
+      # Append to an existing slice if already present
+      def append(slice, input_slice)
+        existing_slice = all.where(id: input_slice.id).first
+        return insert(slice, input_slice) unless existing_slice
+
+        extra_records          = slice.is_a?(Slice) ? slice.records : slice
+        existing_slice.records = existing_slice.records + extra_records
+        existing_slice.save!
+        existing_slice
+      end
+
       alias << insert
 
       # Index for find_and_modify only if it is not already present
@@ -139,6 +150,7 @@ module RocketJob
       def last
         all.sort("_id" => -1).first
       end
+
       # rubocop:enable Style/RedundantSort
 
       # Returns [Array<Struct>] grouped exceptions by class name,

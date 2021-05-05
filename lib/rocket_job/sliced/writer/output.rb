@@ -1,30 +1,37 @@
 module RocketJob
   module Sliced
     module Writer
-      # Internal class for writing categorized results into output slices
-      class Output
+      class Null
         attr_reader :job, :categorized_records
-        attr_accessor :input_slice
+        attr_accessor :input_slice, :append
 
-        # Collect output results and write to output collections
-        # iff job is collecting output
-        # Notes:
-        #   Nothing is saved if an exception is raised inside the block
-        def self.collect(job, input_slice = nil)
-          if job.output_categories.present?
-            writer = new(job, input_slice)
-            yield(writer)
-            writer.close
-          else
-            writer = NullWriter.new(job, input_slice)
-            yield(writer)
-          end
-        end
-
-        def initialize(job, input_slice = nil)
+        def initialize(job, input_slice: nil, append: false)
           @job                 = job
           @input_slice         = input_slice
           @categorized_records = {}
+          @append              = append
+        end
+
+        def <<(_)
+          # noop
+        end
+
+        def close
+          # noop
+        end
+      end
+
+      # Internal class for writing categorized results into output slices
+      class Output < Null
+        # Collect output results and write to output collections
+        # iff job is collecting output
+        # Notes:
+        #   Partial slices are saved when an exception is raised inside the block
+        def self.collect(job, **args)
+          writer = job.output_categories.present? ? new(job, **args) : Null.new(job, **args)
+          yield(writer)
+        ensure
+          writer&.close
         end
 
         # Writes the supplied result, RocketJob::Batch::Result or RocketJob::Batch::Results
@@ -40,7 +47,8 @@ module RocketJob
         # Write categorized results to their relevant collections
         def close
           categorized_records.each_pair do |category, results|
-            job.output(category).insert(results, input_slice)
+            collection = job.output(category)
+            append ? collection.append(results, input_slice) : collection.insert(results, input_slice)
           end
         end
 
@@ -58,24 +66,6 @@ module RocketJob
         end
       end
 
-      class NullWriter
-        attr_reader :job, :categorized_records
-        attr_accessor :input_slice
-
-        def initialize(job, input_slice = nil)
-          @job                 = job
-          @input_slice         = input_slice
-          @categorized_records = {}
-        end
-
-        def <<(_)
-          # noop
-        end
-
-        def close
-          # noop
-        end
-      end
     end
   end
 end
