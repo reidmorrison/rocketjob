@@ -74,12 +74,16 @@ module RocketJob
 
       def rocket_job_statistics_capture
         @rocket_job_perform_statistics = nil
-        @rocket_job_slice_statistics = Stats.new(new_record? ? statistics : nil)
+        @rocket_job_slice_statistics   = nil
         yield
       ensure
-        unless @rocket_job_slice_statistics.empty?
+        if @rocket_job_slice_statistics && !@rocket_job_slice_statistics.empty?
           collection.update_one({_id: id}, {"$inc" => @rocket_job_slice_statistics.stats})
         end
+      end
+
+      def rocket_job_slice_statistics
+        @rocket_job_slice_statistics ||= Stats.new(new_record? ? statistics : nil)
       end
 
       # Apply stats gathered during the perform to the slice level stats
@@ -87,12 +91,11 @@ module RocketJob
         return unless @rocket_job_perform_statistics
 
         @rocket_job_perform_statistics.each do |key|
-          key.is_a?(Hash) ? @rocket_job_slice_statistics.inc(key) : @rocket_job_slice_statistics.inc_key(*key)
+          key.is_a?(Hash) ? rocket_job_slice_statistics.inc(key) : rocket_job_slice_statistics.inc_key(*key)
         end
 
         @rocket_job_perform_statistics = nil
       end
-
 
       # Overrides RocketJob::Batch::Logger#rocket_job_batch_log_payload
       def rocket_job_batch_log_payload
