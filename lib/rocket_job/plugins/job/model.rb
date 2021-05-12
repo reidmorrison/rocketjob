@@ -88,7 +88,10 @@ module RocketJob
           # Store the last exception for this job
           embeds_one :exception, class_name: "RocketJob::JobException"
 
+          # Used when workers fetch jobs to work on.
           index({state: 1, priority: 1, _id: 1}, background: true)
+          # Used by Mission Control to display completed jobs sorted by completion.
+          index({completed_at: 1}, background: true)
 
           validates_presence_of :state, :failure_count, :created_at
         end
