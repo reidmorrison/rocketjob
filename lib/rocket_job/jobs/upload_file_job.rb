@@ -37,7 +37,7 @@ module RocketJob
 
       # Create the job and upload the file into it.
       def perform
-        job    = job_class.from_properties(properties)
+        job    = job_class.new(properties)
         job.id = job_id if job_id
         upload_file(job)
         job.save!

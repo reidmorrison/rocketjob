@@ -20,6 +20,9 @@ module RocketJob
         # Internal attributes
         class_attribute :defined_input_categories, instance_accessor: false, instance_predicate: false
         class_attribute :defined_output_categories, instance_accessor: false, instance_predicate: false
+
+        accepts_nested_attributes_for :input_categories
+        accepts_nested_attributes_for :output_categories
       end
 
       module ClassMethods
@@ -43,39 +46,6 @@ module RocketJob
           else
             rocketjob_categories_set(category, defined_output_categories)
           end
-        end
-
-        # Builds this job instance from the supplied properties hash that may contain input and output categories.
-        # Keeps the defaults and merges in settings without replacing existing categories.
-        def from_properties(properties)
-          return super(properties) unless properties.key?("input_categories") || properties.key?("output_categories")
-
-          properties        = properties.dup
-          input_categories  = properties.delete("input_categories")
-          output_categories = properties.delete("output_categories")
-          job               = new(properties)
-
-          input_categories&.each do |category_properties|
-            category_name = (category_properties["name"] || :main).to_sym
-            if job.input_category?(category_name)
-              category = job.input_category(category_name)
-              category_properties.each { |key, value| category.public_send("#{key}=".to_sym, value) }
-            else
-              job.input_categories << Category::Input.new(category_properties.symbolize_keys)
-            end
-          end
-
-          output_categories&.each do |category_properties|
-            category_name = (category_properties["name"] || :main).to_sym
-            if job.output_category?(category_name)
-              category = job.output_category(category_name)
-              category_properties.each { |key, value| category.public_send("#{key}=".to_sym, value) }
-            else
-              job.output_categories << Category::Output.new(category_properties.symbolize_keys)
-            end
-          end
-
-          job
         end
 
         private
