@@ -20,6 +20,9 @@ module RocketJob
         # Internal attributes
         class_attribute :defined_input_categories, instance_accessor: false, instance_predicate: false
         class_attribute :defined_output_categories, instance_accessor: false, instance_predicate: false
+
+        # For RJMC to be able to edit jobs
+        accepts_nested_attributes_for :input_categories, :output_categories
       end
 
       module ClassMethods
