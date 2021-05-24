@@ -72,7 +72,7 @@ module Jobs
         it "validates upload_file_name" do
           job.upload_file_name = ""
           refute job.valid?
-          assert_includes job.errors.messages[:upload_file_name], "can't be blank"
+          assert_includes job.errors.messages[:upload_file_name], "Upload file name can't be blank."
         end
 
         it "validates file does not exist" do
@@ -82,8 +82,8 @@ module Jobs
         end
 
         it "allows urls other than file for upload_file_name" do
-          job.upload_file_name = "s3:/foo/blah"
-          assert job.valid?
+          job.upload_file_name = "https://server/path"
+          assert job.valid?, job.errors.messages
         end
 
         it "checks the filesystem if the url scheme is file for upload_file_name" do
@@ -118,7 +118,7 @@ module Jobs
           batch_job.perform_now
 
           assert created_job = UploadFileJobTest::BatchTestJob.first
-          assert_equal "test/batch/files/test.csv", created_job.upload_file_name
+          assert_equal "test/batch/files/test.csv", created_job.upload_file_name.to_s
         end
 
         it "retains the original_file_name when present" do
@@ -127,7 +127,7 @@ module Jobs
 
           assert created_job = UploadFileJobTest::BatchTestJob.first
           assert_equal "file.rb", created_job.input_category.file_name.to_s
-          assert_equal "file.rb", created_job.upload_file_name
+          assert_equal "file.rb", created_job.upload_file_name.to_s
         end
 
         it "retains input and output categories" do

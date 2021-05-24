@@ -19,7 +19,7 @@ module RocketJob
       field :properties, type: Hash, default: {}, user_editable: true
 
       # File to upload
-      field :upload_file_name, type: String, user_editable: true
+      field :upload_file_name, type: IOStreams::Path, user_editable: true
 
       # The original Input file name.
       # Used by #upload to extract the IOStreams when present.
@@ -95,12 +95,14 @@ module RocketJob
 
       def file_exists
         return if upload_file_name.nil?
+        if upload_file_name.to_s == ""
+          return errors.add(:upload_file_name, "Upload file name can't be blank.")
+        end
 
-        uri = URI.parse(upload_file_name)
-        return unless uri.scheme.nil? || uri.scheme == "file"
-        return if File.exist?(upload_file_name)
-
+        return if upload_file_name.exist?
         errors.add(:upload_file_name, "Upload file: #{upload_file_name} does not exist.")
+      rescue NotImplementedError
+        nil
       end
 
       def job_has_properties

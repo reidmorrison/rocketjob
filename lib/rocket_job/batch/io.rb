@@ -165,7 +165,6 @@ module RocketJob
           path                  = IOStreams.new(stream)
           path.file_name        = file_name if file_name
           category.file_name    = path.file_name
-          self.upload_file_name = path.file_name if category.name == :main
 
           # Auto detect the format based on the upload file name if present.
           if category.format == :auto

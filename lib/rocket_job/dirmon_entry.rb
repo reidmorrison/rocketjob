@@ -232,7 +232,7 @@ module RocketJob
         job_class_name:     job_class_name,
         properties:         properties,
         description:        "#{name}: #{iopath.basename}",
-        upload_file_name:   archive_path.to_s,
+        upload_file_name:   archive_path,
         original_file_name: iopath.to_s,
         job_id:             job_id
       )
@@ -241,7 +241,7 @@ module RocketJob
         message: "Created RocketJob::Jobs::UploadFileJob",
         payload: {
           dirmon_entry_name:  name,
-          upload_file_name:   archive_path.to_s,
+          upload_file_name:   archive_path,
           original_file_name: iopath.to_s,
           job_class_name:     job_class_name,
           job_id:             job_id.to_s,

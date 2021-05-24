@@ -56,28 +56,9 @@ module RocketJob
           properties        = properties.dup
           input_categories  = properties.delete("input_categories")
           output_categories = properties.delete("output_categories")
-          job               = new(properties)
-
-          input_categories&.each do |category_properties|
-            category_name = (category_properties["name"] || :main).to_sym
-            if job.input_category?(category_name)
-              category = job.input_category(category_name)
-              category_properties.each { |key, value| category.public_send("#{key}=".to_sym, value) }
-            else
-              job.input_categories << Category::Input.new(category_properties.symbolize_keys)
-            end
-          end
-
-          output_categories&.each do |category_properties|
-            category_name = (category_properties["name"] || :main).to_sym
-            if job.output_category?(category_name)
-              category = job.output_category(category_name)
-              category_properties.each { |key, value| category.public_send("#{key}=".to_sym, value) }
-            else
-              job.output_categories << Category::Output.new(category_properties.symbolize_keys)
-            end
-          end
-
+          job               = super(properties)
+          job.merge_input_categories(input_categories)
+          job.merge_output_categories(output_categories)
           job
         end
 
@@ -131,6 +112,26 @@ module RocketJob
         # .find does not work against this association
         output_categories.each { |catg| return true if catg.name == category_name }
         false
+      end
+
+      def merge_input_categories(categories)
+        return if categories.blank?
+
+        categories.each do |properties|
+          category_name = (properties["name"] || properties[:name] || :main).to_sym
+          category      = input_category(category_name)
+          properties.each { |key, value| category.public_send("#{key}=".to_sym, value) }
+        end
+      end
+
+      def merge_output_categories(categories)
+        return if categories.blank?
+
+        categories.each do |properties|
+          category_name = (properties["name"] || properties[:name] || :main).to_sym
+          category      = output_category(category_name)
+          properties.each { |key, value| category.public_send("#{key}=".to_sym, value) }
+        end
       end
 
       private
@@ -232,7 +233,7 @@ module RocketJob
         end
 
         main_input_format  = nil
-        main_input_mode    = nil
+        main_input_mode    = :line
         main_input_columns = nil
         # Only migrate tabular attributes if the job also removed the tabular plugin.
         unless respond_to?(:tabular_input_render)
@@ -252,11 +253,18 @@ module RocketJob
           end
         end
 
+        file_name = nil
+        if attribute_present?(:upload_file_name)
+          file_name = self[:upload_file_name]
+          remove_attribute(:upload_file_name)
+        end
+
         existing                = self[:input_categories]
         self[:input_categories] = []
         self[:input_categories] = existing.collect do |category_name|
           RocketJob::Category::Input.new(
             name:       category_name,
+            file_name:  file_name,
             serializer: serializer,
             slice_size: slice_size,
             format:     [:main, "main"].include?(category_name) ? main_input_format : nil,

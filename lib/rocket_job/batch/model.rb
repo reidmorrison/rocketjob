@@ -11,11 +11,6 @@ module RocketJob
         #
         # The following attributes are set when the job is created
 
-        # The file name of the uploaded file, if any.
-        # Set by #upload if a file name was supplied, but can also be set explicitly.
-        # May or may not include the fully qualified path name.
-        field :upload_file_name, type: String
-
         #
         # Values that jobs can also update during processing
         #
@@ -116,6 +111,18 @@ module RocketJob
           end
         @worker_count_last = Time.now.to_i
         @worker_count
+      end
+
+      # @deprecated
+      # For backward compatibility
+      def upload_file_name
+        input_category.file_name
+      end
+
+      # @deprecated
+      # For backward compatibility
+      def upload_file_name=(upload_file_name)
+        input_category.file_name = upload_file_name
       end
     end
   end

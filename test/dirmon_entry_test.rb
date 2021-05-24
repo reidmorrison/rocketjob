@@ -3,7 +3,7 @@ require_relative "test_helper"
 class DirmonEntryTest < Minitest::Test
   class TestJob < RocketJob::Job
     # Dirmon will store the filename in this property when starting the job
-    field :upload_file_name, type: String
+    field :upload_file_name, type: IOStreams::Path
 
     field :user_id, type: Integer
 
@@ -299,7 +299,7 @@ class DirmonEntryTest < Minitest::Test
 
           assert_equal dirmon_entry.job_class_name, job.job_class_name
           assert_equal dirmon_entry.properties, job.properties
-          assert_equal upload_file_name, job.upload_file_name
+          assert_equal upload_file_name, job.upload_file_name.to_s
           assert_equal "#{dirmon_entry.name}: #{iopath.basename}", job.description
           assert_equal iopath.to_s, job.original_file_name
           assert job.job_id
@@ -319,7 +319,7 @@ class DirmonEntryTest < Minitest::Test
 
           assert_equal batch_dirmon_entry.job_class_name, job.job_class_name
           assert_equal batch_dirmon_entry.properties, job.properties
-          assert_equal upload_file_name, job.upload_file_name
+          assert_equal upload_file_name, job.upload_file_name.to_s
           assert_equal "#{batch_dirmon_entry.name}: #{iopath.basename}", job.description
           assert_equal iopath.to_s, job.original_file_name
           assert job.job_id
