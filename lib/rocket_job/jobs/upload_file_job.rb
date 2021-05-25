@@ -94,7 +94,8 @@ module RocketJob
       end
 
       def file_exists
-        return if upload_file_name.nil?
+        # Only check for file existence when it is a local file
+        return unless upload_file_name.is_a?(IOStreams::Paths::File)
         if upload_file_name.to_s == ""
           return errors.add(:upload_file_name, "Upload file name can't be blank.")
         end
