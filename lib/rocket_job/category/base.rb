@@ -60,7 +60,7 @@ module RocketJob
         @tabular ||= IOStreams::Tabular.new(
           columns:        columns,
           format:         format == :auto ? nil : format,
-          format_options: format_options,
+          format_options: format_options&.deep_symbolize_keys,
           file_name:      file_name
         )
       end
