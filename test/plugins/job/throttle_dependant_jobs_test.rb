@@ -6,11 +6,6 @@ module Plugins
         self.dependant_jobs = ["Plugins::Job::ThrottleDependantJobsTest::DependantTestJob"].freeze
       end
 
-      class BatchTestJob < RocketJob::Job
-        include RocketJob::Batch
-        self.dependant_jobs = ["Plugins::Job::ThrottleDependantJobsTest::DependantTestJob"].freeze
-      end
-
       class DependantTestJob < RocketJob::Job
       end
 
@@ -25,10 +20,6 @@ module Plugins
 
         let(:job) do
           RegularTestJob.new
-        end
-
-        let(:batch_job) do
-          BatchTestJob.new
         end
 
         describe "with a regular job" do
