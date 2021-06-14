@@ -875,6 +875,23 @@ Notes:
   The worker grabs the job and only then verifies the throttle, this is to prevent any other worker
   from attempting to grab the job, which would have exceeded the throttle.
 
+
+#### Throttles Dependant Jobs
+
+Throttle jobs if any of its dependant jobs are running.
+
+Example:
+
+~~~ruby
+class MyJob < RocketJob::Job
+  # My job won't run if there are any dependant jobs running.
+  self.dependant_jobs = ['Dependant Jobs']
+
+  def perform
+    # ....
+  end
+end
+~~~
 #### Custom Throttles
 
 Using the throttling famework, custom throttle plugins can be created.
