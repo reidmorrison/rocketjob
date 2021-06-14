@@ -1,5 +1,4 @@
 require_relative "../../test_helper"
-require "pry"
 module Plugins
   module Job
     class ThrottleDependantJobsTest < Minitest::Test
