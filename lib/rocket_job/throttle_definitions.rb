@@ -1,6 +1,6 @@
 module RocketJob
   class ThrottleDefinitions
-    attr_reader :throttles
+    attr_accessor :throttles
 
     def initialize
       @throttles = []
@@ -34,6 +34,12 @@ module RocketJob
         return throttle.extract_filter(job, *args)
       end
       nil
+    end
+
+    def deep_dup
+      new_defination = self.dup
+      new_defination.throttles = self.throttles.map(&:dup)
+      new_defination
     end
   end
 end
