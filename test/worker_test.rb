@@ -275,7 +275,7 @@ class WorkerTest < Minitest::Test
 
       describe "throttles" do
         it "defines the throttles" do
-          assert_equal 2, ThrottledJob.rocket_job_throttles.throttles.count, -> { ThrottledJob.rocket_job_throttles.throttles.ai }
+          assert_equal 1, ThrottledJob.rocket_job_throttles.throttles.count, -> { ThrottledJob.rocket_job_throttles.throttles.ai }
         end
 
         it "honors regular job throttles" do
@@ -306,7 +306,7 @@ class WorkerTest < Minitest::Test
           job  = ThrottledJob.new
           job.start!
 
-          assert_equal 2, ThrottledJob.rocket_job_throttles.throttles.count, -> { ThrottledJob.rocket_job_throttles.throttles.ai }
+          assert_equal 1, ThrottledJob.rocket_job_throttles.throttles.count, -> { ThrottledJob.rocket_job_throttles.throttles.ai }
           assert_equal 2, ThrottledJob.count
           assert_equal 1, ThrottledJob.running.count
           assert_equal 1, ThrottledJob.queued.count
@@ -321,7 +321,7 @@ class WorkerTest < Minitest::Test
           job  = ThrottledJob.new
           job.start!
 
-          assert_equal 2, ThrottledJob.rocket_job_throttles.throttles.count, -> { ThrottledJob.rocket_job_throttles.throttles.ai }
+          assert_equal 1, ThrottledJob.rocket_job_throttles.throttles.count, -> { ThrottledJob.rocket_job_throttles.throttles.ai }
           assert_equal 2, ThrottledJob.count
           assert_equal 1, ThrottledJob.running.count
           assert_equal 1, ThrottledJob.queued.count

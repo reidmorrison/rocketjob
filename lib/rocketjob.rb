@@ -57,7 +57,7 @@ module RocketJob
       autoload :Persistence,         "rocket_job/plugins/job/persistence"
       autoload :Throttle,            "rocket_job/plugins/job/throttle"
       autoload :ThrottleRunningJobs, "rocket_job/plugins/job/throttle_running_jobs"
-      autoload :ThrottleDependantJobs, "rocket_job/plugins/job/throttle_dependant_jobs"
+      autoload :ThrottleDependentJobs, "rocket_job/plugins/job/throttle_dependent_jobs"
       autoload :Transaction,         "rocket_job/plugins/job/transaction"
       autoload :Worker,              "rocket_job/plugins/job/worker"
     end

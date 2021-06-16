@@ -12,6 +12,5 @@ module RocketJob
     include Plugins::Job::Worker
     include Plugins::Job::Throttle
     include Plugins::Job::ThrottleRunningJobs
-    include Plugins::Job::ThrottleDependantJobs
   end
 end

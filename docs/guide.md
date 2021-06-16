@@ -878,14 +878,15 @@ Notes:
 
 #### Throttles Dependant Jobs
 
-Throttle jobs if any of its dependant jobs are running.
+Throttle jobs if any of its dependent jobs are running.
 
 Example:
 
 ~~~ruby
 class MyJob < RocketJob::Job
   # My job won't run if there are any dependant jobs running.
-  self.dependant_jobs = ['Dependant Jobs']
+  include RocketJob::Plugins::Job::ThrottleDependentJobs
+  self.dependent_jobs = ['Dependent Jobs']
 
   def perform
     # ....
