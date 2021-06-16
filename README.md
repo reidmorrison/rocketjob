@@ -20,12 +20,21 @@ Checkout https://rocketjob.io/
 ## Rocket Job v6
 
 - Support for Ruby v3 and Rails 6.
-- Multiple output file support through extended `output_categories` capability.
-    - File output formats for each category. For example: CSV, PSV, JSON, etc.
-- Support for AWS DocumentDB as the data store.
+- Major enhancements in Batch job support:
+    - Direct built-in Tabular support for all input and output categories.
+    - Multiple output file support, each with its own settings for:
+        - Compression
+            - GZip, Zip, BZip2 (Chunked for much faster loading into Apache Spark).
+        - Encryption
+            - PGP, Symmetric Encryption.
+        - File format
+            - CSV, PSV, JSON, Fixed Format, xlsx.
+- Significant error handling improvements, especially around throttle failures
+  that used to result in "hanging" jobs.
+- Support AWS DocumentDB in addition to MongoDB as the data store.
 - Removed use of Symbols to meet Symbol deprecation in MongoDB and Mongoid.
 
-## Upgrading to Rocket Job v6
+### Upgrading to Rocket Job v6
 
 The following plugins have been deprecated and are no longer loaded by default.
 - `RocketJob::Batch::Tabular::Input`
