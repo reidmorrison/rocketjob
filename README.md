@@ -17,7 +17,7 @@ Checkout https://rocketjob.io/
 * Questions? Join the chat room on Gitter for [rocketjob support](https://gitter.im/rocketjob/support)
 * [Report bugs](https://github.com/rocketjob/rocketjob/issues)
 
-## Rocket Job v5
+## Rocket Job v6
 
 - Support for Ruby v3 and Rails 6.
 - Multiple output file support through extended `output_categories` capability.
@@ -25,9 +25,20 @@ Checkout https://rocketjob.io/
 - Support for AWS DocumentDB as the data store.
 - Removed use of Symbols to meet Symbol deprecation in MongoDB and Mongoid.
 
-The following plugins have been deprecated and will be removed in Rocket Job v5.1
-- RocketJob::Batch::Tabular::Input
-- RocketJob::Batch::Tabular::Output
+## Upgrading to Rocket Job v6
+
+The following plugins have been deprecated and are no longer loaded by default.
+- `RocketJob::Batch::Tabular::Input`
+- `RocketJob::Batch::Tabular::Output`
+
+If your code relies on these plugins and you still want to upgrade to Rocket Job v6,
+add the following require statement to any jobs that still use them:
+
+~~~ruby
+require "rocket_job/batch/tabular"
+~~~
+
+It is important to migrate away from these plugins, since they will be removed in a future release.
 
 ## Rocket Job v4
 
