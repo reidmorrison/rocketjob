@@ -53,7 +53,7 @@ module RocketJob
       # Allows another job with a higher priority to start even though this one is running already
       # @overrides RocketJob::Plugins::Job::ThrottleRunningJobs#throttle_running_jobs_base_query
       def throttle_running_jobs_base_query
-        query = super
+        query                = super
         query[:priority.lte] = priority if throttle_running_workers&.positive?
         query
       end

@@ -14,7 +14,7 @@ module Plugins
 
         describe "#requeue!" do
           it "requeue jobs from dead workers" do
-            worker_name = "server:12345"
+            worker_name     = "server:12345"
             job.worker_name = worker_name
             job.start!
             assert job.running?
@@ -29,7 +29,7 @@ module Plugins
 
         describe "#requeue" do
           it "requeue jobs from dead workers" do
-            worker_name = "server:12345"
+            worker_name     = "server:12345"
             job.worker_name = worker_name
             assert job.valid?, job.errors.messages
             job.start!
@@ -89,7 +89,7 @@ module Plugins
 
         describe "#retry!" do
           it "retry failed jobs" do
-            worker_name = "server:12345"
+            worker_name     = "server:12345"
             job.worker_name = worker_name
             job.start!
             assert job.running?

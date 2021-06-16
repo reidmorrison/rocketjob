@@ -233,7 +233,7 @@ module RocketJob
 
     # Parse command line options placing results in the corresponding instance variables
     def parse(argv)
-      parser = OptionParser.new do |o|
+      parser        = OptionParser.new do |o|
         o.on("-n", "--name NAME", "Unique Name of this server (Default: host_name:PID)") do |arg|
           Config.name = arg
         end

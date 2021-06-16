@@ -22,7 +22,7 @@ module RocketJob
         count_running_workers
 
         puts "Loading job with #{count} records/lines"
-        job = RocketJob::Jobs::PerformanceJob.new(log_level: :warn)
+        job                           = RocketJob::Jobs::PerformanceJob.new(log_level: :warn)
         job.input_category.slice_size = slice_size
         if encrypt
           job.input_category.serializer  = :encrypt
@@ -64,7 +64,7 @@ module RocketJob
 
       # Parse command line options
       def parse(argv)
-        parser        = OptionParser.new do |o|
+        parser = OptionParser.new do |o|
           o.on("-c", "--count COUNT", "Count of records to enqueue") do |arg|
             self.count = arg.to_i
           end

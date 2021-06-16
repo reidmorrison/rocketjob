@@ -22,8 +22,6 @@ module RocketJob
       find(id: id).first
     end
 
-    private
-
     # Internal class for uploading records in batches
     class BatchUploader
       attr_reader :record_count
@@ -46,7 +44,10 @@ module RocketJob
 
       def <<(record)
         raise(ArgumentError, "Record must be a Hash") unless record.is_a?(Hash)
-        raise(ArgumentError, "Record must include an :id key") unless record.key?(:id) || record.key?("id") || record.key?("_id")
+
+        unless record.key?(:id) || record.key?("id") || record.key?("_id")
+          raise(ArgumentError, "Record must include an :id key")
+        end
 
         @documents << record
         @record_count += 1

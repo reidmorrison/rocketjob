@@ -84,7 +84,7 @@ Metrics/PerceivedComplexity:
 
 # Initialization Vector abbreviation
 Naming/MethodParameterName:
-  AllowedNames: ["iv", "_", "io", "ap", "id"]
+  AllowedNames: [ "iv", "_", "io", "ap", "id" ]
 
 # Does not allow Symbols to load
 Security/YAMLLoad:
@@ -92,7 +92,7 @@ Security/YAMLLoad:
 
 # Needed for testing DateTime
 Style/DateTime:
-  Exclude: ["test/**/*"]
+  Exclude: [ "test/**/*" ]
 
 # TODO: Soften Limits for phase 1 only
 Style/Documentation:

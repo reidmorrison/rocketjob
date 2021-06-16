@@ -52,8 +52,8 @@ module Batch
           end
           measure_called = false
           job.logger.stub(:measure_info, lambda { |description, *_args|
-                                           measure_called = true if description.include?("Completed slice")
-                                         }) do
+            measure_called = true if description.include?("Completed slice")
+          }) do
             job.perform_now
           end
           assert measure_called, "In Batch::Logger.around_slice logger.measure_info('Completed slice') not called"

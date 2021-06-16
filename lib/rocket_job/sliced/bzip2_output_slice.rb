@@ -34,7 +34,7 @@ module RocketJob
         return [] if @records.nil? || @records.empty?
 
         lines = records.to_a.join("\n") + "\n"
-        s = StringIO.new
+        s     = StringIO.new
         IOStreams::Bzip2::Writer.stream(s) { |io| io.write(lines) }
         BSON::Binary.new(s.string)
       end

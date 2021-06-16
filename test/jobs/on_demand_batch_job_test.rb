@@ -60,8 +60,8 @@ module Jobs
             end
           CODE
           job = RocketJob::Jobs::OnDemandBatchJob.new(
-            before_code:    before_code,
-            code:           "row + 1"
+            before_code: before_code,
+            code:        "row + 1"
           )
           job.collect_output
           job.perform_now
@@ -83,9 +83,9 @@ module Jobs
             statistics['after'] = 413
           CODE
           job = RocketJob::Jobs::OnDemandBatchJob.new(
-            before_code:    before_code,
-            after_code:     after_code,
-            code:           "row + 1"
+            before_code: before_code,
+            after_code:  after_code,
+            code:        "row + 1"
           )
           job.collect_output
           job.perform_now

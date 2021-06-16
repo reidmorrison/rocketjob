@@ -11,7 +11,7 @@ module RocketJob
 
         # Whether to compress, encrypt, or use the bzip2 serialization for data in this category.
         field :serializer, type: ::Mongoid::StringifiedSymbol, default: :compress
-        validates_inclusion_of :serializer, in: [:none, :compress, :encrypt, :bzip2]
+        validates_inclusion_of :serializer, in: %i[none compress encrypt bzip2]
 
         # The header columns when the file does not include a header row.
         # Note:

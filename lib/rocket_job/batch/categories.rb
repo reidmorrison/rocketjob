@@ -82,7 +82,8 @@ module RocketJob
             category              = Category::Input.new
             self.input_categories = [category]
           else
-            raise(ArgumentError, "Unknown Input Category: #{category_name.inspect}. Registered categories: #{input_categories.collect(&:name).join(',')}")
+            raise(ArgumentError,
+                  "Unknown Input Category: #{category_name.inspect}. Registered categories: #{input_categories.collect(&:name).join(',')}")
           end
         end
         category
@@ -94,8 +95,10 @@ module RocketJob
         # .find does not work against this association
         output_categories.each { |catg| category = catg if catg.name == category_name }
         unless category
-          raise(ArgumentError, "Unknown Output Category: #{category_name.inspect}. Registered categories: #{output_categories.collect(&:name).join(',')}")
+          raise(ArgumentError,
+                "Unknown Output Category: #{category_name.inspect}. Registered categories: #{output_categories.collect(&:name).join(',')}")
         end
+
         category
       end
 

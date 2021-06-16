@@ -65,7 +65,6 @@ module RocketJob
           (categorized_records[named_category] ||= []) << value unless value.nil? && !job.output_category(named_category).nils
         end
       end
-
     end
   end
 end

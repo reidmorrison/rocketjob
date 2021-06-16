@@ -110,7 +110,7 @@ module Sliced
         it "with exception" do
           slice.start
           slice.processing_record_number = 21
-          slice.worker_name = "me"
+          slice.worker_name              = "me"
           slice.fail!(exception)
           assert_equal 1, slice.failure_count
           assert slice.exception

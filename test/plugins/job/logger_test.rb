@@ -44,8 +44,8 @@ module Plugins
             @job           = LoggerJob.new
             measure_called = false
             @job.logger.stub(:measure_info, lambda { |description, *_args|
-                                              measure_called = true if description == "Completed #perform"
-                                            }) do
+              measure_called = true if description == "Completed #perform"
+            }) do
               @job.perform_now
             end
             assert measure_called, "In Plugins::Job::Logger.around_perform logger.measure_info('Completed #perform') not called"

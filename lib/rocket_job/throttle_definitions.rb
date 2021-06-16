@@ -37,8 +37,8 @@ module RocketJob
     end
 
     def deep_dup
-      new_defination = self.dup
-      new_defination.throttles = self.throttles.map(&:dup)
+      new_defination           = dup
+      new_defination.throttles = throttles.map(&:dup)
       new_defination
     end
   end

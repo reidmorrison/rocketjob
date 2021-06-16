@@ -49,7 +49,7 @@ module RocketJob
           last  = paths.pop
           return unless last
 
-          last_target       = paths.inject(in_memory) do |target, sub_key|
+          last_target = paths.inject(in_memory) do |target, sub_key|
             target.key?(sub_key) ? target[sub_key] : target[sub_key] = Hash.new(0)
           end
           last_target[last] += increment
@@ -99,7 +99,7 @@ module RocketJob
 
       # Overrides RocketJob::Batch::Logger#rocket_job_batch_log_payload
       def rocket_job_batch_log_payload
-        h              = {
+        h = {
           from:  aasm.from_state,
           to:    aasm.to_state,
           event: aasm.current_event

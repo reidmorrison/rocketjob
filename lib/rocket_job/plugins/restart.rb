@@ -91,9 +91,9 @@ module RocketJob
           logger.info("Job has expired. Not creating a new instance.")
           return
         end
-        job_attrs              =
+        job_attrs             =
           rocket_job_restart_attributes.each_with_object({}) { |attr, attrs| attrs[attr] = send(attr) }
-        job                    = self.class.new(job_attrs)
+        job                   = self.class.new(job_attrs)
 
         # Copy across input and output categories to new scheduled job so that all of the
         # settings are remembered between instance. Example: slice_size

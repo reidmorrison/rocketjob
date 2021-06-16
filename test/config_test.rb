@@ -1,4 +1,5 @@
 require_relative "test_helper"
+
 class ConfigTest < Minitest::Test
   describe RocketJob::Config do
     describe ".config" do

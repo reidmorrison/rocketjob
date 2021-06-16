@@ -55,13 +55,13 @@ module ActiveJob
     #   - Completed jobs will not appear in completed since the Active Job adapter
     #     uses the default Rocket Job `destroy_on_completion` of `false`.
     class RocketJobAdapter
-      def self.enqueue(active_job) #:nodoc:
+      def self.enqueue(active_job)
         job                        = RocketJob::Jobs::ActiveJob.create!(active_job_params(active_job))
         active_job.provider_job_id = job.id.to_s if active_job.respond_to?(:provider_job_id=)
         job
       end
 
-      def self.enqueue_at(active_job, timestamp) #:nodoc:
+      def self.enqueue_at(active_job, timestamp)
         params          = active_job_params(active_job)
         params[:run_at] = Time.at(timestamp).utc
 

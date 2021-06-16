@@ -60,8 +60,8 @@ module Plugins
             @job.log_level = :warn
             logged         = false
             @job.logger.stub(:log_internal, lambda { |_level, _index, message, _payload, _exception|
-                                              logged = true if message.include?("some very noisy logging")
-                                            }) do
+              logged = true if message.include?("some very noisy logging")
+            }) do
               @job.perform_now
             end
             assert_equal false, logged

@@ -99,8 +99,8 @@ module Batch
 
       describe "slice callbacks" do
         it "runs them in the right order" do
-          records = 7
-          @job    = BatchSlicesJob.new
+          records                        = 7
+          @job                           = BatchSlicesJob.new
           @job.input_category.slice_size = 5
           @job.upload do |stream|
             records.times.each { |i| stream << i }
@@ -117,8 +117,8 @@ module Batch
 
       describe "batch callbacks" do
         it "runs them in the right order" do
-          records = 7
-          @job    = BatchCallbacksJob.new
+          records                        = 7
+          @job                           = BatchCallbacksJob.new
           @job.input_category.slice_size = 5
           @job.upload do |stream|
             records.times.each { |i| stream << i }

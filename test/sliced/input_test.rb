@@ -3,7 +3,7 @@ require_relative "../test_helper"
 module Sliced
   class InputTest < Minitest::Test
     describe RocketJob::Sliced::Input do
-      let(:collection_name) { "rocket_job.slices.test".to_sym }
+      let(:collection_name) { :"rocket_job.slices.test" }
 
       let :input do
         RocketJob::Sliced::Input.new(
@@ -35,7 +35,7 @@ module Sliced
       describe "#upload with a block" do
         it "slice size 1" do
           input.slice_size = 1
-          count = input.upload { |records| lines.each { |line| records << line } }
+          count            = input.upload { |records| lines.each { |line| records << line } }
           assert_equal 3, count
           assert_equal 3, input.count
           assert_equal 1, input.first.first_record_number
@@ -46,7 +46,7 @@ module Sliced
 
         it "slice size 2" do
           input.slice_size = 2
-          count = input.upload { |records| lines.each { |line| records << line } }
+          count            = input.upload { |records| lines.each { |line| records << line } }
           assert_equal 3, count
           assert_equal 2, input.count
           assert_equal 1, input.first.first_record_number
@@ -57,7 +57,7 @@ module Sliced
 
         it "slice size 3" do
           input.slice_size = 3
-          count = input.upload { |records| lines.each { |line| records << line } }
+          count            = input.upload { |records| lines.each { |line| records << line } }
           assert_equal 3, count
           assert_equal 1, input.count
           assert_equal 1, input.first.first_record_number

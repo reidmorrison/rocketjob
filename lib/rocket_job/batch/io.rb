@@ -158,13 +158,13 @@ module RocketJob
         raise(ArgumentError, "Either stream, or a block must be supplied") unless stream || block
 
         category = input_category(category) unless category.is_a?(Category::Input)
-        stream   ||= category.file_name
+        stream ||= category.file_name
         path     = nil
 
         if stream
-          path                  = IOStreams.new(stream)
-          path.file_name        = file_name if file_name
-          category.file_name    = path.file_name
+          path               = IOStreams.new(stream)
+          path.file_name     = file_name if file_name
+          category.file_name = path.file_name
 
           # Auto detect the format based on the upload file name if present.
           if category.format == :auto
@@ -421,8 +421,8 @@ module RocketJob
       def download(stream = nil, category: :main, header_line: nil, **args, &block)
         raise "Cannot download incomplete job: #{id}. Currently in state: #{state}-#{sub_state}" if rocket_job_processing?
 
-        category          = output_category(category) unless category.is_a?(Category::Output)
-        output_collection = output(category)
+        category           = output_category(category) unless category.is_a?(Category::Output)
+        output_collection  = output(category)
 
         # Store the output file name in the category
         category.file_name = stream if !block && (stream.is_a?(String) || stream.is_a?(IOStreams::Path))
