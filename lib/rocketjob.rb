@@ -83,7 +83,7 @@ module RocketJob
     autoload :UploadFileJob,         "rocket_job/jobs/upload_file_job"
 
     module ReEncrypt
-      autoload :RelationalJob, "rocket_job/jobs/re_encrypt/relational_job" if defined?(ActiveRecord) && defined?(SyncAttr)
+      autoload :RelationalJob, "rocket_job/jobs/re_encrypt/relational_job"
     end
   end
 
