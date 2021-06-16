@@ -48,7 +48,7 @@ module RocketJob
           # Note: Throttles are executed in the order they are defined.
           def define_throttle(method_name, filter: :throttle_filter_class)
             # Duplicate to prevent modifying parent class throttles
-            definitions = rocket_job_throttles ? rocket_job_throttles.dup : ThrottleDefinitions.new
+            definitions = rocket_job_throttles ? rocket_job_throttles.deep_dup : ThrottleDefinitions.new
             definitions.add(method_name, filter)
             self.rocket_job_throttles = definitions
           end
@@ -57,7 +57,7 @@ module RocketJob
           def undefine_throttle(method_name)
             return unless rocket_job_throttles
 
-            definitions = rocket_job_throttles.dup
+            definitions = rocket_job_throttles.deep_dup
             definitions.remove(method_name)
             self.rocket_job_throttles = definitions
           end

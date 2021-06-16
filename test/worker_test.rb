@@ -274,12 +274,6 @@ class WorkerTest < Minitest::Test
       end
 
       describe "throttles" do
-        before do
-          if ThrottledJob.rocket_job_throttles.throttles.count.zero?
-            skip "Sometimes a thread concurrency issue with `class_attribute` causes it to ignore throttles"
-          end
-        end
-
         it "defines the throttles" do
           assert_equal 1, ThrottledJob.rocket_job_throttles.throttles.count, -> { ThrottledJob.rocket_job_throttles.throttles.ai }
         end

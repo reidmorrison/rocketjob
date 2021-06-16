@@ -68,6 +68,7 @@ module RocketJob
     autoload :Singleton,             "rocket_job/plugins/singleton"
     autoload :StateMachine,          "rocket_job/plugins/state_machine"
     autoload :Transaction,           "rocket_job/plugins/transaction"
+    autoload :ThrottleDependentJobs, "rocket_job/plugins/throttle_dependent_jobs"
   end
 
   module Jobs
@@ -82,9 +83,7 @@ module RocketJob
     autoload :UploadFileJob,         "rocket_job/jobs/upload_file_job"
 
     module ReEncrypt
-      if defined?(ActiveRecord) && defined?(SyncAttr)
-        autoload :RelationalJob,     "rocket_job/jobs/re_encrypt/relational_job"
-      end
+      autoload :RelationalJob, "rocket_job/jobs/re_encrypt/relational_job" if defined?(ActiveRecord) && defined?(SyncAttr)
     end
   end
 
