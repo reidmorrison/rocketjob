@@ -3,14 +3,14 @@ module Plugins
   module Job
     class ThrottleDependentJobsTest < Minitest::Test
       class RegularTestJob < RocketJob::Job
-        include RocketJob::Plugins::Job::ThrottleDependentJobs
+        include RocketJob::Plugins::ThrottleDependentJobs
         self.dependent_jobs = ["Plugins::Job::ThrottleDependentJobsTest::DependentTestJob"].freeze
       end
 
       class DependentTestJob < RocketJob::Job
       end
 
-      describe RocketJob::Plugins::Job::ThrottleDependentJobs do
+      describe RocketJob::Plugins::ThrottleDependentJobs do
         before do
           RocketJob::Job.delete_all
         end
