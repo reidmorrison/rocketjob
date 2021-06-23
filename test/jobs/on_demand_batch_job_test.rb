@@ -38,7 +38,7 @@ module Jobs
       describe "#perform" do
         it "runs code" do
           job = RocketJob::Jobs::OnDemandBatchJob.new(code: "row + 1")
-          job.collect_output
+          job.add_output_category
           job.upload do |stream|
             stream << 1
             stream << 2
@@ -63,7 +63,7 @@ module Jobs
             before_code: before_code,
             code:        "row + 1"
           )
-          job.collect_output
+          job.add_output_category
           job.perform_now
           assert job.completed?, -> { job.ai }
           assert_equal 1, job.output.count
@@ -87,7 +87,7 @@ module Jobs
             after_code:  after_code,
             code:        "row + 1"
           )
-          job.collect_output
+          job.add_output_category
           job.perform_now
           assert job.completed?, -> { job.ai }
           assert_equal 1, job.output.count

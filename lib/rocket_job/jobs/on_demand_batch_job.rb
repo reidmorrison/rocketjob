@@ -96,12 +96,14 @@ module RocketJob
       before_batch :run_before_code
       after_batch :run_after_code
 
-      # Make this job collect its output
-      # :nils [true|false]
-      #   Whether to skip the output from `code` when it is nil
-      #   Default: false
-      def collect_output(nils: false)
-        self.output_categories = [RocketJob::Category::Output.new(nils: nils)]
+      # Shortcut for setting the slice_size
+      def slice_size=(slice_size)
+        input_category.slice_size = slice_size
+      end
+
+      # Add a new output category and collect output for it.
+      def add_output_category(**args)
+        self.output_categories << RocketJob::Category::Output.new(**args)
       end
 
       private
