@@ -72,34 +72,38 @@ module RocketJob
       end
 
       def input_category(category_name = :main)
+        return category_name if category_name.is_a?(Category::Input)
+        raise(ArgumentError, "Cannot supply Output Category to input category") if category_name.is_a?(Category::Output)
+
         category_name = category_name.to_sym
-        category      = nil
-        # .find does not work against this association
-        input_categories.each { |catg| category = catg if catg.name == category_name }
-        unless category
-          # Auto-register main input category if missing
-          if category_name == :main
-            category              = Category::Input.new
-            self.input_categories = [category]
-          else
-            raise(ArgumentError,
-                  "Unknown Input Category: #{category_name.inspect}. Registered categories: #{input_categories.collect(&:name).join(',')}")
-          end
+        # find does not work against this association
+        input_categories.each { |category| return category if category.name == category_name }
+
+        unless category_name == :main
+          raise(
+            ArgumentError,
+            "Unknown Input Category: #{category_name.inspect}. Registered categories: #{input_categories.collect(&:name).join(',')}"
+          )
         end
+
+        # Auto-register main input category when not defined
+        category = Category::Input.new(job: self)
+        self.input_categories << category
         category
       end
 
       def output_category(category_name = :main)
-        category_name = category_name.to_sym
-        category      = nil
-        # .find does not work against this association
-        output_categories.each { |catg| category = catg if catg.name == category_name }
-        unless category
-          raise(ArgumentError,
-                "Unknown Output Category: #{category_name.inspect}. Registered categories: #{output_categories.collect(&:name).join(',')}")
-        end
+        return category_name if category_name.is_a?(Category::Output)
+        raise(ArgumentError, "Cannot supply Input Category to output category") if category_name.is_a?(Category::Input)
 
-        category
+        category_name = category_name.to_sym
+        # .find does not work against this association
+        output_categories.each { |category| return category if category.name == category_name }
+
+        raise(
+          ArgumentError,
+          "Unknown Output Category: #{category_name.inspect}. Registered categories: #{output_categories.collect(&:name).join(',')}"
+        )
       end
 
       # Returns [true|false] whether the named category has already been defined
@@ -214,7 +218,7 @@ module RocketJob
         category.tabular.render(row)
       end
 
-      # Migrate existing v4 batch jobs to v5.0
+      # Migrate existing v5 batch jobs to v6
       def rocketjob_categories_migrate
         return unless attribute_present?(:input_categories) && self[:input_categories]&.first.is_a?(Symbol)
 

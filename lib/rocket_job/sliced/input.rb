@@ -1,10 +1,10 @@
 module RocketJob
   module Sliced
     class Input < Slices
-      def upload(on_first: nil, &block)
+      def upload(**args, &block)
         # Create indexes before uploading
         create_indexes
-        Writer::Input.collect(self, on_first: on_first, &block)
+        Writer::Input.collect(self, **args, &block)
       rescue Exception => e
         drop
         raise(e)
@@ -61,39 +61,29 @@ module RocketJob
         upload { |records| arel.find_each { |model| records << block.call(model) } }
       end
 
-      def upload_integer_range(start_id, last_id)
-        # Create indexes before uploading
-        create_indexes
-        count = 0
-        while start_id <= last_id
-          end_id = start_id + slice_size - 1
-          end_id = last_id if end_id > last_id
-          create!(records: [[start_id, end_id]])
-          start_id += slice_size
-          count    += 1
+      def upload_integer_range(start_id, last_id, slice_batch_size: 1_000)
+        # Each "record" is actually a range of Integers which makes up each slice
+        upload(slice_size: 1, slice_batch_size: slice_batch_size) do |records|
+          while start_id <= last_id
+            end_id = start_id + slice_size - 1
+            end_id = last_id if end_id > last_id
+            records << [start_id, end_id]
+            start_id += slice_size
+          end
         end
-        count
-      rescue Exception => e
-        drop
-        raise(e)
       end
 
-      def upload_integer_range_in_reverse_order(start_id, last_id)
-        # Create indexes before uploading
-        create_indexes
-        end_id = last_id
-        count  = 0
-        while end_id >= start_id
-          first_id = end_id - slice_size + 1
-          first_id = start_id if first_id.negative? || (first_id < start_id)
-          create!(records: [[first_id, end_id]])
-          end_id -= slice_size
-          count  += 1
+      def upload_integer_range_in_reverse_order(start_id, last_id, slice_batch_size: 1_000)
+        # Each "record" is actually a range of Integers which makes up each slice
+        upload(slice_size: 1, slice_batch_size: slice_batch_size) do |records|
+          end_id = last_id
+          while end_id >= start_id
+            first_id = end_id - slice_size + 1
+            first_id = start_id if first_id.negative? || (first_id < start_id)
+            records << [first_id, end_id]
+            end_id -= slice_size
+          end
         end
-        count
-      rescue Exception => e
-        drop
-        raise(e)
       end
 
       # Iterate over each failed record, if any
@@ -137,11 +127,11 @@ module RocketJob
         # TODO: Will it perform faster without the id sort?
         # I.e. Just process on a FIFO basis?
         document                 = all.queued.
-                                   sort("_id" => 1).
-                                   find_one_and_update(
-                                     {"$set" => {worker_name: worker_name, state: "running", started_at: Time.now}},
-                                     return_document: :after
-                                   )
+          sort("_id" => 1).
+          find_one_and_update(
+            {"$set" => {worker_name: worker_name, state: "running", started_at: Time.now}},
+            return_document: :after
+          )
         document.collection_name = collection_name if document
         document
       end

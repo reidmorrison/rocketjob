@@ -73,6 +73,12 @@ module RocketJob
       def tabular?
         format.present?
       end
+
+      def build_collection_name(direction, job)
+        collection_name = "rocket_job.#{direction}s.#{job.id}"
+        collection_name << ".#{name}" unless name == :main
+        collection_name
+      end
     end
   end
 end

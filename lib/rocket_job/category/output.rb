@@ -20,6 +20,13 @@ module RocketJob
 
         tabular.render_header
       end
+
+      def data_store(job)
+        RocketJob::Sliced::Output.new(
+          collection_name: build_collection_name(:output, job),
+          slice_class:     serializer_class
+        )
+      end
     end
   end
 end

@@ -73,11 +73,12 @@ module RocketJob
 
   module Jobs
     autoload :ActiveJob,             "rocket_job/jobs/active_job"
+    autoload :ConversionJob,         "rocket_job/jobs/conversion_job"
     autoload :CopyFileJob,           "rocket_job/jobs/copy_file_job"
     autoload :DirmonJob,             "rocket_job/jobs/dirmon_job"
+    autoload :HousekeepingJob,       "rocket_job/jobs/housekeeping_job"
     autoload :OnDemandBatchJob,      "rocket_job/jobs/on_demand_batch_job"
     autoload :OnDemandJob,           "rocket_job/jobs/on_demand_job"
-    autoload :HousekeepingJob,       "rocket_job/jobs/housekeeping_job"
     autoload :PerformanceJob,        "rocket_job/jobs/performance_job"
     autoload :SimpleJob,             "rocket_job/jobs/simple_job"
     autoload :UploadFileJob,         "rocket_job/jobs/upload_file_job"

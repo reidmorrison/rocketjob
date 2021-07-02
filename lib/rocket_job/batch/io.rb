@@ -14,11 +14,9 @@ module RocketJob
       #     Default: None ( Uses the single default input collection for this job )
       #     Validates: This value must be one of those listed in #input_categories
       def input(category = :main)
-        raise(ArgumentError, "Cannot supply Output Category to input category") if category.is_a?(Category::Output)
+        category = input_category(category)
 
-        category = input_category(category) unless category.is_a?(Category::Input)
-
-        (@inputs ||= {})[category.name] ||= RocketJob::Sliced.factory(:input, category, self)
+        (@inputs ||= {})[category.name] ||= category.data_store(self)
       end
 
       # Returns [RocketJob::Sliced::Output] output collection for holding output slices
@@ -30,11 +28,9 @@ module RocketJob
       #     Default: None ( Uses the single default output collection for this job )
       #     Validates: This value must be one of those listed in #output_categories
       def output(category = :main)
-        raise(ArgumentError, "Cannot supply Input Category to output category") if category.is_a?(Category::Input)
+        category = output_category(category)
 
-        category = output_category(category) unless category.is_a?(Category::Output)
-
-        (@outputs ||= {})[category.name] ||= RocketJob::Sliced.factory(:output, category, self)
+        (@outputs ||= {})[category.name] ||= category.data_store(self)
       end
 
       # Rapidly upload individual records in batches.
@@ -59,19 +55,19 @@ module RocketJob
       #     The category or the name of the category to access or download data from
       #     Default: None ( Uses the single default output collection for this job )
       #     Validates: This value must be one of those listed in #input_categories
-      def lookup_collection(category = :main)
-        category = input_category(category) unless category.is_a?(Category::Input)
-
-        collection = (@lookup_collections ||= {})[category.name]
-
-        unless collection
-          collection_name = "rocket_job.inputs.#{id}"
-          collection_name << ".#{category.name}" unless category.name == :main
-
-          @lookup_collections[category.name] ||=
-            LookupCollection.new(Sliced::Slice.collection.database, collection_name)
-        end
-      end
+      # def lookup_collection(category = :main)
+      #   category = input_category(category) unless category.is_a?(Category::Input)
+      #
+      #   collection = (@lookup_collections ||= {})[category.name]
+      #
+      #   unless collection
+      #     collection_name = "rocket_job.inputs.#{id}"
+      #     collection_name << ".#{category.name}" unless category.name == :main
+      #
+      #     @lookup_collections[category.name] ||=
+      #       LookupCollection.new(Sliced::Slice.collection.database, collection_name)
+      #   end
+      # end
 
       # Upload the supplied file, io, IOStreams::Path, or IOStreams::Stream.
       #
@@ -302,8 +298,8 @@ module RocketJob
       # * The record_count for the job is set to: last_id - start_id + 1.
       # * If an exception is raised while uploading data, the input collection is cleared out
       #   so that if a job is retried during an upload failure, data is not duplicated.
-      def upload_integer_range(start_id, last_id, category: :main)
-        input(category).upload_integer_range(start_id, last_id)
+      def upload_integer_range(start_id, last_id, category: :main, slice_batch_size: 1_000)
+        input(category).upload_integer_range(start_id, last_id, slice_batch_size: slice_batch_size)
         count             = last_id - start_id + 1
         self.record_count = (record_count || 0) + count
         count
@@ -334,14 +330,14 @@ module RocketJob
       # * The record_count for the job is set to: last_id - start_id + 1.
       # * If an exception is raised while uploading data, the input collection is cleared out
       #   so that if a job is retried during an upload failure, data is not duplicated.
-      def upload_integer_range_in_reverse_order(start_id, last_id, category: :main)
-        input(category).upload_integer_range_in_reverse_order(start_id, last_id)
+      def upload_integer_range_in_reverse_order(start_id, last_id, category: :main, slice_batch_size: 1_000)
+        input(category).upload_integer_range_in_reverse_order(start_id, last_id, slice_batch_size: slice_batch_size)
         count             = last_id - start_id + 1
         self.record_count = (record_count || 0) + count
         count
       end
 
-      # Upload the supplied slices for processing by workers
+      # Upload the supplied slice for processing by workers
       #
       # Updates the record_count after adding the records
       #
@@ -432,7 +428,7 @@ module RocketJob
 
           return output_collection.download(&block) if block
 
-          IOStreams.new(stream || category.file_name).stream(:none).writer(**args) do |io|
+          IOStreams.new(stream || category.file_name.stream(:none)).writer(**args) do |io|
             output_collection.download { |record| io << record[:binary] }
           end
         else

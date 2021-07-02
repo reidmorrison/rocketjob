@@ -105,6 +105,14 @@ module RocketJob
           skip_unknown:     skip_unknown
         )
       end
+
+      def data_store(job)
+        RocketJob::Sliced::Input.new(
+          collection_name: build_collection_name(:input, job),
+          slice_class:     serializer_class,
+          slice_size:      slice_size
+        )
+      end
     end
   end
 end

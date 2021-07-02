@@ -96,6 +96,11 @@ module RocketJob
         slice
       end
 
+      def insert_many(slices)
+        documents = slices.collect(&:as_document)
+        all.collection.insert_many(documents)
+      end
+
       # Append to an existing slice if already present
       def append(slice, input_slice)
         existing_slice = all.where(id: input_slice.id).first

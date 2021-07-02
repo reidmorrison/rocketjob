@@ -133,30 +133,35 @@ module Sliced
           count = input.upload_integer_range_in_reverse_order(1, 1)
           assert_equal 1, count, input.first.inspect
           assert_equal [[[1, 1]]], input.collect(&:to_a)
+          assert_equal [1], input.collect(&:first_record_number)
         end
 
         it "handle single range" do
           count = input.upload_integer_range_in_reverse_order(1, 10)
           assert_equal 1, count, input.first.inspect
           assert_equal [[[1, 10]]], input.collect(&:to_a)
+          assert_equal [1], input.collect(&:first_record_number)
         end
 
         it "handle longer range" do
           count = input.upload_integer_range_in_reverse_order(1, 11)
           assert_equal 2, count, input.collect(&:to_a).inspect
           assert_equal [[[2, 11]], [[1, 1]]], input.collect(&:to_a)
+          assert_equal [1, 2], input.collect(&:first_record_number)
         end
 
         it "handle even longer range" do
           count = input.upload_integer_range_in_reverse_order(0, 44)
           assert_equal 5, count, input.collect(&:to_a).inspect
           assert_equal [[[35, 44]], [[25, 34]], [[15, 24]], [[5, 14]], [[0, 4]]], input.collect(&:to_a)
+          assert_equal [1, 2, 3, 4, 5], input.collect(&:first_record_number)
         end
 
         it "handle partial range" do
           count = input.upload_integer_range_in_reverse_order(5, 44)
           assert_equal 4, count, input.collect(&:to_a).inspect
           assert_equal [[[35, 44]], [[25, 34]], [[15, 24]], [[5, 14]]], input.collect(&:to_a)
+          assert_equal [1, 2, 3, 4], input.collect(&:first_record_number)
         end
       end
 
