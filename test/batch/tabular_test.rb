@@ -1,4 +1,5 @@
 require_relative "../test_helper"
+require "rocket_job/batch/tabular"
 
 module Batch
   class TabularTest < Minitest::Test
@@ -67,14 +68,16 @@ module Batch
     describe RocketJob::Batch::Tabular do
       describe "csv format" do
         before do
+          lines  = [
+            "first,second,third",
+            "1,2,3",
+            "",
+            "4,5,6",
+            "7,8,9"
+          ]
+          stream = StringIO.new(lines.join("\n"))
           assert @job = ArrayInputOutputJob.new(tabular_output_header: %w[one two three])
-          @job.upload do |stream|
-            stream << "first,second,third"
-            stream << "1,2,3"
-            stream << ""
-            stream << "4,5,6"
-            stream << "7,8,9"
-          end
+          @job.upload(stream)
           @job.perform_now
           @io = StringIO.new
           @job.download(@io)
@@ -137,12 +140,14 @@ module Batch
             tabular_input_header:  %w[first second third],
             tabular_output_header: %w[one two three]
           )
-          @job.upload do |stream|
-            stream << "1,2,3"
-            stream << ""
-            stream << "4,5,6"
-            stream << "7,8,9"
-          end
+          lines  = [
+            "1,2,3",
+            "",
+            "4,5,6",
+            "7,8,9"
+          ]
+          stream = StringIO.new(lines.join("\n"))
+          @job.upload(stream)
           @job.perform_now
           @io = StringIO.new
           @job.download(@io)
@@ -164,18 +169,19 @@ module Batch
 
       describe "process with block" do
         before do
+          lines  = [
+            "first,second,third",
+            "1,2,3",
+            "",
+            "4,5,6",
+            "7,8,9"
+          ]
+          stream = StringIO.new(lines.join("\n"))
           assert @job = SpecializedFirstSliceJob.new
-          @job.upload do |stream|
-            stream << "first,second,third"
-            stream << "1,2,3"
-            stream << ""
-            stream << "4,5,6"
-            stream << "7,8,9"
-          end
+          @job.upload(stream)
           @job.perform_now
           @io = StringIO.new
           @job.download(@io)
-          # assert @job.specialized_first_slice
         end
 
         describe "#tabular_input_process_first_slice" do

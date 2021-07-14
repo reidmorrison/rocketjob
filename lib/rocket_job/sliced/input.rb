@@ -10,7 +10,7 @@ module RocketJob
         raise(e)
       end
 
-      def upload_mongo_query(criteria, *column_names, &block)
+      def upload_mongo_query(criteria, columns: [], &block)
         options = criteria.options
 
         # Without a block extract the fields from the supplied criteria
@@ -18,19 +18,17 @@ module RocketJob
           # Criteria is returning old school :fields instead of :projections
           options[:projection] = options.delete(:fields) if options.key?(:fields)
         else
-          column_names = column_names.collect(&:to_s)
-          column_names << "_id" if column_names.size.zero?
-
-          fields = options.delete(:fields) || {}
-          column_names.each { |col| fields[col] = 1 }
+          columns = columns.blank? ? ["_id"] : columns.collect(&:to_s)
+          fields  = options.delete(:fields) || {}
+          columns.each { |col| fields[col] = 1 }
           options[:projection] = fields
 
           block =
-            if column_names.size == 1
-              column = column_names.first
+            if columns.size == 1
+              column = columns.first
               ->(document) { document[column] }
             else
-              ->(document) { column_names.collect { |c| document[c] } }
+              ->(document) { columns.collect { |c| document[c] } }
             end
         end
 
@@ -42,19 +40,19 @@ module RocketJob
         end
       end
 
-      def upload_arel(arel, *column_names, &block)
+      def upload_arel(arel, columns: nil, &block)
         unless block
-          column_names = column_names.empty? ? [:id] : column_names.collect(&:to_sym)
+          columns = columns.blank? ? [:id] : columns.collect(&:to_sym)
 
           block =
-            if column_names.size == 1
-              column = column_names.first
+            if columns.size == 1
+              column = columns.first
               ->(model) { model.send(column) }
             else
-              ->(model) { column_names.collect { |c| model.send(c) } }
+              ->(model) { columns.collect { |c| model.send(c) } }
             end
           # find_each requires the :id column in the query
-          selection = column_names.include?(:id) ? column_names : column_names + [:id]
+          selection = columns.include?(:id) ? columns : columns + [:id]
           arel      = arel.select(selection)
         end
 

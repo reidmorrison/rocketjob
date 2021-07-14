@@ -150,51 +150,27 @@ module RocketJob
       # * If an io stream is supplied, it is read until it returns nil.
       # * Only use this method for UTF-8 data, for binary data use #input_slice or #input_records.
       # * CSV parsing is slow, so it is usually left for the workers to do.
-      def upload(stream = nil, file_name: nil, category: :main, stream_mode: :line, on_first: nil, **args, &block)
-        raise(ArgumentError, "Either stream, or a block must be supplied") unless stream || block
+      def upload(object = nil, **args, &block)
+        return upload_block(**args, &block) if block
 
-        category = input_category(category) unless category.is_a?(Category::Input)
-        stream ||= category.file_name
-        path     = nil
+        raise(ArgumentError, "Either stream, or a block must be supplied") unless object
 
-        if stream
-          path               = IOStreams.new(stream)
-          path.file_name     = file_name if file_name
-          category.file_name = path.file_name
-
-          # Auto detect the format based on the upload file name if present.
-          if category.format == :auto
-            format = path.format
-            if format
-              # Rebuild tabular with the above file name
-              category.reset_tabular
-              category.format = format
-            end
-          end
-        end
-
-        # Tabular transformations required for upload?
-        if category.tabular?
-          # Remove non-printable characters from tabular input formats
-          # Cannot change the length of fixed width lines
-          replace = category.format == :fixed ? " " : ""
-          path&.option_or_stream(:encode, encoding: "UTF-8", cleaner: :printable, replace: replace)
-
-          # Extract the header line during the file upload when needed.
-          on_first = rocket_job_upload_header_lambda(category, on_first) if category.tabular.header?
-        end
-
-        count =
-          if block
-            input(category).upload(on_first: on_first, &block)
+        case object
+        when Range
+          first = object.first
+          last  = object.last
+          if first < last
+            upload_integer_range(first, last, **args)
           else
-            input(category).upload(on_first: on_first) do |io|
-              path.each(stream_mode, **args) { |line| io << line }
-            end
+            upload_integer_range_in_reverse_order(first, last, **args)
           end
-
-        self.record_count = (record_count || 0) + count
-        count
+        when Mongoid::Criteria
+          upload_mongo_query(criteria, **args)
+        when defined?(ActiveRecord::Relation) ? ActiveRecord::Relation : false
+          upload_arel(arel, **args)
+        else
+          upload_file(object, **args, &block)
+        end
       end
 
       # Upload results from an Arel into RocketJob::SlicedJob.
@@ -223,15 +199,15 @@ module RocketJob
       #
       # Example: Upload user_name and zip_code
       #   arel = User.where(country_code: 'US')
-      #   job.upload_arel(arel, :user_name, :zip_code)
+      #   job.upload_arel(arel, columns: [:user_name, :zip_code])
       #
       # Notes:
       # * Only call from one thread at a time against a single instance of this job.
       # * The record_count for the job is set to the number of records returned by the arel.
       # * If an exception is raised while uploading data, the input collection is cleared out
       #   so that if a job is retried during an upload failure, data is not duplicated.
-      def upload_arel(arel, *column_names, category: :main, &block)
-        count             = input(category).upload_arel(arel, *column_names, &block)
+      def upload_arel(arel, *column_names, columns: nil, category: :main, &block)
+        count             = input(category).upload_arel(arel, columns: columns || column_names, &block)
         self.record_count = (record_count || 0) + count
         count
       end
@@ -262,17 +238,17 @@ module RocketJob
       #   criteria = User.where(state: 'FL')
       #   job.record_count = job.upload_mongo_query(criteria)
       #
-      # Example: Upload just the supplied column
+      # Example: Upload only the specified column(s)
       #   criteria = User.where(state: 'FL')
-      #   job.record_count = job.upload_mongo_query(criteria, :zip_code)
+      #   job.record_count = job.upload_mongo_query(criteria, columns: [:zip_code])
       #
       # Notes:
       # * Only call from one thread at a time against a single instance of this job.
       # * The record_count for the job is set to the number of records returned by the monqo query.
       # * If an exception is raised while uploading data, the input collection is cleared out
       #   so that if a job is retried during an upload failure, data is not duplicated.
-      def upload_mongo_query(criteria, *column_names, category: :main, &block)
-        count             = input(category).upload_mongo_query(criteria, *column_names, &block)
+      def upload_mongo_query(criteria, *column_names, columns: nil, category: :main, &block)
+        count             = input(category).upload_mongo_query(criteria, columns: columns || column_names, &block)
         self.record_count = (record_count || 0) + count
         count
       end
@@ -445,6 +421,53 @@ module RocketJob
       end
 
       private
+
+      def upload_file(stream = nil, file_name: nil, category: :main, stream_mode: :line, on_first: nil, **args)
+        category = input_category(category) unless category.is_a?(Category::Input)
+        stream   ||= category.file_name
+        path     = nil
+
+        if stream
+          path               = IOStreams.new(stream)
+          path.file_name     = file_name if file_name
+          category.file_name = path.file_name
+
+          # Auto detect the format based on the upload file name if present.
+          if category.format == :auto
+            format = path.format
+            if format
+              # Rebuild tabular with the above file name
+              category.reset_tabular
+              category.format = format
+            end
+          end
+        end
+
+        # Remove non-printable characters from tabular input formats
+        # Cannot change the length of fixed width lines
+        if category.tabular?
+          replace = category.format == :fixed ? " " : ""
+          path&.option_or_stream(:encode, encoding: "UTF-8", cleaner: :printable, replace: replace)
+        end
+
+        upload_block(category: category, on_first: on_first) do |io|
+          path.each(stream_mode, **args) { |line| io << line }
+        end
+      end
+
+      def upload_block(category: :main, on_first: nil, &block)
+        category = input_category(category) unless category.is_a?(Category::Input)
+
+        # Extract the header line during the upload when applicable.
+        if category.tabular? && category.tabular.header?
+          on_first = rocket_job_upload_header_lambda(category, on_first)
+        end
+
+        count = input(category).upload(on_first: on_first, &block)
+
+        self.record_count = (record_count || 0) + count
+        count
+      end
 
       # Return a lambda to extract the header row from the uploaded file.
       def rocket_job_upload_header_lambda(category, on_first)
