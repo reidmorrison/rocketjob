@@ -1906,20 +1906,19 @@ with rows and columns, such as CSV, or Excel files.
 Usually the first row is the header that describes what each column contains.
 The remaining rows are the actual data for processing.
 
-Include the `RocketJob::Batch::Tabular::Input` plugin so that tabular files such as csv and Excel are automatically
-parsed prior to being passed into the perform method. Since the plugin parses each row prior to `perform` being called,
-a Hash will be passed as the first argument to `perform`, instead of the raw csv line.
+To direct Rocket Job Batch to read the input as csv, add the `format` option to the `input_category`.
+Now each CSV line will be parsed just before the `perform` method is called, and
+a Hash will be passed in as the first argument to `perform`, instead of the csv line.
 
 This `Hash` consists of the header field names as keys and the values that were received for the specific row 
 in the file.
 
 ~~~ruby
 class TabularJob < RocketJob::Job
-  include RocketJob::Batch
-  include RocketJob::Batch::Tabular::Input
+  input_category format: :csv
   
-  def perform(row)
-  #  row is now a hash because the tabular plugin already parsed the csv data: 
+  def perform(record)
+  #  record is a Hash, for example: 
   #  {
   #     "first_field" => 100,
   #     "second"      => 200,
@@ -1943,22 +1942,67 @@ Notes:
 - The file is uploaded using a stream so that the entire file is not loaded into memory. This allows extremely
   large files to be uploaded with minimal memory overhead.
 
+This job can be changed so that it handles any supported tabular informat. For example: csv, psv, json, xlsx.
+
+#### Auto Detect file type
+
+Set the `format` to `:auto` to use the file name during the upload step to auto-detect the file type:
+
+~~~ruby
+class TabularJob < RocketJob::Job
+  include RocketJob::Batch
+  
+  input_category format: :auto
+  
+  def perform(record)
+  #  record is a Hash, for example: 
+  #  {
+  #     "first_field" => 100,
+  #     "second"      => 200,
+  #     "third"       => 300
+  #   }
+  end
+end
+~~~
+
+Upload a csv file into the job for processing
+~~~ruby
+job = TabularJob.new
+job.upload("my_really_big_csv_file.csv")
+job.save!
+~~~
+
+Upload a xlsx spreadsheet with the same column headers into the same job for processing, 
+without changing the job in any way:
+~~~ruby
+job = TabularJob.new
+job.upload("really_big.xlsx")
+job.save!
+~~~
+
+And so on, for example reading a json file:
+~~~ruby
+job = TabularJob.new
+job.upload("really_big.json")
+job.save!
+~~~
+
+
 ### Writing Tabular Files
 
 Jobs can also output tabular data such as CSV files. Instead of making the job deal with CSV
-transformations directly, it can include the `RocketJob::Batch::Tabular::Output` plugin:
+transformations directly, it can set the `format` on the `output_category` to `:csv`: 
 
 ~~~ruby
 class ExportUsersJob < RocketJob::Job
   include RocketJob::Batch
-  include RocketJob::Batch::Tabular::Output
   
   # Columns to include in the output file
-  self.tabular_output_header = ["login", "last_login"]
+  output_category format: :csv, columns: ["login", "last_login"]
   
-  def perform(login)
-    u = User.find_by(login: login)
-    # Return a Hash that tabular will render as CSV
+  def perform(id)
+    u = User.find(id)
+    # Return a Hash that tabular will render to CSV
     {
       "login"      => u.login,
       "last_login" => u.updated_at
@@ -1970,12 +2014,9 @@ end
 Upload a file into the job for processing
 ~~~ruby
 job = ExportUsersJob.new
-# Upload list of locked user ids to export.
-job.upload do |io|
-  User.where(locked: true).select(:id) do |u|
-    io << u.id
-  end
-end
+# Upload the list of locked user logins to export.
+arel = User.where(locked: true)
+job.upload(arel)
 job.save!
 ~~~
 
@@ -1991,17 +2032,19 @@ jbloggs,2019-02-11 05:43:20
 kadams,2019-01-12 01:20:20
 ~~~
 
-#### Subset
+#### Filtering Output
 
-Tabular can be used to include a subset of columns from a larger dataset:
+Rocket Job will only export the list of columns specified, so for example the same job can output different
+columns between runs. For Example, one customer gets more columns than other, and one job will handle both cases.
+
+In the example below many attributes are being exported, yet only a subset is exported by default:
 
 ~~~ruby
 class ExportUsersJob < RocketJob::Job
   include RocketJob::Batch
-  include RocketJob::Batch::Tabular::Output
   
   # Columns to include in the output file
-  self.tabular_output_header = ["login", "last_login"]
+  output_category format: :csv, columns: ["login", "last_login"]
   
   def perform(login)
     u = User.find_by(login: login)
@@ -2012,11 +2055,30 @@ class ExportUsersJob < RocketJob::Job
 end
 ~~~
 
-Another benefit with the above approach is that the list of output columns can be overridden 
-when the job is created:
+Run the job:
 ~~~ruby
-# Make the job output a CSV file with the "login", "last_login", "name", and "state" columns.
-job = ExportUsersJob.new(tabular_output_header: ["login", "last_login", "name", "state"])
+job = ExportUsersJob.create!
+~~~
+
+Once the job has completed, export the output:
+~~~ruby
+job.download("output.csv")
+~~~
+
+Sample contents of `output.csv`:
+~~~csv
+login,last_login
+jbloggs,2019-02-11 05:43:20
+kadams,2019-01-12 01:20:20
+~~~
+
+For another customer the list of columns can be increased by overriding the output columns.
+For example, make the job output a CSV file with the "login", "last_login", "name", and "state" columns:
+
+~~~ruby
+job = ExportUsersJob.new
+job.output_category.columns = ["login", "last_login", "name", "state"]
+job.save!
 ~~~
 
 Once the job has completed, export the output:

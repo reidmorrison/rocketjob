@@ -67,6 +67,8 @@ module RocketJob
       # Returns [Integer] the number of records processed in the slice
       #
       # Note: The slice will be removed from processing when this method completes
+      #
+      # @deprecated Please open a ticket if you need this behavior.
       def work_first_slice(&block)
         raise "#work_first_slice can only be called from within before_batch callbacks" unless sub_state == :before
 

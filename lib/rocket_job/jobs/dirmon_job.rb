@@ -30,7 +30,7 @@ module RocketJob
     #
     # If another DirmonJob instance is already queued or running, then the create
     # above will fail with:
-    #   MongoMapper::DocumentNotValid: Validation failed: State Another instance of this job is already queued or running
+    #   Validation failed: State Another instance of this job is already queued or running
     #
     # Or to start DirmonJob and ignore errors if already running
     #   RocketJob::Jobs::DirmonJob.create
