@@ -2,30 +2,53 @@
 layout: default
 ---
 
-## Installation
+# Installation
 
 [Rocket Job][0] can run with or without Rails. Instructions for Rails and Standalone installations are listed below.
 
-### Compatibility
+#### Table of Contents
 
-* Ruby 2.1, 2.2, 2.3, 2.4.1 or greater
-* JRuby 1.7, 9.0.4.0, or greater
-* [MongoDB][3] V2.6 or greater is required.
+* [Compatibility](#compatibility)
+* [Install MongoDB](#install-mongodb)
+* [Rails Installation](#rails-installation)
+* [Standalone Installation](#standalone-installation)
 
-### MongoDB
+## Compatibility
 
-[Rocket Job][0] stores jobs in the open source data store [MongoDB][3].
-Installing [MongoDB][3] is relatively straight forward.
+* Ruby 2.6, 2.7, 3.0, or higher.
+* JRuby 9.2.19.0, or higher.
+* [MongoDB][3] V3.6.23 or higher. Or, [AWS DocumentDB][4] v3.6 or higher
 
-For example, installing [MongoDB][3] on a Mac running homebrew:
+## Install MongoDB
 
-~~~
-brew install mongodb
-~~~
+[Rocket Job][0] stores job data in the open source data store [MongoDB][3]. Alternatively, it can store its data
+in [AWS DocumentDB][4].
 
-Then follow the on-screen instructions to start [MongoDB][3].
+It is recommended to run MongoDB locally inside a docker container. 
 
-For other platforms, see [MongoDB Downloads](https://www.mongodb.org/downloads)
+To install MongoDB without using docker, see [MongoDB Downloads][5]
+
+### Running MongoDB in a Docker container
+
+Install Docker Desktop if not already installed, see [Docker Desktop Downloads][6].
+
+Pull the latest Official Mongo docker image:
+
+    docker pull mongo:4.4
+
+Launch the Mongo Database running inside a docker container:
+
+    docker run --name rocketjob_mongo -p 27017:27017 -d mongo:4.4 --wiredTigerCacheSizeGB 1.5
+
+Stop the container, and keep all data:
+
+    docker stop rocketjob_mongo
+
+Stop the container, and _destroy_ all of its data:
+
+    docker rm rocketjob_mongo
+
+For more information on using the Docker Official Mongo images: [Docker Hub][7]
 
 ## Rails Installation
 
@@ -33,7 +56,7 @@ For an existing Rails installation, add the following lines to the bottom of the
 
 ~~~ruby
 gem 'rails_semantic_logger'
-gem 'rocketjob', '~> 3.0'
+gem 'rocketjob', '~> 5.0'
 ~~~
 
 Install gems:
@@ -93,15 +116,14 @@ Or, if you have generated bundler bin stubs:
 bin/rocketjob
 ~~~
 
-### Installing the Rocket Job Web Interface (Web Interface)
+### Installing the Rocket Job Web Interface
 
-[Rocket Job Web Interface][1] is the web interface for [Rocket Job][0].
-It is a rails engine that can be added to any existing Rails 4 or Rails 5 rails application.
+[Rocket Job Web Interface][1] is a rails engine that can be mounted into any existing Rails 5 or Rails 6 application.
 
-Add the [Rocket Job Web Interface][1] gem to your Gemfile
+Add the [Rocket Job Web Interface][1] gem to your Gemfile:
 
 ~~~ruby
-gem 'rocketjob_mission_control', '~> 3.0'
+gem 'rocketjob_mission_control', '~> 5.0'
 ~~~
 
 Install gems:
@@ -142,7 +164,7 @@ Create a file called `Gemfile` in the `standalone` directory with the following 
 ~~~ruby
 source 'https://rubygems.org'
 
-gem 'rocketjob', '~> 3.0'
+gem 'rocketjob', '~> 5.0'
 ~~~
 
 Install the gem files:
@@ -294,7 +316,6 @@ HELLO WORLD
 
 ### Standalone Rocket Job Web Interface
 
-[Rocket Job Web Interface][1] is the web interface for [Rocket Job][0].
 In order to install [Rocket Job Web Interface][1] in a stand-alone environment, we need to
 host it in a "shell" rails application as follows:
 
@@ -310,8 +331,8 @@ Add the following lines to the bottom of the file `Gemfile`:
 
 ~~~ruby
 gem 'rails_semantic_logger'
-gem 'rocketjob', '~> 3.0'
-gem 'rocketjob_mission_control', '~> 3.0'
+gem 'rocketjob', '~> 5.0'
+gem 'rocketjob_mission_control', '~> 5.0'
 gem 'puma'
 ~~~
 
@@ -336,7 +357,7 @@ bin/spring stop
 Generate Mongo Configuration file:
 
 ~~~
-bundle exec rails generate mongo_mapper:config
+bundle exec rails generate mongoid:config
 ~~~
 
 Edit the file config/mongoid.yml with the MongoDB server addresses.
@@ -371,35 +392,13 @@ Start the stand-alone [Rocket Job Web Interface][1]:
 bin/rails s
 ~~~
 
-Open a browser and navigate to the local [Rocket Job Web Interface](http://localhost:3000)
+Open a browser and navigate to the [local Rocket Job Web Interface](http://localhost:3000)
 
-### Capistrano Recipe
-
-Below is an example Capistrano recipe that can be used to start or stop Rocket Job servers:
-
-~~~ruby
-# ====================================
-# Rocket Job Server Tasks
-# ====================================
-namespace :rocketjob do
-  desc 'Start a rocket_job server. optional arg: HOSTFILTER=server1,server2 --count 2 --filter "DirmonJob|WeeklyReportJob"'
-  task :start do |t, args|
-    count   = (ENV['count'] || 1).to_i
-    filter  = "--filter #{ENV['filter']}" if ENV['filter']
-    workers = "--workers #{ENV['workers']}" if ENV['workers']
-    count.times do
-      run "cd #{component_path} && nohup bin/rocketjob --quiet #{filter} #{workers} >> #{component_path}/log/rocketjob.log 2>&1 & sleep 2"
-    end
-  end
-
-  desc 'Stop all rocket_job servers on a host. optional arg: HOSTFILTER=server1,server2'
-  task :stop do |t, args|
-    run 'pkill -u rails -f bin/rocketjob'
-  end
-end
-~~~
-
-[0]: http://rocketjob.io
+[0]: https://rocketjob.io
 [1]: mission_control.html
-[2]: http://rocketjob.github.io/semantic_logger
-[3]: http://mongodb.org
+[2]: https://rocketjob.github.io/semantic_logger
+[3]: https://mongodb.com
+[4]: https://aws.amazon.com/documentdb/
+[5]: https://www.mongodb.com/try/download/community
+[6]: https://www.docker.com/products/docker-desktop
+[7]: https://hub.docker.com/_/mongo?
