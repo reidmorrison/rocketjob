@@ -116,9 +116,13 @@ module RocketJob
 
       # Index for find_and_modify only if it is not already present
       def create_indexes
-        all.collection.indexes.create_one(state: 1, _id: 1) if all.collection.indexes.none? { |i| i["name"] == "state_1__id_1" }
-      rescue Mongo::Error::OperationFailure
-        all.collection.indexes.create_one(state: 1, _id: 1)
+        missing =
+          begin
+            all.collection.indexes.none? { |i| i["name"] == "state_1__id_1" }
+          rescue Mongo::Error::OperationFailure
+            true
+          end
+        all.collection.indexes.create_one({state: 1, _id: 1}, unique: true) if missing
       end
 
       # Forward additional methods.

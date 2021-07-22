@@ -27,12 +27,11 @@ module RocketJob
     #   )
     class HousekeepingJob < RocketJob::Job
       include RocketJob::Plugins::Cron
-      include RocketJob::Plugins::Singleton
 
-      self.priority    = 25
-      self.description = "Cleans out historical jobs, and zombie servers."
       # Runs every 15 minutes
       self.cron_schedule = "*/15 * * * * UTC"
+      self.description   = "Cleans out historical jobs, and zombie servers."
+      self.priority      = 25
 
       # Whether to destroy zombie servers automatically
       field :destroy_zombies, type: Mongoid::Boolean, default: true, user_editable: true, copy_on_restart: true

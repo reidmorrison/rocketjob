@@ -57,6 +57,10 @@ module RocketJob
 
       def upload_file(job)
         if job.respond_to?(:upload)
+          # Return the database connection for this thread back to the connection pool
+          # in case the upload takes a long time and the database connection expires.
+          ActiveRecord::Base.clear_active_connections! if defined?(ActiveRecord::Base)
+
           if original_file_name
             job.upload(upload_file_name, file_name: original_file_name)
           else
