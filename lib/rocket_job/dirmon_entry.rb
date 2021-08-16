@@ -173,7 +173,7 @@ module RocketJob
       counts
     end
 
-    # Passes each filename [Pathname] found that matches the pattern into the supplied block
+    # Yields [IOStreams::Path] for each file found that matches the current pattern.
     def each
       SemanticLogger.named_tagged(dirmon_entry: id.to_s) do
         # Case insensitive filename matching
