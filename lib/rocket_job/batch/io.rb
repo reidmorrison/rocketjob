@@ -165,9 +165,9 @@ module RocketJob
             upload_integer_range_in_reverse_order(first, last, **args)
           end
         when Mongoid::Criteria
-          upload_mongo_query(criteria, **args)
+          upload_mongo_query(object, **args)
         when defined?(ActiveRecord::Relation) ? ActiveRecord::Relation : false
-          upload_arel(arel, **args)
+          upload_arel(object, **args)
         else
           upload_file(object, **args, &block)
         end
@@ -405,7 +405,7 @@ module RocketJob
           return output_collection.download(&block) if block
 
           IOStreams.new(stream || category.file_name.stream(:none)).writer(**args) do |io|
-            output_collection.download { |record| io << record[:binary] }
+            output_collection.download { |record| io.write(record[:binary]) }
           end
         else
           header_line ||= category.render_header

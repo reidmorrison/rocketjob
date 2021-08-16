@@ -47,9 +47,9 @@ module RocketJob
           block =
             if columns.size == 1
               column = columns.first
-              ->(model) { model.send(column) }
+              ->(model) { model.public_send(column) }
             else
-              ->(model) { columns.collect { |c| model.send(c) } }
+              ->(model) { columns.collect { |c| model.public_send(c) } }
             end
           # find_each requires the :id column in the query
           selection = columns.include?(:id) ? columns : columns + [:id]

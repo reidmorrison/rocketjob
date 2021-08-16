@@ -71,6 +71,10 @@ line to each of the applicable jobs:
 self.cron_singleton = false
 ~~~
 
+##### Singleton
+
+Since Scheduled jobs now implement their own singleton logic, remove the singleton plugin from any scheduled jobs.
+
 #### Upgrading Batch Jobs to Rocket Job v6
 
 Rocket Job v6 replaces the array of symbol type for `input_categories` and `output_categories`
