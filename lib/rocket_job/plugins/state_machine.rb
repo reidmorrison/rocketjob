@@ -36,8 +36,8 @@ module RocketJob
           raise(ArgumentError, "Cannot supply both a method name and a block") if methods.size.positive? && block
           raise(ArgumentError, "Must supply either a method name or a block") unless methods.size.positive? || block
 
-          # TODO: Somehow get AASM to support options such as :if and :unless to be consistent with other callbacks
-          # For example:
+          # Limitation with AASM. It only supports guards on event transitions, not for callbacks.
+          # For example, AASM does not support callback options such as :if and :unless, yet Rails callbacks do.
           #    before_start :my_callback, unless: :encrypted?
           #    before_start :my_callback, if: :encrypted?
           event = aasm.state_machine.events[event_name]

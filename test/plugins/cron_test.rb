@@ -95,10 +95,38 @@ module Plugins
         end
       end
 
+      describe "#start" do
+        it "schedules new instance after start" do
+          job = CronJob.create!(cron_schedule: "0 1 * * *", cron_after_start: true)
+          assert_equal "0 1 * * *", job.cron_schedule
+          job.start!
+          assert job.running?
+          assert_nil job.cron_schedule
+          assert_equal 2, CronJob.count
+          assert scheduled_job = CronJob.last
+          assert scheduled_job.queued?
+          assert_equal "0 1 * * *", scheduled_job.cron_schedule
+        end
+      end
+
+      describe "#abort" do
+        it "schedules new instance after abort" do
+          job = CronJob.create!(cron_schedule: "0 1 * * *", cron_after_start: false)
+          assert_equal "0 1 * * *", job.cron_schedule
+          job.abort!
+          assert job.aborted?
+          assert_nil job.cron_schedule
+          assert_equal 2, CronJob.count
+          assert scheduled_job = CronJob.last
+          assert scheduled_job.queued?
+          assert_equal "0 1 * * *", scheduled_job.cron_schedule
+        end
+      end
+
       describe "#fail" do
         describe "with cron_schedule" do
           let :job do
-            job = FailOnceCronJob.create!(cron_schedule: "0 1 * * *")
+            job = FailOnceCronJob.create!(cron_schedule: "0 1 * * *", cron_after_start: false)
             job.start
             assert_raises RuntimeError do
               job.perform_now
@@ -119,7 +147,7 @@ module Plugins
             assert job.run_at
           end
 
-          it "schedules a new instance" do
+          it "schedules a new instance after fail" do
             assert_equal 0, FailOnceCronJob.count
             job
             assert_equal 2, FailOnceCronJob.count

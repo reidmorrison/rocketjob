@@ -35,6 +35,8 @@ module RocketJob
     # Or to start DirmonJob and ignore errors if already running
     #   RocketJob::Jobs::DirmonJob.create
     class DirmonJob < RocketJob::Job
+      include RocketJob::Plugins::Cron
+
       # Runs every 5 minutes by default
       self.cron_schedule = "*/5 * * * * UTC"
       self.description   = "Directory Monitor"

@@ -150,7 +150,7 @@ module Jobs
           dirmon_job = RocketJob::Jobs::DirmonJob.create!(
             previous_file_names: previous_file_names,
             priority:            11,
-            check_seconds:       30
+            cron_schedule:       "*/1 * * * * UTC"
           )
           RocketJob::Jobs::DirmonJob.stub_any_instance(:check_directories, new_file_names) do
             dirmon_job.perform_now
@@ -165,7 +165,7 @@ module Jobs
           refute_equal dirmon_job.id.to_s, new_dirmon_job.id.to_s
           assert new_dirmon_job.run_at
           assert_equal 11, new_dirmon_job.priority
-          assert_equal 30, new_dirmon_job.check_seconds
+          assert_equal "*/1 * * * * UTC", new_dirmon_job.cron_schedule
           assert new_dirmon_job.queued?
 
           new_dirmon_job.destroy
@@ -176,7 +176,7 @@ module Jobs
           # perform_now does not save the job, just runs it
           dirmon_job = RocketJob::Jobs::DirmonJob.create!(
             priority:            11,
-            check_seconds:       30,
+            cron_schedule:       "*/1 * * * * UTC",
             destroy_on_complete: false
           )
           RocketJob::Jobs::DirmonJob.stub_any_instance(:check_directories, -> { raise "Oh no" }) do
@@ -185,7 +185,7 @@ module Jobs
             end
           end
           dirmon_job.save!
-          assert dirmon_job.aborted?, dirmon_job.status.ai
+          assert dirmon_job.failed?, dirmon_job.status.ai
           assert_equal "RuntimeError", dirmon_job.exception.class_name, dirmon_job.exception.attributes
           assert_equal "Oh no", dirmon_job.exception.message, dirmon_job.exception.attributes
 
@@ -194,7 +194,7 @@ module Jobs
           assert new_dirmon_job = RocketJob::Jobs::DirmonJob.queued.first
           assert new_dirmon_job.run_at
           assert_equal 11, new_dirmon_job.priority, -> { new_dirmon_job.attributes.ai }
-          assert_equal 30, new_dirmon_job.check_seconds
+          assert_equal "*/1 * * * * UTC", new_dirmon_job.cron_schedule
           assert new_dirmon_job.queued?, new_dirmon_job.state
 
           new_dirmon_job.destroy

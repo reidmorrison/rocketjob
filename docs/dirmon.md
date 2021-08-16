@@ -86,18 +86,20 @@ the following code:
 RocketJob::Jobs::DirmonJob.create!
 ~~~
 
-The polling interval to check for new files can be modified when starting the job
-for the first time by adding:
+Dirmon Job is a scheduled job which is set to run every 5 minutes. Once created, its `cron_schedule` can be changed
+at any time via the Rocket Job Web Interface (RJMC).
+
+For example, to override the cron schedule when creating Dirmon Job:
 
 ~~~ruby
-RocketJob::Jobs::DirmonJob.create!(check_seconds: 180)
+RocketJob::Jobs::DirmonJob.create!(cron_schedule: "*/1 * * * * UTC")
 ~~~
 
 The default priority for `DirmonJob` is 40, to increase it's priority:
 
 ~~~ruby
 RocketJob::Jobs::DirmonJob.create!(
-  check_seconds: 180,
+  cron_schedule: "*/5 * * * * UTC",
   priority:      25
 )
 ~~~
@@ -107,7 +109,7 @@ changed at any time as follows:
 
 ~~~ruby
 RocketJob::Jobs::DirmonJob.first.update_attributes(
-  check_seconds: 180,
+  cron_schedule: "*/5 * * * * UTC",
   priority:      20
 )
 ~~~

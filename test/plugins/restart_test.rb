@@ -1,4 +1,6 @@
 require_relative "../test_helper"
+# Deprecated capability
+require "rocket_job/plugins/restart"
 
 module Plugins
   class RestartTest < Minitest::Test

@@ -49,6 +49,28 @@ require "rocket_job/batch/tabular"
 
 It is important to migrate away from these plugins, since they will be removed in a future release.
 
+#### Scheduled Jobs
+
+For any scheduled jobs that include the `RocketJob::Plugins::Cron` plugin, the default behavior has changed
+so that the scheduled job instance is created immediately after the currently scheduled instance starts.
+
+To maintain the old behavior of creating the job when it fails, aborts, or completes, add the following line
+to each of the applicable jobs:
+
+~~~ruby
+self.cron_after_start = false
+~~~
+
+Additionally, scheduled jobs will now prevent a new one from being created when another scheduled instance 
+of the same job is already queued, or running with the _same_ `cron_schedule`.
+
+To maintain the old behavior of allowing multiple instances with the same cron schedule, add the following
+line to each of the applicable jobs:
+
+~~~ruby
+self.cron_singleton = false
+~~~
+
 #### Upgrading Batch Jobs to Rocket Job v6
 
 Rocket Job v6 replaces the array of symbol type for `input_categories` and `output_categories`

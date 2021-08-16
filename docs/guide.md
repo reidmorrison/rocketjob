@@ -21,7 +21,6 @@ layout: default
 * [Automatic Retry](#automatic-retry)
 * [Singleton](#singleton)
 * [Processing Window](#processing-window)
-* [Automatic Restart](#automatic-restart)
 * [Throttling](#throttling)
 * [Transactions](#transactions)
 * [Persistence](#persistence)
@@ -272,10 +271,10 @@ field :report_date, type: Date, user_editable: true
 
 #### copy_on_restart
 
-The `copy_on_restart` setting is only applicable to jobs that use the `RocketJob::Plugins::Restart` plugin,
-and plugins that include it, such as `RocketJob::Plugins::Cron`.
+The `copy_on_restart` option is used by `RocketJob::Job#create_restart!` to know which attributes should be copied
+across to the new instance. The `RocketJob::Plugins::Cron` plugin uses supports these options.
 
-By default when a new instance of a job using the restart plugin is scheduled to run it is _not_ copied
+By default when a new instance of a scheduled job using the cron plugin is scheduled to run it is _not_ copied
 to the new instance. In order for the value to be copied the field must be marked with: `copy_on_restart: true`
 
 ~~~ruby
@@ -768,83 +767,6 @@ Note:
 - If a job is created/enqueued during the processing window, but due to busy/unavailable workers
   is not processed during the window, the current job will be re-queued for the beginning
   of the next processing window.
-
-## Automatic Restart
-
-Automatically starts a new instance of this job anytime it fails, aborts, or completes.
-
-Notes:
-* Restartable jobs automatically abort if they fail. This prevents the failed job from being retried.
-  - To disable this behavior, add the following empty method:
-       def rocket_job_restart_abort
-       end
-* On destroy this job is destroyed without starting a new instance.
-* On Abort a new instance is created.
-* Include `RocketJob::Plugins::Singleton` to prevent multiple copies of a job from running at
-  the same time.
-* The job will not be restarted if:
-  - A validation fails after creating the new instance of this job.
-  - The job has expired.
-* Only the fields that have `copy_on_restart: true` will be passed onto the new instance of this job.
-
-#### Example
-
-~~~ruby
-class RestartableJob < RocketJob::Job
-  include RocketJob::Plugins::Restart
-
-  # Retain the completed job under the completed tab in Rocket Job Web Interface.
-  self.destroy_on_complete = false
-
-  # Will be copied to the new job on restart.
-  field :limit, type: Integer, copy_on_restart: true
-
-  # Will _not_ be copied to the new job on restart.
-  field :list, type: Array, default: [1,2,3]
-
-  # Set run_at every time a new instance of the job is created.
-  after_initialize set_run_at, if: :new_record?
-
-  def perform
-    puts "The limit is #{limit}"
-    puts "The list is #{list}"
-    'DONE'
-  end
-
-  private
-
-  # Run this job in 30 minutes.
-  def set_run_at
-    self.run_at = 30.minutes.from_now
-  end
-end
-
-job = RestartableJob.create!(limit: 10, list: [4,5,6])
-job.reload.state
-# => :queued
-
-job.limit
-# => 10
-
-job.list
-# => [4,5,6]
-
-# Wait 30 minutes ...
-
-job.reload.state
-# => :completed
-
-# A new instance was automatically created.
-job2 = RestartableJob.last
-job2.state
-# => :queued
-
-job2.limit
-# => 10
-
-job2.list
-# => [1,2,3]
-~~~
 
 ## Throttling
 

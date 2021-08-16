@@ -101,7 +101,7 @@ RocketJob::Jobs::DirmonJob.create!
 By default Dirmon only checks for files every 5 minutes, to change this interval to 60 seconds:
 
 ~~~ruby
-RocketJob::Jobs::DirmonJob.create!(check_seconds: 60)
+RocketJob::Jobs::DirmonJob.create!(cron_schedule: "*/1 * * * * UTC")
 ~~~
 
 If another DirmonJob instance is already queued or running, then the create
