@@ -28,8 +28,8 @@ module RocketJob
     class HousekeepingJob < RocketJob::Job
       include RocketJob::Plugins::Cron
 
-      # Runs every 15 minutes
-      self.cron_schedule = "*/15 * * * * UTC"
+      # Runs every 15 minutes on the 15 minute period
+      self.cron_schedule = "0,15,30,45 * * * * UTC"
       self.description   = "Cleans out historical jobs, and zombie servers."
       self.priority      = 25
 

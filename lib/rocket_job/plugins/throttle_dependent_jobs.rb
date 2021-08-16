@@ -11,8 +11,7 @@ module RocketJob
       extend ActiveSupport::Concern
 
       included do
-        class_attribute :dependent_jobs
-        self.dependent_jobs = nil
+        field :dependent_jobs, type: Array, class_attribute: true, user_editable: true, copy_on_restart: true
 
         define_throttle :dependent_job_exists?
         define_batch_throttle :dependent_job_exists? if respond_to?(:define_batch_throttle)
