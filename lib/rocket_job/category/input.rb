@@ -10,6 +10,7 @@ module RocketJob
 
       # Slice size for this input collection
       field :slice_size, type: Integer, default: 100
+      validates_presence_of :slice_size
 
       #
       # The fields below only apply if the field `format` has been set:
@@ -82,7 +83,7 @@ module RocketJob
       field :header_cleanser, type: ::Mongoid::StringifiedSymbol, default: :default
       validates :header_cleanser, inclusion: %i[default none]
 
-      validates_presence_of :slice_size
+      validates_inclusion_of :serializer, in: %i[none compress encrypt]
 
       # Cleanses the header column names when `cleanse_header` is true
       def cleanse_header!

@@ -6,17 +6,15 @@ module RocketJob
       private
 
       def parse_records
-        records = attributes.delete("records")
-
         # Convert BSON::Binary to a string
-        binary_str = records.data
+        encrypted_str = attributes.delete("records").data
 
         header = SymmetricEncryption::Header.new
-        header.parse(binary_str)
+        header.parse(encrypted_str)
         # Use the header that is present to decrypt the data, since its version could be different
-        str = header.cipher.binary_decrypt(binary_str, header: header)
+        decrypted_str = header.cipher.binary_decrypt(encrypted_str, header: header)
 
-        @records = Hash.from_bson(BSON::ByteBuffer.new(str))["r"]
+        @records = Hash.from_bson(BSON::ByteBuffer.new(decrypted_str))["r"]
       end
 
       def serialize_records

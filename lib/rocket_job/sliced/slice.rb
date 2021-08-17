@@ -95,9 +95,8 @@ module RocketJob
       end
 
       # Returns whether this is a specialized binary slice for creating binary data from each slice
-      # that is then just downloaded as-is into output files.
-      def self.binary?
-        false
+      # that is downloaded without conversion into output files.
+      def self.binary_format
       end
 
       # `records` array has special handling so that it can be modified in place instead of having

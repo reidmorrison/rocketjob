@@ -44,8 +44,8 @@ module RocketJob
 
       # Returns whether this collection contains specialized binary slices for creating binary data from each slice
       # that is then just downloaded as-is into output files.
-      def binary?
-        slice_class.binary?
+      def binary_format
+        slice_class.binary_format
       end
 
       # Returns output slices in the order of their id

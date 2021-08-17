@@ -399,13 +399,16 @@ module RocketJob
         # Store the output file name in the category
         category.file_name = stream if !block && (stream.is_a?(String) || stream.is_a?(IOStreams::Path))
 
-        if output_collection.binary?
+        if output_collection.binary_format
           raise(ArgumentError, "A `header_line` is not supported with binary output collections") if header_line
 
           return output_collection.download(&block) if block
 
-          IOStreams.new(stream || category.file_name.stream(:none)).writer(**args) do |io|
-            output_collection.download { |record| io.write(record[:binary]) }
+          # Don't overwrite supplied stream options if any
+          stream = stream&.is_a?(IOStreams::Stream) ? stream.dup : IOStreams.new(category.file_name)
+          stream.remove_from_pipeline(output_collection.binary_format)
+          stream.writer(**args) do |io|
+            output_collection.download { |record| io.write(record) }
           end
         else
           header_line ||= category.render_header

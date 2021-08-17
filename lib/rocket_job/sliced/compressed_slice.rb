@@ -6,13 +6,10 @@ module RocketJob
       private
 
       def parse_records
-        records = attributes.delete("records")
-
         # Convert BSON::Binary to a string
-        binary_str = records.data
-
-        str      = Zlib::Inflate.inflate(binary_str)
-        @records = Hash.from_bson(BSON::ByteBuffer.new(str))["r"]
+        compressed_str   = attributes.delete("records").data
+        decompressed_str = Zlib::Inflate.inflate(compressed_str)
+        @records         = Hash.from_bson(BSON::ByteBuffer.new(decompressed_str))["r"]
       end
 
       def serialize_records

@@ -25,8 +25,8 @@ module Batch
           assert_equal RocketJob::Sliced::EncryptedSlice, category.serializer_class
         end
 
-        it "bzip2" do
-          category = RocketJob::Category::Input.new(name: :blah, serializer: :bzip2)
+        it "bz2" do
+          category = RocketJob::Category::Input.new(name: :blah, serializer: :bz2)
           assert_equal RocketJob::Sliced::BZip2OutputSlice, category.serializer_class
         end
       end

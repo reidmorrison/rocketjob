@@ -48,6 +48,21 @@ module Batch
               assert_equal delimited_rows, result
             end
           end
+
+          it "bz2" do
+            IOStreams.temp_file("bz2_test", ".bz2") do |file_name|
+              job.output_category.serializer = :bz2
+              loaded_job.download(file_name.to_s)
+              result =
+                File.open(file_name.to_s, "rb") do |input_stream|
+                  io = ::Bzip2::FFI::Reader.new(input_stream)
+                  io.read
+                ensure
+                  io.close
+                end
+              assert_equal delimited_rows, result
+            end
+          end
         end
 
         describe "stream" do

@@ -63,7 +63,7 @@ module Batch
     class BZip2CategoryJob < RocketJob::Job
       include RocketJob::Batch
 
-      output_category(serializer: :bzip2)
+      output_category(serializer: :bz2)
 
       def perform(record)
         record
@@ -143,8 +143,7 @@ module Batch
           s   = StringIO.new
           IOStreams::Bzip2::Writer.stream(s) { |io| io.write(str) }
 
-          expected = {binary: s.string}
-          assert_equal expected, @job.output(:main).first.to_a.first
+          assert_equal s.string, @job.output(:main).first.to_a.first
         end
       end
     end
