@@ -255,7 +255,7 @@ module RocketJob
 
       # Upload sliced range of integer requests as arrays of start and end ids.
       #
-      # Returns [Integer] last_id - start_id + 1.
+      # Returns [Integer] the number of slices uploaded.
       #
       # Uploads one range per slice so that the response can return multiple records
       # for each slice processed
@@ -275,8 +275,7 @@ module RocketJob
       # * If an exception is raised while uploading data, the input collection is cleared out
       #   so that if a job is retried during an upload failure, data is not duplicated.
       def upload_integer_range(start_id, last_id, category: :main, slice_batch_size: 1_000)
-        input(category).upload_integer_range(start_id, last_id, slice_batch_size: slice_batch_size)
-        count             = last_id - start_id + 1
+        count = input(category).upload_integer_range(start_id, last_id, slice_batch_size: slice_batch_size)
         self.record_count = (record_count || 0) + count
         count
       end
@@ -284,7 +283,7 @@ module RocketJob
       # Upload sliced range of integer requests as an arrays of start and end ids
       # starting with the last range first
       #
-      # Returns [Integer] last_id - start_id + 1.
+      # Returns [Integer] the number of slices uploaded.
       #
       # Uploads one range per slice so that the response can return multiple records
       # for each slice processed.
@@ -307,8 +306,7 @@ module RocketJob
       # * If an exception is raised while uploading data, the input collection is cleared out
       #   so that if a job is retried during an upload failure, data is not duplicated.
       def upload_integer_range_in_reverse_order(start_id, last_id, category: :main, slice_batch_size: 1_000)
-        input(category).upload_integer_range_in_reverse_order(start_id, last_id, slice_batch_size: slice_batch_size)
-        count             = last_id - start_id + 1
+        count = input(category).upload_integer_range_in_reverse_order(start_id, last_id, slice_batch_size: slice_batch_size)
         self.record_count = (record_count || 0) + count
         count
       end
