@@ -406,6 +406,7 @@ module RocketJob
           stream = stream&.is_a?(IOStreams::Stream) ? stream.dup : IOStreams.new(category.file_name)
           stream.remove_from_pipeline(output_collection.binary_format)
           stream.writer(**args) do |io|
+            # TODO: Binary formats should return the record count, instead of the slice count.
             output_collection.download { |record| io.write(record) }
           end
         else

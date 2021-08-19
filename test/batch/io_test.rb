@@ -1,4 +1,5 @@
 require_relative "../test_helper"
+require "csv"
 
 module Batch
   class IOTest < Minitest::Test
@@ -16,10 +17,16 @@ module Batch
     describe RocketJob::Batch::IO do
       let(:text_file) { IOStreams.path(File.dirname(__FILE__), "files", "text.txt") }
       let(:gzip_file) { IOStreams.path(File.dirname(__FILE__), "files", "text.txt.gz") }
+      let(:csv_file) { IOStreams.path(File.dirname(__FILE__), "files", "test.csv") }
 
       let(:job) { IOJob.new }
       let(:rows) { %w[hello world last slice] }
       let(:delimited_rows) { rows.join("\n") + "\n" }
+
+      let :csv_columns do
+        header_line = csv_file.read.lines.first
+        CSV.parse(header_line).first
+      end
 
       let(:loaded_job) do
         job.output << rows[0, 2]
@@ -35,7 +42,7 @@ module Batch
         describe "file" do
           it "text" do
             IOStreams.temp_file("test", ".txt") do |file_name|
-              loaded_job.download(file_name.to_s)
+              assert_equal 4, loaded_job.download(file_name.to_s)
               result = ::File.open(file_name.to_s, &:read)
               assert_equal delimited_rows, result
             end
@@ -43,16 +50,30 @@ module Batch
 
           it "gzip" do
             IOStreams.temp_file("gzip_test", ".gz") do |file_name|
-              loaded_job.download(file_name.to_s)
+              assert_equal 4, loaded_job.download(file_name.to_s)
               result = Zlib::GzipReader.open(file_name.to_s, &:read)
               assert_equal delimited_rows, result
+            end
+          end
+
+          it "parsed csv" do
+            IOStreams.temp_file("csv_test", ".csv") do |file_name|
+              job.input_category.format     = :auto
+              job.output_category.format    = :auto
+              job.output_category.columns   = csv_columns
+              job.output_category.file_name = file_name
+              assert_equal 3, job.upload(csv_file)
+              job.perform_now
+              assert_equal 3, job.download
+              assert_equal csv_file.read, file_name.read
             end
           end
 
           it "bz2" do
             IOStreams.temp_file("bz2_test", ".bz2") do |file_name|
               job.output_category.serializer = :bz2
-              loaded_job.download(file_name.to_s)
+              # TODO: Binary formats should return the record count, instead of the slice count.
+              assert_equal 2, loaded_job.download(file_name.to_s)
               result =
                 File.open(file_name.to_s, "rb") do |input_stream|
                   io = ::Bzip2::FFI::Reader.new(input_stream)
@@ -90,15 +111,41 @@ module Batch
       describe "#upload" do
         describe "file" do
           it "text" do
-            job.upload(text_file.to_s)
+            assert_equal 4, job.upload(text_file)
             result = job.input.collect(&:to_a).join("\n") + "\n"
             assert_equal text_file.read, result
           end
 
           it "gzip" do
-            job.upload(gzip_file.to_s)
+            assert_equal 4, job.upload(gzip_file)
             result = job.input.collect(&:to_a).join("\n") + "\n"
             assert_equal gzip_file.read, result
+          end
+
+          it "raw csv" do
+            assert_equal 4, job.upload(csv_file)
+            result = job.input.collect(&:to_a).join("\n") + "\n"
+            assert_equal csv_file.read, result
+          end
+
+          it "parsed csv" do
+            job.input_category.format = :csv
+            assert_equal 3, job.upload(csv_file)
+
+            assert_equal csv_columns, job.input_category.columns
+
+            result = job.input.collect(&:to_a).join("\n") + "\n"
+            assert_equal csv_file.read, csv_columns.to_csv + result
+          end
+
+          it "autodetect csv" do
+            job.input_category.format = :auto
+            assert_equal 3, job.upload(csv_file)
+
+            assert_equal csv_columns, job.input_category.columns
+
+            result = job.input.collect(&:to_a).join("\n") + "\n"
+            assert_equal csv_file.read, csv_columns.to_csv + result
           end
         end
       end
