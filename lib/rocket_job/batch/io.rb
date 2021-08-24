@@ -150,29 +150,7 @@ module RocketJob
       # * If an io stream is supplied, it is read until it returns nil.
       # * Only use this method for UTF-8 data, for binary data use #input_slice or #input_records.
       # * CSV parsing is slow, so it is usually left for the workers to do.
-      def upload(object = nil, **args, &block)
-        return upload_block(**args, &block) if block
-
-        raise(ArgumentError, "Either stream, or a block must be supplied") unless object
-
-        case object
-        when Range
-          first = object.first
-          last  = object.last
-          if first < last
-            upload_integer_range(first, last, **args)
-          else
-            upload_integer_range_in_reverse_order(first, last, **args)
-          end
-        when Mongoid::Criteria
-          upload_mongo_query(object, **args)
-        when defined?(ActiveRecord::Relation) ? ActiveRecord::Relation : false
-          upload_arel(object, **args)
-        else
-          upload_file(object, **args, &block)
-        end
-      end
-
+      #
       # Upload results from an Arel into RocketJob::SlicedJob.
       #
       # Params
@@ -206,11 +184,6 @@ module RocketJob
       # * The record_count for the job is set to the number of records returned by the arel.
       # * If an exception is raised while uploading data, the input collection is cleared out
       #   so that if a job is retried during an upload failure, data is not duplicated.
-      def upload_arel(arel, *column_names, columns: nil, category: :main, &block)
-        count             = input(category).upload_arel(arel, columns: columns || column_names, &block)
-        self.record_count = (record_count || 0) + count
-        count
-      end
 
       # Upload the result of a MongoDB query to the input collection for processing
       # Useful when an entire MongoDB collection, or part thereof needs to be
@@ -247,11 +220,6 @@ module RocketJob
       # * The record_count for the job is set to the number of records returned by the monqo query.
       # * If an exception is raised while uploading data, the input collection is cleared out
       #   so that if a job is retried during an upload failure, data is not duplicated.
-      def upload_mongo_query(criteria, *column_names, columns: nil, category: :main, &block)
-        count             = input(category).upload_mongo_query(criteria, columns: columns || column_names, &block)
-        self.record_count = (record_count || 0) + count
-        count
-      end
 
       # Upload sliced range of integer requests as arrays of start and end ids.
       #
@@ -274,11 +242,6 @@ module RocketJob
       # * The record_count for the job is set to: last_id - start_id + 1.
       # * If an exception is raised while uploading data, the input collection is cleared out
       #   so that if a job is retried during an upload failure, data is not duplicated.
-      def upload_integer_range(start_id, last_id, category: :main, slice_batch_size: 1_000)
-        count = input(category).upload_integer_range(start_id, last_id, slice_batch_size: slice_batch_size)
-        self.record_count = (record_count || 0) + count
-        count
-      end
 
       # Upload sliced range of integer requests as an arrays of start and end ids
       # starting with the last range first
@@ -305,8 +268,97 @@ module RocketJob
       # * The record_count for the job is set to: last_id - start_id + 1.
       # * If an exception is raised while uploading data, the input collection is cleared out
       #   so that if a job is retried during an upload failure, data is not duplicated.
+
+      def upload(object = nil, category: :main, file_name: nil, stream_mode: nil, on_first: nil, columns: nil, slice_batch_size: nil, **args, &block)
+        input_collection = input(category)
+
+        if block
+          raise(ArgumentError, "Cannot supply both an object to upload, and a block.") if object
+          if stream_mode || columns || slice_batch_size || args.size > 0
+            raise(ArgumentError, "Unknown keyword arguments when uploading a block. Only accepts :category, :file_name, or :on_first")
+          end
+
+          category           = input_category(category)
+          category.file_name = file_name if file_name
+
+          # Extract the header line during the upload when applicable.
+          extract_header = category.extract_header_callback(on_first)
+
+          count             = input_collection.upload(on_first: extract_header, slice_batch_size: slice_batch_size, &block)
+          self.record_count = (record_count || 0) + count
+          return count
+        end
+
+        count =
+          case object
+          when Range
+            if file_name || stream_mode || on_first || args.size > 0
+              raise(ArgumentError, "Unknown keyword arguments when uploading a Range. Only accepts :category, :columns, or :slice_batch_size")
+            end
+
+            first = object.first
+            last  = object.last
+            if first < last
+              input_collection.upload_integer_range(first, last, slice_batch_size: slice_batch_size || 1_000)
+            else
+              input_collection.upload_integer_range_in_reverse_order(last, first, slice_batch_size: slice_batch_size || 1_000)
+            end
+          when Mongoid::Criteria
+            if file_name || stream_mode || on_first || args.size > 0
+              raise(ArgumentError, "Unknown keyword arguments when uploading a Mongoid::Criteria. Only accepts :category, :columns, or :slice_batch_size")
+            end
+
+            input_collection.upload_mongo_query(object, columns: columns, slice_batch_size: slice_batch_size, &block)
+          when defined?(ActiveRecord::Relation) ? ActiveRecord::Relation : false
+            if file_name || stream_mode || on_first || args.size > 0
+              raise(ArgumentError, "Unknown keyword arguments when uploading an ActiveRecord::Relation. Only accepts :category, :columns, or :slice_batch_size")
+            end
+
+            input_collection.upload_arel(object, columns: columns, slice_batch_size: slice_batch_size, &block)
+
+          else
+            raise(ArgumentError, "Unknown keyword argument :columns when uploading a file") if columns
+
+            category = input_category(category)
+
+            # Extract the header line during the upload when applicable.
+            extract_header = category.extract_header_callback(on_first)
+            path = category.upload_path(object, original_file_name: file_name)
+
+            input_collection.upload(on_first: extract_header, slice_batch_size: slice_batch_size) do |io|
+              path.each(stream_mode || :line, **args) { |line| io << line }
+            end
+
+          end
+
+        self.record_count = (record_count || 0) + count
+        count
+      end
+
+      # @deprecated
+      def upload_arel(arel, *column_names, category: :main, &block)
+        count             = input(category).upload_arel(arel, columns: column_names, &block)
+        self.record_count = (record_count || 0) + count
+        count
+      end
+
+      # @deprecated
+      def upload_mongo_query(criteria, *column_names, category: :main, &block)
+        count             = input(category).upload_mongo_query(criteria, columns: column_names, &block)
+        self.record_count = (record_count || 0) + count
+        count
+      end
+
+      # @deprecated
+      def upload_integer_range(start_id, last_id, category: :main, slice_batch_size: 1_000)
+        count             = input(category).upload_integer_range(start_id, last_id, slice_batch_size: slice_batch_size)
+        self.record_count = (record_count || 0) + count
+        count
+      end
+
+      # @deprecated
       def upload_integer_range_in_reverse_order(start_id, last_id, category: :main, slice_batch_size: 1_000)
-        count = input(category).upload_integer_range_in_reverse_order(start_id, last_id, slice_batch_size: slice_batch_size)
+        count             = input(category).upload_integer_range_in_reverse_order(start_id, last_id, slice_batch_size: slice_batch_size)
         self.record_count = (record_count || 0) + count
         count
       end
@@ -397,98 +449,25 @@ module RocketJob
         # Store the output file name in the category
         category.file_name = stream if !block && (stream.is_a?(String) || stream.is_a?(IOStreams::Path))
 
-        if output_collection.binary_format
-          raise(ArgumentError, "A `header_line` is not supported with binary output collections") if header_line
+        header_line ||= category.render_header
 
-          return output_collection.download(&block) if block
+        return output_collection.download(header_line: header_line, &block) if block
+
+        raise(ArgumentError, "Missing mandatory `stream` or `category.file_name`") unless stream || category.file_name
+
+        if output_collection.slice_class.binary_format
+          binary_header_line = output_collection.slice_class.to_binary(header_line) if header_line
 
           # Don't overwrite supplied stream options if any
           stream = stream&.is_a?(IOStreams::Stream) ? stream.dup : IOStreams.new(category.file_name)
-          stream.remove_from_pipeline(output_collection.binary_format)
+          stream.remove_from_pipeline(output_collection.slice_class.binary_format)
           stream.writer(**args) do |io|
             # TODO: Binary formats should return the record count, instead of the slice count.
-            output_collection.download { |record| io.write(record) }
+            output_collection.download(header_line: binary_header_line) { |record| io.write(record) }
           end
         else
-          header_line ||= category.render_header
-
-          return output_collection.download(header_line: header_line, &block) if block
-
-          raise(ArgumentError, "Missing mandatory `stream` or `category.file_name`") unless stream || category.file_name
-
           IOStreams.new(stream || category.file_name).writer(:line, **args) do |io|
             output_collection.download(header_line: header_line) { |record| io << record }
-          end
-        end
-      end
-
-      private
-
-      def upload_file(stream = nil, file_name: nil, category: :main, stream_mode: :line, on_first: nil, **args)
-        category = input_category(category) unless category.is_a?(Category::Input)
-        stream   ||= category.file_name
-        path     = nil
-
-        if stream
-          path               = IOStreams.new(stream)
-          path.file_name     = file_name if file_name
-          category.file_name = path.file_name
-
-          # Auto detect the format based on the upload file name if present.
-          if category.format == :auto
-            format = path.format
-            if format
-              # Rebuild tabular with the above file name
-              category.reset_tabular
-              category.format = format
-            end
-          end
-        end
-
-        # Remove non-printable characters from tabular input formats
-        # Cannot change the length of fixed width lines
-        if category.tabular?
-          replace = category.format == :fixed ? " " : ""
-          path&.option_or_stream(:encode, encoding: "UTF-8", cleaner: :printable, replace: replace)
-        end
-
-        upload_block(category: category, on_first: on_first) do |io|
-          path.each(stream_mode, **args) { |line| io << line }
-        end
-      end
-
-      def upload_block(category: :main, on_first: nil, &block)
-        category = input_category(category) unless category.is_a?(Category::Input)
-
-        # Extract the header line during the upload when applicable.
-        if category.tabular? && category.tabular.header?
-          on_first = rocket_job_upload_header_lambda(category, on_first)
-        end
-
-        count = input(category).upload(on_first: on_first, &block)
-
-        self.record_count = (record_count || 0) + count
-        count
-      end
-
-      # Return a lambda to extract the header row from the uploaded file.
-      def rocket_job_upload_header_lambda(category, on_first)
-        case category.mode
-        when :line
-          lambda do |line|
-            category.tabular.parse_header(line)
-            category.cleanse_header!
-            category.columns = category.tabular.header.columns
-            # Call chained on_first if present
-            on_first&.call(line)
-          end
-        when :array
-          lambda do |row|
-            category.tabular.header.columns = row
-            category.cleanse_header!
-            category.columns = category.tabular.header.columns
-            # Call chained on_first if present
-            on_first&.call(line)
           end
         end
       end

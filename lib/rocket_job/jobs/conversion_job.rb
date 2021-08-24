@@ -2,19 +2,19 @@
 #
 # Example, Convert CSV file to JSON.
 #   job = RocketJob::Jobs::ConversionJob.new
-#   job.upload("data.csv")
+#   job.input_category.file_name  = "data.csv"
 #   job.output_category.file_name = "data.json"
 #   job.save!
 #
 # Example, Convert JSON file to PSV and compress it with GZip.
 #   job = RocketJob::Jobs::ConversionJob.new
-#   job.upload("data.json")
+#   job.input_category.file_name  = "data.json"
 #   job.output_category.file_name = "data.psv.gz"
 #   job.save!
 #
 # Example, Read a CSV file that has been zipped from a remote website and the convert it to a GZipped json file.
 #   job = RocketJob::Jobs::ConversionJob.new
-#   job.upload("https://example.org/file.zip")
+#   job.input_category.file_name  = "https://example.org/file.zip"
 #   job.output_category.file_name = "data.json.gz"
 #   job.save!
 #
@@ -29,11 +29,13 @@ module RocketJob
       input_category format: :auto
       output_category format: :auto
 
-      # When the job completes it will write the result to the output_category.file_name
-      after_batch :download
+      # Upload the file specified in `input_category.file_name` unless already uploaded.
+      before_batch :upload, unless: :record_count
+
+      # When the job completes it will write the result to `output_category.file_name`.
+      after_batch :cleanup!, :download
 
       def perform(hash)
-        # For this job return the input hash record as-is. Could be transformed here as needed.
         hash
       end
     end

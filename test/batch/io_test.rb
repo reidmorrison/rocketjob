@@ -148,6 +148,77 @@ module Batch
             assert_equal csv_file.read, csv_columns.to_csv + result
           end
         end
+
+        describe "Range" do
+          before do
+            job.input_category.slice_size = 10
+          end
+
+          it "handle single value" do
+            count = job.upload(1..1)
+            assert_equal 1, count, job.input.first.inspect
+            assert_equal [[[1, 1]]], job.input.collect(&:to_a)
+          end
+
+          it "handle single range" do
+            count = job.upload(1..10)
+            assert_equal 1, count, job.input.first.inspect
+            assert_equal [[[1, 10]]], job.input.collect(&:to_a)
+          end
+
+          it "handle longer range" do
+            count = job.upload(1..11)
+            assert_equal 2, count, job.input.collect(&:to_a).inspect
+            assert_equal [[[1, 10]], [[11, 11]]], job.input.collect(&:to_a)
+          end
+
+          it "handle even longer range" do
+            count = job.upload(0..44)
+            assert_equal 5, count, job.input.collect(&:to_a).inspect
+            assert_equal [[[0, 9]], [[10, 19]], [[20, 29]], [[30, 39]], [[40, 44]]], job.input.collect(&:to_a)
+          end
+        end
+
+        describe "Range in reverse" do
+          before do
+            job.input_category.slice_size = 10
+          end
+
+          it "handle single value" do
+            count = job.upload(1..1)
+            assert_equal 1, count, job.input.first.inspect
+            assert_equal [[[1, 1]]], job.input.collect(&:to_a)
+            assert_equal [1], job.input.collect(&:first_record_number)
+          end
+
+          it "handle single range" do
+            count = job.upload(10..1)
+            assert_equal 1, count, job.input.first.inspect
+            assert_equal [[[1, 10]]], job.input.collect(&:to_a)
+            assert_equal [1], job.input.collect(&:first_record_number)
+          end
+
+          it "handle longer range" do
+            count = job.upload(11..1)
+            assert_equal 2, count, job.input.collect(&:to_a).inspect
+            assert_equal [[[2, 11]], [[1, 1]]], job.input.collect(&:to_a)
+            assert_equal [1, 2], job.input.collect(&:first_record_number)
+          end
+
+          it "handle even longer range" do
+            count = job.upload(44..0)
+            assert_equal 5, count, job.input.collect(&:to_a).inspect
+            assert_equal [[[35, 44]], [[25, 34]], [[15, 24]], [[5, 14]], [[0, 4]]], job.input.collect(&:to_a)
+            assert_equal [1, 2, 3, 4, 5], job.input.collect(&:first_record_number)
+          end
+
+          it "handle partial range" do
+            count = job.upload(44..5)
+            assert_equal 4, count, job.input.collect(&:to_a).inspect
+            assert_equal [[[35, 44]], [[25, 34]], [[15, 24]], [[5, 14]]], job.input.collect(&:to_a)
+            assert_equal [1, 2, 3, 4], job.input.collect(&:first_record_number)
+          end
+        end
       end
     end
   end

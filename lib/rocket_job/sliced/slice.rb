@@ -99,6 +99,11 @@ module RocketJob
       def self.binary_format
       end
 
+      # For binary formats only, format the supplied records into the binary format for this slice
+      def self.to_binary(_records)
+        raise NotImplementedError
+      end
+
       # `records` array has special handling so that it can be modified in place instead of having
       # to replace the entire array every time. For example, when appending lines with `<<`.
       def records

@@ -114,6 +114,57 @@ module RocketJob
           slice_size:      slice_size
         )
       end
+
+      # Returns [IOStreams::Path] of file to upload.
+      # Auto-detects file format from file name when format is :auto.
+      def upload_path(stream = nil, original_file_name: nil)
+        unless stream || file_name
+          raise(ArgumentError, "Either supply a file name to upload, or set input_collection.file_name first")
+        end
+
+        path           = IOStreams.new(stream || file_name)
+        path.file_name = original_file_name if original_file_name
+        self.file_name = path.file_name
+
+        # Auto detect the format based on the upload file name if present.
+        if format == :auto
+          self.format = path.format || :csv
+          # Rebuild tabular with new values.
+          @tabular = nil
+        end
+
+        # Remove non-printable characters from tabular input formats.
+        if tabular?
+          # Cannot change the length of fixed width lines.
+          replace = format == :fixed ? " " : ""
+          path.option_or_stream(:encode, encoding: "UTF-8", cleaner: :printable, replace: replace)
+        end
+        path
+      end
+
+      # Return a lambda to extract the header row from the uploaded file.
+      def extract_header_callback(on_first)
+        return on_first unless tabular? && tabular.header?
+
+        case mode
+        when :line
+          lambda do |line|
+            tabular.parse_header(line)
+            cleanse_header!
+            self.columns = tabular.header.columns
+            # Call chained on_first if present
+            on_first&.call(line)
+          end
+        when :array
+          lambda do |row|
+            tabular.header.columns = row
+            cleanse_header!
+            self.columns = category.tabular.header.columns
+            # Call chained on_first if present
+            on_first&.call(line)
+          end
+        end
+      end
     end
   end
 end

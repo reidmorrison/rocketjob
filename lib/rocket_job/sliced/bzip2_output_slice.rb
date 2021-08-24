@@ -14,6 +14,16 @@ module RocketJob
         :bz2
       end
 
+      # Compress the supplied records with BZip2
+      def self.to_binary(records, record_delimiter = "\n")
+        return [] if records.blank?
+
+        lines = Array(records).join(record_delimiter) + record_delimiter
+        s     = StringIO.new
+        IOStreams::Bzip2::Writer.stream(s) { |io| io.write(lines) }
+        s.string
+      end
+
       private
 
       # Returns [Hash] the BZip2 compressed binary data in binary form when reading back from Mongo.
@@ -24,13 +34,8 @@ module RocketJob
 
       # Returns [BSON::Binary] the records compressed using BZip2 into a string.
       def serialize_records
-        return [] if @records.nil? || @records.empty?
-
         # TODO: Make the line terminator configurable
-        lines = records.to_a.join("\n") + "\n"
-        s     = StringIO.new
-        IOStreams::Bzip2::Writer.stream(s) { |io| io.write(lines) }
-        BSON::Binary.new(s.string)
+        BSON::Binary.new(self.class.to_binary(@records))
       end
     end
   end

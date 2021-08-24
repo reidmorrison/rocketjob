@@ -66,10 +66,6 @@ module RocketJob
         )
       end
 
-      def reset_tabular
-        @tabular = nil
-      end
-
       # Returns [true|false] whether this category has the attributes defined for tabular to work.
       def tabular?
         format.present?

@@ -29,12 +29,12 @@ module RocketJob
           writer&.flush
         end
 
-        def initialize(data_store, on_first: nil, slice_size: nil, slice_batch_size: 20)
+        def initialize(data_store, on_first: nil, slice_size: nil, slice_batch_size: nil)
           @on_first         = on_first
           @record_count     = 0
           @data_store       = data_store
           @slice_size       = slice_size || @data_store.slice_size
-          @slice_batch_size = slice_batch_size
+          @slice_batch_size = slice_batch_size || 20
           @batch            = []
           @batch_count      = 0
           new_slice
