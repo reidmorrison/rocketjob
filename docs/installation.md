@@ -56,7 +56,7 @@ For an existing Rails installation, add the following lines to the bottom of the
 
 ~~~ruby
 gem 'rails_semantic_logger'
-gem 'rocketjob', '~> 5.0'
+gem 'rocketjob', '~> 6.0'
 ~~~
 
 Install gems:
@@ -123,7 +123,7 @@ bin/rocketjob
 Add the [Rocket Job Web Interface][1] gem to your Gemfile:
 
 ~~~ruby
-gem 'rocketjob_mission_control', '~> 5.0'
+gem 'rocketjob_mission_control', '~> 6.0'
 ~~~
 
 Install gems:
@@ -164,7 +164,7 @@ Create a file called `Gemfile` in the `standalone` directory with the following 
 ~~~ruby
 source 'https://rubygems.org'
 
-gem 'rocketjob', '~> 5.0'
+gem 'rocketjob', '~> 6.0'
 ~~~
 
 Install the gem files:
@@ -176,7 +176,7 @@ bundle
 Create a file called `mongoid.yml` in the `config` sub-directory with the following contents:
 
 ~~~yaml
-# See: https://docs.mongodb.com/ruby-driver/master/tutorials/5.1.0/mongoid-installation/
+# See: https://docs.mongodb.com/mongoid/master/installation/
 client_options: &client_options
   read:
     mode:             :primary
@@ -331,8 +331,8 @@ Add the following lines to the bottom of the file `Gemfile`:
 
 ~~~ruby
 gem 'rails_semantic_logger'
-gem 'rocketjob', '~> 5.0'
-gem 'rocketjob_mission_control', '~> 5.0'
+gem 'rocketjob', '~> 6.0'
+gem 'rocketjob_mission_control', '~> 6.0'
 gem 'puma'
 ~~~
 

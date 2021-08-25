@@ -1043,7 +1043,7 @@ elsif job.running?
 end
 ~~~
 
-For more details on querying jobs, see the [Mongoid Queries Documentation](https://docs.mongodb.com/ruby-driver/master/tutorials/5.1.0/mongoid-queries/) 
+For more details on querying jobs, see the [Mongoid Queries Documentation](https://docs.mongodb.com/mongoid/master/reference/queries/) 
 
 Since everything about this job is held in this one document, all
 details about the job are accessible programmatically.
@@ -1225,7 +1225,7 @@ AFTER 1
 AROUND 1 AFTER
 ~~~
 
-For more details on callbacks, see the [Mongoid Callbacks Documentation](https://docs.mongodb.com/mongoid/master/tutorials/mongoid-callbacks).
+For more details on callbacks, see the [Mongoid Callbacks Documentation](https://docs.mongodb.com/mongoid/master/reference/callbacks/).
 
 ---
 ## Validations
