@@ -78,8 +78,8 @@ module RocketJob
       self.retry_limit         = 0
 
       # Be sure to store key names only as Strings, not Symbols
-      field :data, type: Hash, default: {}, copy_on_restart: true
-      field :code, type: String, copy_on_restart: true
+      field :data, type: Hash, default: {}, user_editable: true, copy_on_restart: true
+      field :code, type: String, user_editable: true, copy_on_restart: true
 
       validates :code, presence: true
       validate :validate_code

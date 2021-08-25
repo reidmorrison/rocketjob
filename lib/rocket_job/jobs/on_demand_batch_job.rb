@@ -65,27 +65,29 @@ module RocketJob
   module Jobs
     class OnDemandBatchJob < RocketJob::Job
       include RocketJob::Plugins::Cron
+      include RocketJob::Plugins::Retry
       include RocketJob::Batch
       include RocketJob::Batch::Statistics
 
       self.priority            = 90
-      self.description         = "Batch Job"
+      self.description         = "On Demand Batch Job"
       self.destroy_on_complete = false
+      self.retry_limit         = 0
 
       # Code that is performed against every row / record.
-      field :code, type: String
+      field :code, type: String, user_editable: true, copy_on_restart: true
 
       # Optional code to execute before the batch is run.
       # Usually to upload data into the job.
-      field :before_code, type: String
+      field :before_code, type: String, user_editable: true, copy_on_restart: true
 
       # Optional code to execute after the batch is run.
       # Usually to upload data into the job.
-      field :after_code, type: String
+      field :after_code, type: String, user_editable: true, copy_on_restart: true
 
       # Data that is made available to the job during the perform.
       # Be sure to store key names only as Strings, not Symbols.
-      field :data, type: Hash, default: {}
+      field :data, type: Hash, default: {}, user_editable: true, copy_on_restart: true
 
       validates :code, presence: true
       validate :validate_code
