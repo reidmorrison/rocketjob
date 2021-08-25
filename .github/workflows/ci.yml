@@ -33,8 +33,6 @@ jobs:
             ruby: "3.0"
           - mongoid: 7.3
             ruby: jruby
-          - mongoid: 7.3
-            ruby: truffleruby
 
     env:
       BUNDLE_GEMFILE: gemfiles/mongoid_${{ matrix.mongoid }}.gemfile
