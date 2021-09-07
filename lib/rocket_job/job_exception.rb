@@ -23,7 +23,7 @@ module RocketJob
       new(
         args.merge(
           class_name: exc.class.name,
-          message:    exc.message,
+          message:    exc.message.encode("UTF-8", replace: ""),
           backtrace:  exc.backtrace || []
         )
       )
