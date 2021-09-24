@@ -30,6 +30,8 @@ module RocketJob
 
         included do
           class_attribute :rocket_job_throttles
+          # The reason why this job is being throttled, visible in RJMC.
+          field :throttled_by, type: String
         end
 
         module ClassMethods

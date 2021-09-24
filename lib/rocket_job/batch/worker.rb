@@ -111,13 +111,15 @@ module RocketJob
       end
 
       def rocket_job_batch_throttled?(slice, worker)
-        filter = self.class.rocket_job_batch_throttles.matching_filter(self, slice)
-        return false unless filter
+        self.class.rocket_job_batch_throttles.each do |throttle|
+          next unless throttle.throttled?(self, slice)
 
-        # Restore retrieved slice so that other workers can process it later.
-        slice.set(worker_name: nil, state: :queued, started_at: nil)
-        worker.add_to_current_filter(filter)
-        true
+          # Restore retrieved slice so that other workers can process it later.
+          slice.set(worker_name: nil, state: :queued, started_at: nil)
+          worker.add_to_current_filter(throttle.apply_filter(self, slice))
+          return true
+        end
+        false
       end
 
       # Process a single slice from Mongo

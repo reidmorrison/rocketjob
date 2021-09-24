@@ -134,14 +134,15 @@ module RocketJob
 
     # Whether the supplied job has been throttled and should be ignored.
     def throttled_job?(job)
-      # Evaluate job throttles, if any.
-      filter = job.rocket_job_throttles.matching_filter(job)
-      return false unless filter
+      job.rocket_job_throttles.each do |throttle|
+        next unless throttle.throttled?(job)
 
-      add_to_current_filter(filter)
-      # Restore retrieved job so that other workers can process it later
-      job.set(worker_name: nil, state: :queued)
-      true
+        add_to_current_filter(throttle.apply_filter(job))
+        # Restore retrieved job so that other workers can process it later
+        job.set(worker_name: nil, state: :queued, throttled_by: throttle.description)
+        return true
+      end
+      false
     end
 
     # Finds the next job to work on in priority based order
