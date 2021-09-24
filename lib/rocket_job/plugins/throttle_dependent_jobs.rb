@@ -13,14 +13,20 @@ module RocketJob
       included do
         field :dependent_jobs, type: Array, class_attribute: true, user_editable: true, copy_on_restart: true
 
-        define_throttle :dependent_job_exists?
-        define_batch_throttle :dependent_job_exists? if respond_to?(:define_batch_throttle)
+        define_throttle :dependent_jobs_running?
+        define_batch_throttle :dependent_jobs_running? if respond_to?(:define_batch_throttle)
+      end
+
+      class_methods do
+        def depends_on_job(*jobs)
+          self.dependent_jobs = Array(jobs).collect(&:to_s)
+        end
       end
 
       private
 
       # Checks if there are any dependent jobs are running
-      def dependent_job_exists?
+      def dependent_jobs_running?
         return false if dependent_jobs.blank?
 
         jobs_count = RocketJob::Job.running.where(:_type.in => dependent_jobs).count

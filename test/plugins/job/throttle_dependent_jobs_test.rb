@@ -25,17 +25,17 @@ module Plugins
 
         describe "with a regular job" do
           it "defines the dependent job throttle" do
-            assert RegularTestJob.throttle?(:dependent_job_exists?), RegularTestJob.rocket_job_throttles
+            assert RegularTestJob.throttle?(:dependent_jobs_running?), RegularTestJob.rocket_job_throttles
           end
 
           it "exceeds the throttle if there is any dependent job running" do
             dependent_job = DependentTestJob.new
             dependent_job.start!
-            assert job.send(:dependent_job_exists?)
+            assert job.send(:dependent_jobs_running?)
           end
 
           it "does not exceed the throttle when there are no dependent jobs" do
-            refute job.send(:dependent_job_exists?)
+            refute job.send(:dependent_jobs_running?)
           end
         end
       end

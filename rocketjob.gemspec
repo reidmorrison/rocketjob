@@ -18,6 +18,6 @@ Gem::Specification.new do |s|
   s.add_dependency "fugit", "~> 1.4"
   s.add_dependency "iostreams", "~> 1.9"
   s.add_dependency "mongoid", "~> 7.1"
-  s.add_dependency "semantic_logger", "~> 4.7"
+  s.add_dependency "semantic_logger", ">= 4.7"
   s.add_dependency "symmetric-encryption", "~> 4.3"
 end
