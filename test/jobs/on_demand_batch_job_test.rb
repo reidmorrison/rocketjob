@@ -96,6 +96,43 @@ module Jobs
           assert_equal 413, job.statistics["after"]
         end
       end
+
+      describe "#as_document" do
+        let :job do
+          before_code = <<~CODE
+            upload(RocketJob::Job.all)
+          CODE
+
+          after_code = <<~CODE
+            cleanup!
+          CODE
+
+          code = <<~CODE
+            job = RocketJob::Job.find(row)
+            statistics_inc(job.class.name)
+          CODE
+
+          RocketJob::Jobs::OnDemandBatchJob.new(
+            code:                code,
+            before_code:         before_code,
+            destroy_on_complete: false,
+            slice_size:          5,
+            description:         "Job to reproduce multiple main input categories",
+            after_code:          after_code
+          )
+        end
+
+        it "has 1 input category" do
+          assert_equal 1, job.input_categories.size
+          assert_equal :main, job.input_categories.first.name
+        end
+
+        it "retains input category" do
+          assert h = job.as_document
+          assert_equal 1, h["input_categories"].size, -> { h.ai }
+          assert_equal "main", h["input_categories"].first["name"], -> { h.ai }
+        end
+      end
     end
   end
 end

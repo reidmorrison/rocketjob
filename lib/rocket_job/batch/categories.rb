@@ -75,26 +75,25 @@ module RocketJob
         return category_name if category_name.is_a?(Category::Input)
         raise(ArgumentError, "Cannot supply Output Category to input category") if category_name.is_a?(Category::Output)
 
+        # Initialize categories when this method is called before initialization is complete
+        rocketjob_categories_assign if input_categories.empty?
+
         category_name = category_name.to_sym
         # find does not work against this association
         input_categories.each { |category| return category if category.name == category_name }
 
-        unless category_name == :main
-          raise(
-            ArgumentError,
-            "Unknown Input Category: #{category_name.inspect}. Registered categories: #{input_categories.collect(&:name).join(',')}"
-          )
-        end
-
-        # Auto-register main input category when not defined
-        category = Category::Input.new(job: self)
-        self.input_categories << category
-        category
+        raise(
+          ArgumentError,
+          "Unknown Input Category: #{category_name.inspect}. Registered categories: #{input_categories.collect(&:name).join(',')}"
+        )
       end
 
       def output_category(category_name = :main)
         return category_name if category_name.is_a?(Category::Output)
         raise(ArgumentError, "Cannot supply Input Category to output category") if category_name.is_a?(Category::Input)
+
+        # Initialize categories when this method is called before initialization is complete
+        rocketjob_categories_assign if output_categories.empty? && self.class.defined_output_categories
 
         category_name = category_name.to_sym
         # .find does not work against this association
@@ -154,7 +153,7 @@ module RocketJob
             end
         end
 
-        return if !self.class.defined_output_categories || !output_categories.empty?
+        return if !output_categories.empty? || !self.class.defined_output_categories
 
         # Input categories defaults to nil if none was set in the class
         self.output_categories = self.class.defined_output_categories.deep_dup
@@ -164,7 +163,6 @@ module RocketJob
       def rocketjob_categories_output_render
         return if @rocket_job_output.nil?
 
-        # TODO: ..
         return unless output_categories
         return if output_categories.empty?
 

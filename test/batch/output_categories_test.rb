@@ -70,7 +70,7 @@ module Batch
       end
     end
 
-    describe RocketJob::Batch::Model do
+    describe RocketJob::Batch::Categories do
       after do
         @job.destroy if @job && !@job.new_record?
       end
@@ -144,6 +144,44 @@ module Batch
           IOStreams::Bzip2::Writer.stream(s) { |io| io.write(str) }
 
           assert_equal s.string, @job.output(:main).first.to_a.first
+        end
+      end
+
+      describe "#as_document" do
+        it "serializes default" do
+          job = MainCategoryJob.new
+          assert h = job.as_document
+          assert_equal MainCategoryJob.name, h["_type"]
+          assert_equal 1, h["output_categories"].size
+          assert_equal "main", h["output_categories"].first["name"]
+        end
+
+        it "serializes named output" do
+          job = SingleCategoryJob.new
+          assert h = job.as_document
+          assert_equal SingleCategoryJob.name, h["_type"]
+          assert_equal 1, h["output_categories"].size
+          assert_equal "other", h["output_categories"].first["name"]
+        end
+
+        it "serializes multiple outputs" do
+          job = TwoCategoryJob.new
+          assert h = job.as_document
+          assert_equal TwoCategoryJob.name, h["_type"]
+          assert_equal 2, h["output_categories"].size
+          assert_equal "first", h["output_categories"].first["name"]
+          assert_equal "second", h["output_categories"].last["name"]
+        end
+      end
+
+      describe "#reload" do
+        it "restores" do
+          job = TwoCategoryJob.create
+          job.reload
+          assert job.is_a?(TwoCategoryJob)
+          assert_equal 2, job.output_categories.size
+          assert_equal :first, job.output_categories.first.name
+          assert_equal :second, job.output_categories.last.name
         end
       end
     end
