@@ -144,7 +144,7 @@ Refresh Secret Config settings across all Rocket Job servers:
 RocketJob::Subscribers::SecretConfig.publish(:refresh)
 ~~~
 
-When running Secret Config, it can also be used to control Rocket Job itself.
+When running Secret Config, it can also be used to configure Rocket Job itself.
 
 For example, add the following lines to `config/application.rb`:
 

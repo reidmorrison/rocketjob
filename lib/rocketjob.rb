@@ -83,12 +83,13 @@ module RocketJob
     autoload :UploadFileJob,         "rocket_job/jobs/upload_file_job"
 
     module ReEncrypt
-      autoload :RelationalJob, "rocket_job/jobs/re_encrypt/relational_job"
+      autoload :RelationalJob,       "rocket_job/jobs/re_encrypt/relational_job"
     end
   end
 
   module Subscribers
     autoload :Logger,                "rocket_job/subscribers/logger"
+    autoload :SecretConfig,          "rocket_job/subscribers/secret_config"
     autoload :Server,                "rocket_job/subscribers/server"
     autoload :Worker,                "rocket_job/subscribers/worker"
   end

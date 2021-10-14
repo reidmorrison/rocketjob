@@ -34,6 +34,7 @@ module RocketJob
       logger.info "Rocket Job Server started"
 
       event_listener = Thread.new { Event.listener }
+      Subscribers::SecretConfig.subscribe if defined?(SecretConfig)
       Subscribers::Server.subscribe(self) do
         Subscribers::Worker.subscribe(self) do
           Subscribers::Logger.subscribe do
