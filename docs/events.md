@@ -180,6 +180,9 @@ add the following to `config/initializers/rocket_job.rb`:
 unless RocketJob.server?
   # Subscribe to logging events so that log levels can be changed in this process
   RocketJob::Subscribers::Logger.subscribe
+
+  # Subscribe to Secret Config events
+  RocketJob::Subscribers::SecretConfig.subscribe if defined?(SecretConfig)
   
   # Start the Rocket Job Event listener thread
   Thread.new { RocketJob::Event.listener }

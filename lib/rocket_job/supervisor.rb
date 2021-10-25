@@ -14,6 +14,7 @@ module RocketJob
       Thread.current.name = "rocketjob main"
       RocketJob.create_indexes
       register_signal_handlers
+      subscribe_to_events
 
       server = Server.create!
       new(server).run
@@ -34,15 +35,8 @@ module RocketJob
       logger.info "Rocket Job Server started"
 
       event_listener = Thread.new { Event.listener }
-      Subscribers::SecretConfig.subscribe if defined?(SecretConfig)
-      Subscribers::Server.subscribe(self) do
-        Subscribers::Worker.subscribe(self) do
-          Subscribers::Logger.subscribe do
-            supervise_pool
-            stop!
-          end
-        end
-      end
+      supervise_pool
+      stop!
     rescue ::Mongoid::Errors::DocumentNotFound
       logger.info("Server has been destroyed. Going down hard!")
     rescue Exception => e
@@ -94,6 +88,13 @@ module RocketJob
 
     def synchronize(&block)
       @mutex.synchronize(&block)
+    end
+
+    def subscribe_to_events
+      Subscribers::Logger.subscribe
+      Subscribers::SecretConfig.subscribe if defined?(SecretConfig)
+      Subscribers::Server.subscribe
+      Subscribers::Worker.subscribe
     end
   end
 end
