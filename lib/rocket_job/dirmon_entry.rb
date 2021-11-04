@@ -71,6 +71,7 @@ module RocketJob
     validates_presence_of :pattern, :job_class_name, :archive_directory
     validate :job_is_a_rocket_job
     validate :job_has_properties
+    validates_uniqueness_of :pattern, :name
 
     # State Machine events and transitions
     #
@@ -97,6 +98,7 @@ module RocketJob
       event :enable do
         transitions from: :pending, to: :enabled
         transitions from: :disabled, to: :enabled
+        transitions from: :failed, to: :enabled
       end
 
       event :disable do

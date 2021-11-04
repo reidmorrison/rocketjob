@@ -59,23 +59,31 @@ module RocketJob
       def check_directories
         new_file_names = {}
         DirmonEntry.enabled.each do |dirmon_entry|
-          dirmon_entry.each do |path|
-            # Skip file size checking since S3 files are only visible once completely uploaded.
-            unless path.partial_files_visible?
-              logger.info("File: #{path}. Starting: #{dirmon_entry.job_class_name}")
-              dirmon_entry.later(path)
-              next
-            end
-
-            # BSON Keys cannot contain periods
-            key           = path.to_s.tr(".", "_")
-            previous_size = previous_file_names[key]
-            # Check every few minutes for a file size change before trying to process the file.
-            size                = check_file(dirmon_entry, path, previous_size)
-            new_file_names[key] = size if size
-          end
+          check_entry(dirmon_entry, new_file_names)
         end
         self.previous_file_names = new_file_names
+      end
+
+      def check_entry(dirmon_entry, file_names)
+        dirmon_entry.each do |path|
+          # Skip file size checking since S3 files are only visible once completely uploaded.
+          unless path.partial_files_visible?
+            logger.info("File: #{path}. Starting: #{dirmon_entry.job_class_name}")
+            dirmon_entry.later(path)
+            next
+          end
+
+          # BSON Keys cannot contain periods
+          key           = path.to_s.tr(".", "_")
+          previous_size = previous_file_names[key]
+          # Check every few minutes for a file size change before trying to process the file.
+          size            = check_file(dirmon_entry, path, previous_size)
+          file_names[key] = size if size
+        end
+      rescue StandardError => e
+        logger.error("Dirmon Entry: #{dirmon_entry.id} failed. Moved to `failed` state to prevent processing again without manual intervention.", e)
+        dirmon_entry.fail(worker_name, e)
+        dirmon_entry.save(validate: false)
       end
 
       # Checks if a file should result in starting a job
