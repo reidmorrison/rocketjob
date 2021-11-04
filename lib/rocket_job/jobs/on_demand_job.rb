@@ -97,6 +97,10 @@ module RocketJob
       rescue Exception => e
         errors.add(:code, "Failed to parse :code, #{e.inspect}")
       end
+
+      # Allow multiple instances of this job to run with the same cron schedule
+      def rocket_job_cron_singleton_check
+      end
     end
   end
 end

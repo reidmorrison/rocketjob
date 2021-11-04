@@ -145,6 +145,10 @@ module RocketJob
       rescue Exception => e
         errors.add(field, "Failed to load :#{field}, #{e.inspect}")
       end
+
+      # Allow multiple instances of this job to run with the same cron schedule
+      def rocket_job_cron_singleton_check
+      end
     end
   end
 end
