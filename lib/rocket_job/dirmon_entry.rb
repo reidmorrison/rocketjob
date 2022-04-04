@@ -14,6 +14,10 @@ module RocketJob
 
     # User defined name used to identify this DirmonEntry in the Web Interface.
     field :name, type: String
+    
+    # Interval to run each instance
+    field :run_interval, type: Integer, default: 0
+    field :last_run_at, type: Time, default: Time.now
 
     # Pattern for finding files
     #
@@ -226,6 +230,9 @@ module RocketJob
 
     # Archives the file, then kicks off a file upload job to upload the archived file.
     def later(iopath)
+      return if self.last_run_at + self.run_interval.minutes > Time.now
+      
+      update_attribute(:last_run_at, Time.now)
       job_id       = BSON::ObjectId.new
       archive_path = archive_iopath(iopath).join("#{job_id}_#{iopath.basename}")
       iopath.move_to(archive_path)
