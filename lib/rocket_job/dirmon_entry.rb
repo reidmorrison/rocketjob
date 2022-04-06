@@ -14,10 +14,6 @@ module RocketJob
 
     # User defined name used to identify this DirmonEntry in the Web Interface.
     field :name, type: String
-    
-    # Interval to run each instance
-    field :run_interval, type: Integer, default: 0
-    field :last_run_at, type: Time, default: Time.now
 
     # Pattern for finding files
     #
@@ -49,6 +45,12 @@ module RocketJob
     # Example, override the default job priority:
     #   { priority: 45 }
     field :properties, type: Hash, default: {}
+
+    # For large files if processing takes more time
+    # than scheduled cron it will be picked again and might 
+    # result in duplicate processing, by default this is true
+    # for large files update to false
+    field :enable_parallel_processing, type: Boolean, default: true
 
     # Archive directory to move files to when processed to prevent processing the
     # file again.
@@ -91,6 +93,9 @@ module RocketJob
       # DirmonEntry is Enabled and will be included by DirmonJob
       state :enabled
 
+      # DirmonEntry is Queued and won't be included by DirmonJob
+      state :queued
+
       # DirmonEntry failed during processing and requires manual intervention
       # See the exception for the reason for failing this entry
       # For example: access denied, whitelist_path security violation, etc.
@@ -99,19 +104,26 @@ module RocketJob
       # DirmonEntry has been manually disabled
       state :disabled
 
+      event :queue do
+        transitions from: :enabled, to: :queued
+      end
+
       event :enable do
         transitions from: :pending, to: :enabled
         transitions from: :disabled, to: :enabled
         transitions from: :failed, to: :enabled
+        transitions from: :queued, to: :enabled
       end
 
       event :disable do
         transitions from: :enabled, to: :disabled
         transitions from: :failed, to: :disabled
+        transitions from: :queued, to: :disabled
       end
 
       event :fail, before: :set_exception do
         transitions from: :enabled, to: :failed
+        transitions from: :queued, to: :failed
       end
     end
 
@@ -228,11 +240,17 @@ module RocketJob
       nil
     end
 
+    def process(iopath)
+      return later(iopath) if self.enable_parallel_processing
+      
+      queue!
+      later(iopath)     
+      enable!
+    end
+
+
     # Archives the file, then kicks off a file upload job to upload the archived file.
     def later(iopath)
-      return if self.last_run_at + self.run_interval.minutes > Time.now
-      
-      update_attribute(:last_run_at, Time.now)
       job_id       = BSON::ObjectId.new
       archive_path = archive_iopath(iopath).join("#{job_id}_#{iopath.basename}")
       iopath.move_to(archive_path)

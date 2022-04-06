@@ -284,6 +284,19 @@ class DirmonEntryTest < Minitest::Test
         end
       end
 
+      describe "#process" do
+        it "calls later without changing state" do
+          dirmon_entry.process(iopath)
+          assert [nil, "enabled"], dirmon_entry.previous_changes.dig("state")
+        end
+
+        it "calls later after changing state" do
+          dirmon_entry.enable_parallel_processing = false
+          dirmon_entry.process(iopath)
+          assert ["queued", "enabled"], dirmon_entry.previous_changes.dig("state")
+        end
+      end
+
       describe "#later" do
         it "enqueues job" do
           job = dirmon_entry.later(iopath)

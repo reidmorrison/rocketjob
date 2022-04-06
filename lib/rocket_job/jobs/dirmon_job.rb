@@ -69,7 +69,7 @@ module RocketJob
           # Skip file size checking since S3 files are only visible once completely uploaded.
           unless path.partial_files_visible?
             logger.info("File: #{path}. Starting: #{dirmon_entry.job_class_name}")
-            dirmon_entry.later(path)
+            dirmon_entry.process(path)
             next
           end
 
@@ -92,7 +92,7 @@ module RocketJob
         size = path.size
         if previous_size && (previous_size == size)
           logger.info("File stabilized: #{path}. Starting: #{dirmon_entry.job_class_name}")
-          dirmon_entry.later(path)
+          dirmon_entry.process(path)
           nil
         else
           logger.info("Found file: #{path}. File size: #{size}")
