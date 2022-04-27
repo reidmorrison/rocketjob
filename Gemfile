@@ -2,8 +2,9 @@ source "https://rubygems.org"
 
 gemspec
 
-gem "activerecord", "~> 6.0"
-gem "mongoid", "~> 7.3"
+gem "activerecord", "~> 7.0.0"
+gem "mongoid", "~> 7.4.0"
+gem "sqlite3", "~> 1.4", platform: :ruby
 
 gem "amazing_print"
 gem "appraisal"
@@ -11,10 +12,6 @@ gem "rake"
 gem "rubyzip", platform: :ruby
 # BZip2 file support
 gem "bzip2-ffi"
-
-gem "activerecord-jdbcsqlite3-adapter", platform: :jruby
-gem "jdbc-sqlite3", platform: :jruby
-gem "sqlite3", "~> 1.4", platform: :ruby
 
 # v1.8.9 blows up with `NoMethodError: undefined method 'deep_merge!' for {}:Concurrent::Hash` on JRuby
 gem "i18n", "1.8.7"
