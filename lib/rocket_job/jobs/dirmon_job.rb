@@ -42,6 +42,10 @@ module RocketJob
       self.description   = "Directory Monitor"
       self.priority      = 30
 
+      # Prevent multiple dirmon jobs from running at the same time by only
+      # creating the next instance when this one finishes.
+      self.cron_after_start = false
+
       # Hash[file_name, size]
       field :previous_file_names, type: Hash, default: {}, copy_on_restart: true
 
