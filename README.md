@@ -1,5 +1,5 @@
 # Rocket Job
-[![Gem Version](https://img.shields.io/gem/v/rocketjob.svg)](https://rubygems.org/gems/rocketjob) [![Downloads](https://img.shields.io/gem/dt/rocketjob.svg)](https://rubygems.org/gems/rocketjob) [![License](https://img.shields.io/badge/license-Apache%202.0-brightgreen.svg)](http://opensource.org/licenses/Apache-2.0) ![](https://img.shields.io/badge/status-Production%20Ready-blue.svg) [![Support](https://img.shields.io/badge/IRC%20(gitter)-Support-brightgreen.svg)](https://gitter.im/rocketjob/support)
+[![Gem Version](https://img.shields.io/gem/v/rocketjob.svg)](https://rubygems.org/gems/rocketjob) [![Downloads](https://img.shields.io/gem/dt/rocketjob.svg)](https://rubygems.org/gems/rocketjob) [![License](https://img.shields.io/badge/license-Apache%202.0-brightgreen.svg)](http://opensource.org/licenses/Apache-2.0) ![](https://img.shields.io/badge/status-Production%20Ready-blue.svg) 
 
 Ruby's missing batch system
 
@@ -14,7 +14,7 @@ Checkout https://rocketjob.io/
 
 ## Support
 
-* Questions? Join the chat room on Gitter for [rocketjob support](https://gitter.im/rocketjob/support)
+* Ask questions in [Rocket Job Discussions](https://github.com/reidmorrison/rocketjob/discussions)
 * [Report bugs](https://github.com/rocketjob/rocketjob/issues)
 
 ## Rocket Job v6
