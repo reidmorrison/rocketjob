@@ -21,6 +21,9 @@ module RocketJob
 
       job.logger.debug { "Throttle: #{method_name} has been exceeded." }
       true
+    rescue Exception => e
+      job.logger.error("Throttle failed.", e)
+      true
     end
 
     # Returns the filter to apply to the job when the above throttle returns true.
