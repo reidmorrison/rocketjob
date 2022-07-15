@@ -22,7 +22,7 @@ module RocketJob
       job.logger.debug { "Throttle: #{method_name} has been exceeded." }
       true
     rescue Exception => e
-      job.logger.error("Throttle failed.", e)
+      job.logger.error("#{job.class.name} Throttle failed at #{method_name}.", e)
       true
     end
 
