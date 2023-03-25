@@ -34,11 +34,11 @@ Install Docker Desktop if not already installed, see [Docker Desktop Downloads][
 
 Pull the latest Official Mongo docker image:
 
-    docker pull mongo:4.4
+    docker pull mongo:6.0
 
 Launch the Mongo Database running inside a docker container:
 
-    docker run --name rocketjob_mongo -p 27017:27017 -d mongo:4.4 --wiredTigerCacheSizeGB 1.5
+    docker run --name rocketjob_mongo -p 27017:27017 -d mongo:6.0 --wiredTigerCacheSizeGB 1.5
 
 Stop the container, and keep all data:
 

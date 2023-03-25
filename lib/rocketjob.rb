@@ -1,6 +1,6 @@
-require "iostreams"
 require "semantic_logger"
 require "symmetric-encryption"
+require "iostreams"
 require "mongoid"
 require "rocket_job/extensions/mongo/logging"
 require "rocket_job/extensions/iostreams/path"
