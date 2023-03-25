@@ -49,8 +49,8 @@ module ActiveJob
     #
     # Notes:
     # - ActiveJobs will appear in:
-    #   - Queued before the are processed.
-    #   - Failed if the fail to process.
+    #   - Queued before they are processed.
+    #   - Failed if they fail to process.
     #   - Scheduled if they are to be processed in the future.
     #   - Completed jobs will not appear in completed since the Active Job adapter
     #     uses the default Rocket Job `destroy_on_completion` of `false`.

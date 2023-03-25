@@ -2,7 +2,7 @@ module RocketJob
   # The base job from which all jobs are created
   class Job
     include SemanticLogger::Loggable
-    include Plugins::Document
+    # include Plugins::Document
     include Plugins::Job::Model
     include Plugins::Job::Persistence
     include Plugins::Job::Callbacks

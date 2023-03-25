@@ -7,7 +7,6 @@ module RocketJob
     include Supervisor::Shutdown
 
     attr_reader :server, :worker_pool
-    attr_accessor :worker_id
 
     # Start the Supervisor, using the supplied attributes to create a new Server instance.
     def self.run
@@ -39,7 +38,7 @@ module RocketJob
         Subscribers::Worker.subscribe(self) do
           Subscribers::Logger.subscribe do
             supervise_pool
-            stop!
+            stop
           end
         end
       end
@@ -54,7 +53,7 @@ module RocketJob
       logger.info("Shutdown Complete")
     end
 
-    def stop!
+    def stop
       server.stop! if server.may_stop?
       synchronize do
         worker_pool.stop
@@ -65,6 +64,41 @@ module RocketJob
         server.refresh(worker_pool.living_count)
       end
     end
+
+    def kill
+      synchronize do
+        self.class.shutdown!
+
+        logger.info("Stopping Pool")
+        worker_pool.stop
+        unless worker_pool.living_count.zero?
+          logger.info("Giving pool #{wait_timeout} seconds to terminate")
+          sleep(wait_timeout)
+        end
+        logger.info("Kill Pool")
+        worker_pool.kill
+      end
+    end
+
+    def pause
+      synchronize { server.pause! if server.may_pause? }
+      self.class.event!
+    end
+
+    def resume
+      synchronize { server.resume! if server.may_resume? }
+      self.class.event!
+    end
+
+    def thread_dump
+      worker_pool.log_backtraces
+    end
+
+    def synchronize(&block)
+      @mutex.synchronize(&block)
+    end
+
+    private
 
     def supervise_pool
       stagger = true
@@ -90,10 +124,6 @@ module RocketJob
 
         break if self.class.shutdown?
       end
-    end
-
-    def synchronize(&block)
-      @mutex.synchronize(&block)
     end
   end
 end

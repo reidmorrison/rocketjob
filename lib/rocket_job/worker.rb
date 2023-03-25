@@ -86,6 +86,8 @@ module RocketJob
       ActiveRecord::Base.clear_active_connections! if defined?(ActiveRecord::Base)
     end
 
+    private
+
     # Resets the current job filter if the relevant time interval has passed
     def reset_filter_if_expired
       # Only clear out the current_filter after every `re_check_seconds`
