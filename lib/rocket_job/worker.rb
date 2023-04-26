@@ -23,7 +23,7 @@ module RocketJob
       @re_check_start = Time.now
       @current_filter = Config.filter || {}
     end
-
+    
     def alive?
       true
     end
@@ -51,6 +51,17 @@ module RocketJob
     # Returns [true|false] whether the shutdown indicator was set
     def wait_for_shutdown?(_timeout = nil)
       false
+    end
+
+    # Requeue Jobs running on this worker before removing it from pool
+    def requeue_jobs
+      puts "Requeue Jobs running on this worker before removing it from pool"
+      logger.error "Requeue Jobs running on this worker before removing it from pool"
+      query = RocketJob::Job.where(:state.in => %i[running paused failed aborted])
+      query = query.where(worker_name: name)
+      query.each do |job|
+        job.requeue!(name)
+      end
     end
 
     # Process jobs until it shuts down

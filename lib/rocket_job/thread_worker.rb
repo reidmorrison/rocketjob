@@ -27,6 +27,7 @@ module RocketJob
 
     # Send each active worker the RocketJob::ShutdownException so that stops processing immediately.
     def kill
+      requeue_jobs
       @thread.raise(Shutdown, "Shutdown due to kill request for worker: #{name}") if @thread.alive?
     end
 

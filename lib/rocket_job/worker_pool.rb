@@ -49,6 +49,7 @@ module RocketJob
       return 0 if remove_count.zero?
 
       logger.info "Cleaned up #{remove_count} dead workers"
+      workers.each { |t| t.requeue_jobs unless t.alive? }
       workers.delete_if { |t| !t.alive? }
       remove_count
     end

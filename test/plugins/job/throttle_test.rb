@@ -55,6 +55,16 @@ module Plugins
         end
       end
 
+      class FailedThrottledJob < BaseJob
+        define_throttle :failed_throttle
+
+        private
+
+        def failed_throttle
+          abc # raises undefined method abc
+        end
+      end
+
       describe RocketJob::Plugins::Job::Throttle do
         before do
           RocketJob::Job.delete_all
@@ -169,6 +179,13 @@ module Plugins
             job1.fail!
             job2 = ThrottleGroupJob.new
             refute job2.send(:throttle_running_jobs_exceeded?)
+          end
+        end
+
+        describe "#throttle_failed_methods" do
+          it "throttles job if matching filter fails" do
+            job = FailedThrottledJob.new
+            assert job.rocket_job_throttles.matching_filter(job)
           end
         end
       end
