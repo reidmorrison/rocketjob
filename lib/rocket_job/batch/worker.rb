@@ -43,14 +43,7 @@ module RocketJob
               return true if slice.fail_on_exception!(re_raise_exceptions) { rocket_job_batch_throttled?(slice, worker) }
               next if slice.failed?
 
-              result = slice.fail_on_exception!(re_raise_exceptions) { rocket_job_process_slice(slice) }
-              
-              slice_exception = slice.exception
-              e_message = "ActiveRecord::JDBCError: java.sql.SQLNonTransientConnectionException: No operations allowed after connection closed."
-              if slice_exception && slice_exception.message == e_message && slice_exception.worker_name == worker.name
-                worker.shutdown!
-              end
-              result
+              slice.fail_on_exception!(re_raise_exceptions) { rocket_job_process_slice(slice) }
             elsif record_count && fail_on_exception!(re_raise_exceptions) { rocket_job_batch_complete?(worker.name) }
               return false
             else
