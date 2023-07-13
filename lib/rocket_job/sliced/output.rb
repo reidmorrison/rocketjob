@@ -12,6 +12,7 @@ module RocketJob
         # Call the supplied block for every record returned
         record_count = 0
         each do |slice|
+          # TODO: Add slice_id to named tags to aid problem determination
           slice.each do |record|
             record_count += 1
             yield(record)

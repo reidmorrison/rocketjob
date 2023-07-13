@@ -17,7 +17,8 @@ layout: default
 
 * Ruby 2.6, 2.7, 3.0, or higher.
 * JRuby 9.2.19.0, or higher.
-* [MongoDB][3] V3.6.23 or higher. Or, [AWS DocumentDB][4] v3.6 or higher
+* [MongoDB][3] V3.6.23 or higher.
+  * Note: [AWS DocumentDB][4] is _not_ compatible since it does not support capped collections.
 
 ## Install MongoDB
 
@@ -65,34 +66,75 @@ Install gems:
 bundle install
 ~~~
 
-Generate Mongo Configuration file if one does not already exist:
-
-~~~
-bundle exec rails generate mongoid:config
-~~~
-
-Edit the file config/mongoid.yml with the MongoDB server addresses.
-
-Add the `rocketjob` and `rocketjob_slices` clients as per the example below to every environment.
+Create the file `config/mongoid.yml` as follows:
 
 ~~~yaml
+# See: https://docs.mongodb.com/mongoid/master/tutorials/mongoid-configuration/
+client_options: &client_options
+  read:
+    mode:                   :primary
+  write:
+    w:                      1
+  connect_timeout:          10
+  socket_timeout:           300
+  # Includes the time taken to re-establish after a replica-set refresh
+  wait_queue_timeout:       125
+  server_selection_timeout: 120
+  max_read_retries:         20
+  max_write_retries:        10
+  max_pool_size:            50
+  min_pool_size:            1
+
+mongoid_options: &mongoid_options
+  preload_models: true
+  scope_overwrite_exception: true
+  use_utc: true
+
 development:
   clients:
     default: &default_development
       uri: mongodb://127.0.0.1:27017/rocketjob_development
       options:
         <<: *client_options
-        write:
-          w:   0
-        max_pool_size: 5
-        min_pool_size: 1
     rocketjob:
       <<: *default_development
     rocketjob_slices:
       <<: *default_development
   options:
     <<: *mongoid_options
+
+test:
+  clients:
+    default: &default_test
+      uri: mongodb://127.0.0.1:27017/rocketjob_test
+      options:
+        <<: *client_options
+    rocketjob:
+      <<: *default_test
+    rocketjob_slices:
+      <<: *default_test
+  options:
+    <<: *mongoid_options
+
+production:
+  clients:
+    default: &default_production
+      uri: mongodb://user:secret@server.example.org:27017,server2.example.org:27017/rocketjob_production
+      options:
+        <<: *client_options
+    rocketjob:
+      <<: *default_production
+    rocketjob_slices:
+      <<: *default_production
+      # Optionally Specify a different database or even server to store slices on
+      # uri: mongodb://user:secret@server3.example.org:27017/slices_production
+  options:
+    <<: *mongoid_options
 ~~~
+
+Alternatively, for those more familiar with mongo, the configuration file can be generated, 
+and then add the above `rocketjob` and `rocketjob_slices` clients as per the configuration file above, 
+using `bundle exec rails generate mongoid:config`.
 
 The `rocketjob` and `rocketjob_slices` clients above can be changed to point to separate
 database in production to spread load or to improve performance.
@@ -176,41 +218,25 @@ bundle
 Create a file called `mongoid.yml` in the `config` sub-directory with the following contents:
 
 ~~~yaml
-# See: https://docs.mongodb.com/mongoid/master/installation/
+# See: https://docs.mongodb.com/mongoid/master/tutorials/mongoid-configuration/
 client_options: &client_options
   read:
-    mode:             :primary
+    mode:                   :primary
   write:
-    w:                0
-  max_pool_size:      50
-  min_pool_size:      10
-  connect_timeout:    5
-  socket_timeout:     300
-  wait_queue_timeout: 5
+    w:                      1
+  connect_timeout:          10
+  socket_timeout:           300
+  # Includes the time taken to re-establish after a replica-set refresh
+  wait_queue_timeout:       125
+  server_selection_timeout: 120
+  max_read_retries:         20
+  max_write_retries:        10
+  max_pool_size:            50
+  min_pool_size:            1
 
 mongoid_options: &mongoid_options
-  # Includes the root model name in json serialization. (default: false)
-  # include_root_in_json: false
-
-  # Include the _type field in serialization. (default: false)
-  # include_type_for_serialization: false
-
-  # Preload all models in development, needed when models use
-  # inheritance. (default: false)
   preload_models: true
-
-  # Raise an error when performing a #find and the document is not found.
-  # (default: true)
-  # raise_not_found_error: true
-
-  # Raise an error when defining a scope with the same name as an
-  # existing method. (default: false)
   scope_overwrite_exception: true
-
-  # Use Active Support's time zone in conversions. (default: true)
-  # use_activesupport_time_zone: true
-
-  # Ensure all times are UTC in the app side. (default: false)
   use_utc: true
 
 development:
@@ -219,10 +245,6 @@ development:
       uri: mongodb://127.0.0.1:27017/rocketjob_development
       options:
         <<: *client_options
-        write:
-          w:   0
-        max_pool_size: 5
-        min_pool_size: 1
     rocketjob:
       <<: *default_development
     rocketjob_slices:
@@ -236,10 +258,6 @@ test:
       uri: mongodb://127.0.0.1:27017/rocketjob_test
       options:
         <<: *client_options
-        write:
-          w:           1
-        max_pool_size: 5
-        min_pool_size: 1
     rocketjob:
       <<: *default_test
     rocketjob_slices:
@@ -253,8 +271,6 @@ production:
       uri: mongodb://user:secret@server.example.org:27017,server2.example.org:27017/rocketjob_production
       options:
         <<: *client_options
-        write:
-          w:   0
     rocketjob:
       <<: *default_production
     rocketjob_slices:
@@ -398,7 +414,7 @@ Open a browser and navigate to the [local Rocket Job Web Interface](http://local
 [1]: mission_control.html
 [2]: https://rocketjob.github.io/semantic_logger
 [3]: https://mongodb.com
-[4]: https://aws.amazon.com/documentdb/
+[4]: https://docs.aws.amazon.com/documentdb/latest/developerguide/mongo-apis.html#mongo-apis-dababase-administrative
 [5]: https://www.mongodb.com/try/download/community
 [6]: https://www.docker.com/products/docker-desktop
 [7]: https://hub.docker.com/_/mongo?

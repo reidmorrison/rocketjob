@@ -82,7 +82,10 @@ module RocketJob
       end
 
       def apply_streams(path, streams)
-        streams.each_pair { |stream, args| path.stream(stream.to_sym, args.nil? ? {} : decode_args(args)) }
+        streams.each_pair do |stream, args|
+          stream_args = args.nil? ? {} : decode_args(args)
+          path.stream(stream.to_sym, **stream_args)
+        end
       end
 
       def decode_args(args)
