@@ -22,7 +22,7 @@ jobs:
           - mongoid: 7.5
             ruby: "3.0"
           - mongoid: 7.5
-            ruby: jruby-9.3.10.0
+            ruby: jruby
 
           - mongoid: 8.1
             ruby: 3.1

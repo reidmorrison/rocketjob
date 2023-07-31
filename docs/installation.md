@@ -15,14 +15,13 @@ layout: default
 
 ## Compatibility
 
-* Ruby 2.6, 2.7, 3.0, or higher.
-* JRuby 9.2.19.0, or higher.
-* [MongoDB][3] V3.6.23 or higher. Or, [AWS DocumentDB][4] v3.6 or higher
+* Ruby 2.7, 3.2, or higher.
+* JRuby 9.3, 9.4, or higher.
+* [MongoDB][3] Version 4.2 or higher.
 
 ## Install MongoDB
 
-[Rocket Job][0] stores job data in the open source data store [MongoDB][3]. Alternatively, it can store its data
-in [AWS DocumentDB][4].
+[Rocket Job][0] stores job data in the open source data store [MongoDB][3].
 
 It is recommended to run MongoDB locally inside a docker container. 
 
@@ -55,8 +54,8 @@ For more information on using the Docker Official Mongo images: [Docker Hub][7]
 For an existing Rails installation, add the following lines to the bottom of the file `Gemfile`:
 
 ~~~ruby
-gem 'rails_semantic_logger'
-gem 'rocketjob', '~> 6.0'
+gem "rails_semantic_logger"
+gem "rocketjob"
 ~~~
 
 Install gems:

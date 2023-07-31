@@ -241,9 +241,7 @@ class DirmonEntryTest < Minitest::Test
 
         it "with archive path" do
           files = []
-          dirmon_entry.each do |file_name|
-            files << file_name
-          end
+          dirmon_entry.each { |file_name| files << file_name }
           assert_equal 1, files.count
           assert_equal IOStreams.path("test/files/text.txt").realpath, files.first
         end
@@ -251,10 +249,8 @@ class DirmonEntryTest < Minitest::Test
         it "with case-insensitive pattern" do
           dirmon_entry.pattern = "test/files/**/*.TxT"
           files                = []
-          dirmon_entry.each do |file_name|
-            files << file_name
-          end
-          assert_equal 1, files.count
+          dirmon_entry.each { |file_name| files << file_name }
+          assert_equal 1, files.count, -> { IOStreams.path("test/files").children.collect(&:to_s) }
           assert_equal IOStreams.path("test/files/text.txt").realpath, files.first
         end
 
@@ -262,9 +258,7 @@ class DirmonEntryTest < Minitest::Test
           dirmon_entry.archive_directory = nil
           files                          = []
           dirmon_entry.stub(:whitelist_paths, [IOStreams.path("test/files").realpath.to_s]) do
-            dirmon_entry.each do |file_name|
-              files << file_name
-            end
+            dirmon_entry.each { |file_name| files << file_name }
           end
           assert_nil dirmon_entry.archive_directory
           assert_equal 1, files.count
@@ -275,9 +269,7 @@ class DirmonEntryTest < Minitest::Test
           dirmon_entry.archive_directory = nil
           files                          = []
           dirmon_entry.stub(:whitelist_paths, [IOStreams.path("test/config").realpath.to_s]) do
-            dirmon_entry.each do |file_name|
-              files << file_name
-            end
+            dirmon_entry.each { |file_name| files << file_name }
           end
           assert_nil dirmon_entry.archive_directory
           assert_equal 0, files.count
