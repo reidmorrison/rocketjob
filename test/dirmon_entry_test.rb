@@ -250,7 +250,7 @@ class DirmonEntryTest < Minitest::Test
           dirmon_entry.pattern = "test/files/**/*.TxT"
           files                = []
           dirmon_entry.each { |file_name| files << file_name }
-          assert_equal 1, files.count, -> { IOStreams.path("test/files").children.collect(&:to_s) }
+          assert_equal 1, files.count, -> { IOStreams.path("test/files").children.ai }
           assert_equal IOStreams.path("test/files/text.txt").realpath, files.first
         end
 
