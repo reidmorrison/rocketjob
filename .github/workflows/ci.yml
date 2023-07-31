@@ -17,24 +17,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - mongoid: 7.1
+          - mongoid: 7.5
             ruby: 2.7
-
-          - mongoid: 7.2
-            ruby: 2.7
-
-          - mongoid: 7.3
-            ruby: 2.7
-          - mongoid: 7.3
+          - mongoid: 7.5
             ruby: "3.0"
-          - mongoid: 7.3
-            ruby: jruby
+          - mongoid: 7.5
+            ruby: jruby-9.3.10.0
 
-          - mongoid: 7.4
+          - mongoid: 8.1
             ruby: 3.1
-          - mongoid: 7.4
+          - mongoid: 8.1
             ruby: 3.2
-          - mongoid: 7.4
+          - mongoid: 8.1
             ruby: jruby
 
     env:

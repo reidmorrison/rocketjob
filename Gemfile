@@ -3,7 +3,9 @@ source "https://rubygems.org"
 gemspec
 
 gem "activerecord", "~> 7.0.0"
-gem "mongoid", "~> 7.4.0"
+gem "activerecord-jdbcsqlite3-adapter", "~> 70.1", platform: :jruby
+gem "jdbc-sqlite3", platform: :jruby
+gem "mongoid", "~> 8.1.0"
 gem "sqlite3", "~> 1.4", platform: :ruby
 
 gem "amazing_print"
