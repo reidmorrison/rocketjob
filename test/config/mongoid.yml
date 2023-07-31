@@ -7,10 +7,10 @@ client_options: &client_options
   read:
     mode:                   :primary
   connect_timeout:          5
-  socket_timeout:           300
+  socket_timeout:           30 # 300 could be useful in prod
   # Includes the time taken to re-establish after a replica-set refresh
   wait_queue_timeout:       125
-  server_selection_timeout: 120
+  server_selection_timeout: 10 # 120 could be useful in prod
   max_read_retries:         20
   read_retry_interval:      3
   max_pool_size:            50
