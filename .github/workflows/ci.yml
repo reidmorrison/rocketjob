@@ -28,8 +28,6 @@ jobs:
             ruby: 3.1
           - mongoid: 8.1
             ruby: 3.2
-          - mongoid: 8.1
-            ruby: jruby
 
     env:
       BUNDLE_GEMFILE: gemfiles/mongoid_${{ matrix.mongoid }}.gemfile
