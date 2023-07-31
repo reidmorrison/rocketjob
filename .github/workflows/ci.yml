@@ -18,19 +18,17 @@ jobs:
       matrix:
         include:
           - mongoid: 7.1
-            ruby: 2.6
-          - mongoid: 7.1
-            ruby: jruby
+            ruby: 2.7
 
           - mongoid: 7.2
             ruby: 2.7
-          - mongoid: 7.2
-            ruby: jruby
 
-          - mongoid: 7.3
-            ruby: 2.7
           - mongoid: 7.3
             ruby: "3.0"
+          - mongoid: 7.3
+            ruby: 3.1
+          - mongoid: 7.3
+            ruby: 3.2
           - mongoid: 7.3
             ruby: jruby
 
