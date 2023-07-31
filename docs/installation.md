@@ -18,6 +18,7 @@ layout: default
 * Ruby 2.7, 3.2, or higher.
 * JRuby 9.3, 9.4, or higher.
 * [MongoDB][3] Version 4.2 or higher.
+    * Note: [AWS DocumentDB][4] is _not_ compatible since it does not support capped collections.
 
 ## Install MongoDB
 
@@ -412,7 +413,7 @@ Open a browser and navigate to the [local Rocket Job Web Interface](http://local
 [1]: mission_control.html
 [2]: https://rocketjob.github.io/semantic_logger
 [3]: https://mongodb.com
-[4]: https://aws.amazon.com/documentdb/
+[4]: https://docs.aws.amazon.com/documentdb/latest/developerguide/mongo-apis.html#mongo-apis-dababase-administrative
 [5]: https://www.mongodb.com/try/download/community
 [6]: https://www.docker.com/products/docker-desktop
 [7]: https://hub.docker.com/_/mongo?
