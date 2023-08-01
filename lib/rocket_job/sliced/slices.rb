@@ -92,7 +92,7 @@ module RocketJob
 
       def insert_many(slices)
         documents = slices.collect(&:as_document)
-        all.collection.insert_many(documents)
+        all.collection.insert_many(documents) if documents.present?
       end
 
       # Append to an existing slice if already present

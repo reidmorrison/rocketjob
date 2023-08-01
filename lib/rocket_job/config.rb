@@ -1,3 +1,4 @@
+require "logger/severity"
 require "yaml"
 module RocketJob
   # Rocket Job Configuration
