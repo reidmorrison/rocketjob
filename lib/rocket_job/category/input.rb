@@ -99,7 +99,7 @@ module RocketJob
         @tabular ||= IOStreams::Tabular.new(
           columns:          columns,
           format:           format == :auto ? nil : format,
-          format_options:   format_options&.deep_symbolize_keys,
+          format_options:   format_options&.to_h&.deep_symbolize_keys,
           file_name:        file_name,
           allowed_columns:  allowed_columns,
           required_columns: required_columns,
