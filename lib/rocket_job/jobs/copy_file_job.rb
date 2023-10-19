@@ -26,6 +26,7 @@ module RocketJob
       self.destroy_on_complete = false
       # Number of times to automatically retry the copy. Set to `0` for no retry attempts.
       self.retry_limit = 10
+      self.prioriy = 30
 
       # File names in IOStreams URL format.
       field :source_url, type: String, user_editable: true
