@@ -105,7 +105,7 @@ module RocketJob
       def requeue_failed
         failed.update_all(
           "$unset" => {worker_name: nil, started_at: nil},
-          "$set"   => {state: :queued}
+          "$set"   => {state: "queued"}
         )
       end
 
@@ -113,7 +113,7 @@ module RocketJob
       def requeue_running(worker_name)
         running.where(worker_name: /\A#{worker_name}/).update_all(
           "$unset" => {worker_name: nil, started_at: nil},
-          "$set"   => {state: :queued}
+          "$set"   => {state: "queued"}
         )
       end
 

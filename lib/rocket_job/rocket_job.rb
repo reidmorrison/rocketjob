@@ -58,3 +58,6 @@ module RocketJob
     @rails = true
   end
 end
+
+# Slice is a reserved word in Rails 7, but already being used in RocketJob long before that.
+Mongoid.destructive_fields.delete(:slice) if Mongoid.respond_to?(:destructive_fields)

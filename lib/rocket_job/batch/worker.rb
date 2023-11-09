@@ -226,7 +226,7 @@ module RocketJob
         result = self.class.with(write: {w: 1}) do |query|
           query.
             where(id: id, state: :running, sub_state: :processing).
-            update("$set" => {sub_state: :after, worker_name: worker_name})
+            update("$set" => {sub_state: "after", worker_name: worker_name})
         end
 
         # Reload to pull in any counters or other data that was modified.
@@ -251,7 +251,7 @@ module RocketJob
           result   = self.class.with(write: {w: 1}) do |query|
             query.
               where(id: id, state: :running, sub_state: :processing).
-              update({"$set" => {state: :failed, worker_name: worker_name}})
+              update({"$set" => {state: "failed", worker_name: worker_name}})
           end
           fail_job = false unless result.modified_count.positive?
         end
