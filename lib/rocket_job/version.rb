@@ -1,3 +1,3 @@
 module RocketJob
-  VERSION = "6.3.1".freeze
+  VERSION = "6.3.2".freeze
 end

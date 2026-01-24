@@ -69,8 +69,16 @@ module RocketJob
 
         # Returns true when work was completed, but no other work is available
         if job&.rocket_job_work(self, false)
-          # Return the database connections for this thread back to the connection pool
-          ActiveRecord::Base.clear_active_connections! if defined?(ActiveRecord::Base)
+          # Return the database connections for this fiber back to the connection pool
+          if defined?(ActiveRecord::Base)
+            if ActiveRecord::Base.respond_to?(:connection_handler)
+              # Rails 7 .2
+              ActiveRecord::Base.connection_handler.clear_active_connections!(:all)
+            else
+              ActiveRecord::Base.clear_active_connections!
+            end
+          end
+          
 
           # Stagger workers so that they don't all poll at the same time.
           sleep_seconds = random_wait_interval
@@ -83,7 +91,13 @@ module RocketJob
     rescue Exception => e
       logger.fatal("Unhandled exception in job processing thread", e)
     ensure
-      ActiveRecord::Base.clear_active_connections! if defined?(ActiveRecord::Base)
+      if defined?(ActiveRecord::Base)
+        if ActiveRecord::Base.respond_to?(:connection_handler)
+          ActiveRecord::Base.connection_handler.clear_active_connections!(:all)
+        else
+          ActiveRecord::Base.clear_active_connections!
+        end
+      end
     end
 
     # Resets the current job filter if the relevant time interval has passed

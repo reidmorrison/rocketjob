@@ -62,7 +62,7 @@ module RocketJob
           if defined?(ActiveRecord::Base)
             if ActiveRecord::Base.respond_to?(:connection_handler)
               # Rails 7
-              ActiveRecord::Base.connection_handler.clear_active_connections!
+              ActiveRecord::Base.connection_handler.clear_active_connections!(:all)
             else
               ActiveRecord::Base.connection_pool.release_connection
             end
