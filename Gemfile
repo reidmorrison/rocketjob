@@ -2,11 +2,9 @@ source "https://rubygems.org"
 
 gemspec
 
-gem "activerecord", "~> 7.1.0"
-gem "activerecord-jdbcsqlite3-adapter", "~> 70.1", platform: :jruby
-gem "jdbc-sqlite3", platform: :jruby
-gem "mongoid", "~> 8.0"
-gem "sqlite3", "~> 1.4", platform: :ruby
+gem "activerecord", "~> 7.2.0"
+gem "mongoid", "~> 8.1.0"
+gem "sqlite3", platform: :ruby
 
 gem "amazing_print"
 gem "appraisal"
@@ -16,7 +14,7 @@ gem "rubyzip", platform: :ruby
 gem "bzip2-ffi"
 
 # v1.8.9 blows up with `NoMethodError: undefined method 'deep_merge!' for {}:Concurrent::Hash` on JRuby
-gem "i18n", "1.8.7"
+# gem "i18n", "1.8.7"
 
 group :development do
   gem "rubocop"
@@ -26,12 +24,13 @@ group :development do
 
   # Testing against locally cloned repos
   # gem "iostreams", path: "../iostreams"
-  # gem "semantic_logger", path: "../semantic_logger"
-  # gem "symmetric-encryption", path: "../symmetric-encryption"
+  gem "semantic_logger", path: "../semantic_logger"
+  gem "symmetric-encryption", path: "../symmetric-encryption"
 end
 
 group :test do
-  gem "minitest"
+  gem "minitest", "~> 6.0"
+  gem "minitest-mock"
   gem "minitest-reporters"
   gem "minitest-stub_any_instance"
 end

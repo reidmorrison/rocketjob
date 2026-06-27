@@ -4,7 +4,7 @@ layout: default
 
 ## Docker
 
-The easiest way to run the Rocket Server process in most cloud environments is to run it in a fully self contained
+The easiest way to run the Rocket Job Server process in most cloud environments is to run it in a fully self contained
 Docker container.
 
 The cloud environment should be configured to start the appropriate number of instances, and then restart
