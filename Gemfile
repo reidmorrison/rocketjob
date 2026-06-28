@@ -2,8 +2,8 @@ source "https://rubygems.org"
 
 gemspec
 
-gem "activerecord", "~> 7.2.0"
-gem "mongoid", "~> 8.1.0"
+gem "activerecord", "~> 8.1.0"
+gem "mongoid", "~> 9.0.0"
 gem "sqlite3", platform: :ruby
 
 gem "amazing_print"

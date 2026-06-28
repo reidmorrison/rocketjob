@@ -81,6 +81,11 @@ module RocketJob
       logger.debug "Reading Mongo configuration from: #{config_file}"
       ::Mongoid.load!(config_file, environment)
 
+      # Mongoid 9 requires `Time.zone` to be set in order to mongoize Date and
+      # Time values. When running outside of Rails it may be unset, so default
+      # it here without overriding an explicit application setting.
+      ::Time.zone_default ||= ::ActiveSupport::TimeZone["UTC"]
+
       config_file =
         if encryption_file_name
           Pathname.new(encryption_file_name)

@@ -50,9 +50,16 @@ module RocketJob
           return unless last
 
           last_target = paths.inject(in_memory) do |target, sub_key|
-            target.key?(sub_key) ? target[sub_key] : target[sub_key] = Hash.new(0)
+            # Assigning a Hash into a BSON::Document (Mongoid 9) stores a
+            # converted copy, so read the value back rather than reusing the
+            # assigned object, otherwise nested increments are lost.
+            target[sub_key] = Hash.new(0) unless target.key?(sub_key)
+            target[sub_key]
           end
-          last_target[last] += increment
+          # Mongoid 9 demongoizes Hash fields to a BSON::Document without a
+          # default, so the leaf value may be nil even when the field default
+          # is `Hash.new(0)`. Default missing leaves to zero before adding.
+          last_target[last] = (last_target[last] || 0) + increment
         end
       end
 
