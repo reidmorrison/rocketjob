@@ -15,8 +15,7 @@ gem "jdbc-sqlite3", platform: :jruby
 
 group :development do
   gem "rubocop"
-  gem "semantic_logger", path: "../../semantic_logger"
-  gem "symmetric-encryption", path: "../../symmetric-encryption"
+  gem "semantic_logger", github: "reidmorrison/semantic_logger"
 end
 
 group :test do

@@ -24,8 +24,8 @@ group :development do
 
   # Testing against locally cloned repos
   # gem "iostreams", path: "../iostreams"
-  gem "semantic_logger", path: "../semantic_logger"
-  gem "symmetric-encryption", path: "../symmetric-encryption"
+  gem "semantic_logger", github: "reidmorrison/semantic_logger"
+  # gem "symmetric-encryption", path: "../symmetric-encryption"
 end
 
 group :test do

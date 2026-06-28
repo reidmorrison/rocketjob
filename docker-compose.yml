@@ -1,6 +1,8 @@
 name: 'rocketjob'
 services:
-  mongodb:
+  mongo:
     image: mongo
     ports:
       - "27017:27017"
+    ulimits:
+      nofile: { soft: 64000, hard: 64000 }
