@@ -1,23 +1,18 @@
-appraise "mongoid_7.5" do
-  gem "activerecord", "~> 6.1.0"
-  gem "activerecord-jdbcsqlite3-adapter", "~> 61.0", platform: :jruby
-  gem "jdbc-sqlite3", platform: :jruby
-  gem "mongoid", "~> 7.5.0"
-  gem "sqlite3", "~> 1.4", platform: :ruby
-end
-
-appraise "mongoid_8.0" do
-  gem "activerecord", "~> 7.0.0"
-  gem "activerecord-jdbcsqlite3-adapter", "~> 70.1", platform: :jruby
-  gem "jdbc-sqlite3", platform: :jruby
-  gem "mongoid", "~> 8.0.0"
-  gem "sqlite3", "~> 1.4", platform: :ruby
-end
-
 appraise "mongoid_8.1" do
-  gem "activerecord", "~> 7.1.0"
-  gem "activerecord-jdbcsqlite3-adapter", "~> 70.1", platform: :jruby
+  gem "activerecord", "~> 7.2.0"
+  gem "activerecord-jdbcsqlite3-adapter", "~> 72.1", platform: :jruby
   gem "jdbc-sqlite3", platform: :jruby
   gem "mongoid", "~> 8.1.0"
-  gem "sqlite3", "~> 1.4", platform: :ruby
+end
+
+appraise "mongoid_9.0" do
+  gem "activerecord", "~> 8.0.0"
+  gem "activerecord-jdbcsqlite3-adapter", "~> 80.0.pre1", platform: :jruby
+  gem "jdbc-sqlite3", platform: :jruby
+  gem "mongoid", "~> 9.0.0"
+end
+
+appraise "mongoid_9.1" do
+  gem "activerecord", "~> 8.1.0"
+  gem "mongoid", "~> 9.1.0"
 end

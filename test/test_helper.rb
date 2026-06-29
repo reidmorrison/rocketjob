@@ -3,6 +3,7 @@ ENV["TZ"] = "America/New_York"
 
 require "yaml"
 require "minitest/autorun"
+require "minitest/mock"
 require "minitest/stub_any_instance"
 require "minitest/reporters"
 require "amazing_print"
@@ -21,7 +22,7 @@ RocketJob::Job.collection.database.collections.each do |collection|
 end
 
 reporters = [
-  Minitest::Reporters::ProgressReporter.new,
+  Minitest::Reporters::DefaultReporter.new,
   SemanticLogger::Reporters::Minitest.new
 ]
 Minitest::Reporters.use!(reporters)
@@ -29,6 +30,6 @@ Minitest::Reporters.use!(reporters)
 # Weed out usages of the BSON Symbol type
 class Symbol
   def bson_type
-    raise(Mongo::Error::OperationFailure, "Unsupported BSON Symbol: :#{to_s}")
+    raise(Mongo::Error::OperationFailure, "Unsupported BSON Symbol: :#{self}")
   end
 end

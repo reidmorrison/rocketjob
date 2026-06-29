@@ -5,11 +5,11 @@ module Mongoid
       def initialize(criteria)
         @criteria = criteria
         @klass    = criteria.klass
-        @cache    = criteria.options[:cache]
-        # Only line changed is here, get collection name from criteria, not @klass
+        # Only line changed from the Mongoid implementation is here: fetch the
+        # collection from the criteria so a custom collection_name is honored
+        # rather than always using @klass.collection.
         # @collection = @klass.collection
         @collection = criteria.collection
-
         criteria.send(:merge_type_selection)
         @view = collection.find(criteria.selector, session: _session)
         apply_options
