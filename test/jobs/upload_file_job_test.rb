@@ -33,6 +33,22 @@ module Jobs
       end
     end
 
+    # Responds to upload_file_name= but not #upload.
+    class UploadNameJob < RocketJob::Job
+      field :upload_file_name, type: String
+
+      def perform
+      end
+    end
+
+    # Responds to full_file_name= but not #upload or upload_file_name=.
+    class FullNameJob < RocketJob::Job
+      field :full_file_name, type: String
+
+      def perform
+      end
+    end
+
     describe RocketJob::Jobs::UploadFileJob do
       before do
         RocketJob::Job.delete_all
@@ -97,6 +113,26 @@ module Jobs
           message = "Jobs::UploadFileJobTest::BadJob must implement any one of: :upload :upload_file_name= :full_file_name= instance methods"
           assert_includes job.errors.messages[:job_class_name], message
         end
+
+        it "validates the job class inherits from RocketJob::Job" do
+          job.job_class_name = "Hash"
+          refute job.valid?
+          assert_includes job.errors.messages[:job_class_name],
+                          "Model Hash must be defined and inherit from RocketJob::Job"
+        end
+
+        it "is valid when the job class name cannot be resolved" do
+          # job_class rescues NameError and returns nil, so the class based
+          # validations are skipped.
+          job.job_class_name = "No::Such::Constant"
+          assert job.valid?, job.errors.messages
+        end
+
+        it "rejects unknown top level properties" do
+          job.properties = {"does_not_exist" => 1}
+          refute job.valid?
+          assert(job.errors.messages[:properties].any? { |m| m.include?("does_not_exist") })
+        end
       end
 
       describe "#perform" do
@@ -137,6 +173,31 @@ module Jobs
           assert_equal :csv, created_job.input_category.format
           assert_equal :csv, created_job.output_category.format
           assert_equal %w[first_name last_name], created_job.output_category.columns
+        end
+
+        it "assigns the supplied job_id to the downstream job" do
+          id         = BSON::ObjectId.new
+          job.job_id = id
+          job.perform_now
+
+          assert created_job = UploadFileJobTest::TestJob.first
+          assert_equal id, created_job.id
+        end
+
+        it "assigns upload_file_name when the job has no #upload method" do
+          job.job_class_name = UploadFileJobTest::UploadNameJob.name
+          job.perform_now
+
+          assert created_job = UploadFileJobTest::UploadNameJob.first
+          assert_equal __FILE__, created_job.upload_file_name
+        end
+
+        it "assigns full_file_name when that is the only writer available" do
+          job.job_class_name = UploadFileJobTest::FullNameJob.name
+          job.perform_now
+
+          assert created_job = UploadFileJobTest::FullNameJob.first
+          assert_equal __FILE__, created_job.full_file_name
         end
       end
     end
