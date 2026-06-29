@@ -220,6 +220,63 @@ module Batch
           end
         end
       end
+
+      describe "#upload argument validation" do
+        it "rejects supplying both an object and a block" do
+          assert_raises(ArgumentError) { job.upload(text_file) { |io| io << "x" } }
+        end
+
+        it "rejects stream options when uploading a block" do
+          assert_raises(ArgumentError) { job.upload(stream_mode: :array) { |io| io << "x" } }
+        end
+
+        it "rejects keyword arguments when uploading a Range" do
+          assert_raises(ArgumentError) { job.upload(1..10, file_name: "x.txt") }
+        end
+
+        it "rejects :columns when uploading a file" do
+          assert_raises(ArgumentError) { job.upload(text_file, columns: [:a]) }
+        end
+      end
+
+      describe "#upload_slice" do
+        it "inserts the slice and updates the record count" do
+          count = job.upload_slice(%w[a b c])
+          assert_equal 3, count
+          assert_equal 3, job.record_count
+          assert_equal 1, job.input.count
+          assert_equal %w[a b c], job.input.first.to_a
+        end
+      end
+
+      describe "deprecated upload helpers" do
+        before do
+          job.input_category.slice_size = 10
+        end
+
+        it "#upload_integer_range" do
+          count = job.upload_integer_range(1, 10)
+          assert_equal 1, count
+          assert_equal 1, job.record_count
+          assert_equal [[[1, 10]]], job.input.collect(&:to_a)
+        end
+
+        it "#upload_integer_range_in_reverse_order" do
+          count = job.upload_integer_range_in_reverse_order(1, 11)
+          assert_equal 2, count
+          assert_equal 2, job.record_count
+          assert_equal [[[2, 11]], [[1, 1]]], job.input.collect(&:to_a)
+        end
+      end
+
+      describe "#download" do
+        it "raises when the job is still processing" do
+          job.start
+          job.sub_state = :processing
+          error = assert_raises(RuntimeError) { job.download("/tmp/out.txt") }
+          assert_includes error.message, "Cannot download incomplete job"
+        end
+      end
     end
   end
 end
