@@ -38,6 +38,19 @@ CI runs against multiple Mongoid/Rails/Ruby combinations defined in `Appraisals`
 - `BUNDLE_GEMFILE=gemfiles/mongoid_9.1.gemfile bundle exec rake test`
 - Regenerate gemfiles after editing `Appraisals`: `bundle exec appraisal install`
 
+### Test conventions and gotchas
+
+The suite is Minitest with `minitest/spec` `describe`/`it` blocks nested inside `class FooTest < Minitest::Test`. Heavy use of `Minitest::Mock`, `.stub`, and `minitest-stub_any_instance`. Useful things learned writing tests:
+
+- **Coverage.** SimpleCov runs automatically (started in `test_helper.rb`). After a run, overall % prints to stdout and `coverage/.resultset.json` holds per-file line hits — parse it to find the least-covered files and exact missing line numbers. `coverage/index.html` is the browsable report.
+- **Shared class-level state must be reset between tests.** `Supervisor` keeps `@shutdown`/`@event` (`Concurrent::Event`) as class instance vars; `Event` keeps a class-level `@subscribers` map; `Subscriber` has `@test_mode`. Reset these in `before`/`after` or tests leak into each other. See `test/supervisor_test.rb` / `test/event_test.rb` for the reset helpers.
+- **Autoload ordering.** Constants are `autoload`ed in `lib/rocketjob.rb`. Some files trigger circular loads when referenced first in isolation — e.g. referencing `RocketJob::WorkerPool` before `RocketJob::Supervisor` fails because `worker_pool.rb` requires `supervisor/shutdown`. Fix by `require`ing the dependency (e.g. `require "rocket_job/supervisor"`) at the top of the test.
+- **Exercising persisted/legacy documents.** `Mongoid::Factory.from_db(JobClass, doc_hash)` instantiates with `new_record? == false` and fires `after_initialize` — this is how to trigger the v5→v6 batch category migration (`Batch::Categories#rocketjob_categories_migrate`) without a real legacy DB. A plain in-memory hash can hold Ruby Symbols that `test_helper.rb` would otherwise reject on BSON serialization.
+- **State without the state machine.** `Job.new(state: :completed)` sets the field directly so predicates like `completed?` work without driving an `aasm` transition. Batch sub-states are similar: `job.start; job.sub_state = :processing`.
+- **Driving real worker threads.** `ThreadWorker.new` immediately spawns a thread running `#run`; if you `kill` it before it enters `run`, the `Shutdown` exception is unhandled and `join` re-raises it — let the thread start first. A plain `Worker` is the inline/no-op strategy and is trivially testable.
+- **ActiveRecord in tests.** `upload_arel`/transaction tests use a sqlite DB via `test/config/database.yml` + an inline `ActiveRecord::Schema.define`. See `test/plugins/transaction_test.rb` and `test/sliced/input_query_test.rb`.
+- **Misc.** `DirmonEntry#pattern` is unique-validated (use distinct patterns per fixture). `Batch::Model#worker_count` caches for one second. `Category#file_name` returns an `IOStreams::Path`, not the raw string. The `job_has_properties` category-validation branch (in `UploadFileJob`/`DirmonEntry`) is only reachable for non-batch job classes, since batch jobs define the `input_categories=`/`output_categories=` setters that short-circuit it.
+
 ## Architecture
 
 ### Jobs are composed from plugin modules
