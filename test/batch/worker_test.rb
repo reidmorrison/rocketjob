@@ -198,6 +198,38 @@ module Batch
         RocketJob::Job.destroy_all
       end
 
+      describe "#work_first_slice" do
+        it "raises unless called from the before sub-state" do
+          job = SimpleJob.new
+          job.start
+          job.sub_state = :processing
+          error = assert_raises(RuntimeError) { job.work_first_slice { |record| record } }
+          assert_includes error.message, "before_batch"
+        end
+
+        it "returns 0 when no slice has arrived" do
+          job = SimpleJob.new
+          job.start
+          job.sub_state = :before
+          # Avoid the real 5 second sleeps while polling for the first slice.
+          job.stub(:sleep, nil) do
+            assert_equal(0, job.work_first_slice { |record| record })
+          end
+        end
+
+        it "processes the first slice and returns the record count" do
+          job = SimpleJob.new
+          job.upload { |records| (1..5).each { |i| records << i } }
+          job.start
+          job.sub_state = :before
+
+          processed = []
+          count     = job.work_first_slice { |record| processed << record }
+          assert_equal 5, count
+          assert_equal [1, 2, 3, 4, 5], processed
+        end
+      end
+
       describe "#work" do
         it "calls perform method" do
           job          = SimpleJob.new

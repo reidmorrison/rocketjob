@@ -86,6 +86,95 @@ module Plugins
             assert_equal 1, counts[:queued_now]
             assert_equal 1, counts[:scheduled]
           end
+
+          it "treats all queued jobs as queued_now when none are scheduled" do
+            @job.save!
+            @job2  = PersistJob.create!(data: {key: "value"})
+            counts = RocketJob::Job.counts_by_state
+            assert_equal 2, counts[:queued]
+            assert_equal 2, counts[:queued_now]
+            refute counts.key?(:scheduled)
+          end
+
+          it "returns an empty hash when there are no jobs" do
+            assert_equal({}, RocketJob::Job.counts_by_state)
+          end
+        end
+
+        describe "#create_restart!" do
+          it "creates a new queued instance copying copy_on_restart attributes" do
+            @job.save!
+            assert_equal 1, RocketJob::Job.count
+            @job.create_restart!
+            assert_equal 2, RocketJob::Job.count
+            @job2 = RocketJob::Job.where(:id.ne => @job.id).first
+            assert @job2
+            assert_equal @description, @job2.description
+            assert_equal 53, @job2.priority
+            assert_equal false, @job2.destroy_on_complete
+            assert @job2.queued?
+            # `data` is not a copy_on_restart attribute, so it is not carried over.
+            assert_nil @job2.data
+          end
+
+          it "applies overrides to the new instance" do
+            @job.save!
+            @job.create_restart!(priority: 11, description: "Restarted")
+            @job2 = RocketJob::Job.where(:id.ne => @job.id).first
+            assert_equal 11, @job2.priority
+            assert_equal "Restarted", @job2.description
+          end
+
+          it "does not create a new instance when the job has expired" do
+            @job.expires_at = 1.day.ago
+            @job.save!
+            assert_equal 1, RocketJob::Job.count
+            assert_nil @job.create_restart!
+            assert_equal 1, RocketJob::Job.count
+          end
+        end
+
+        describe "#reload" do
+          it "marks an incomplete job complete when destroyed and destroy_on_complete is set" do
+            @job2 = PersistJob.create!(data: {key: "value"}, destroy_on_complete: true)
+            refute @job2.completed?
+            # Simulate the job being destroyed from the database by another process.
+            RocketJob::Job.where(id: @job2.id).delete_all
+            @job2.reload
+            assert @job2.completed?
+            assert @job2.completed_at
+          end
+        end
+
+        describe "#save_with_retry!" do
+          it "persists the job and returns true" do
+            assert_equal true, @job.save_with_retry!
+            refute @job.new_record?
+            assert RocketJob::Job.where(id: @job.id).exists?
+          end
+
+          it "retries on failure and succeeds once save returns true" do
+            calls = 0
+            # Fail the first two attempts, then succeed on the third.
+            saver = lambda do |*|
+              calls += 1
+              calls >= 3
+            end
+            @job.stub(:save, saver) do
+              assert @job.save_with_retry!(5, 0)
+            end
+            assert_equal 3, calls
+          end
+
+          it "raises via save! once the retry limit is exhausted" do
+            # `save` never succeeds, so the loop exhausts its retries and the
+            # final `save!` surfaces the failure.
+            @job.stub(:save, false) do
+              assert_raises(::Mongoid::Errors::Callback) do
+                @job.save_with_retry!(2, 0)
+              end
+            end
+          end
         end
       end
     end

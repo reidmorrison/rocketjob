@@ -75,6 +75,24 @@ class WorkerTest < Minitest::Test
     end
   end
 
+  # Worker that shuts down after a single poll so that #run can be exercised
+  # without looping forever.
+  class OneShotWorker < RocketJob::Worker
+    def initialize(**args)
+      super
+      @poll_count = 0
+    end
+
+    def shutdown?
+      @poll_count.positive?
+    end
+
+    def wait_for_shutdown?(_timeout = nil)
+      @poll_count += 1
+      false
+    end
+  end
+
   describe RocketJob::Worker do
     let(:job) { SimpleJob.new }
     let(:throttled_job) { ThrottledJob.new }
@@ -105,6 +123,40 @@ class WorkerTest < Minitest::Test
 
     after do
       RocketJob::Job.destroy_all
+    end
+
+    describe "inline worker defaults" do
+      it "exposes the supplied id and server name" do
+        w = RocketJob::Worker.new(id: 5, server_name: "server:1")
+        assert_equal 5, w.id
+        assert_equal "server:1", w.server_name
+        assert_equal "server:1:5", w.name
+      end
+
+      it "behaves as a single always-alive worker" do
+        assert worker.alive?
+        assert worker.join
+        assert worker.kill
+        assert worker.shutdown!
+        refute worker.shutdown?
+        refute worker.wait_for_shutdown?
+        assert_kind_of Array, worker.backtrace
+      end
+    end
+
+    describe "#run" do
+      it "processes an available job and then stops" do
+        SimpleJob.create!
+        OneShotWorker.new.run
+        # SimpleJob destroys itself on completion.
+        assert_equal 0, SimpleJob.count
+      end
+
+      it "stops cleanly when there is no work" do
+        # Should complete without raising even though no jobs are queued.
+        OneShotWorker.new.run
+        assert_equal 0, SimpleJob.count
+      end
     end
 
     describe "#random_wait_interval" do

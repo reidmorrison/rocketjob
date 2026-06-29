@@ -18,6 +18,7 @@ gem "bzip2-ffi"
 
 group :development do
   gem "rubocop"
+  gem "solargraph", require: false, platform: :ruby
 
   # Test against master
   # gem "iostreams", git: "https://github.com/rocketjob/iostreams"
@@ -33,4 +34,5 @@ group :test do
   gem "minitest-mock"
   gem "minitest-reporters"
   gem "minitest-stub_any_instance"
+  gem "simplecov", require: false
 end

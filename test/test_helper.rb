@@ -1,6 +1,12 @@
 $LOAD_PATH.unshift File.dirname(__FILE__) + "/../lib"
 ENV["TZ"] = "America/New_York"
 
+# Start SimpleCov before any application code is loaded so coverage is tracked.
+require "simplecov"
+SimpleCov.start do
+  add_filter "/test/"
+end
+
 require "yaml"
 require "minitest/autorun"
 require "minitest/mock"
