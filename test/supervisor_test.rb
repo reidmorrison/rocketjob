@@ -262,6 +262,38 @@ class SupervisorTest < Minitest::Test
       end
     end
 
+    describe ".register_signal_handlers" do
+      it "installs handlers that request a shutdown" do
+        handlers = {}
+        Signal.stub(:trap, ->(signal, &block) { handlers[signal] = block }) do
+          RocketJob::Supervisor.send(:register_signal_handlers)
+        end
+
+        assert handlers["SIGTERM"], "Expected a SIGTERM handler"
+        assert handlers["INT"], "Expected an INT handler"
+
+        handlers.each_value do |handler|
+          RocketJob::Supervisor.instance_variable_get(:@shutdown).reset
+          handler.call
+          # The handler requests the shutdown from a separate thread.
+          50.times do
+            break if RocketJob::Supervisor.shutdown?
+
+            sleep(0.01)
+          end
+          assert RocketJob::Supervisor.shutdown?, "Expected the handler to request a shutdown"
+        end
+      end
+
+      it "warns rather than raising when handlers cannot be installed" do
+        Signal.stub(:trap, ->(*) { raise "cannot trap" }) do
+          # Should rescue the error internally rather than propagating it.
+          RocketJob::Supervisor.send(:register_signal_handlers)
+        end
+        pass
+      end
+    end
+
     def time_block
       start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       yield

@@ -115,6 +115,41 @@ class DirmonEntryTest < Minitest::Test
       end
     end
 
+    describe ".get_whitelist_paths" do
+      after do
+        RocketJob::DirmonEntry.whitelist_paths.each { |path| RocketJob::DirmonEntry.delete_whitelist_path(path) }
+      end
+
+      it "returns a copy that does not mutate the original" do
+        path = RocketJob::DirmonEntry.add_whitelist_path("test/files")
+        copy = RocketJob::DirmonEntry.get_whitelist_paths
+        assert_equal [path], copy
+
+        copy << "should-not-leak"
+        refute_includes RocketJob::DirmonEntry.whitelist_paths, "should-not-leak"
+      end
+    end
+
+    describe ".counts_by_state" do
+      it "returns the number of entries in each state" do
+        dirmon_entry # enabled and persisted
+
+        failing = RocketJob::DirmonEntry.new(
+          name:              "Failing",
+          job_class_name:    "DirmonEntryTest::TestJob",
+          pattern:           "test/other/**",
+          properties:        {user_id: 341},
+          archive_directory: archive_directory
+        )
+        failing.enable!
+        failing.fail!("worker:1", "boom")
+
+        counts = RocketJob::DirmonEntry.counts_by_state
+        assert_equal 1, counts[:enabled]
+        assert_equal 1, counts[:failed]
+      end
+    end
+
     describe ".add_whitelist_path" do
       after do
         RocketJob::DirmonEntry.whitelist_paths.each { |path| RocketJob::DirmonEntry.delete_whitelist_path(path) }
@@ -205,6 +240,18 @@ class DirmonEntryTest < Minitest::Test
           dirmon_entry.properties = {blah: 123}
           refute dirmon_entry.valid?
           assert_equal ["Unknown Property: Attempted to set a value for :blah which is not allowed on the job DirmonEntryTest::TestJob"], dirmon_entry.errors[:properties], dirmon_entry.errors.messages.ai
+        end
+
+        it "allows known category properties" do
+          dirmon_entry.properties = {output_categories: [{name: "main"}]}
+          assert dirmon_entry.valid?, dirmon_entry.errors.messages.ai
+        end
+
+        it "rejects unknown category properties" do
+          dirmon_entry.properties = {output_categories: [{not_a_category_field: 1}]}
+          refute dirmon_entry.valid?
+          assert(dirmon_entry.errors[:properties].any? { |m| m.include?("not_a_category_field") },
+                 dirmon_entry.errors.messages.ai)
         end
       end
     end
