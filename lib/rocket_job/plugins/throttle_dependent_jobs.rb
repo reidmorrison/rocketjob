@@ -13,8 +13,13 @@ module RocketJob
       included do
         field :dependent_jobs, type: Array, class_attribute: true, user_editable: true, copy_on_restart: true
 
-        define_throttle :dependent_jobs_running?
-        define_batch_throttle :dependent_jobs_running? if respond_to?(:define_batch_throttle)
+        dependent_jobs_description = lambda { |job, *|
+          "Throttled: dependent jobs are running (#{Array(job.dependent_jobs).join(', ')})"
+        }
+        define_throttle :dependent_jobs_running?, description: dependent_jobs_description
+        if respond_to?(:define_batch_throttle)
+          define_batch_throttle :dependent_jobs_running?, description: dependent_jobs_description
+        end
       end
 
       class_methods do

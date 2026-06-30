@@ -159,12 +159,19 @@ module RocketJob
     # Whether the supplied job has been throttled and should be ignored.
     def throttled_job?(job)
       # Evaluate job throttles, if any.
-      filter = job.rocket_job_throttles.matching_filter(job)
-      return false unless filter
+      throttle = job.rocket_job_throttles.matching_throttle(job)
+      return false unless throttle
 
-      add_to_current_filter(filter)
-      # Restore retrieved job so that other workers can process it later
-      job.set(worker_name: nil, state: :queued)
+      add_to_current_filter(throttle.extract_filter(job))
+      # Restore retrieved job so that other workers can process it later, recording
+      # why it was throttled so it is visible in Mission Control. This reuses the
+      # write that requeues the job, so it adds no extra database round trip.
+      job.set(
+        worker_name:  nil,
+        state:        :queued,
+        throttled_by: throttle.extract_description(job),
+        throttled_at: Time.now
+      )
       true
     end
 
@@ -204,7 +211,12 @@ module RocketJob
           # Queued job: claim it atomically, guarding on it still being queued.
           # find_one_and_update returns the pre-image (state: queued) so that the
           # caller still runs throttles and `start!`.
-          update  = {"$set" => {"worker_name" => name, "state" => "running"}}
+          # Clear any stale throttle reason from a previous throttled poll so a job
+          # that is now allowed to run no longer reports as throttled in Mission Control.
+          update = {
+            "$set"   => {"worker_name" => name, "state" => "running"},
+            "$unset" => {"throttled_by" => "", "throttled_at" => ""}
+          }
           claimed = RocketJob::Job.queued.where(id: job.id).
                     find_one_and_update(update, bypass_document_validation: true)
           return claimed if claimed
