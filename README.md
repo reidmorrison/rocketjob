@@ -37,8 +37,9 @@ between major versions. Per-release notes are in the
 
 ## Contributing
 
-Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup,
-architecture overview, and how to run the test suite.
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup and how
+to run the test suite, and the [Architecture and Internals](https://rocketjob.io/architecture.html)
+page for how Rocket Job is put together.
 
 The documentation site lives in [`docs/`](docs/) as Jekyll markdown. To preview changes locally:
 
