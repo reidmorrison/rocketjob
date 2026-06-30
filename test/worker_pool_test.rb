@@ -42,7 +42,7 @@ class WorkerPoolTest < Minitest::Test
     end
 
     # Mirrors ThreadWorker#join, which returns truthy once the thread has stopped.
-    def join(_timeout = nil) # rubocop:disable Naming/PredicateMethod
+    def join(_timeout = nil)
       !@alive
     end
   end

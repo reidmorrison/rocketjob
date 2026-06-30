@@ -86,6 +86,22 @@ Metrics/ParameterLists:
 Metrics/PerceivedComplexity:
   Max: 21
 
+# Action methods such as #rocket_job_work and #fail_on_exception! return a
+# boolean but are commands, not predicates, and are part of the public API.
+Naming/PredicateMethod:
+  Enabled: false
+
+# get_ prefixed reader retained for backward compatibility.
+Naming/AccessorMethodName:
+  Exclude:
+    - "lib/rocket_job/dirmon_entry.rb"
+
+# Psych dispatches to visitor methods named after the class (IOStreams::Path
+# => visit_IOStreams_Path), so the CamelCase name is required.
+Naming/MethodName:
+  Exclude:
+    - "lib/rocket_job/extensions/psych/yaml_tree.rb"
+
 # Initialization Vector abbreviation
 Naming/MethodParameterName:
   AllowedNames: [ "iv", "_", "io", "ap", "id" ]
@@ -128,3 +144,22 @@ Style/StringConcatenation:
 # Make it easier for developers to move between Elixir and Ruby.
 Style/StringLiterals:
   EnforcedStyle: double_quotes
+
+# Boolean arguments such as re_raise_exceptions and save_before are part of the
+# public worker/slice API; switching them to keyword args would break callers.
+Style/OptionalBooleanParameter:
+  Enabled: false
+
+#
+# Minitest plugin: relax checks that conflict with this suite's conventions.
+#
+
+# Test granularity is intentional; grouping related assertions in one `it` block
+# keeps the specs readable.
+Minitest/MultipleAssertions:
+  Enabled: false
+
+# This suite passes a lambda as the failure message (assert value, -> { debug }),
+# which the cop mistakes for an assert_equal expected argument.
+Minitest/AssertWithExpectedArgument:
+  Enabled: false
