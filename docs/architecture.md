@@ -127,6 +127,7 @@ Run a quick test with `bundle exec rocketjob_batch_perf -c 1000`, or the full te
   :workers            => 15,
   :worker_processes   => 3
 }
+{count: 10000000, duration: 99.473, records_per_second: 100529.792, workers: 15, servers: 3, compress: false, encrypt: false}
 ~~~
 
 533,874 records per second. Increasing `slice_size` further raises the processing rate, and enabling
