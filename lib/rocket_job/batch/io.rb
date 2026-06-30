@@ -465,7 +465,7 @@ module RocketJob
           binary_header_line = output_collection.slice_class.to_binary(header_line) if header_line
 
           # Don't overwrite supplied stream options if any
-          stream = stream&.is_a?(IOStreams::Stream) ? stream.dup : IOStreams.new(category.file_name)
+          stream = stream.is_a?(IOStreams::Stream) ? stream.dup : IOStreams.new(category.file_name)
           stream.remove_from_pipeline(output_collection.slice_class.binary_format)
           stream.writer(**args) do |io|
             # TODO: Binary formats should return the record count, instead of the slice count.

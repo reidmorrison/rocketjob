@@ -94,6 +94,7 @@ module RocketJob
       end
 
       VALID_INSTANCE_METHODS = %i[upload upload_file_name= full_file_name=].freeze
+      private_constant :VALID_INSTANCE_METHODS
 
       # Validates job_class is a Rocket Job
       def job_implements_upload

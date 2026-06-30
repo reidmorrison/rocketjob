@@ -151,7 +151,7 @@ module RocketJob
           if slice.processing_record_number.to_i > 1
             append = true
             logger.info("Resuming previously incomplete slice from record number #{slice.processing_record_number}")
-            slice.records[slice.processing_record_number - 1..-1]
+            slice.records[(slice.processing_record_number - 1)..]
           else
             # Reprocess all records in this slice.
             slice.processing_record_number = 0

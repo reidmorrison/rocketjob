@@ -120,7 +120,7 @@ module RocketJob
       end
 
       # Forward additional methods.
-      def_instance_delegators :@all, :collection, :count, :delete_all, :first, :find, :last, :nor, :not, :or, :to_a, :where
+      def_instance_delegators :@all, :collection, :count, :delete_all, :find, :nor, :not, :or, :to_a, :where
 
       # Drop this collection when it is no longer needed
       def drop
