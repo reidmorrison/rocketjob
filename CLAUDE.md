@@ -13,7 +13,7 @@ The primary public interface is `RocketJob::Job`; capabilities are added by mixi
 Context worth knowing before changing core behavior:
 
 - **Two tiers of jobs.** Simple jobs (`RocketJob::Job`) are conventional background jobs like other frameworks offer. Batch jobs (`include RocketJob::Batch`) are the real point of Rocket Job: a single job's input is uploaded into a dynamically created MongoDB collection, split into slices, and processed concurrently across thousands of workers (often Docker containers). Output is written back to MongoDB the same way.
-- **Why MongoDB.** Its atomic `find_and_modify` lets thousands of nodes claim work without colliding, and it spills from memory to disk, which is essential for very large files. Rocket Job was built because Sidekiq/Redis could not scale this way (Redis was single-threaded and could not overflow to disk). Also supports AWS DocumentDB.
+- **Why MongoDB.** Its atomic `find_and_modify` lets thousands of nodes claim work without colliding, and it spills from memory to disk, which is essential for very large files. Rocket Job was built because Sidekiq/Redis could not scale this way (Redis was single-threaded and could not overflow to disk). **AWS DocumentDB is NOT compatible**: the `Event`/`Subscriber` pub-sub mechanism (`lib/rocket_job/event.rb`) requires a *tailable capped collection*, and DocumentDB still does not support capped collections (verified June 2026 against AWS docs). `docs/installation.md` is correct to say so.
 - **Why Mongoid.** Jobs are documents with real, typed, validated fields, not an untyped hash of arguments.
 - **Backward compatibility is a priority.** Only break it in a major release, ideally with a deprecation path first. Most forced changes come from breaking changes in MongoDB/Mongoid. When adding persisted fields to a plugin, give them defaults so existing jobs in the database still load.
 
@@ -82,3 +82,28 @@ Including `RocketJob::Batch` ([lib/rocket_job/batch.rb](lib/rocket_job/batch.rb)
 ## Documentation
 
 User-facing guides are Jekyll markdown in `docs/` (published to rocketjob.io). Edit these for behavior/usage doc changes; serve locally with `cd docs && bundle update && jekyll serve`.
+
+Docs conventions (learned writing `index.md`):
+- Markdown is **kramdown** (`_config.yml`). Use the kramdown TOC idiom at the top of a page: a `{:.no_toc}` heading followed by `**Contents**` and a `* TOC` / `{:toc}` block. `docs/index.md` and the sibling `semantic_logger/docs/index.md` are the model for a prose landing page.
+- Code fences use `~~~ruby` / `~~~bash` / `~~~yaml` (tildes), not triple backticks.
+- Cross-page links are plain inline relative links to the rendered `.html` (e.g. `[Batch Guide](batch.html)`, `mission_control.html`, `dirmon.html`, `guide.html`, `installation.html`). Some older pages use reference-style `[text][1]` footers instead; either is fine, prefer inline for new prose.
+- External canonical links: `https://rocketjob.io`, `https://logger.rocketjob.io` (Semantic Logger), `https://config.rocketjob.io` (Secret Config), MongoDB `https://mongodb.com`.
+- Mission Control screenshots live in `docs/images/rjmc_*.png` (e.g. `rjmc_running.png`, `rjmc_scheduled.png`, `rjmc_queued.png`, `rjmc_workers.png`); reference with `![alt](images/rjmc_running.png "title")`.
+- Field declaration syntax in all current docs/tests is `field :name, type: String` (Mongoid form). The old `index.md` used the bare `field :login, String` form; do not copy it.
+- `index.md` was rewritten (2026-06, gem v6.4.0) from an HTML feature-table into a Semantic-Logger-style prose page: What is it -> Why (problem/solution + two rjmc screenshots) -> Quick start -> feature tour (simple job -> batch) -> How it works. Per the user's global style rule, avoid em dashes in docs prose.
+
+Supported-version sources (always re-derive from these files, not from memory):
+- **Ruby**: `.github/workflows/ci.yml` test matrix (currently MRI 3.2 / 3.4 / 4.0; RuboCop lint on 3.4). JRuby support is implied by the `:jruby`-platform gems in `Appraisals`.
+- **Mongoid + Rails/ActiveRecord**: the `Appraisals` file (currently Mongoid 8.1 + AR 7.2, Mongoid 9.0 + AR 8.0, Mongoid 9.1 + AR 8.1). Generated gemfiles + locks are in `gemfiles/`.
+- **MongoDB server**: not pinned by rocketjob; it follows whatever the active Mongoid version supports. Mongoid 8.1–9.1 currently support MongoDB server 3.6–8.x (per the Mongoid README / compatibility matrix). `docs/installation.md` was rewritten (2026-06) to match these sources: Ruby 3.2/3.4/4.0, Mongoid 8.1/9.0/9.1, Rails/AR 7.2/8.0/8.1, MongoDB per Mongoid, and AWS DocumentDB explicitly unsupported (no capped collections; see the "Why MongoDB" note above).
+
+## Sister projects (checked out alongside this repo)
+
+These related gems live next to `rocketjob` on this machine and are frequently referenced when working on docs or behavior. They are separate repos, not part of this gem.
+
+- **`../rocketjob_mission_control`** — the web UI for Rocket Job (gem `rocketjob_mission_control`, currently **v6.1.0**, depends on `rocketjob ~> 6.3` and `railties >= 6.0`; uses `access-granted` for auth and `turbolinks`). It is a **Rails engine** mounted into any Rails app via `mount RocketJobMissionControl::Engine => "..."` in `routes.rb`. Docs refer to it as "Mission Control" and pin it as `gem "rocketjob_mission_control", "~> 6.0"` (6.1.0 satisfies that). Screenshots in `docs/images/rjmc_*.png` come from this UI.
+- **`../semantic_logger`** — the logging gem Rocket Job uses (`SemanticLogger`). Its `docs/index.md` is the explicit style model for Rocket Job's rewritten landing page. Canonical site: `https://logger.rocketjob.io`. The Rails companion is `rails_semantic_logger`.
+- **`../iostreams`** (gem `iostreams`) — powers batch `upload`/`download` streaming and the Zip/GZip/encrypted/delimited/fixed-length file handling. `Category#file_name` returns an `IOStreams::Path`.
+- **`../symmetric-encryption`** (gem `symmetric-encryption`) — the encryption library behind the `encrypted` category serializer and encrypted fields. `RocketJob::Config.load!` optionally loads `config/symmetric-encryption.yml` (3rd arg, defaults to that path).
+
+Capped-collection dependency (verified June 2026): Rocket Job's `Event`/`Subscriber` pub-sub (`lib/rocket_job/event.rb`) creates and tails a capped collection (`create_capped_collection`, `convertToCapped`, `tail_capped_collection`). This is the concrete reason AWS DocumentDB cannot host Rocket Job.
