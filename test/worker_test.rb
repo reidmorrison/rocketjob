@@ -93,6 +93,30 @@ class WorkerTest < Minitest::Test
     end
   end
 
+  # Worker that records the sleep interval requested on each poll and shuts down
+  # after a fixed number of polls so that #run can be exercised without looping
+  # forever.
+  class RecordingWorker < RocketJob::Worker
+    attr_reader :sleep_seconds
+
+    def initialize(max_polls: 1, **args)
+      super(**args)
+      @max_polls     = max_polls
+      @poll_count    = 0
+      @sleep_seconds = []
+    end
+
+    def shutdown?
+      @poll_count >= @max_polls
+    end
+
+    def wait_for_shutdown?(timeout = nil)
+      @sleep_seconds << timeout
+      @poll_count += 1
+      false
+    end
+  end
+
   describe RocketJob::Worker do
     let(:job) { SimpleJob.new }
     let(:throttled_job) { ThrottledJob.new }
@@ -159,6 +183,25 @@ class WorkerTest < Minitest::Test
         OneShotWorker.new.run
 
         assert_equal 0, SimpleJob.count
+      end
+
+      it "polls again immediately after completing a regular job" do
+        # Regression: a completed simple job must not force a full max_poll_seconds
+        # wait before the next poll, otherwise a full queue drains one job per
+        # poll interval instead of as fast as possible.
+        SimpleJob.create!
+
+        worker = RecordingWorker.new
+        worker.run
+
+        assert_equal [0], worker.sleep_seconds
+      end
+
+      it "waits the full poll interval when no work is available" do
+        worker = RecordingWorker.new
+        worker.run
+
+        assert_equal [RocketJob::Config.max_poll_seconds], worker.sleep_seconds
       end
     end
 

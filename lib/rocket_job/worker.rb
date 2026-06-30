@@ -63,24 +63,29 @@ module RocketJob
       logger.info "Started"
 
       until shutdown?
-        sleep_seconds = Config.max_poll_seconds
         reset_filter_if_expired
         job = next_available_job
 
-        # Returns true when work was completed, but no other work is available
-        if job&.rocket_job_work(self, false)
-          # Return the database connections for this fiber back to the connection pool
-          if defined?(ActiveRecord::Base)
-            if ActiveRecord::Base.respond_to?(:connection_handler)
-              # Rails 7 .2
-              ActiveRecord::Base.connection_handler.clear_active_connections!(:all)
-            else
-              ActiveRecord::Base.clear_active_connections!
-            end
-          end
+        if job
+          # Returns true when this job has no more work immediately available,
+          # for example a batch job that has run out of slices, or was throttled.
+          no_immediate_work = job.rocket_job_work(self, false)
 
-          # Stagger workers so that they don't all poll at the same time.
-          sleep_seconds = random_wait_interval
+          # Return the database connections for this thread back to the connection pool.
+          release_active_record_connections
+
+          sleep_seconds =
+            if no_immediate_work
+              # Stagger workers so that they don't all poll at the same time.
+              random_wait_interval
+            else
+              # Work was performed and more queued work is likely available,
+              # so poll again immediately rather than waiting a full interval.
+              0
+            end
+        else
+          # No work was found, so wait the full poll interval before checking again.
+          sleep_seconds = Config.max_poll_seconds
         end
 
         wait_for_shutdown?(sleep_seconds)
@@ -90,12 +95,18 @@ module RocketJob
     rescue Exception => e
       logger.fatal("Unhandled exception in job processing thread", e)
     ensure
-      if defined?(ActiveRecord::Base)
-        if ActiveRecord::Base.respond_to?(:connection_handler)
-          ActiveRecord::Base.connection_handler.clear_active_connections!(:all)
-        else
-          ActiveRecord::Base.clear_active_connections!
-        end
+      release_active_record_connections
+    end
+
+    # Return the database connections for this thread back to the connection pool.
+    def release_active_record_connections
+      return unless defined?(ActiveRecord::Base)
+
+      if ActiveRecord::Base.respond_to?(:connection_handler)
+        # Rails 7.2+
+        ActiveRecord::Base.connection_handler.clear_active_connections!(:all)
+      else
+        ActiveRecord::Base.clear_active_connections!
       end
     end
 
