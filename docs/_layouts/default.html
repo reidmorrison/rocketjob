@@ -2,8 +2,8 @@
 <html lang="en-us">
 <head>
   <meta charset="UTF-8">
-  <meta name="description" content="Rocket Job. Ruby's missing batch system">
-  <title>Rocket Job. Ruby's missing batch system</title>
+  <meta name="description" content="Rocket Job: a distributed, MongoDB-backed batch processing system for Ruby that processes millions of records across thousands of workers.">
+  <title>Rocket Job. Process millions of records across thousands of workers</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" type="text/css" href="stylesheets/normalize.css" media="screen">
   <link href='http://fonts.googleapis.com/css?family=Open+Sans:400,700' rel='stylesheet' type='text/css'>
@@ -24,12 +24,12 @@
     </td>
     <td>
       {% assign current_page = page.name | replace: '.md', '.html' %}
-      {% assign nav_items = "index.html=Home,mission_control.html=Web UI,installation.html=Installation,guide.html=Guide,batch.html=Batch Guide,dirmon.html=Dirmon,jobs.html=Jobs,events.html=Events,deployment.html=Deployment,architecture.html=Architecture" | split: ',' %}
+      {% assign nav_items = "index.html=Home,installation.html=Installation,guide.html=Guide,batch.html=Batch Guide,jobs.html=Included Jobs,dirmon.html=Dirmon,events.html=Events,mission_control.html=Web UI,deployment.html=Deployment,architecture.html=Architecture,upgrading.html=Upgrading" | split: ',' %}
       {% for item in nav_items %}{% assign pair = item | split: '=' %}
       <a href="{{ pair[0] }}" class="btn{% if pair[0] == current_page %} active{% endif %}">{{ pair[1] }}</a>{% endfor %}
-      <a href="https://github.com/rocketjob/rocketjob" class="btn">GitHub</a>
+      <a href="https://github.com/reidmorrison/rocketjob" class="btn">GitHub</a>
       <h1 class="project-name">Rocket Job</h1>
-      <h2 class="project-tagline">Ruby's missing batch system</h2>
+      <h2 class="project-tagline">Process millions of records across thousands of workers</h2>
     </td>
     </tr>
   </table>
