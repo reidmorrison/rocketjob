@@ -34,6 +34,31 @@ Rocket Job's cross-process event mechanism (used for shutdown, pause, and log-le
 on a *tailable capped collection*. [Amazon DocumentDB](https://aws.amazon.com/documentdb/) does not
 support capped collections, so it cannot run Rocket Job. Use a real MongoDB server.
 
+## Licensing
+
+A frequent objection to adopting Rocket Job is MongoDB's
+[Server Side Public License](https://www.mongodb.com/legal/licensing/server-side-public-license)
+(SSPL), which is not OSI-approved. It is worth being precise about what it does and does not require,
+because the concern is usually broader than the license actually is.
+
+* **Rocket Job and its client stack are permissively licensed.** Rocket Job is Apache 2.0. The gems
+  it uses to talk to the database, the [`mongo`](https://github.com/mongodb/mongo-ruby-driver) driver
+  and [`mongoid`](https://github.com/mongodb/mongoid), are Apache 2.0 as well. Nothing in the
+  Rocket Job stack is SSPL.
+* **The SSPL covers the MongoDB server, and its copyleft only triggers on offering MongoDB itself as
+  a service to third parties.** Running MongoDB internally as the datastore behind your own
+  application and job queue does not create an SSPL obligation. The clause is aimed at companies that
+  resell a managed MongoDB-as-a-service, not at companies that simply run MongoDB.
+* **A commercial license is available.** Organizations with a commercial agreement with MongoDB Inc.
+  can use MongoDB under that license instead, which removes the SSPL question entirely.
+
+This licensing shift is also not unique to MongoDB. [Redis](https://redis.io/) (2024) and
+[Elasticsearch](https://www.elastic.co/) (2021) both moved to SSPL, and both have since re-added an
+OSI-approved option. MongoDB remains a deliberate design choice for Rocket Job: its atomic
+`find_and_modify` is what lets thousands of workers claim jobs and slices without colliding, and it
+spills from memory to disk, which is what makes processing very large files practical. See
+[Architecture](architecture.html) for why the datastore is MongoDB specifically.
+
 ## Install MongoDB
 
 Rocket Job stores all job data in [MongoDB](https://www.mongodb.com). The simplest way to run it
