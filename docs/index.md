@@ -45,6 +45,23 @@ worker. That works until your needs grow past it:
 * You want to *see* what is queued, running, and failed, and change a job's priority or retry it,
   without shelling into a console.
 
+### Is Rocket Job the right fit?
+
+If you need conventional background jobs (send an email, update a record) and nothing more, a
+Redis-backed queue like Sidekiq or a database-backed one like Solid Queue will be simpler to
+operate, and your Rails app may already include one.
+
+Rocket Job is worth adding when your work outgrows that model:
+
+* You process files with millions of records and want them handled in parallel across many workers,
+  not ground through one at a time.
+* You need jobs to run in strict business-priority order, with critical work preempting routine
+  work.
+* You want to retry a single failed slice of a large job rather than restarting the whole thing.
+
+It is built for the large-batch, high-priority end of the spectrum, and it runs ordinary jobs
+perfectly well too.
+
 ### The Rocket Job way
 
 A job is an ordinary class with real fields:
