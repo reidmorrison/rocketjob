@@ -2,260 +2,359 @@
 layout: default
 ---
 
-# Included Jobs
-
-#### Table of Contents
-
-* [Housekeeping Job](#housekeeping-job)
-* [Dirmon Job](#dirmon-job)
-* [OnDemandJob](#ondemandjob)
-* [OnDemandBatchJob](#ondemandbatchjob)
-
----
 ## Included Jobs
+{:.no_toc}
 
-Rocket Job comes packaged with select jobs ready to run.
+**Contents**
 
-### Housekeeping Job
+* TOC
+{:toc}
 
-The Housekeeping Job cleans up old jobs to free up disk space.
+Rocket Job ships with a set of ready-to-run jobs for common tasks: cleaning out old jobs, monitoring
+directories for new files, copying and converting files, running ad-hoc Ruby code, and re-encrypting
+data. They all live under the `RocketJob::Jobs` namespace and are themselves ordinary jobs, so they
+can be scheduled, prioritized, retried, and managed through
+[Mission Control](mission_control.html) like any other job.
 
-Since keeping jobs around uses up disk storage space it is necessary to remove
-old jobs from the system. In particular jobs that have `self.destroy_on_complete = false`
-need to be cleaned up using the Housekeeping Job.
+This page covers each one, what it does, and how to create it. For the underlying concepts (fields,
+state machine, scheduling, retries) see the [Programmer's Guide](guide.html); for parallel file
+processing see the [Batch Guide](batch.html).
 
-Retention periods are specific to each state so that for example completed
-jobs can be cleaned up before jobs that have failed.
+## Housekeeping Job
 
-To create the housekeeping job, using the defaults:
+`RocketJob::Jobs::HousekeepingJob` removes old jobs so they do not accumulate and consume MongoDB
+storage. This matters most for jobs that set `self.destroy_on_complete = false` (so they remain after
+finishing) and for failed or aborted jobs, which are never destroyed automatically.
+
+Retention is configured separately per state, so for example completed jobs can be cleaned up sooner
+than failed jobs that may still need investigation. A retention of `nil` means "keep forever".
+
+| State     | Default retention |
+|:----------|:------------------|
+| Aborted   | 7 days            |
+| Completed | 7 days            |
+| Failed    | 14 days           |
+| Paused    | never (`nil`)     |
+| Queued    | never (`nil`)     |
+
+The job uses the [Cron](guide.html#scheduled-jobs) plugin and runs every 15 minutes. It is also a
+singleton: only one instance can be queued or running at a time.
+
+Create it with the defaults:
+
 ~~~ruby
 RocketJob::Jobs::HousekeepingJob.create!
 ~~~
 
-The default retention periods for the housekeeping job:
-
-|State|Retention Period
-|:---:|:---:
-|Aborted| 7 days
-|Completed| 7 days
-|Failed| 14 days
-|Paused| never
-|Queued| never
-
-To create the housekeeping job with the same values as the default:
+Create it with the default values shown explicitly, so they can be adjusted:
 
 ~~~ruby
-  RocketJob::Jobs::HousekeepingJob.create!(
-    aborted_retention:   7.days,
-    completed_retention: 7.days,
-    failed_retention:    14.days,
-    paused_retention:    nil,
-    queued_retention:    nil
-  )
+RocketJob::Jobs::HousekeepingJob.create!(
+  aborted_retention:   7.days,
+  completed_retention: 7.days,
+  failed_retention:    14.days,
+  paused_retention:    nil,
+  queued_retention:    nil
+)
 ~~~
 
-Remove aborted jobs after 1 day, completed jobs after 30 minutes and disable the removal of failed jobs:
+Remove aborted jobs after 1 day, completed jobs after 30 minutes, and never remove failed jobs:
 
 ~~~ruby
-  RocketJob::Jobs::HousekeepingJob.create!(
-    aborted_retention:   1.day,
-    completed_retention: 30.minutes,
-    failed_retention:    nil
-  )
+RocketJob::Jobs::HousekeepingJob.create!(
+  aborted_retention:   1.day,
+  completed_retention: 30.minutes,
+  failed_retention:    nil
+)
 ~~~
 
-**Note**: The housekeeping job uses the singleton plugin and therefore only allows
-one instance to be active at any time.
+In addition to removing old jobs, the housekeeping job cleans up after servers that have died without
+shutting down cleanly. When `destroy_zombies` is `true` (the default) it destroys zombie `Server`
+records and requeues any jobs whose worker disappeared along with its server, so that work is not lost.
+Set `destroy_zombies: false` to disable this.
 
-### Dirmon Job
+~~~ruby
+RocketJob::Jobs::HousekeepingJob.create!(destroy_zombies: false)
+~~~
 
-The Dirmon job monitors folders for files matching the criteria specified in each DirmonEntry.
+## Dirmon Job
 
-* The first time Dirmon runs it gathers the names of files in the monitored
-  folders.
-* On completion Dirmon kicks off a new Dirmon job passing it the list
-  of known files.
-* On each subsequent Dirmon run it checks the size of each file against the
-  previous list of known files, and only if the file size has not changed
-  the corresponding job is started for that file.
-* If the job implements #upload, that method is called
-  and then the file is deleted, or moved to the archive_directory if supplied
+`RocketJob::Jobs::DirmonJob` (Directory Monitor) watches one or more directories for new files and
+starts a job to process each file as it arrives. It scans every 5 minutes by default, waits for each
+file to stop growing before acting on it (so partially-uploaded files are not processed), and archives
+files once handled.
 
-* Otherwise, the file is moved to the supplied archive_directory (defaults to
-  `_archive` in the same folder as the file itself. The absolute path and
-  file name of the archived file is passed into the job as either
-  `upload_file_name` or `full_file_name`.
+Dirmon is driven by `RocketJob::DirmonEntry` records that describe what to watch and which job to
+start. Because directory monitoring is a feature in its own right, with its own Mission Control
+screens, it has a dedicated page: see the [Directory Monitoring guide](dirmon.html) for the full story.
 
-Note:
-- Jobs that do not implement #upload _must_ have either `upload_file_name` or `full_file_name` as an attribute.
+Start Dirmon for the first time:
 
-With RocketJob Pro, the file is automatically uploaded into the job itself
-using the job's #upload method, after which the file is archived or deleted
-if no archive_directory was specified in the DirmonEntry.
-
-To start Dirmon for the first time
 ~~~ruby
 RocketJob::Jobs::DirmonJob.create!
 ~~~
 
-By default Dirmon only checks for files every 5 minutes, to change this interval to 60 seconds:
+Dirmon is a singleton, so if an instance is already queued or running, `create!` raises:
+
+~~~
+Validation failed: State Another instance of this job is already queued or running
+~~~
+
+Use `create` (without the bang) to start it only if one is not already present:
+
+~~~ruby
+RocketJob::Jobs::DirmonJob.create
+~~~
+
+Change the scan interval by supplying a `cron_schedule`. To scan every minute instead of every 5:
 
 ~~~ruby
 RocketJob::Jobs::DirmonJob.create!(cron_schedule: "*/1 * * * * UTC")
 ~~~
 
-If another DirmonJob instance is already queued or running, then the create
-above will fail with:
-MongoMapper::DocumentNotValid: Validation failed: State Another instance of this job is already queued or running
+## Conversion Job
 
-Or to start DirmonJob and ignore errors if already running
+`RocketJob::Jobs::ConversionJob` converts a file from one tabular format to another: CSV, JSON, PSV,
+and xlsx. It is a [batch](batch.html) job, so even very large files are converted in parallel across
+workers. Compression and archive formats (`.gz`, `.zip`, and so on) are detected automatically from
+the file name, and the source can be a local path or a remote URL.
+
+Both the input and output categories use `format: :auto`, which infers the format from each file's
+extension.
+
+Convert a CSV file to JSON:
+
 ~~~ruby
-RocketJob::Jobs::DirmonJob.create
+job = RocketJob::Jobs::ConversionJob.new
+job.input_category.file_name  = "data.csv"
+job.output_category.file_name = "data.json"
+job.save!
 ~~~
 
-### OnDemandJob
+Convert JSON to PSV and compress the output with GZip:
 
-Job to dynamically perform ruby code on demand,
+~~~ruby
+job = RocketJob::Jobs::ConversionJob.new
+job.input_category.file_name  = "data.json"
+job.output_category.file_name = "data.psv.gz"
+job.save!
+~~~
 
-Create or schedule a generalized job for one off fixes or cleanups.
+Read a zipped CSV file from a remote website and write a GZipped JSON file:
 
+~~~ruby
+job = RocketJob::Jobs::ConversionJob.new
+job.input_category.file_name  = "https://example.org/file.zip"
+job.output_category.file_name = "data.json.gz"
+job.save!
+~~~
 
-Example: Iterate over all rows in a table:
+## Copy File Job
+
+`RocketJob::Jobs::CopyFileJob` copies a file from a source to a target, where each can be a local path,
+a URL, or any location supported by [IOStreams](https://github.com/reidmorrison/iostreams) (SFTP, S3,
+HTTP, and more). It is commonly used to push a finished output file to an SFTP server or object store.
+
+Because it includes the [Retry](guide.html#automatic-retry) plugin, a failed copy is retried
+automatically up to 10 times, which is useful given that remote transfers are prone to transient
+failures.
+
+Upload a file to an SFTP server:
+
+~~~ruby
+RocketJob::Jobs::CopyFileJob.create!(
+  source_url:  "/exports/uploads/important.csv.pgp",
+  target_url:  "sftp://sftp.example.org/uploads/important.csv.pgp",
+  target_args: {
+    username:    "Jack",
+    password:    "OpenSesame",
+    ssh_options: {
+      IdentityFile: "~/.ssh/secondary"
+    }
+  }
+)
+~~~
+
+The `source_streams` and `target_streams` options apply IOStreams transformations (such as
+compression or encryption) on the way through, and `source_args` / `target_args` pass options to the
+underlying source and target. When the Symmetric Encryption gem is installed, any argument whose key
+starts with `encrypted_` is decrypted before use, and any whose key starts with `secret_config_` is
+looked up via [Secret Config](https://config.rocketjob.io); the connection password is also stored
+encrypted.
+
+Instead of a `source_url`, raw data can be supplied directly with `source_data` (limited to about
+15 MB after compression):
+
+~~~ruby
+RocketJob::Jobs::CopyFileJob.create!(
+  source_data: "id,name\n1,Jack\n",
+  target_url:  "s3://example-bucket/people.csv"
+)
+~~~
+
+## Upload File Job
+
+`RocketJob::Jobs::UploadFileJob` uploads a single file into another job and then starts that job. It is
+the mechanism [Dirmon](dirmon.html) uses to feed an arriving file into the job that should process it,
+but it can be used directly with any job class.
+
+The target job must be a `RocketJob::Job` and must accept the file in one of three ways: by
+implementing `#upload` (the usual case for batch jobs), or by having an `upload_file_name` or
+`full_file_name` field that the path is assigned to.
+
+~~~ruby
+RocketJob::Jobs::UploadFileJob.create!(
+  job_class_name:   "MyProcessFileJob",
+  upload_file_name: "/incoming/orders.csv",
+  properties:       {description: "Orders for today"}
+)
+~~~
+
+`properties` is a hash of fields to set on the created job; each key must correspond to a writable
+field on that job class, or validation fails. `original_file_name` can be supplied so the job sees the
+original name (and its file extension, which drives format detection) even when the path on disk is a
+temporary name. If anything goes wrong during the upload, the partially-populated downstream job is
+cleaned up so no half-uploaded job is left behind.
+
+## On Demand Job
+
+`RocketJob::Jobs::OnDemandJob` runs a snippet of Ruby supplied as a string at create time, without
+having to write and deploy a dedicated job class. It is ideal for one-off fixes, data cleanups, and
+maintenance tasks that should run through the same queue, scheduling, and Mission Control machinery as
+everything else.
+
+The `code` field holds the Ruby to run; it is compiled into the job's `perform` method and validated
+when the job is saved, so a syntax error is caught immediately rather than at run time. The job keeps
+itself after completion (`destroy_on_complete = false`), and it includes the
+[Cron](guide.html#scheduled-jobs) and [Retry](guide.html#automatic-retry) plugins.
+
+Run some code once:
+
 ~~~ruby
 code = <<~CODE
-  User.unscoped.all.order('updated_at DESC').each |user|
+  User.unscoped.order("updated_at DESC").each do |user|
     user.cleanse_attributes!
     user.save!
   end
 CODE
 
 RocketJob::Jobs::OnDemandJob.create!(
-  code:          code,
-  description:   'Cleanse users'
+  code:        code,
+  description: "Cleanse users"
 )
 ~~~
 
-Example: Test job in a console:
-~~~ruby
-code = <<~CODE
-  User.unscoped.all.order('updated_at DESC').each |user|
-    user.cleanse_attributes!
-    user.save!
-  end
-CODE
+Test the code inline in a console before queuing it:
 
-job = RocketJob::Jobs::OnDemandJob.new(code: code, description: 'cleanse users')
+~~~ruby
+job = RocketJob::Jobs::OnDemandJob.new(code: code, description: "cleanse users")
 job.perform_now
 ~~~
 
-Example: Pass input data:
+Pass input data, available inside the code as the `data` hash. Use string keys only, not symbols:
+
 ~~~ruby
 code = <<~CODE
-  puts data['a'] * data['b']
+  puts data["a"] * data["b"]
 CODE
 
 RocketJob::Jobs::OnDemandJob.create!(
   code: code,
-  data: {'a' => 10, 'b' => 2}
+  data: {"a" => 10, "b" => 2}
 )
 ~~~
 
-Example: Retain output:
+Retain a result by writing it back into `data`, which is persisted on the job:
+
 ~~~ruby
 code = <<~CODE
-  data["result"] = data['a'] * data['b']
+  data["result"] = data["a"] * data["b"]
 CODE
 
 RocketJob::Jobs::OnDemandJob.create!(
-  code:           code,
-  data:           {'a' => 10, 'b' => 2}
+  code: code,
+  data: {"a" => 10, "b" => 2}
 )
 ~~~
-Example: Schedule the job to run nightly at 2am Eastern:
+
+Schedule it to run nightly at 2am Eastern:
 
 ~~~ruby
 RocketJob::Jobs::OnDemandJob.create!(
-  cron_schedule: '0 2 * * * America/New_York',
+  cron_schedule: "0 2 * * * America/New_York",
   code:          code
 )
 ~~~
 
-Example: Change the job priority, description, etc.
+Change the priority, description, or retry behavior like any other job:
 
 ~~~ruby
 RocketJob::Jobs::OnDemandJob.create!(
-  code:          code,
-  description:   'Cleanse users',
-  priority:      30
-)
-~~~~
-
-Example: Automatically retry up to 5 times on failure:
-~~~ruby
-RocketJob::Jobs::OnDemandJob.create!(
-  retry_limit: 5,
-  code:        code
+  code:        code,
+  description: "Cleanse users",
+  priority:    30,
+  retry_limit: 5
 )
 ~~~
 
----
-### OnDemandBatchJob
+## On Demand Batch Job
 
-Job to dynamically perform ruby code on demand as a Batch,
+`RocketJob::Jobs::OnDemandBatchJob` is the [batch](batch.html) counterpart to the On Demand Job: the
+supplied `code` runs once per record, in parallel across workers. It is the standard tool for data
+correction or cleansing over a large set of rows.
 
-Often used for data correction or cleansing.
+The `code` field is compiled into `perform(row)` and runs for every record. Optional `before_code` and
+`after_code` fields run once, before and after the batch, and are typically used to upload the records
+to process. As with `OnDemandJob`, all of the code is validated when the job is saved.
 
-Example: Iterate over all rows in a table:
+Upload an Active Record relation and process each row by its id. Uploading a relation automatically
+sets `record_count`:
+
 ~~~ruby
-code = <<-CODE
+code = <<~CODE
   if user = User.find(row)
     user.cleanse_attributes!
     user.save(validate: false)
   end
 CODE
-job  = RocketJob::Jobs::OnDemandBatchJob.new(code: code, description: 'cleanse users')
-arel = User.unscoped.all.order('updated_at DESC')
-job.record_count = input.upload_arel(arel)
+
+job = RocketJob::Jobs::OnDemandBatchJob.new(code: code, description: "cleanse users")
+job.upload(User.unscoped.order("updated_at DESC"))
 job.save!
 ~~~
 
-Console Testing:
+Test against a subset directly in a console, then clean up the temporary slice collection:
+
 ~~~ruby
-code = <<-CODE
-  if user = User.find(row)
-    user.cleanse_attributes!
-    user.save(validate: false)
-  end
-CODE
-job  = RocketJob::Jobs::OnDemandBatchJob.new(code: code, description: 'cleanse users')
-
-# Run against a sub-set using a limit
-arel = User.unscoped.all.order('updated_at DESC').limit(100)
-job.record_count = job.input.upload_arel(arel)
-
-# Run the subset directly within the console
+job = RocketJob::Jobs::OnDemandBatchJob.new(code: code, description: "cleanse users")
+job.upload(User.unscoped.order("updated_at DESC").limit(100))
 job.perform_now
 job.cleanup!
 ~~~
 
-By default output is not collected, call `#collect_output` to collect output.
-
-Example:
+Output is not collected by default. Call `#collect_output` to keep it, and set batch options such as
+the [worker throttle](batch.html#throttling-concurrent-workers) and priority:
 
 ~~~ruby
-job = RocketJob::Jobs::OnDemandBatchJob(description: 'Fix data', code: code, throttle_running_workers: 5, priority: 30)
+job = RocketJob::Jobs::OnDemandBatchJob.new(
+  description:              "Fix data",
+  code:                     code,
+  throttle_running_workers: 5,
+  priority:                 30
+)
 job.collect_output
 job.save!
 ~~~
 
-Example: Move the upload operation into a before_batch.
+Move the upload into `before_code` so the whole job, including how it loads its records, is described
+in one `create!`:
+
 ~~~ruby
-upload_code = <<-CODE
-  arel = User.unscoped.all.order('updated_at DESC')
-  self.record_count = input.upload_arel(arel)
+before_code = <<~CODE
+  upload(User.unscoped.order("updated_at DESC"))
 CODE
 
-code = <<-CODE
+code = <<~CODE
   if user = User.find(row)
     user.cleanse_attributes!
     user.save(validate: false)
@@ -263,10 +362,41 @@ code = <<-CODE
 CODE
 
 RocketJob::Jobs::OnDemandBatchJob.create!(
-  upload_code: upload_code,
+  before_code: before_code,
   code:        code,
-  description: 'cleanse users'
+  description: "cleanse users"
 )
 ~~~
 
+`OnDemandBatchJob` also mixes in [Batch::Statistics](batch.html#gathering-statistics), so counters incremented in
+the code are aggregated and visible on the completed job.
 
+## Re-Encrypt Job
+
+`RocketJob::Jobs::ReEncrypt::RelationalJob` re-encrypts every `encrypted_` column in a relational
+database, rotating data to the current
+[Symmetric Encryption](https://github.com/reidmorrison/symmetric-encryption) key. It is a batch job
+that works directly against table and column names rather than models, so it covers tables whose
+models have been removed and picks up new `encrypted_` columns automatically.
+
+It is only defined when both Active Record and the `sync_attr` gem are available. Calling `start`
+inspects the schema and queues one job per table that has encrypted columns:
+
+~~~ruby
+RocketJob::Jobs::ReEncrypt::RelationalJob.start
+~~~
+
+Because it discovers columns by name, any table with an `encrypted_` column is processed, including
+temporary or non-application tables. Each table is processed in id ranges, and only values that change
+under the new key are written back.
+
+## Internal and testing jobs
+
+A few jobs ship with Rocket Job for internal use and benchmarking rather than for direct use in an
+application:
+
+* `RocketJob::Jobs::ActiveJob` wraps an Active Job so it can run on Rocket Job through the Active Job
+  adapter. It is not created directly.
+* `RocketJob::Jobs::SimpleJob` and `RocketJob::Jobs::PerformanceJob` are no-op jobs (simple and batch,
+  respectively) used to benchmark throughput. They are driven by `bin/rocketjob_perf` and
+  `bin/rocketjob_batch_perf`.

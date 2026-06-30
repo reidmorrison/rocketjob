@@ -2,160 +2,210 @@
 layout: default
 ---
 
-## Docker
+## Deployment
+{:.no_toc}
 
-The easiest way to run the Rocket Job Server process in most cloud environments is to run it in a fully self contained
-Docker container.
+A Rocket Job "server" is the `bin/rocketjob` process. It registers itself in MongoDB, starts a
+pool of worker threads (10 by default), and pulls queued jobs to run. Deploying Rocket Job means
+running one or more of these processes and pointing them at your MongoDB.
 
-The cloud environment should be configured to start the appropriate number of instances, and then restart
-them automatically when they stop. This way new images can be deployed simply by restarting the cluster.
+You scale by running more servers. There is no central coordinator to install: every server claims
+work directly from MongoDB using atomic operations, so you can start and stop servers freely. To
+deploy new code, build a new image (or pull new code) and restart the servers.
 
-The size of the cluster can be grown dynamically based on load so that large clusters are not sitting idle.
+This guide covers the two common ways to run servers, how to make MongoDB highly available, and the
+one-time steps to perform after the first deployment. It assumes you have already configured
+`config/mongoid.yml` as described in the [Installation Guide](installation.html#configure-mongodb).
 
-### Build a Docker Image
+**Contents**
 
-To build a docker image, we create a file in the root of the application called `Dockerfile`.
+* TOC
+{:toc}
 
-~~~Dockerfile
-FROM ruby:2.7
+## Deploy with Docker
+
+Running each server in a self-contained Docker container is the simplest option in most cloud
+environments. Configure your platform (ECS, Kubernetes, Nomad, and so on) to run the desired number
+of containers and to restart them automatically when they exit. New code is then rolled out by
+restarting the containers, and the cluster can be grown or shrunk based on load.
+
+### Step 1: Create a Dockerfile
+
+Add a file named `Dockerfile` to the root of your application:
+
+~~~dockerfile
+FROM ruby:3.4
+
 WORKDIR /opt/rocketjob
 
-# Installs MySQL and Postgres Client Dependencies
+# Optional: database client libraries. Only needed when jobs read directly
+# from MySQL or PostgreSQL (for example a Batch job using upload_arel).
+# Remove this block if your jobs do not touch a relational database.
 RUN set -ex \
     && apt-get update \
-    && apt-get install -y --no-install-recommends default-mysql-client-core postgresql-client
+    && apt-get install -y --no-install-recommends default-mysql-client postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy Ruby code into Docker instance.
+# Copy the application code into the image.
 COPY . .
 
-# Install Gems.
-RUN echo "===== Installing Gems =====" \
-    && bundle config set without 'development test' \
+# Install gems, skipping the development and test groups.
+RUN bundle config set --local without 'development test' \
     && bundle install --jobs 4 --retry 5 --quiet
 
-CMD ["bin/rocketjob", "--quiet"]
+# Start a Rocket Job server. Logs go to stdout so the container platform can collect them.
+CMD ["bin/rocketjob"]
 ~~~
 
-Build the container
+Use a Ruby version that Rocket Job supports (3.2, 3.4, or 4.0). See
+[Compatibility](installation.html#compatibility).
 
-    docker build -t rocketjob_server .
+Add `--quiet` to the `CMD` if you would rather log only to a file instead of stdout, for example
+`CMD ["bin/rocketjob", "--quiet"]`.
 
-Start Rocket Job Batch Workers, and remove container on completion
+### Step 2: Build the image
 
-    docker run -d --rm rocketjob_server
+~~~bash
+docker build -t rocketjob_server .
+~~~
 
-Start a bash shell:
+### Step 3: Tell the server where MongoDB is
 
-    docker run -it --rm rocketjob_server bash
+The server reads `config/mongoid.yml`. The challenge in production is supplying credentials and host
+names without baking them into the image.
 
-Start a rails console:
+**Local testing.** To run the image against a MongoDB already running on your host (per the
+[Installation Guide](installation.html#install-mongodb)), set the MongoDB hostname to
+`host.docker.internal:27017` so the container can reach out to the host.
 
-    docker run -it --rm rocketjob_server bin/rails c
+**Production.** Store all configuration in a central store using
+[Secret Config](https://config.rocketjob.io), and override individual settings with environment
+variables where needed. Pass environment variables into the container with Docker's
+`--env-file` option (see `docker run --help`), or through your orchestrator's secret mechanism.
 
-Attach to an already running container
+### Step 4: Run the server
 
-    docker ps
-    # Enter the container id returned above:
-    docker exec -it `container_id` /bin/bash
+Start a server in the background and remove the container when it exits:
 
-Kill a running container
+~~~bash
+docker run -d --rm rocketjob_server
+~~~
 
-    docker ps
-    # Enter the container id returned above:
-    docker kill `container_id`
+Run that command once per server you want in the cluster, or let your orchestrator manage the
+replica count.
 
-To cleanup local partial and untagged builds.
+### Useful Docker commands
 
-    docker system prune -f
+~~~bash
+# Open a bash shell in a fresh container
+docker run -it --rm rocketjob_server bash
 
-#### Configuration
+# Open a Rails console in a fresh container
+docker run -it --rm rocketjob_server bin/rails c
 
-To run the above image locally the hostname for the mongo server should be set to `host.docker.internal:27017`
-so that it can use the MongoDB instance already running, per the steps in the [Installation Guide](/installation#install-mongodb)
+# List running containers, then attach a shell to one of them
+docker ps
+docker exec -it <container_id> /bin/bash
 
-In an AWS production environment we recommend storing all configuration in a centralized configuration store using
-[Secret Config][1]. Then the relevant settings can be overridden using environment variables when running locally.
-Refer to the docker help `run` option `--env-file`.
+# Stop a running container
+docker kill <container_id>
 
-## Capistrano Recipe
+# Clean up dangling and untagged local images
+docker system prune -f
+~~~
 
-Below is an example Capistrano recipe that can be used to start or stop Rocket Job servers:
+## Deploy with Capistrano
+
+For traditional (non-containerized) servers, the recipe below starts and stops Rocket Job processes
+over SSH. Each `bin/rocketjob` process runs detached with `nohup`, writing to a log file.
 
 ~~~ruby
 # ====================================
 # Rocket Job Server Tasks
 # ====================================
 namespace :rocketjob do
-  desc 'Start a rocket_job server. optional arg: HOSTFILTER=server1,server2 --count 2 --filter "DirmonJob|WeeklyReportJob"'
-  task :start do |t, args|
-    count   = (ENV['count'] || 1).to_i
-    filter  = "--filter #{ENV['filter']}" if ENV['filter']
-    workers = "--workers #{ENV['workers']}" if ENV['workers']
+  desc 'Start rocket_job servers. Optional: HOSTFILTER=server1,server2 count=2 workers=10 include="DirmonJob|WeeklyReportJob"'
+  task :start do
+    count          = (ENV["count"] || 1).to_i
+    include_filter = "--include #{ENV['include']}" if ENV["include"]
+    workers        = "--workers #{ENV['workers']}" if ENV["workers"]
     count.times do
-      run "cd #{component_path} && nohup bin/rocketjob --quiet #{filter} #{workers} >> #{component_path}/log/rocketjob.log 2>&1 & sleep 2"
+      run "cd #{component_path} && nohup bin/rocketjob --quiet #{include_filter} #{workers} >> #{component_path}/log/rocketjob.log 2>&1 & sleep 2"
     end
   end
 
-  desc 'Stop all rocket_job servers on a host. optional arg: HOSTFILTER=server1,server2'
-  task :stop do |t, args|
-    run 'pkill -u rails -f bin/rocketjob'
+  desc "Stop all rocket_job servers on a host. Optional: HOSTFILTER=server1,server2"
+  task :stop do
+    run "pkill -u rails -f bin/rocketjob"
   end
 end
 ~~~
 
-## Large Multi-Server Deployment
+`pkill` sends `SIGTERM`, which Rocket Job handles as a graceful shutdown: each server finishes the
+jobs already in progress before exiting. To stop servers without shelling into each host, use the
+event-based command instead, which signals servers through MongoDB:
 
-The instructions below are tailored to a large deployment of Rocket Job. For a small
-production installation the regular installation instructions are sufficient to
-run the Rocket Job and MongoDB processes on a single server.
-
-### MongoDB
-
-In a high availability environment it is recommended to setup a MongoDB Replica set consisting
-of 2 full servers and 1 arbiter node, or 3 full servers if desired. One of the servers can run
-in a second data center to facilitate fail over to the second data center if needed.
-
-This setup will ensure that if the master server goes down for any reason that the second
-server will take over. This transition should occur automatically and without any errors or
-failed jobs. Rocket Job will detect the change in master and automatically connect to the
-new master and continue processing.
-
-Update the file config/mongoid.yml with the hostname for the production MongoDB Server / Replica set.
-
-### Servers
-
-Each machine can run multiple Rocket Job servers, with 10 threads each. For example:
-
-~~~
-nohup bundle exec rocketjob --quiet >> log/rocketjob.log 2>&1
+~~~bash
+bin/rocketjob --stop
 ~~~
 
-The Web UI can be mounted as an engine into the existing Rails application which
-can be run on multiple servers for high availability.
+### Limiting a server to specific jobs
 
-The number of processes on each server should be determined based on load testing.
-The objective is to find the right number of processes and threads to maximize utilization
-without overwhelming the CPU, disk, or memory utilization.
+The `--include` flag above restricts a server to job classes matching a regular expression, so you
+can dedicate a pool of servers to a heavy or latency-sensitive job class while another pool handles
+everything else. The companion `--exclude` and `--where` flags are documented in the
+[Programmer's Guide](guide.html#limiting-which-jobs-a-server-runs).
 
-### Monitoring
+## High-availability MongoDB
 
-To monitor the MongoDB server while the workers are processing jobs:
+For a small production install, a single MongoDB server alongside the Rocket Job processes is
+sufficient. For high availability, run a [MongoDB replica set](https://www.mongodb.com/docs/manual/replication/).
 
+A common setup is two full data-bearing members plus one arbiter, or three full members. Placing one
+member in a second data center allows failover across data centers.
+
+If the primary goes down, the replica set elects a new primary automatically. Rocket Job detects the
+change, reconnects to the new primary, and continues processing without failed jobs.
+
+Point `config/mongoid.yml` at the replica set by listing all members in the connection URI, for
+example:
+
+~~~yaml
+uri: mongodb://user:secret@server1.example.org:27017,server2.example.org:27017/rocketjob_production?replicaSet=rs0
 ~~~
+
+## Running multiple servers per host
+
+A single host can run several Rocket Job servers, each with its own pool of worker threads (10 by
+default). Adjust the thread count per server with `--workers`:
+
+~~~bash
+nohup bundle exec rocketjob --quiet --workers 10 >> log/rocketjob.log 2>&1 &
+~~~
+
+The right number of servers and threads per host is found through load testing. The goal is to
+maximize throughput without saturating the host's CPU, memory, or disk, or overwhelming MongoDB.
+
+The web interface, [Mission Control](mission_control.html), is a Rails engine. Mount it into your
+Rails application and run it on multiple hosts behind a load balancer for high availability.
+
+## After deployment
+
+### Start the directory monitor
+
+If you use [Dirmon](dirmon.html) to pick up files as they arrive, the directory monitor must be
+created once per environment from an application console (`RocketJob::Jobs::DirmonJob.create!`). It
+then reschedules itself, so this is a one-time step. See
+[Starting the directory monitor](dirmon.html#starting-the-directory-monitor) for the details.
+
+### Monitor MongoDB
+
+Because all coordination happens in MongoDB, watching the database is the best way to observe the
+cluster under load. `mongostat` reports per-second operation counts across every member:
+
+~~~bash
 mongostat --host localhost:27017 --discover
 ~~~
 
-Replace `localhost:27017` as needed.
-
-### Directory Monitor
-
-Before files can be detected and processed via the Dirmon Entries created in the Web UI,
-it is necessary to create the directory monitor Job.
-
-Run the following from an application console:
-
-~~~ruby
-RocketJob::Jobs::DirmonJob.create!
-~~~
-
-[1] https://config.rocketjob.io
+Replace `localhost:27017` with one of your MongoDB hosts. The `--discover` flag follows the rest of
+the replica set automatically.

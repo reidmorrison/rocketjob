@@ -2,418 +2,353 @@
 layout: default
 ---
 
-# Installation
+## Installation
+{:.no_toc}
 
-[Rocket Job][0] can run with or without Rails. Instructions for Rails and Standalone installations are listed below.
+Rocket Job runs with or without Rails. This guide covers both, plus the optional web interface,
+[Rocket Job Mission Control](mission_control.html).
 
-#### Table of Contents
+**Contents**
 
-* [Compatibility](#compatibility)
-* [Install MongoDB](#install-mongodb)
-* [Rails Installation](#rails-installation)
-* [Standalone Installation](#standalone-installation)
+* TOC
+{:toc}
 
 ## Compatibility
 
-* Ruby 2.7, 3.2, or higher.
-* JRuby 9.3, 9.4, or higher.
-* [MongoDB][3] Version 4.2 or higher.
-    * Note: [AWS DocumentDB][4] is _not_ compatible since it does not support capped collections.
+Rocket Job is tested against a matrix of Ruby, Mongoid, and Rails versions. The combinations
+exercised in CI are the authoritative list; see
+[ci.yml](https://github.com/reidmorrison/rocketjob/blob/master/.github/workflows/ci.yml) and
+[Appraisals](https://github.com/reidmorrison/rocketjob/blob/master/Appraisals).
+
+* **Ruby:** MRI 3.2, 3.4, and 4.0. JRuby 9.4 or newer is also supported.
+* **Mongoid:** 8.1, 9.0, and 9.1.
+* **Rails / Active Record:** 7.2, 8.0, and 8.1 (optional; Rocket Job also runs standalone).
+* **MongoDB server:** whatever your Mongoid version supports. Mongoid 8.1 through 9.1 currently
+  support MongoDB server 3.6 through 8.x. See the
+  [Mongoid compatibility matrix](https://www.mongodb.com/docs/mongoid/current/compatibility/).
+
+### AWS DocumentDB is not supported
+{:.no_toc}
+
+Rocket Job's cross-process event mechanism (used for shutdown, pause, and log-level changes) relies
+on a *tailable capped collection*. [Amazon DocumentDB](https://aws.amazon.com/documentdb/) does not
+support capped collections, so it cannot run Rocket Job. Use a real MongoDB server.
 
 ## Install MongoDB
 
-[Rocket Job][0] stores job data in the open source data store [MongoDB][3].
+Rocket Job stores all job data in [MongoDB](https://www.mongodb.com). The simplest way to run it
+locally is in a Docker container. To install MongoDB without Docker, see the
+[MongoDB Community downloads](https://www.mongodb.com/try/download/community).
 
-It is recommended to run MongoDB locally inside a docker container. 
+### Run MongoDB in Docker
 
-To install MongoDB without using docker, see [MongoDB Downloads][5]
+Install [Docker Desktop](https://www.docker.com/products/docker-desktop) if you do not already have
+it, then start MongoDB:
 
-### Running MongoDB in a Docker container
+~~~bash
+docker run --name rocketjob_mongo -p 27017:27017 -d mongo:8.0
+~~~
 
-Install Docker Desktop if not already installed, see [Docker Desktop Downloads][6].
+Useful follow-up commands:
 
-Pull the latest Official Mongo docker image:
+~~~bash
+# Stop the container, keeping its data
+docker stop rocketjob_mongo
 
-    docker pull mongo:6.0
+# Start it again later
+docker start rocketjob_mongo
 
-Launch the Mongo Database running inside a docker container:
+# Remove the container and destroy all of its data
+docker rm rocketjob_mongo
+~~~
 
-    docker run --name rocketjob_mongo -p 27017:27017 -d mongo:6.0 --wiredTigerCacheSizeGB 1.5
+For more on the official image, see [mongo on Docker Hub](https://hub.docker.com/_/mongo). In
+production, sizing the WiredTiger cache is worthwhile, for example
+`--wiredTigerCacheSizeGB 1.5`.
 
-Stop the container, and keep all data:
+## Configure MongoDB
 
-    docker stop rocketjob_mongo
+Rocket Job needs two MongoDB clients, defined in `config/mongoid.yml`:
 
-Stop the container, and _destroy_ all of its data:
+* `rocketjob`: stores the jobs themselves.
+* `rocketjob_slices`: stores the input and output slices for batch jobs.
 
-    docker rm rocketjob_mongo
+Both can point at the same database in development. In production they can be split onto separate
+databases, or even separate servers, to spread load. Use this file for both Rails and standalone
+installations:
 
-For more information on using the Docker Official Mongo images: [Docker Hub][7]
+~~~yaml
+# See: https://www.mongodb.com/docs/mongoid/current/reference/configuration/
+client_options: &client_options
+  read:
+    mode:                   :primary
+  write:
+    w:                      1
+  connect_timeout:          10
+  socket_timeout:           300
+  # Includes the time taken to re-establish after a replica-set refresh
+  wait_queue_timeout:       125
+  server_selection_timeout: 120
+  max_read_retries:         20
+  max_write_retries:        10
+  max_pool_size:            50
+  min_pool_size:            1
+
+mongoid_options: &mongoid_options
+  preload_models: true
+  use_utc:        true
+
+development:
+  clients:
+    default: &default_development
+      uri: mongodb://127.0.0.1:27017/rocketjob_development
+      options:
+        <<: *client_options
+    rocketjob:
+      <<: *default_development
+    rocketjob_slices:
+      <<: *default_development
+  options:
+    <<: *mongoid_options
+
+test:
+  clients:
+    default: &default_test
+      uri: mongodb://127.0.0.1:27017/rocketjob_test
+      options:
+        <<: *client_options
+    rocketjob:
+      <<: *default_test
+    rocketjob_slices:
+      <<: *default_test
+  options:
+    <<: *mongoid_options
+
+production:
+  clients:
+    default: &default_production
+      uri: mongodb://user:secret@server.example.org:27017,server2.example.org:27017/rocketjob_production
+      options:
+        <<: *client_options
+    rocketjob:
+      <<: *default_production
+    rocketjob_slices:
+      <<: *default_production
+      # Optionally point slices at a different database or even a different server:
+      # uri: mongodb://user:secret@server3.example.org:27017/slices_production
+  options:
+    <<: *mongoid_options
+~~~
+
+If you already have a Mongoid configuration (for example from `bundle exec rails generate
+mongoid:config`), just add the `rocketjob` and `rocketjob_slices` clients shown above to every
+environment.
 
 ## Rails Installation
 
-For an existing Rails installation, add the following lines to the bottom of the file `Gemfile`:
+Add Rocket Job to an existing Rails 7.2 or newer application.
+
+### 1. Add the gems
+
+Add to the bottom of your `Gemfile`:
 
 ~~~ruby
 gem "rails_semantic_logger"
 gem "rocketjob"
 ~~~
 
-Install gems:
-
-~~~
+~~~bash
 bundle install
 ~~~
 
-Create the file `config/mongoid.yml` as follows:
+### 2. Configure MongoDB
 
-~~~yaml
-# See: https://docs.mongodb.com/mongoid/master/tutorials/mongoid-configuration/
-client_options: &client_options
-  read:
-    mode:                   :primary
-  write:
-    w:                      1
-  connect_timeout:          10
-  socket_timeout:           300
-  # Includes the time taken to re-establish after a replica-set refresh
-  wait_queue_timeout:       125
-  server_selection_timeout: 120
-  max_read_retries:         20
-  max_write_retries:        10
-  max_pool_size:            50
-  min_pool_size:            1
+Create `config/mongoid.yml` as shown in [Configure MongoDB](#configure-mongodb) above.
 
-mongoid_options: &mongoid_options
-  preload_models: true
-  scope_overwrite_exception: true
-  use_utc: true
+If you are running `Spring` (installed by default in Rails), restart it so the new configuration is
+picked up:
 
-development:
-  clients:
-    default: &default_development
-      uri: mongodb://127.0.0.1:27017/rocketjob_development
-      options:
-        <<: *client_options
-    rocketjob:
-      <<: *default_development
-    rocketjob_slices:
-      <<: *default_development
-  options:
-    <<: *mongoid_options
-
-test:
-  clients:
-    default: &default_test
-      uri: mongodb://127.0.0.1:27017/rocketjob_test
-      options:
-        <<: *client_options
-    rocketjob:
-      <<: *default_test
-    rocketjob_slices:
-      <<: *default_test
-  options:
-    <<: *mongoid_options
-
-production:
-  clients:
-    default: &default_production
-      uri: mongodb://user:secret@server.example.org:27017,server2.example.org:27017/rocketjob_production
-      options:
-        <<: *client_options
-    rocketjob:
-      <<: *default_production
-    rocketjob_slices:
-      <<: *default_production
-      # Optionally Specify a different database or even server to store slices on
-      # uri: mongodb://user:secret@server3.example.org:27017/slices_production
-  options:
-    <<: *mongoid_options
-~~~
-
-Alternatively, for those more familiar with mongo, the configuration file can be generated, 
-and then add the above `rocketjob` and `rocketjob_slices` clients as per the configuration file above, 
-using `bundle exec rails generate mongoid:config`.
-
-The `rocketjob` and `rocketjob_slices` clients above can be changed to point to separate
-database in production to spread load or to improve performance.
-
-If you are running `Spring`, which is installed by default by Rails, stop the backgound
-spring processes to get them to reload:
-
-~~~
+~~~bash
 bin/spring stop
 ~~~
 
-Start a Rocket Job worker process:
+### 3. Start a worker
 
-~~~
+~~~bash
 bundle exec rocketjob
 ~~~
 
-Or, if you have generated bundler bin stubs:
+Or, if you have generated bundler binstubs:
 
-~~~
+~~~bash
 bin/rocketjob
 ~~~
 
-### Installing the Rocket Job Web Interface
+That is a complete Rails installation. Define jobs under `app/jobs` and queue them with
+`MyJob.create!`. See the [Programmer's Guide](guide.html).
 
-[Rocket Job Web Interface][1] is a rails engine that can be mounted into any existing Rails 5 or Rails 6 application.
+### Install the web interface
 
-Add the [Rocket Job Web Interface][1] gem to your Gemfile:
+[Rocket Job Mission Control](mission_control.html) is a Rails engine that mounts into your
+application.
+
+Add the gem:
 
 ~~~ruby
-gem 'rocketjob_mission_control', '~> 6.0'
+gem "rocketjob_mission_control", "~> 6.0"
 ~~~
 
-Install gems:
-
-~~~
+~~~bash
 bundle install
 ~~~
 
-Add the following line to `config/routes.rb` in your Rails application:
+Mount the engine in `config/routes.rb`:
 
 ~~~ruby
-mount RocketJobMissionControl::Engine => 'rocketjob'
+mount RocketJobMissionControl::Engine => "rocketjob"
 ~~~
 
-Start the Rails server:
+Start the Rails server and open
+[http://localhost:3000/rocketjob](http://localhost:3000/rocketjob):
 
-~~~
+~~~bash
 bin/rails s
 ~~~
 
-Open a browser and navigate to the local [Rocket Job Web Interface](http://localhost:3000/rocketjob)
-
 ## Standalone Installation
 
-When running stand-alone without Rails.
+Run Rocket Job without Rails.
 
-Create directories to hold the standalone Rocket Job jobs and configuration:
+### 1. Create the project
 
-~~~
-mkdir standalone
-mkdir standalone/jobs
-mkdir standalone/config
+~~~bash
+mkdir -p standalone/jobs standalone/config
 cd standalone
 ~~~
 
-Create a file called `Gemfile` in the `standalone` directory with the following contents:
+### 2. Add the gem
+
+Create `Gemfile`:
 
 ~~~ruby
-source 'https://rubygems.org'
+source "https://rubygems.org"
 
-gem 'rocketjob', '~> 6.0'
+gem "rocketjob"
 ~~~
 
-Install the gem files:
-
-~~~
-bundle
+~~~bash
+bundle install
 ~~~
 
-Create a file called `mongoid.yml` in the `config` sub-directory with the following contents:
+### 3. Configure MongoDB
 
-~~~yaml
-# See: https://docs.mongodb.com/mongoid/master/tutorials/mongoid-configuration/
-client_options: &client_options
-  read:
-    mode:                   :primary
-  write:
-    w:                      1
-  connect_timeout:          10
-  socket_timeout:           300
-  # Includes the time taken to re-establish after a replica-set refresh
-  wait_queue_timeout:       125
-  server_selection_timeout: 120
-  max_read_retries:         20
-  max_write_retries:        10
-  max_pool_size:            50
-  min_pool_size:            1
+Create `config/mongoid.yml` as shown in [Configure MongoDB](#configure-mongodb) above.
 
-mongoid_options: &mongoid_options
-  preload_models: true
-  scope_overwrite_exception: true
-  use_utc: true
+### 4. Write a job
 
-development:
-  clients:
-    default: &default_development
-      uri: mongodb://127.0.0.1:27017/rocketjob_development
-      options:
-        <<: *client_options
-    rocketjob:
-      <<: *default_development
-    rocketjob_slices:
-      <<: *default_development
-  options:
-    <<: *mongoid_options
-
-test:
-  clients:
-    default: &default_test
-      uri: mongodb://127.0.0.1:27017/rocketjob_test
-      options:
-        <<: *client_options
-    rocketjob:
-      <<: *default_test
-    rocketjob_slices:
-      <<: *default_test
-  options:
-    <<: *mongoid_options
-
-production:
-  clients:
-    default: &default_production
-      uri: mongodb://user:secret@server.example.org:27017,server2.example.org:27017/rocketjob_production
-      options:
-        <<: *client_options
-    rocketjob:
-      <<: *default_production
-    rocketjob_slices:
-      <<: *default_production
-      # Optionally Specify a different database or even server to store slices on
-      # uri: mongodb://user:secret@server3.example.org:27017/slices_production
-  options:
-    <<: *mongoid_options
-~~~
-
-Create a new Job for the workers to process. Create a file called `hello_world_job.rb`
-in the `jobs` directory with the following contents:
+Create `jobs/hello_world_job.rb`:
 
 ~~~ruby
 class HelloWorldJob < RocketJob::Job
   def perform
-    puts "HELLO WORLD"
+    puts "Hello World"
   end
 end
 ~~~
 
-Start a worker process, from within the `standalone` directory:
+### 5. Start a worker
 
-~~~
+From inside the `standalone` directory:
+
+~~~bash
 bundle exec rocketjob
 ~~~
 
-Open a new console to queue a new job request:
+### 6. Queue a job
 
-~~~
-bundle exec irb
-~~~
-
-Enter the following code:
+Open another console (`bundle exec irb`) and queue the job:
 
 ~~~ruby
-require 'rocketjob'
-require 'yaml'
+require "rocketjob"
 
-# Log to development.log
-SemanticLogger.add_appender(file_name: 'development.log', formatter: :color)
+# Log to development.log using the colorized formatter
+SemanticLogger.add_appender(file_name: "development.log", formatter: :color)
 SemanticLogger.default_level = :debug
 
-# Configure Mongo
-RocketJob::Config.load!('development', 'config/mongo.yml')
+# Load config/mongoid.yml for the development environment
+RocketJob::Config.load!("development")
 
-require_relative 'jobs/hello_world_job'
+require_relative "jobs/hello_world_job"
 
 HelloWorldJob.create!
 ~~~
 
-The console running `rocketjob` should show something similar to:
+The worker process picks up the job and logs something like:
 
 ~~~
-2016-05-09 21:29:24.349058 I [64431:rocketjob 008] [job:57313973a26ec03710000001] HelloWorldJob -- Start #perform
-HELLO WORLD
-2016-05-09 21:29:24.349365 I [64431:rocketjob 008] [job:57313973a26ec03710000001] (0.120ms) HelloWorldJob -- Completed #perform
+I [job:5731...] HelloWorldJob -- Start #perform
+Hello World
+I [job:5731...] (0.120ms) HelloWorldJob -- Completed #perform
 ~~~
 
-### Standalone Rocket Job Web Interface
+`RocketJob::Config.load!` reads `config/mongoid.yml` relative to the current directory by default.
+Pass an explicit path as the second argument to load it from elsewhere, and a third argument to
+load a [Symmetric Encryption](https://github.com/reidmorrison/symmetric-encryption) configuration file.
 
-In order to install [Rocket Job Web Interface][1] in a stand-alone environment, we need to
-host it in a "shell" rails application as follows:
+### Standalone web interface
 
-Create shell application:
+[Rocket Job Mission Control](mission_control.html) is a Rails engine, so running it standalone means
+hosting it in a minimal "shell" Rails application.
 
-~~~
+Create the shell application:
+
+~~~bash
 gem install rails
 rails new rjmc
 cd rjmc
 ~~~
 
-Add the following lines to the bottom of the file `Gemfile`:
+Add to the bottom of the `Gemfile`:
 
 ~~~ruby
-gem 'rails_semantic_logger'
-gem 'rocketjob', '~> 6.0'
-gem 'rocketjob_mission_control', '~> 6.0'
-gem 'puma'
+gem "rails_semantic_logger"
+gem "rocketjob"
+gem "rocketjob_mission_control", "~> 6.0"
+gem "puma"
 ~~~
 
-Install gems:
-
-~~~
+~~~bash
 bundle install
 ~~~
 
-Add the following line to `config/routes.rb`:
+Mount the engine at the root in `config/routes.rb`:
 
 ~~~ruby
-mount RocketJobMissionControl::Engine => '/'
+mount RocketJobMissionControl::Engine => "/"
 ~~~
 
-Re-load spring:
+Restart Spring:
 
-~~~
+~~~bash
 bin/spring stop
 ~~~
 
-Generate Mongo Configuration file:
+Generate a Mongoid configuration file and edit it to add the `rocketjob` and `rocketjob_slices`
+clients to every environment, as in [Configure MongoDB](#configure-mongodb):
 
-~~~
+~~~bash
 bundle exec rails generate mongoid:config
 ~~~
 
-Edit the file config/mongoid.yml with the MongoDB server addresses.
+Start the server and open [http://localhost:3000](http://localhost:3000):
 
-Add the `rocketjob` and `rocketjob_slices` clients as per the example below to every environment.
-
-~~~yaml
-development:
-  clients:
-    default: &default_development
-      uri: mongodb://127.0.0.1:27017/rocketjob_development
-      options:
-        <<: *client_options
-        write:
-          w:   0
-        max_pool_size: 5
-        min_pool_size: 1
-    rocketjob:
-      <<: *default_development
-    rocketjob_slices:
-      <<: *default_development
-  options:
-    <<: *mongoid_options
-~~~
-
-The `rocketjob` and `rocketjob_slices` clients above can be changed to point to separate
-database in production to spread load or to improve performance.
-
-Start the stand-alone [Rocket Job Web Interface][1]:
-
-~~~
+~~~bash
 bin/rails s
 ~~~
 
-Open a browser and navigate to the [local Rocket Job Web Interface](http://localhost:3000)
+## Next steps
 
-[0]: https://rocketjob.io
-[1]: mission_control.html
-[2]: https://rocketjob.github.io/semantic_logger
-[3]: https://mongodb.com
-[4]: https://docs.aws.amazon.com/documentdb/latest/developerguide/mongo-apis.html#mongo-apis-dababase-administrative
-[5]: https://www.mongodb.com/try/download/community
-[6]: https://www.docker.com/products/docker-desktop
-[7]: https://hub.docker.com/_/mongo?
+* [Programmer's Guide](guide.html): the full job API, fields, scheduling, throttling, and callbacks.
+* [Batch Guide](batch.html): large files, tabular data, and parallel processing.
+* [Mission Control](mission_control.html): the web interface.
+* [Dirmon](dirmon.html): trigger jobs from arriving files.

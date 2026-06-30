@@ -2,397 +2,270 @@
 layout: default
 ---
 
-# Rocket Job Batch Programmers Guide
+## Batch Jobs Guide
+{:.no_toc}
 
-#### Table of Contents
+**Contents**
 
-* [Batch Jobs](#batch-jobs)
-* [Batch Output](#batch-output)
-* [Batch Job Throttling](#batch-job-throttling)
-* [Large File Processing](#large-file-processing)
-* [Multiple Output Files](#multiple-output-files)
-* [Error Handling](#error-handling)
-* [Reading Tabular Files](#reading-tabular-files)
-* [Writing Tabular Files](#writing-tabular-files)
+* TOC
+{:toc}
 
-## Batch Jobs
+This guide covers batch jobs: jobs that process a large workload in parallel across many workers.
+For the conventional single-worker job API (fields, scheduling, throttling, callbacks, queries), see
+the [Programmer's Guide](guide.html).
 
-Regular jobs run on a single worker. In order to scale up and use all available workers
-it is necessary to break up the input data into "slices" so that different parts of the job
-can be processed in parallel.
+## What is a batch job?
 
-Jobs that include `RocketJob::Batch` break their work up into slices so that many workers can work
-on the individual slices at the same time. Slices take a large and unwieldy job and break it up
-into _bite-size_ pieces that can be processed a slice at a time by the workers.
+A regular [job](guide.html) runs on a single worker. A batch job breaks its input up into *slices*
+so that many workers, often across hundreds of containers, process different parts of the work at
+the same time.
 
-Since batch jobs consist of lots of smaller slices the job can be paused, resumed, or even aborted as a whole.
-If there are any failed slices when the job finishes, they can all be retried by retrying the job itself.
-
-For example, using the default `slice_size` of 100, and the uploaded file contains 1,000,000 lines,
-then the job will contain 10,000 slices.
-
-Slices are made up of records, 100 by default, each record usually refers to a line or row in a file, but is any
-valid BSON object for which work is to be performed.
-
-A running batch job will be interrupted if a new job with a higher priority is queued for
-processing.  This allows low priority jobs to use all available resources until a higher
-priority job arrives, and then to resume processing once the higher priority job is complete.
+Turn any job into a batch job by including `RocketJob::Batch` and writing a `perform` that handles a
+single *record*:
 
 ~~~ruby
 class ReverseJob < RocketJob::Job
   include RocketJob::Batch
 
-  # Keep the job around after it has finished
+  # Keep the job after it finishes so the output can be downloaded
   self.destroy_on_complete = false
 
-  # Number of lines/records for each slice
+  # Number of records per slice (the default)
   input_category slice_size: 100
 
-  # Collect any output from the job
+  # Collect the value returned by each perform call as output
   output_category
 
   def perform(line)
-    # Work on a single record at a time across many workers
+    # Called once per record, spread across all available workers
+    line.reverse
   end
 end
 ~~~
 
-Queue the job for processing:
+A few terms:
+
+* A **record** is one unit of work passed to `perform`. It is usually a line or row from a file, but
+  can be any value that serializes to BSON (a String, Hash, Array, Integer, and so on).
+* A **slice** is a group of records, 100 by default, that one worker claims and processes together.
+* The job's input is uploaded into a dedicated MongoDB collection and divided into slices. For
+  example, a 1,000,000 line file with the default `slice_size` of 100 becomes 10,000 slices.
+
+Because the work is sliced, a batch job can be **paused, resumed, or aborted as a whole**, and if
+any slices fail, all of them can be retried by retrying the job. A running batch job is also
+**interrupted by a higher priority job**: low priority jobs use all available workers until more
+important work arrives, then resume once it is done. See [Business Priority](guide.html#business-priority).
+
+## Your first batch job
+
+Using the `ReverseJob` above, queue some records for processing. The block form of `upload` hands you
+a writer that you append records to one at a time:
 
 ~~~ruby
-# Words would come from a database query, file, etc.
-words = %w(these are some words that are to be processed at the same time on many workers)
+words = %w[these are some words to be processed across many workers]
 
 job = ReverseJob.new
-
-# Load words as individual records for processing into the job
 job.upload do |records|
-  words.each do |word|
-    records << word
-  end
+  words.each { |word| records << word }
 end
-
-# Queue the job for processing
 job.save!
 ~~~
 
-### Batch Output
-
-Display the output from the above batch:
+Once the job completes, read the output (see [Collecting output](#collecting-output)):
 
 ~~~ruby
-# Display the results that were returned
 job.output.each do |slice|
-  slice.each do |record|
-    # Display each record returned from job
-    puts record
-  end
+  slice.each { |record| puts record }
 end
 ~~~
 
-### Output Ordering
+## Uploading input data
 
-The order of the slices and records is exactly the same as the order in which the records were uploaded into the job.
-This makes it easy to correlate an input record with its corresponding output record.
+Input data is uploaded into the job before it is saved. Rocket Job stores it in a MongoDB collection
+unique to that job, and removes each slice as soon as it is processed. Failed slices stay in the
+collection, marked as failed, holding the exception and the name of the worker that was processing
+them.
 
-There are cases however where the exact input and output record ordering can be changed:
-- When an input file has a header row, for example CSV, but the output file does not require one, for example JSON or XML.
-    - In this case the output file is just missing the header row, so every record / line will be off by 1.
-- By specifying `nils: false` on the output category it skips any records for which `nil` was returned by the `perform` method.
+Uploading the data into the job, rather than referencing an external file, has several benefits:
 
-### Job Completion
+* Workers do not need shared access to the original file or data store.
+* The file can be decompressed or decrypted once, up front, before it is sliced.
+* No separate data store is needed to hold the job's input.
+* Each slice has its own state, so it can fail independently and carry its own exception.
 
-The output from a job can be queried at any time, but will be incomplete until the job has completed processing.
+Data can be uploaded from a file, an Active Record query, a Mongoid query, an integer range, or a
+block of code.
 
-To programatically wait for a job to complete processing:
+### Files
 
-~~~ruby
-loop do
-  sleep 1
-  job.reload
-  break unless job.running? || job.queued?
-  puts "Job is still #{job.state}"
-end
-~~~
-
-
-### Large File Processing
-
-Batch jobs can process very large files. Entire files are uploaded into a Job for processing
-and automatically broken up into slices for workers to process.
-
-Queue the job for processing:
+`upload` streams an entire file into the job, one record per line by default, and returns the number
+of records uploaded. Very large files are streamed rather than loaded into memory, so files far
+larger than RAM can be uploaded.
 
 ~~~ruby
 job = ReverseJob.new
-# Upload a file into the job for processing
-job.upload('myfile.txt')
+job.upload("myfile.txt")
 job.save!
 ~~~
 
-Once the job has completed, download the output records into a file:
+Rocket Job auto-detects compression and encryption from the file name and decodes it before slicing.
+It has built-in support for:
 
-~~~ruby
-# Download the output and compress the output into a GZip file
-job.download('reversed.txt.gz')
-~~~
-
-Rocket Job has built-in support for reading and writing
-
-* `Zip` files
+* `Zip` files (add the `rubyzip` gem on CRuby; JRuby uses native Java Zip)
 * `GZip` files
-* files encrypted with [Symmetric Encryption][3]
-* delimited files
-    * Windows CR/LF text files
-    * Linux text files
-    * Auto-detects Windows or Linux line endings
-    * Any custom delimiter
-* files with fixed length records
-
-Note:
-
-* In order to read and write `Zip` on CRuby, add the gem `rubyzip` to your `Gemfile`.
-* Not required with JRuby since it will use the native `Zip` support built into Java
-
-### Uploading data
-
-Rocket Job uploads the data for the job into a unique Mongo Collection for every batch job. During processing
-the slices are removed from this collection as soon as they are processed.
-
-Failed slices remain in the collection and are marked as failed so that they can be investigated or retried.
-
-Benefits of uploading data into the job:
-- Does not require access across all of the workers to the original file or data during processing.
-- The file can be decompressed and / or unencrypted before it is broken up into slices.
-- Does not require a separate data store to hold the jobs input data.
-- Rocket Job transparently takes care of the storage and retrieval of the uploaded data.
-- Since a slice now has state, it can be failed, and holds the exception that occurred when trying to process that slice.
-- Each slice that is being processed contains the name of the worker currently processing it.
-
-Data can be uploaded into a batch job from many sources:
-- File.
-- Active Record query.
-- Mongoid query.
-- A block of code.
-
-#### Uploading Files
-
-Upload every line in a file as records into the job for processing.
-
-Returns the number of lines uploaded into the job as an `Integer`.
-
-Parameters
-
-- `file_name_or_io` `[String | IO]`
-    - Full path and file name to stream into the job.
-    - Or, an IOStream that responds to: `read`
-
-- `streams` `[Symbol|Array]`
-    - Streams to convert the data whilst it is being read.
-    - When nil, the file_name extensions will be inspected to determine what
-      streams should be applied.
-    - Default: nil
-
-- `delimiter` `[String]`
-    - Line / Record delimiter to use to break the stream up into records
-        - Any string to break the stream up by
-        - The records when saved will not include this delimiter
-    - Default: nil
-        - Automatically detect line endings and break up by line
-        - Searches for the first "\r\n" or "\n" and then uses that as the
-          delimiter for all subsequent records
-
-- `buffer_size` `[Integer]`
-    - Size of the blocks when reading from the input file / stream.
-    - Default: 65536 ( 64K )
-
-- `encoding` `[String|Encoding]`
-    - Encode returned data with this encoding.
-        - 'US-ASCII':   Original 7 bit ASCII Format
-        - 'ASCII-8BIT': 8-bit ASCII Format
-        - 'UTF-8':      UTF-8 Format
-        - Etc.
-    - Default: 'UTF-8'
-
-- `encode_replace` `[String]`
-    - The character to replace with when a character cannot be converted to the target encoding.
-    - nil: Don't replace any invalid characters. Encoding::UndefinedConversionError is raised.
-    - Default: nil
-
-- `encode_cleaner` `[nil|symbol|Proc]`
-    - Cleanse data read from the input stream.
-    - `nil`: No cleansing
-    - `:printable`: Cleanse all non-printable characters except \r and \n
-    - Proc / lambda:    Proc to call after every read to cleanse the data
-    - Default: :printable
-
-- `stream_mode` `[:line | :array | :hash]`
-    - `:line`
-        - Uploads the file a line (String) at a time for processing by workers.
-    - `:array`
-        - Parses each line from the file as an Array and uploads each array for processing by workers.
-    - `:hash`
-        - Parses each line from the file into a Hash and uploads each hash for processing by workers.
-    - See `IOStream#each`.
-    - Default: `:line`
-
-Example, load plain text records from a file
+* files encrypted with [Symmetric Encryption](https://github.com/reidmorrison/symmetric-encryption)
+* delimited files (Windows CR/LF or Linux LF line endings, auto-detected, or a custom delimiter)
+* fixed-length record files
 
 ~~~ruby
-job.upload('hello.csv')
+# Auto-detected from the file extension:
+job.upload("myfile.csv.zip")     # Zip
+job.upload("myfile.csv.gz")      # GZip
+job.upload("myfile.csv.zip.enc") # Encrypted Zip
 ~~~
 
-Example:
-
-Load plain text records from a file, stripping all non-printable characters,
-as well as any characters that cannot be converted to UTF-8
-~~~ruby
-job.upload('hello.csv', encode_cleaner: :printable, encode_replace: '')
-~~~
-
-Example: Zip
-~~~ruby
-job.upload('myfile.csv.zip')
-~~~
-
-Example: Encrypted Zip
+Override the detected streams explicitly when the file name does not reflect the contents:
 
 ~~~ruby
-job.upload('myfile.csv.zip.enc')
+job.upload("myfile.ze", streams: [:zip, :enc])
 ~~~
-Example: Explicitly set the streams
+
+Useful `upload` keyword options:
+
+| Option         | Description
+|:---------------|:------------
+| `category`     | Which input category to load into. Default: `:main`.
+| `stream_mode`  | `:line` (default), `:array`, or `:hash`. See [input categories](#input-categories).
+| `file_name`    | Override the file name used to infer format and streams.
+| `delimiter`    | Record delimiter. Default: auto-detect line endings.
+| `on_first`     | A lambda called with the first line, for example to capture a header.
+
+By default all data is converted to UTF-8 before being stored, since MongoDB only stores UTF-8
+strings. A Zip stream must contain only one file; the first file found is loaded. CSV and other
+tabular parsing is deliberately left to the workers (see [Reading tabular files](#reading-tabular-files)),
+so by default a file is uploaded a raw line at a time.
+
+For the full list of supported file types and transformations, see
+[IOStreams](https://github.com/reidmorrison/iostreams).
+
+### Active Record queries
+
+`upload_arel` uploads the result of an Active Record query. By default it uploads only the `:id` of
+each row, adding it to the select list to reduce overhead:
 
 ~~~ruby
-job.upload('myfile.ze', streams: [:zip, :enc])
+# Upload the ids of all US users
+job.upload_arel(User.where(country_code: "US"))
 ~~~
 
-Example: Supply custom options
-~~~ruby
-job.upload('myfile.csv.enc', streams: :enc])
-~~~
-
-Example: Extract streams from filename but write to a temp file
+Supply column names to upload more than the id:
 
 ~~~ruby
-streams = IOStreams.streams_for_file_name('myfile.gz.enc')
-t = Tempfile.new('my_project')
-job.upload(t.to_path, streams: streams)
+job.upload_arel(User.where(country_code: "US"), :user_name, :zip_code)
 ~~~
 
-Notes:
-- By default all data read from the file/stream is converted into UTF-8 before being persisted. This
-  is recommended since Mongo only supports UTF-8 strings.
-- When zip format, the Zip file/stream must contain only one file, the first file found will be
-  loaded into the job
-- If an io stream is supplied, it is read until it returns nil.
-- Only call from one thread at a time per job instance.
-- CSV parsing is slow, so it is left for the workers to do.
-
-See: [IOStreams](https://github.com/rocketjob/iostreams) for more information on supported file types and conversions
-that can be applied during calls to `upload` and `download`.
-
-#### Active Record Queries
-
-Upload results from an Active Record Query into a batch job.
-
-Parameters
-- `column_names`
-    - When a block is not supplied, supply the names of the columns to be returned   
-      and uploaded into the job.
-    - These columns are automatically added to the select list to reduce overhead.
-    - Default: `:id`
-
-If a Block is supplied it is passed the model returned from the database and should
-return the work item to be uploaded into the job.
-
-Returns [Integer] the number of records uploaded
-
-Example: Upload id's for all users
-~~~ruby                                                 
-arel = User.all                                                                  
-job.upload_arel(arel)                                         
-~~~
-
-Example: Upload selected user id's
-~~~ruby
-arel = User.where(country_code: 'US')
-job.upload_arel(arel)                                         
-~~~
-
-Example: Upload user_name and zip_code
-~~~ruby                                                 
-arel = User.where(country_code: 'US')                                            
-job.upload_arel(arel, :user_name, :zip_code)                  
-~~~
-
-#### Mongoid Queries
-
-Upload the result of a MongoDB query to the input collection for processing.
-Useful when an entire MongoDB collection, or part thereof needs to be
-processed by a job.
-
-Returns [Integer] the number of records uploaded
-
-If a Block is supplied it is passed the document returned from the
-database and should return a record for processing.
-
-If no Block is supplied then the record will be the :fields returned
-from MongoDB.
-
-Notes:
-- This method uses the collection directly and not the Mongoid document to
-  avoid the overhead of constructing a model with every document returned
-  by the query.
-- The Block must return types that can be serialized to BSON.
-    - Valid Types: `Hash | Array | String | Integer | Float | Symbol | Regexp | Time`
-    - Invalid: `Date`, etc.
-    - With a `Hash`, the keys must be strings and not symbols.
-
-Example: Upload document ids
+Pass a block to transform each model into the record to upload:
 
 ~~~ruby
-criteria = User.where(state: 'FL')
-job.upload_mongo_query(criteria)
+job.upload_arel(User.where(country_code: "US")) { |user| user.email }
 ~~~
 
-Example: Specify one or more columns other than just the document id to upload:
+### Mongoid queries
+
+`upload_mongo_query` uploads the result of a MongoDB query. It reads the collection directly, rather
+than building a Mongoid model per document, to avoid that overhead:
 
 ~~~ruby
-criteria = User.where(state: 'FL')
-job.upload_mongo_query(criteria, :zip_code)
+# Upload the ids of all users in Florida
+job.upload_mongo_query(User.where(state: "FL"))
+
+# Upload an additional field
+job.upload_mongo_query(User.where(state: "FL"), :zip_code)
 ~~~
 
-#### Upload Block
+When a block is supplied it receives each document and returns the record to upload. The returned
+value must serialize to BSON (`Hash`, `Array`, `String`, `Integer`, `Float`, `Symbol`, `Regexp`,
+`Time`; not `Date`). With a `Hash`, keys must be strings, not symbols.
 
-When a block is supplied, it is given a record stream into which individual records can be written.
+### Integer ranges
 
-Upload by writing records one at a time to the upload stream.
+`upload_integer_range` uploads a range of integers efficiently, which is ideal for driving work off a
+contiguous range of ids:
+
+~~~ruby
+job.upload_integer_range(1, 1_000_000)
+~~~
+
+`upload_integer_range_in_reverse_order` does the same but processes the highest ids first. A plain
+`Range` can also be passed straight to `upload`:
+
+~~~ruby
+job.upload(1..1_000_000)
+~~~
+
+### A block
+
+When `upload` is given a block, it yields a writer to which records are appended one at a time:
+
 ~~~ruby
 job.upload do |writer|
   10.times { |i| writer << i }
 end
 ~~~
 
-### Batch Job Throttling
+## Input categories
 
-Throttle the number of workers that can work on a batch job instance at any time.
+The `input_category` class method configures how uploaded data is sliced and parsed. With no
+arguments, a job has a single input category named `:main` with the defaults below.
 
-Limiting can be used when too many concurrent workers are:
+~~~ruby
+class MyJob < RocketJob::Job
+  include RocketJob::Batch
 
-* Overwhelming a third party system by calling it too frequently.
-* Impacting the online production systems by writing too much data too quickly to the master database.
+  input_category slice_size: 500, serializer: :compress
 
-Worker limiting also allows batch jobs to be processed concurrently instead of sequentially.
+  def perform(record)
+    # ...
+  end
+end
+~~~
 
-The `throttle_running_workers` throttle can be changed at any time, even while the job is running to
-either increase or decrease the number of workers working on that job.
+Input category options:
+
+| Option             | Default     | Description
+|:-------------------|:------------|:------------
+| `name`             | `:main`     | Name of the category. Use additional names for secondary input collections.
+| `slice_size`       | `100`       | Number of records per slice.
+| `serializer`       | `:compress` | Slice serialization: `:none`, `:compress`, or `:encrypt`. See [Compression and encryption](#compression-and-encryption).
+| `format`           | `nil`       | Parse each record before `perform`: `nil` (raw line), `:auto`, or a tabular format such as `:csv`. See [Reading tabular files](#reading-tabular-files).
+| `format_options`   | `nil`       | Format-specific options, for example a `:layout` for `:fixed`.
+| `columns`          | `nil`       | Header columns, when the file has no header row.
+| `mode`             | `:line`     | How a file is uploaded: `:line`, `:array`, or `:hash`.
+| `allowed_columns`  | `nil`       | Restrict tabular input to these columns; others are returned as nil.
+| `required_columns` | `nil`       | Tabular columns that must be present, or an exception is raised.
+| `skip_unknown`     | `false`     | When `allowed_columns` is set, ignore unknown columns instead of raising.
+| `header_cleanser`  | `:default`  | Cleanse tabular header column names (`:default`) or leave them as-is (`:none`).
+
+The `mode` option controls how a file is read during upload:
+
+* `:line` (default) uploads a raw line (String) at a time. This is the most performant, since each
+  worker parses its own lines.
+* `:array` parses each line into an Array before uploading. The whole file is parsed up front, so an
+  invalid file is detected before processing starts. Not recommended for very large files.
+* `:hash` parses each line into a Hash before uploading. Like `:array`, but slightly less efficient.
+
+## Collecting output
+
+To keep the value returned by `perform`, register an output category with `output_category`. With no
+arguments it registers a single output category named `:main`:
 
 ~~~ruby
 class ReverseJob < RocketJob::Job
   include RocketJob::Batch
 
-  # No more than 10 workers should work on this job at a time
-  self.throttle_running_workers = 10
+  self.destroy_on_complete = false
+
+  output_category
 
   def perform(line)
     line.reverse
@@ -400,13 +273,64 @@ class ReverseJob < RocketJob::Job
 end
 ~~~
 
-### Multiple Output Files
+Read the collected output once the job has completed:
 
-A single batch job can also create multiple output files by categorizing the result
-of the perform method.
+~~~ruby
+job.output.each do |slice|
+  slice.each { |record| puts record }
+end
+~~~
 
-This can be used to output one file with results from the job and another for
-outputting for example the lines that were too short.
+Or download it straight to a file, optionally compressed on the way out:
+
+~~~ruby
+job.download("reversed.txt.gz")
+~~~
+
+### Output ordering
+
+The output slices and records are in exactly the same order as the records were uploaded, which
+makes it easy to line an output record up with its input record. Two things change that alignment:
+
+* An input file with a header row (for example CSV) whose output format does not have one (for
+  example JSON) shifts every output record by one line.
+* Setting `nils: false` on the output category (the default) skips records for which `perform`
+  returned `nil`, so those positions are absent from the output.
+
+### Waiting for completion
+
+Output can be queried at any time, but it is only complete once the job has finished. To wait
+programmatically:
+
+~~~ruby
+loop do
+  sleep 1
+  job.reload
+  break unless job.running? || job.queued?
+end
+~~~
+
+### Output categories
+
+The `output_category` class method accepts these options:
+
+| Option           | Default     | Description
+|:-----------------|:------------|:------------
+| `name`           | `:main`     | Name of the category. Register additional names for [multiple output files](#multiple-output-files).
+| `serializer`     | `:compress` | Slice serialization: `:none`, `:compress`, `:encrypt`, `:bz2`, or `:encrypted_bz2`.
+| `format`         | `nil`       | Render each result: `nil`, `:auto`, or a tabular format such as `:csv`. See [Writing tabular files](#writing-tabular-files).
+| `format_options` | `nil`       | Format-specific options.
+| `columns`        | `nil`       | Columns to include when rendering tabular output.
+| `nils`           | `false`     | When `true`, store `nil` results too; when `false`, skip them.
+
+### Multiple output files
+
+A single batch job can write several output files by registering more than one output category and
+returning categorized results from `perform`.
+
+Use `RocketJob::Batch::Result` to direct a single value to a named category, and
+`RocketJob::Batch::Results` to return several at once. `Result.new` takes the **category first, then
+the value**:
 
 ~~~ruby
 class MultiFileJob < RocketJob::Job
@@ -414,223 +338,159 @@ class MultiFileJob < RocketJob::Job
 
   self.destroy_on_complete = false
 
+  # Default :main output category, plus an :invalid category
   output_category
-  # Register additional `:invalid` output category for this job
   output_category(name: :invalid)
 
   def perform(line)
     if line.length < 10
-      # The line is too short, send it to the invalid output collection
-      Result.new(line, :invalid)
+      # Send short lines to the :invalid output collection
+      RocketJob::Batch::Result.new(:invalid, line)
     else
-      # Reverse the line ( default output goes to the :main output collection )
+      # Plain return values go to the :main output collection
       line.reverse
     end
   end
 end
 ~~~
 
-When complete, download the results of the batch into 2 files:
+Download each category to its own file:
 
 ~~~ruby
-# Download the regular results
-job.download('reversed.txt.gz')
-
-# Download the invalid results to a separate file
-job.download('invalid.txt.gz', category: :invalid)
+job.download("reversed.txt.gz")
+job.download("invalid.txt.gz", category: :invalid)
 ~~~
 
-### Error Handling
-
-Since a Batch job breaks a single job into slices, individual records within
-slices can fail while others are still being processed.
+To write to several categories from a single `perform` call, collect them in a `Results`:
 
 ~~~ruby
-# Display the exceptions for failed slices:
-job = RocketJob::Job.find('55bbce6b498e76424fa103e8')
-job.input.each_failed_record do |record, slice|
-  p slice.exception
+def perform(row)
+  outputs = RocketJob::Batch::Results.new
+  outputs << {name: row["name"], age: row["age"]}                         # goes to :main
+  outputs << RocketJob::Batch::Result.new(:zip_codes, {zip: row["zip"]})  # goes to :zip_codes
+  outputs
 end
 ~~~
 
-Once all slices have been processed and there are only failed slices left, then the job as a whole
-is failed.
+## Reading tabular files
 
-### Reading Tabular Files
-
-Very often received data is in a format very similar to that of a spreadsheet
-with rows and columns, such as CSV, or Excel files.
-Usually the first row is the header that describes what each column contains.
-The remaining rows are the actual data for processing.
-
-To direct Rocket Job Batch to read the input as csv, add the `format` option to the `input_category`.
-Now each CSV line will be parsed just before the `perform` method is called, and
-a Hash will be passed in as the first argument to `perform`, instead of the csv line.
-
-This `Hash` consists of the header field names as keys and the values that were received for the specific row
-in the file.
-
-~~~ruby
-class TabularJob < RocketJob::Job
-  input_category format: :csv
-  
-  def perform(record)
-  #  record is a Hash, for example: 
-  #  {
-  #     "first_field" => 100,
-  #     "second"      => 200,
-  #     "third"       => 300
-  #   }
-  end
-end
-~~~
-
-Upload a file into the job for processing
-~~~ruby
-job = TabularJob.new
-job.upload('my_really_big_csv_file.csv')
-job.save!
-~~~
-
-Notes:
-- In the above example, the file is uploaded into the job in its entirety before the job is saved.
-- It is possible to save the job prior to uploading the file, but if the file upload fails workers will have already
-  processed much of the data that was uploaded.
-- The file is uploaded using a stream so that the entire file is not loaded into memory. This allows extremely
-  large files to be uploaded with minimal memory overhead.
-
-This job can be changed so that it handles any supported tabular informat. For example: csv, psv, json, xlsx.
-
-#### Auto Detect file type
-
-Set the `format` to `:auto` to use the file name during the upload step to auto-detect the file type:
+Received data is often tabular, like a spreadsheet, with a header row describing each column (CSV,
+PSV, Excel, and so on). Set `format` on the `input_category` and Rocket Job parses each row just
+before `perform` is called, passing in a `Hash` of header name to value instead of the raw line:
 
 ~~~ruby
 class TabularJob < RocketJob::Job
   include RocketJob::Batch
-  
-  input_category format: :auto
-  
+
+  input_category format: :csv
+
   def perform(record)
-  #  record is a Hash, for example: 
-  #  {
-  #     "first_field" => 100,
-  #     "second"      => 200,
-  #     "third"       => 300
-  #   }
+    # record is a Hash, for example:
+    # { "first_field" => 100, "second" => 200, "third" => 300 }
   end
 end
 ~~~
 
-Upload a csv file into the job for processing
 ~~~ruby
 job = TabularJob.new
 job.upload("my_really_big_csv_file.csv")
 job.save!
 ~~~
 
-Upload a xlsx spreadsheet with the same column headers into the same job for processing,
-without changing the job in any way:
+CSV parsing is left to the workers, so the file still uploads a line at a time with minimal memory
+overhead, even for very large files.
+
+### Auto-detecting the file type
+
+Set `format: :auto` to detect the format from the upload file name. The same unchanged job can then
+process CSV, PSV, JSON, or xlsx files, as long as the column headers match:
+
 ~~~ruby
-job = TabularJob.new
-job.upload("really_big.xlsx")
-job.save!
+class TabularJob < RocketJob::Job
+  include RocketJob::Batch
+
+  input_category format: :auto
+
+  def perform(record)
+    # record is a Hash of header name => value
+  end
+end
 ~~~
 
-And so on, for example reading a json file:
 ~~~ruby
-job = TabularJob.new
-job.upload("really_big.json")
-job.save!
+TabularJob.new.tap { |j| j.upload("really_big.csv") }.save!
+TabularJob.new.tap { |j| j.upload("really_big.xlsx") }.save!
+TabularJob.new.tap { |j| j.upload("really_big.json") }.save!
 ~~~
 
+### Validating columns
 
-### Writing Tabular Files
+When a tabular `input_category` has `allowed_columns`, `required_columns`, or `skip_unknown` set,
+Rocket Job validates the header during upload, so a malformed file is rejected before any worker runs:
 
-Jobs can also output tabular data such as CSV files. Instead of making the job deal with CSV
-transformations directly, it can set the `format` on the `output_category` to `:csv`:
+~~~ruby
+input_category format:           :csv,
+               allowed_columns:  %w[login last_login name state],
+               required_columns: %w[login],
+               skip_unknown:     true
+~~~
+
+## Writing tabular files
+
+To produce a tabular output file, set `format` on the `output_category` and return a `Hash` from
+`perform`. Rocket Job renders each hash into a line of the chosen format, and writes the header row
+automatically:
 
 ~~~ruby
 class ExportUsersJob < RocketJob::Job
   include RocketJob::Batch
-  
-  # Columns to include in the output file
+
+  # Only these columns are written, in this order
   output_category format: :csv, columns: ["login", "last_login"]
-  
+
   def perform(id)
     u = User.find(id)
-    # Return a Hash that tabular will render to CSV
-    {
-      "login"      => u.login,
-      "last_login" => u.updated_at
-    }
+    {"login" => u.login, "last_login" => u.updated_at}
   end
 end
 ~~~
 
-Upload a file into the job for processing
 ~~~ruby
 job = ExportUsersJob.new
-# Upload the list of locked user logins to export.
-arel = User.where(locked: true)
-job.upload(arel)
+job.upload_arel(User.where(locked: true))
 job.save!
-~~~
-
-Once the job has completed, export the output:
-~~~ruby
+# ... once complete ...
 job.download("output.csv")
 ~~~
 
-Sample contents of `output.csv`:
+Sample `output.csv`:
+
 ~~~csv
 login,last_login
 jbloggs,2019-02-11 05:43:20
 kadams,2019-01-12 01:20:20
 ~~~
 
-#### Filtering Output
+### Filtering output columns
 
-Rocket Job will only export the list of columns specified, so for example the same job can output different
-columns between runs. For Example, one customer gets more columns than other, and one job will handle both cases.
-
-In the example below many attributes are being exported, yet only a subset is exported by default:
+Rocket Job only writes the columns listed in `columns`, so `perform` can return a full attribute
+hash and let the category select which columns to export. The same job can then export different
+columns on different runs:
 
 ~~~ruby
 class ExportUsersJob < RocketJob::Job
   include RocketJob::Batch
-  
-  # Columns to include in the output file
+
   output_category format: :csv, columns: ["login", "last_login"]
-  
+
   def perform(login)
-    u = User.find_by(login: login)
-    # Return a Hash of all available attributes from which it will extract
-    # the "login", "last_login" columns.
-    u.attributes 
+    # Return all attributes; only the configured columns are written
+    User.find_by(login: login).attributes
   end
 end
 ~~~
 
-Run the job:
-~~~ruby
-job = ExportUsersJob.create!
-~~~
-
-Once the job has completed, export the output:
-~~~ruby
-job.download("output.csv")
-~~~
-
-Sample contents of `output.csv`:
-~~~csv
-login,last_login
-jbloggs,2019-02-11 05:43:20
-kadams,2019-01-12 01:20:20
-~~~
-
-For another customer the list of columns can be increased by overriding the output columns.
-For example, make the job output a CSV file with the "login", "last_login", "name", and "state" columns:
+Override the columns per instance to widen or narrow the export:
 
 ~~~ruby
 job = ExportUsersJob.new
@@ -638,168 +498,46 @@ job.output_category.columns = ["login", "last_login", "name", "state"]
 job.save!
 ~~~
 
-Once the job has completed, export the output:
-~~~ruby
-job.download("output.csv")
-~~~
+### Single output file via after_batch
 
-Sample contents of `output.csv`:
-~~~csv
-login,last_login,name,state
-jbloggs,2019-02-11 05:43:20,Joe Bloggs,FL
-kadams,2019-01-12 01:20:20,Kevin Adams,TX
-~~~
-
----
-### Single Output File
-
-Example: Process a very large csv file and return a single output csv file:
+The `after_batch` callback runs once, after all slices finish, which is a natural place to download
+the assembled output file. This job parses a CSV input and writes a single CSV output:
 
 ~~~ruby
-class MultiFileJob < RocketJob::Job
+class TransformJob < RocketJob::Job
   include RocketJob::Batch
 
-  # Prevent this job from being destroyed on completion.
   self.destroy_on_complete = false
 
-  # Specify that the main input category should parse the uploaded CSV file
-  # and pass each line one at a time into the `perform` method. 
-  input_category format: :csv
-  
-  # Register an output category to output a CSV file.
+  input_category  format: :csv
   output_category format: :csv
 
-  # When the job completes automatically download the output files.
   after_batch :download_file
-  
-  # Since the input category has format: :csv, the `perform` method will receive a hash:
-  # {
-  #   "first_name" => "Jack",
-  #   "last_name" => "Jones",
-  #   "age" => "21",
-  #   "zip_code" => "12345"
-  # }
+
   def perform(row)
-    # Since the output_category format is `:csv`, Rocket Job will convert this hash into a line in the csv file.
     {
       name: "#{row['first_name'].downcase} #{row['last_name'].downcase}",
       age:  row["age"]
     }
   end
 
-  # Download the output from this job into a CSV file
   def download_file
     download("names.csv")
   end
 end
 ~~~
 
+## Compression and encryption
 
-### Multiple Output Files
-
-When multiple output files need to be created, add a second output category to hold its contents.
-
-For example, the upload file is a csv file as follows, by running this code in a Rails console:
-
-~~~ruby
-# Create a sample CSV file to test with:
-str = <<STRING
-First Name, Last name, age, zip code
-Jack,Jones,21,12345
-Mary,Jane,32,55512
-STRING
-~~~ruby
-
-Now display the file contents as hashes: 
-~~~ruby
-io = StringIO.new(str)
-IOStreams.stream(io).each(:hash) {|h| p h}
-~~~
-
-The output from the above code:
-~~~ruby
-{"first_name"=>"Jack", "last_name"=>"Jones", "age"=>"21", "zip_code"=>"12345"}
-{"first_name"=>"Mary", "last_name"=>"Jane", "age"=>"32", "zip_code"=>"55512"}
-~~~
-
-Now lets build a job to process the file above and create 2 output files:
-~~~ruby
-class MultiFileJob < RocketJob::Job
-  include RocketJob::Batch
-
-  # Prevent this job from being destroyed on completion.
-  self.destroy_on_complete = false
-
-  # Instruct the main input category to parse each line of the csv file,
-  # pass them in one at a time into the `perform` method. 
-  input_category format: :csv
-  
-  # Register a main output category to output a CSV file.
-  output_category name: :main, format: :csv
-
-  # Register a `zip_codes` output category to output a separate CSV file.
-  output_category name: :zip_codes, format: :csv
-  
-  # When the job completes automatically download the output files.
-  after_batch :download_files
-  
-  # Since the input category has format: :csv, the `perform` method will receive a hash:
-  # {
-  #   "first_name" => "Jack",
-  #   "last_name" => "Jones",
-  #   "age" => "21",
-  #   "zip_code" => "12345"
-  # }
-  def perform(row)
-    # Collect multiple outputs into this collection
-    outputs = RocketJob::Batch::Results.new
-    
-    # Lets output the names into the main file:
-    main_result = {
-      name: "#{row['first_name'].downcase} #{row['last_name'].downcase}",
-      age:  row["age"]
-    }
-    # Add the result to the main output category:
-    outputs << main_result
-
-    # And the zip codes into the zip_codes file:
-    zip_codes_result = {
-      zip: row["zip_code"]
-    }
-
-    # Add the zip codes result to the zip_code output category:
-    outputs << RocketJob::Batch::Result.new(:zip_codes, zip_codes_result)
-    
-    # Return the collected outputs
-    outputs
-  end
-  
-  def download_files
-    # Download the main output file
-    download("names.csv")
-    
-    # Download the zip_codes output file
-    download("zip_codes.csv", category: :zip_codes)
-  end
-end
-~~~
-
-### Compression
-
-Compression reduces network utilization and disk storage requirements.
-Highly recommended when processing large files, or large amounts of data.
-
-By setting the input and output categories `serializer` to `:compress` it ensures that all data uploaded into
-this job is compressed.
-
-By default with Rocket Job v6 the default serializer is now `:compress`. Set it to `:none` to disable compression.
+Each category has a `serializer` that controls how its slices are stored. Compression reduces network
+and disk usage, and is recommended for large jobs. As of Rocket Job v6 the default serializer is
+`:compress`; set it to `:none` to disable.
 
 ~~~ruby
 class ReverseJob < RocketJob::Job
   include RocketJob::Batch
 
-  # Compress input and output data
-  input_category serializer: :compress
+  input_category  serializer: :compress
   output_category serializer: :compress
 
   def perform(line)
@@ -808,22 +546,62 @@ class ReverseJob < RocketJob::Job
 end
 ~~~
 
-### Encryption
+Set the serializer to `:encrypt` to encrypt slices at rest with
+[Symmetric Encryption](https://github.com/reidmorrison/symmetric-encryption). Data is compressed
+before being encrypted, to reduce the volume encrypted:
 
-By setting the input and output categories `serializer` to `:encrypt` it ensures that all data uploaded into
-this job is encrypted.
-Encryption helps ensure sensitive data meets compliance requirements both at rest and in-flight.
+~~~ruby
+input_category  serializer: :encrypt
+output_category serializer: :encrypt
+~~~
 
-When encryption is enabled, the data is automatically compressed before encryption to reduce the amount of data
-that is encrypted and unencrypted.
+Output categories also support `:bz2` and `:encrypted_bz2` serializers.
+
+### PGP encrypted output files
+
+When exchanging files with another system, an open standard like PGP is ideal. Because `download`
+accepts an [IOStreams](https://github.com/reidmorrison/iostreams) path, the output file can be PGP
+encrypted for a recipient on the way out:
+
+~~~ruby
+class ExportJob < RocketJob::Job
+  include RocketJob::Batch
+
+  self.destroy_on_complete = false
+
+  input_category  format: :csv
+  output_category format: :csv
+
+  field :pgp_public_key, type: String
+  validates_presence_of :pgp_public_key
+
+  after_batch :download_file
+
+  def perform(row)
+    {name: "#{row['first_name']} #{row['last_name']}", age: row["age"]}
+  end
+
+  def download_file
+    path = IOStreams.path("names.csv")
+    path.option(:pgp, import_and_trust_key: pgp_public_key)
+    download(path)
+  end
+end
+~~~
+
+## Throttling concurrent workers
+
+`throttle_running_workers` limits how many workers process slices of a single batch job instance at
+once. Use it when too many concurrent workers would overwhelm a third party system or write too much
+data too quickly to a primary database. It also lets several batch jobs run concurrently rather than
+one job consuming every worker.
 
 ~~~ruby
 class ReverseJob < RocketJob::Job
   include RocketJob::Batch
 
-  # Encrypt input and output data
-  input_category serializer: :encrypt
-  output_category serializer: :encrypt
+  # No more than 10 workers on this job at a time
+  self.throttle_running_workers = 10
 
   def perform(line)
     line.reverse
@@ -831,58 +609,212 @@ class ReverseJob < RocketJob::Job
 end
 ~~~
 
-#### PGP Encryption
+This value can be changed at any time, even while the job runs, to raise or lower the worker count.
+It is a soft limit: the number of active workers may briefly exceed or dip below it. `0` or `nil`
+means no limit (the default).
 
-When exchanging files with other systems, using an open standard like PGP is ideal.
+### Custom batch throttles
 
-Below is an example on how to create a PGP encrypted output file: 
+Define custom throttles for batch jobs with `define_batch_throttle`. The named method receives the
+slice and returns true when the throttle is exceeded, in which case the slice is left for later:
 
 ~~~ruby
-class MultiFileJob < RocketJob::Job
+class MyJob < RocketJob::Job
   include RocketJob::Batch
 
-  # Prevent this job from being destroyed on completion.
-  self.destroy_on_complete = false
+  # Do not process slices when the MySQL replica delay exceeds 5 minutes
+  define_batch_throttle :mysql_throttle_exceeded?
 
-  # Specify that the main input category should parse the uploaded CSV file
-  # and pass each line one at a time into the `perform` method. 
-  input_category format: :csv
-  
-  # Register an output category to output a CSV file.
-  output_category format: :csv
-
-  # Define a field to hold the `pgp_public_key` of the recipient.
-  field :pgp_public_key, type: String
-  
-  validates_presence_of :pgp_public_key
-
-  # When the job completes automatically download the output files.
-  after_batch :download_file
-
-  # Since the input category has format: :csv, the `perform` method will receive a hash:
-  # {
-  #   "first_name" => "Jack",
-  #   "last_name" => "Jones",
-  #   "age" => "21",
-  #   "zip_code" => "12345"
-  # }
-  def perform(row)
-    # Since the output_category format is `:csv`, Rocket Job will convert this hash into a line in the csv file.
-    {
-      name: "#{row['first_name'].downcase} #{row['last_name'].downcase}",
-      age:  row["age"]
-    }
+  def perform(record)
+    # ...
   end
 
-  # Download the output from this job into a CSV file encrypted with PGP
-  def download_file
-    path = IOStreams.path("names.csv")
-    
-    # Add the pgp public key to encrypt the file with:
-    path.option(:pgp, import_and_trust_key: pgp_public_key)
-    
-    download(path)
+  private
+
+  def mysql_throttle_exceeded?(slice)
+    status        = ActiveRecord::Base.connection.select_one("show slave status")
+    seconds_delay = Hash(status)["Seconds_Behind_Master"].to_i
+    seconds_delay >= 300
   end
 end
 ~~~
 
+### Processing windows
+
+`RocketJob::Batch::ThrottleWindows` restricts when slices may be processed, which is useful for a
+long-running job that should only run outside business hours. It supports up to two windows. The
+windows only gate slice processing; the job can still start and finish at any time.
+
+~~~ruby
+class AfterHoursJob < RocketJob::Job
+  include RocketJob::Batch
+  include RocketJob::Batch::ThrottleWindows
+
+  # Monday to Thursday, slices may run from 5pm Eastern for 15 hours (until 8am)
+  self.primary_schedule = "0 17 * * 1-4 America/New_York"
+  self.primary_duration = 15.hours
+
+  # All weekend, starting Friday 5pm Eastern for 63 hours (until 8am Monday)
+  self.secondary_schedule = "0 17 * * 5 America/New_York"
+  self.secondary_duration = 63.hours
+
+  def perform(record)
+    # ...
+  end
+end
+~~~
+
+### Lowering priority for large jobs
+
+`RocketJob::Batch::LowerPriority` automatically lowers a job's priority based on its `record_count`,
+so that large jobs yield to smaller ones. Add `:lower_priority` as a `before_batch`, after the
+`record_count` has been set (that is, after the data has been uploaded):
+
+~~~ruby
+class SampleJob < RocketJob::Job
+  include RocketJob::Batch
+  include RocketJob::Batch::LowerPriority
+
+  before_batch :upload_data, :lower_priority
+
+  def perform(record)
+    record.reverse
+  end
+
+  private
+
+  def upload_data
+    upload { |stream| %w[abc def ghi].each { |r| stream << r } }
+  end
+end
+~~~
+
+## Error handling
+
+Because a batch job is made of many slices, individual records can fail while others keep processing.
+Inspect the exceptions on failed slices:
+
+~~~ruby
+job = RocketJob::Job.find("55bbce6b498e76424fa103e8")
+job.input.each_failed_record do |record, slice|
+  p slice.exception
+end
+~~~
+
+Once every slice has either completed or failed, and only failed slices remain, the job as a whole is
+marked `failed`. Retrying the job retries only the failed slices, so successfully processed records
+are not reprocessed.
+
+## Batch callbacks
+
+In addition to the standard [job callbacks](guide.html#callbacks), batch jobs add callbacks at the
+slice and batch level:
+
+* `before_slice`, `after_slice`, `around_slice`: run on the worker, around each slice.
+* `before_batch`, `after_batch`: run once for the whole job. They run asynchronously. `around_batch`
+  is not supported.
+
+`before_batch` is the place to upload data, and `after_batch` the place to download results or do
+final bookkeeping, as shown in the [single output file](#single-output-file-via-after_batch) and
+[lower priority](#lowering-priority-for-large-jobs) examples.
+
+## Gathering statistics
+
+`RocketJob::Batch::Statistics` lets a job count things while it runs and have those counts aggregated
+across every slice and worker. It is the standard way to answer "how many records were valid, invalid,
+or skipped?" without adding your own fields or a separate datastore.
+
+Add the plugin and call `statistics_inc` inside `perform`:
+
+~~~ruby
+class ImportJob < RocketJob::Job
+  include RocketJob::Batch
+  include RocketJob::Batch::Statistics
+
+  def perform(row)
+    if row["email"].blank?
+      statistics_inc("invalid")
+      return
+    end
+
+    statistics_inc("imported")
+    # ... import the row ...
+  end
+end
+~~~
+
+When the job completes, the totals are available in the `statistics` hash field:
+
+~~~ruby
+job.reload.statistics
+# => {"imported" => 9_840, "invalid" => 160}
+~~~
+
+The counts are also included in the job's log entry when it completes or fails.
+
+Increment by more than one by passing an amount, and increment several counters at once by passing a
+hash:
+
+~~~ruby
+statistics_inc("rows", row.size)
+statistics_inc("invalid" => 1, "skipped" => 1)
+~~~
+
+Keys may use dot notation to build nested counts, which is handy for grouping related categories:
+
+~~~ruby
+statistics_inc("invalid.missing_email")
+statistics_inc("invalid.bad_country")
+# => {"invalid" => {"missing_email" => 12, "bad_country" => 4}}
+~~~
+
+Statistics are committed per slice using an atomic MongoDB `$inc`, so thousands of workers can update
+the same counters concurrently. Counts are gathered while a slice is processed and only saved for
+records that complete successfully: if a `perform` raises an exception, the increments from that record
+are discarded, so retrying a failed slice does not double-count.
+
+The built-in [`OnDemandBatchJob`](jobs.html#on-demand-batch-job) already includes this plugin, so
+`statistics_inc` is available in its `code` without any extra setup.
+
+## Batch fields and status
+
+Including `RocketJob::Batch` adds these fields:
+
+| Field          | Description
+|:---------------|:------------
+| `record_count` | Total number of input records. Set automatically by `upload`. Until it is set, workers process slices but do not complete the job, which allows processing to begin while data is still uploading.
+| `sub_state`    | Read-only. Breaks the `running` state into `:before`, `:processing`, `:after`, and `:complete`.
+
+`percent_complete`, `worker_count`, and `worker_names` are all batch-aware. The `status` hash adds
+slice-level counts (`queued_slices`, `active_slices`, `failed_slices`, `output_slices`) and, while
+running, an estimated remaining duration:
+
+~~~ruby
+job.reload
+job.status
+# => {"active_slices" => 8, "failed_slices" => 0, "queued_slices" => 1200, ... }
+~~~
+
+## How batch jobs work
+
+A batch job's input is uploaded into a MongoDB collection dedicated to that job and split into
+slices. Each slice is an independent unit of work that any worker can claim with an atomic operation,
+so thousands of workers across many servers process slices concurrently without colliding:
+
+~~~
+                          +-- worker -- slice 1 --+
+   input file -- slices --+-- worker -- slice 2 --+-- output collection -- download
+                          +-- worker -- slice N --+
+~~~
+
+Slices live in a separate MongoDB client (`rocketjob_slices`) from the jobs themselves. MongoDB's
+ability to spill from memory to disk is what lets a single job hold millions of input and output
+records without exhausting memory or needing a separate data store. Each slice carries its own state,
+so a failure is isolated to that slice, retains its exception, and can be retried on its own.
+
+## Next steps
+
+* [Programmer's Guide](guide.html): the core job API that batch jobs build on.
+* [Dirmon](dirmon.html): trigger batch jobs automatically when files arrive.
+* [Mission Control](mission_control.html): watch slices and jobs run, and retry, pause, or abort them.
+* [Included Jobs](jobs.html): ready-to-use jobs such as `OnDemandBatchJob`.

@@ -34,6 +34,12 @@ a {
   background-color: rgba(255, 255, 255, 0.2);
   border-color: rgba(255, 255, 255, 0.3); }
 
+.btn.active {
+  color: #fff;
+  font-weight: bold;
+  background-color: rgba(255, 255, 255, 0.28);
+  border-color: rgba(255, 255, 255, 0.55); }
+
 @media screen and (min-width: 64em) {
   .btn {
     padding: 0.2rem 0.4rem;
@@ -55,7 +61,16 @@ a {
       margin-top: 0.4rem;
       margin-left: 0; } }
 
+/* Offset anchor / TOC jumps so headings land below the sticky header instead of
+   behind it. This is a fallback; a script in the layout refines it to the header's
+   actual height for each breakpoint. */
+html {
+  scroll-padding-top: 200px; }
+
 .page-header {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
   color: #fff;
   text-align: center;
   background-color: #363899;
