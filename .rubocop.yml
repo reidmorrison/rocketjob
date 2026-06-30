@@ -64,6 +64,7 @@ Metrics/BlockLength:
   Exclude:
     - "test/**/*"
     - "**/*/cli.rb"
+    - "*.gemspec"
   AllowedMethods:
     - "aasm"
     - "included"

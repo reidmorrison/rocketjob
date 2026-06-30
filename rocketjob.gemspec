@@ -8,10 +8,12 @@ Gem::Specification.new do |s|
   s.platform              = Gem::Platform::RUBY
   s.authors               = ["Reid Morrison"]
   s.homepage              = "https://rocketjob.io"
-  s.summary               = "Process millions of records across thousands of workers. A distributed, MongoDB-backed batch processing system for Ruby."
+  s.summary               = "Process millions of records across thousands of workers. " \
+                            "A distributed, MongoDB-backed batch processing system for Ruby."
   s.description           = "Rocket Job is a distributed, priority-based, MongoDB-backed batch processing system for Ruby. " \
                             "Run conventional background jobs, or split a single job's input into slices and process it " \
-                            "concurrently across thousands of workers, spilling from memory to disk so very large files never fall over."
+                            "concurrently across thousands of workers, spilling from memory to disk so very large files " \
+                            "never fall over."
   s.executables           = %w[rocketjob rocketjob_perf]
   s.files                 = Dir["lib/**/*", "bin/*", "LICENSE.txt", "README.md"]
   s.license               = "Apache-2.0"
