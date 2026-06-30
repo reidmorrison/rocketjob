@@ -718,6 +718,64 @@ slice and batch level:
 final bookkeeping, as shown in the [single output file](#single-output-file-via-after_batch) and
 [lower priority](#lowering-priority-for-large-jobs) examples.
 
+## Gathering statistics
+
+`RocketJob::Batch::Statistics` lets a job count things while it runs and have those counts aggregated
+across every slice and worker. It is the standard way to answer "how many records were valid, invalid,
+or skipped?" without adding your own fields or a separate datastore.
+
+Add the plugin and call `statistics_inc` inside `perform`:
+
+~~~ruby
+class ImportJob < RocketJob::Job
+  include RocketJob::Batch
+  include RocketJob::Batch::Statistics
+
+  def perform(row)
+    if row["email"].blank?
+      statistics_inc("invalid")
+      return
+    end
+
+    statistics_inc("imported")
+    # ... import the row ...
+  end
+end
+~~~
+
+When the job completes, the totals are available in the `statistics` hash field:
+
+~~~ruby
+job.reload.statistics
+# => {"imported" => 9_840, "invalid" => 160}
+~~~
+
+The counts are also included in the job's log entry when it completes or fails.
+
+Increment by more than one by passing an amount, and increment several counters at once by passing a
+hash:
+
+~~~ruby
+statistics_inc("rows", row.size)
+statistics_inc("invalid" => 1, "skipped" => 1)
+~~~
+
+Keys may use dot notation to build nested counts, which is handy for grouping related categories:
+
+~~~ruby
+statistics_inc("invalid.missing_email")
+statistics_inc("invalid.bad_country")
+# => {"invalid" => {"missing_email" => 12, "bad_country" => 4}}
+~~~
+
+Statistics are committed per slice using an atomic MongoDB `$inc`, so thousands of workers can update
+the same counters concurrently. Counts are gathered while a slice is processed and only saved for
+records that complete successfully: if a `perform` raises an exception, the increments from that record
+are discarded, so retrying a failed slice does not double-count.
+
+The built-in [`OnDemandBatchJob`](jobs.html#on-demand-batch-job) already includes this plugin, so
+`statistics_inc` is available in its `code` without any extra setup.
+
 ## Batch fields and status
 
 Including `RocketJob::Batch` adds these fields:
