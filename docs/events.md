@@ -2,7 +2,7 @@
 layout: default
 ---
 
-# Events
+## Events
 {:.no_toc}
 
 Near real-time control of running Rocket Job servers, and a general purpose

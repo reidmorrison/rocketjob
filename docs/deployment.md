@@ -2,7 +2,7 @@
 layout: default
 ---
 
-# Deployment
+## Deployment
 {:.no_toc}
 
 A Rocket Job "server" is the `bin/rocketjob` process. It registers itself in MongoDB, starts a
@@ -151,16 +151,10 @@ bin/rocketjob --stop
 
 ### Limiting a server to specific jobs
 
-The `--include` flag above restricts a server to job classes matching a regular expression
-(case-insensitive). There are two related flags:
-
-* `--include REGEXP`: only work on job classes matching the expression.
-* `--exclude REGEXP`: work on everything except job classes matching the expression.
-* `--where JSON`: only claim jobs matching a MongoDB query, for example
-  `--where '{"priority":{"$lte":25}}'`.
-
-Use these to dedicate a pool of servers to a heavy or latency-sensitive job class while another pool
-handles everything else.
+The `--include` flag above restricts a server to job classes matching a regular expression, so you
+can dedicate a pool of servers to a heavy or latency-sensitive job class while another pool handles
+everything else. The companion `--exclude` and `--where` flags are documented in the
+[Programmer's Guide](guide.html#limiting-which-jobs-a-server-runs).
 
 ## High-availability MongoDB
 
@@ -199,16 +193,10 @@ Rails application and run it on multiple hosts behind a load balancer for high a
 
 ### Start the directory monitor
 
-[Dirmon](dirmon.html) watches directories and enqueues a job whenever a matching file arrives. The
-directory monitor itself is a Rocket Job job that must be created once. From an application console,
-run:
-
-~~~ruby
-RocketJob::Jobs::DirmonJob.create!
-~~~
-
-It reschedules itself on a recurring interval, so this only needs to be done a single time per
-environment. Directory entries are then managed in Mission Control.
+If you use [Dirmon](dirmon.html) to pick up files as they arrive, the directory monitor must be
+created once per environment from an application console (`RocketJob::Jobs::DirmonJob.create!`). It
+then reschedules itself, so this is a one-time step. See
+[Starting the directory monitor](dirmon.html#starting-the-directory-monitor) for the details.
 
 ### Monitor MongoDB
 

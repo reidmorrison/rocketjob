@@ -2,7 +2,7 @@
 layout: default
 ---
 
-# Installation
+## Installation
 {:.no_toc}
 
 Rocket Job runs with or without Rails. This guide covers both, plus the optional web interface,
