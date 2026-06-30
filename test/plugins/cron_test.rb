@@ -23,6 +23,7 @@ module Plugins
         # destroy_all could create new instances
         CronJob.delete_all
         FailOnceCronJob.delete_all
+
         assert_equal 0, CronJob.count
       end
 
@@ -34,8 +35,9 @@ module Plugins
       describe "#create!" do
         it "queues a new job" do
           @job = CronJob.create!(cron_schedule: "0 1 * * *")
-          assert @job.valid?
-          refute @job.new_record?
+
+          assert_predicate @job, :valid?
+          refute_predicate @job, :new_record?
         end
 
         describe "timezones are supported" do
@@ -44,8 +46,9 @@ module Plugins
             Time.stub(:now, time) do
               @job = CronJob.create!(cron_schedule: "0 1 * * * UTC")
             end
-            assert @job.valid?
-            refute @job.new_record?
+
+            assert_predicate @job, :valid?
+            refute_predicate @job, :new_record?
             assert_equal Time.parse("2015-12-10 01:00:00 UTC"), @job.run_at
           end
 
@@ -54,8 +57,9 @@ module Plugins
             Time.stub(:now, time) do
               @job = CronJob.create!(cron_schedule: "0 1 * * * America/New_York")
             end
-            assert @job.valid?
-            refute @job.new_record?
+
+            assert_predicate @job, :valid?
+            refute_predicate @job, :new_record?
             assert_equal Time.parse("2015-12-10 06:00:00 UTC"), @job.run_at
           end
         end
@@ -64,47 +68,56 @@ module Plugins
       describe "#save" do
         it "updates run_at for a new record" do
           @job = CronJob.create!(cron_schedule: "0 1 * * *")
+
           assert @job.run_at
         end
 
         it "updates run_at for a modified record" do
           @job = CronJob.create!(cron_schedule: "0 1 * * * UTC")
+
           assert run_at = @job.run_at
           @job.cron_schedule = "0 2 * * * UTC"
+
           assert_equal run_at, @job.run_at
           @job.save!
-          assert run_at != @job.run_at, @job.attributes
+
+          refute_equal run_at, @job.run_at, @job.attributes
         end
       end
 
       describe "#valid?" do
         it "allows missing cron schedule" do
           @job = CronJob.new
-          assert @job.valid?
+
+          assert_predicate @job, :valid?
         end
 
         it "fails on bad cron schedule" do
           @job = CronJob.new(cron_schedule: "blah")
-          refute @job.valid?
+
+          refute_predicate @job, :valid?
           assert_equal "Invalid cron_schedule: \"blah\"", @job.errors.messages[:cron_schedule].first
         end
 
         it "passes on valid cron schedule" do
           @job = CronJob.new(cron_schedule: "0 1 * * *")
-          assert @job.valid?
+
+          assert_predicate @job, :valid?
         end
       end
 
       describe "#start" do
         it "schedules new instance after start" do
           job = CronJob.create!(cron_schedule: "0 1 * * *", cron_after_start: true)
+
           assert_equal "0 1 * * *", job.cron_schedule
           job.start!
-          assert job.running?
+
+          assert_predicate job, :running?
           assert_nil job.cron_schedule
           assert_equal 2, CronJob.count
           assert scheduled_job = CronJob.last
-          assert scheduled_job.queued?
+          assert_predicate scheduled_job, :queued?
           assert_equal "0 1 * * *", scheduled_job.cron_schedule
         end
       end
@@ -112,13 +125,15 @@ module Plugins
       describe "#abort" do
         it "schedules new instance after abort" do
           job = CronJob.create!(cron_schedule: "0 1 * * *", cron_after_start: false)
+
           assert_equal "0 1 * * *", job.cron_schedule
           job.abort!
-          assert job.aborted?
+
+          assert_predicate job, :aborted?
           assert_nil job.cron_schedule
           assert_equal 2, CronJob.count
           assert scheduled_job = CronJob.last
-          assert scheduled_job.queued?
+          assert_predicate scheduled_job, :queued?
           assert_equal "0 1 * * *", scheduled_job.cron_schedule
         end
       end
@@ -136,7 +151,7 @@ module Plugins
           end
 
           it "allows current cron job instance to fail" do
-            assert job.failed?
+            assert_predicate job, :failed?
           end
 
           it "clears out cron_schedule" do
@@ -150,16 +165,18 @@ module Plugins
           it "schedules a new instance after fail" do
             assert_equal 0, FailOnceCronJob.count
             job
+
             assert_equal 2, FailOnceCronJob.count
             assert scheduled_job = FailOnceCronJob.last
-            assert scheduled_job.queued?
+            assert_predicate scheduled_job, :queued?
             assert_equal "0 1 * * *", scheduled_job.cron_schedule
           end
 
           it "restarts on retry" do
             job.retry!
             job.perform_now
-            assert job.completed?
+
+            assert_predicate job, :completed?
             assert_equal 1, FailOnceCronJob.count, -> { FailOnceCronJob.all.to_a.collect(&:state).to_s }
             assert_equal 1, FailOnceCronJob.queued.count
           end
@@ -174,7 +191,7 @@ module Plugins
           end
 
           it "allows current cron job instance to fail" do
-            assert job.failed?
+            assert_predicate job, :failed?
           end
 
           it "has no cron_schedule" do
@@ -184,6 +201,7 @@ module Plugins
           it "does not schedule a new instance" do
             assert_equal 0, CronJob.count
             job
+
             assert_equal 1, CronJob.count
           end
         end
@@ -194,6 +212,7 @@ module Plugins
           central = Fugit::Cron.new("0 20 * * 5 America/Chicago").next_time.to_utc_time
           eastern = Fugit::Cron.new("0 20 * * 5 America/New_York").next_time.to_utc_time
           utc     = Fugit::Cron.new("0 20 * * 5 UTC").next_time.to_utc_time
+
           refute_equal central, eastern
           refute_equal utc, eastern
         end

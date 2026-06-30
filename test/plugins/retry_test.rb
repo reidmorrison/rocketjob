@@ -25,6 +25,7 @@ module Plugins
       describe "#perform" do
         it "re-queues job on failure" do
           @job = RetryJob.create!
+
           assert created_at = @job.created_at
           assert_equal 0, @job.failed_at_list.size
 
@@ -32,15 +33,15 @@ module Plugins
             @job.perform_now
           end
 
-          assert @job.queued?, -> { @job.attributes.ai }
+          assert_predicate @job, :queued?, -> { @job.attributes.ai }
 
           # Includes failure time
           assert_equal 1, @job.rocket_job_failure_count
           assert failed_at = @job.failed_at_list.first
-          assert failed_at >= created_at
+          assert_operator failed_at, :>=, created_at
 
           assert next_time = @job.run_at
-          assert next_time > failed_at
+          assert_operator next_time, :>, failed_at
         end
 
         it "re-queues until it succeeds" do
@@ -51,7 +52,7 @@ module Plugins
             assert_raises RuntimeError do
               @job.perform_now
             end
-            assert @job.queued?, -> { @job.attributes.ai }
+            assert_predicate @job, :queued?, -> { @job.attributes.ai }
             assert_equal (i + 1), @job.rocket_job_failure_count
           end
 
@@ -59,7 +60,8 @@ module Plugins
 
           # Should succeed on the 6th attempt
           @job.perform_now
-          assert @job.completed?, -> { @job.attributes.ai }
+
+          assert_predicate @job, :completed?, -> { @job.attributes.ai }
           assert_equal 5, @job.rocket_job_failure_count
         end
 
@@ -71,7 +73,7 @@ module Plugins
             assert_raises RuntimeError do
               @job.perform_now
             end
-            assert @job.queued?, -> { @job.attributes.ai }
+            assert_predicate @job, :queued?, -> { @job.attributes.ai }
             assert_equal (i + 1), @job.rocket_job_failure_count
           end
 
@@ -81,7 +83,7 @@ module Plugins
             @job.perform_now
           end
 
-          assert @job.failed?, -> { @job.attributes.ai }
+          assert_predicate @job, :failed?, -> { @job.attributes.ai }
         end
       end
     end

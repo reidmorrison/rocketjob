@@ -23,9 +23,7 @@ Mongoid.logger       = SemanticLogger[Mongoid]
 Mongo::Logger.logger = SemanticLogger[Mongo]
 
 # Cleanup test collections
-RocketJob::Job.collection.database.collections.each do |collection|
-  collection.drop
-end
+RocketJob::Job.collection.database.collections.each(&:drop)
 
 reporters = [
   Minitest::Reporters::DefaultReporter.new,

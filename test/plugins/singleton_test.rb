@@ -21,42 +21,49 @@ module Plugins
       describe "#rocket_job_singleton_active?" do
         it "returns false if no jobs of this class are active" do
           @job = SingletonJob.new
-          assert_equal false, @job.rocket_job_singleton_active?
+
+          refute_predicate @job, :rocket_job_singleton_active?
         end
 
         it "excludes self when queued from check" do
           @job = SingletonJob.create
-          assert @job.queued?
-          assert_equal false, @job.rocket_job_singleton_active?
+
+          assert_predicate @job, :queued?
+          refute_predicate @job, :rocket_job_singleton_active?
         end
 
         it "excludes self when started from check" do
           @job = SingletonJob.new
           @job.start!
-          assert @job.running?
-          assert_equal false, @job.rocket_job_singleton_active?
+
+          assert_predicate @job, :running?
+          refute_predicate @job, :rocket_job_singleton_active?
         end
 
         it "returns true when other jobs of this class are queued" do
           @job = SingletonJob.create!
           job2 = SingletonJob.new
-          assert_equal true, job2.rocket_job_singleton_active?
+
+          assert_predicate job2, :rocket_job_singleton_active?
         end
 
         it "returns true when other jobs of this class are running" do
           @job = SingletonJob.new
           @job.start!
           job2 = SingletonJob.new
-          assert_equal true, job2.rocket_job_singleton_active?
+
+          assert_predicate job2, :rocket_job_singleton_active?
         end
 
         it "returns false when other jobs of this class are not active" do
           @job = SingletonJob.new
           @job.perform_now
           @job.save!
-          assert @job.completed?
+
+          assert_predicate @job, :completed?
           job2 = SingletonJob.new
-          assert_equal false, job2.rocket_job_singleton_active?
+
+          refute_predicate job2, :rocket_job_singleton_active?
         end
       end
 
@@ -66,14 +73,16 @@ module Plugins
           @job.perform_now
           @job.save!
           job2 = SingletonJob.new
-          assert_equal true, job2.valid?
+
+          assert_predicate job2, :valid?
         end
 
         it "fails if another job is active" do
           @job = SingletonJob.new
           @job.start!
           job2 = SingletonJob.new
-          refute job2.valid?
+
+          refute_predicate job2, :valid?
           assert_equal ["Another instance of Plugins::SingletonTest::SingletonJob is already running, queued, or paused"], job2.errors.messages[:state]
         end
 
@@ -82,7 +91,8 @@ module Plugins
           @job.start!
           job2 = SingletonJob.new
           job2.abort
-          assert job2.valid?
+
+          assert_predicate job2, :valid?
           job2.save!
         end
       end

@@ -289,13 +289,13 @@ module RocketJob
       # Mongoid 9 returns Hash field keys as Strings, earlier versions as Symbols.
       properties.each_pair do |raw_key, value|
         k = raw_key.to_sym
-        next if klass.public_method_defined?("#{k}=".to_sym)
+        next if klass.public_method_defined?(:"#{k}=")
 
         if %i[output_categories input_categories].include?(k)
           category_class = k == :input_categories ? RocketJob::Category::Input : RocketJob::Category::Output
           value.each do |category|
             category.each_pair do |key, _value|
-              next if category_class.public_method_defined?("#{key}=".to_sym)
+              next if category_class.public_method_defined?(:"#{key}=")
 
               errors.add(
                 :properties,

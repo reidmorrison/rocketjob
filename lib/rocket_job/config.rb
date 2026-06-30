@@ -105,7 +105,7 @@ module RocketJob
     def self.filter
       raise(ArgumentError, "Cannot supply both an include_filter and an exclude_filter") if include_filter && exclude_filter
 
-      filter                   = where_filter
+      filter = where_filter
       (filter ||= {})["_type"] = include_filter if include_filter
       (filter ||= {})["_type"] = {"$not" => exclude_filter} if exclude_filter
       filter&.dup

@@ -22,6 +22,7 @@ module Plugins
         describe "#logger" do
           it "uses semantic logger" do
             @job = LoggerJob.new
+
             assert_kind_of SemanticLogger::Logger, @job.logger, @job.logger.ai
             assert_equal @job.class.name, @job.logger.name, @job.logger.ai
           end
@@ -37,6 +38,7 @@ module Plugins
             @job.logger.stub(:info, ->(description) { info_called = true if description == "Start #perform" }) do
               @job.perform_now
             end
+
             assert info_called, "In Plugins::Job::Logger.around_perform logger.info('Start #perform') not called"
           end
 
@@ -48,6 +50,7 @@ module Plugins
             }) do
               @job.perform_now
             end
+
             assert measure_called, "In Plugins::Job::Logger.around_perform logger.measure_info('Completed #perform') not called"
           end
         end

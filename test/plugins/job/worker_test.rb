@@ -59,15 +59,17 @@ module Plugins
         describe "#perform_now" do
           it "calls perform method" do
             @job = SumJob.new(first: 10, second: 5)
+
             assert_equal 15, @job.perform_now
-            assert @job.completed?, @job.attributes.ai
+            assert_predicate @job, :completed?, @job.attributes.ai
             assert_equal 15, @job.result
           end
 
           it "converts type" do
             @job = SumJob.new(first: "10", second: 5)
+
             assert_equal 15, @job.perform_now
-            assert @job.completed?, @job.attributes.ai
+            assert_predicate @job, :completed?, @job.attributes.ai
             assert_equal 15, @job.result
           end
 
@@ -80,7 +82,8 @@ module Plugins
             }) do
               @job.perform_now
             end
-            assert_equal false, logged
+
+            refute logged
           end
 
           it "raise logging when log_level is set" do
@@ -93,7 +96,8 @@ module Plugins
                 @job.perform_now
               end
             end
-            assert_equal false, logged
+
+            refute logged
           end
 
           it "raises a validation error for an invalid job" do
@@ -101,7 +105,7 @@ module Plugins
             assert_raises Mongoid::Errors::Validations do
               @job.perform_now
             end
-            refute @job.completed?
+            refute_predicate @job, :completed?
           end
 
           it "re-raises exceptions from perform" do
@@ -116,7 +120,8 @@ module Plugins
         describe ".perform_now" do
           it "run the job immediately" do
             @job = SumJob.perform_now(first: 1, second: 5)
-            assert_equal true, @job.completed?
+
+            assert_predicate @job, :completed?
             assert_equal 6, @job.result
           end
         end
@@ -132,7 +137,8 @@ module Plugins
         describe "#rocket_job_work" do
           it "raises an ArgumentError when the job is not running" do
             @job = SumJob.new(first: 1, second: 2)
-            assert @job.queued?
+
+            assert_predicate @job, :queued?
             error = assert_raises ArgumentError do
               @job.rocket_job_work(RocketJob::Worker.new)
             end
@@ -142,18 +148,22 @@ module Plugins
           it "fails the job and persists it when perform raises" do
             @job = FailingJob.create!
             @job.start!
+
             refute @job.rocket_job_work(RocketJob::Worker.new)
             @job.reload
-            assert @job.failed?, @job.state
+
+            assert_predicate @job, :failed?, @job.state
             assert_equal "Job failed", @job.exception.message
           end
 
           it "completes a persisted job" do
             @job = SumJob.create!(first: 3, second: 4)
             @job.start!
+
             refute @job.rocket_job_work(RocketJob::Worker.new)
             @job.reload
-            assert @job.completed?, @job.state
+
+            assert_predicate @job, :completed?, @job.state
             assert_equal 7, @job.result
           end
         end
@@ -165,9 +175,11 @@ module Plugins
             @job.fail_on_exception! do
               raise "boom"
             end
-            assert @job.failed?, @job.state
+
+            assert_predicate @job, :failed?, @job.state
             @job.reload
-            assert @job.failed?, @job.state
+
+            assert_predicate @job, :failed?, @job.state
             assert_equal "boom", @job.exception.message
             assert_equal "worker:123", @job.exception.worker_name
           end
@@ -180,19 +192,21 @@ module Plugins
                 raise "boom"
               end
             end
-            assert @job.failed?, @job.state
+            assert_predicate @job, :failed?, @job.state
           end
 
           it "does not transition an already failed job but records the exception" do
             @job = SumJob.create!(first: 1, second: 2, worker_name: "worker:123")
             @job.start!
             @job.fail!("worker:123", "first failure")
-            assert @job.failed?, @job.state
+
+            assert_predicate @job, :failed?, @job.state
 
             @job.fail_on_exception! do
               raise "second failure"
             end
-            assert @job.failed?, @job.state
+
+            assert_predicate @job, :failed?, @job.state
             assert_equal "second failure", @job.exception.message
           end
 
@@ -203,8 +217,9 @@ module Plugins
             @job.fail_on_exception! do
               ran = true
             end
+
             assert ran
-            refute @job.failed?
+            refute_predicate @job, :failed?
           end
         end
 
@@ -216,6 +231,7 @@ module Plugins
           it "should return active servers" do
             assert job = SumJob.new(worker_name: "worker:123")
             job.start!
+
             assert active = job.rocket_job_active_workers
             assert_equal 1, active.size
             assert active_worker = active.first
@@ -229,12 +245,14 @@ module Plugins
           it "returns the worker when it runs on the named server" do
             @job = SumJob.new(worker_name: "worker:123")
             @job.start!
+
             assert_equal 1, @job.rocket_job_active_workers("worker").size
           end
 
           it "returns empty when the worker is not on the named server" do
             @job = SumJob.new(worker_name: "worker:123")
             @job.start!
+
             assert_equal [], @job.rocket_job_active_workers("other_server")
           end
         end

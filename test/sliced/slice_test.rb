@@ -32,6 +32,7 @@ module Sliced
       describe "#size" do
         it "return the records size" do
           slice << "hello"
+
           assert_equal 1, slice.size
         end
       end
@@ -40,8 +41,10 @@ module Sliced
         it "add records" do
           assert_equal 0, slice.size
           slice << "hello"
+
           assert_equal 1, slice.size
           slice << "next"
+
           assert_equal 2, slice.size
           assert_equal "hello", slice.first
         end
@@ -51,8 +54,10 @@ module Sliced
         it "return the array of records" do
           slice << "hello"
           slice << "world"
+
           assert_equal 2, slice.size
           arr = slice.to_a
+
           assert_equal %w[hello world], arr, -> { arr.ai }
         end
       end
@@ -61,18 +66,23 @@ module Sliced
         it "return the array of records" do
           slice << "hello"
           slice << "world"
+
           assert_equal 2, slice.size
           arr = slice.records
+
           assert_equal %w[hello world], arr.to_a, -> { arr.ai }
         end
 
         it "set the array of records" do
           slice << "hello"
           slice << "world"
+
           assert_equal 2, slice.size
           slice.records = %w[hello world]
+
           assert_equal 2, slice.size
           arr = slice.records
+
           assert_equal %w[hello world], arr, -> { arr.ai }
         end
       end
@@ -82,6 +92,7 @@ module Sliced
           slice << "1"
           slice << "2"
           slice.save!
+
           assert found_slice = slices.find(slice.id)
           assert_equal collection_name, found_slice.collection_name
         end
@@ -92,6 +103,7 @@ module Sliced
           slice << "1"
           slice << "2"
           slice.save!
+
           assert found_slice = slices.first
           assert_equal collection_name, found_slice.collection_name
         end
@@ -101,8 +113,10 @@ module Sliced
         it "without exception" do
           slice.start
           slice.worker_name = "me"
+
           assert_nil slice.failure_count
           slice.fail
+
           assert_equal 1, slice.failure_count
           assert_nil slice.exception
         end
@@ -111,6 +125,7 @@ module Sliced
           slice.start
           slice.worker_name = "me"
           slice.fail!(exception)
+
           assert_equal 1, slice.failure_count
           assert slice.exception
           assert_equal exception.class.name, slice.exception.class_name
@@ -125,6 +140,7 @@ module Sliced
         it "persists" do
           slice << "1"
           slice << "2"
+
           assert slice.save!
           assert_equal collection_name, slice.collection_name
           assert found_slice = slices.find(slice.id)
@@ -136,6 +152,7 @@ module Sliced
         it "test_it" do
           slice << "1"
           slice << "2"
+
           assert slice.save!
           assert found_slice = slices.find(slice.id)
           assert_equal slice.state, found_slice.state
@@ -146,6 +163,7 @@ module Sliced
         it "works for state machine" do
           slice << "1"
           slice << "2"
+
           assert slice.start!
           assert found_slice = slices.find(slice.id)
           assert_equal slice.state, found_slice.state
@@ -156,6 +174,7 @@ module Sliced
         it "updates existing record" do
           slice << "1"
           slice << "2"
+
           assert slice.start!
           assert slice.complete!
           assert found_slice = slices.find(slice.id)
@@ -168,14 +187,19 @@ module Sliced
       it "transition states" do
         assert_equal :queued, slice.state
         slice.start
+
         assert_equal :running, slice.state
         slice.fail
+
         assert_equal :failed, slice.state
         slice.retry
+
         assert_equal :queued, slice.state
         slice.start
+
         assert_equal :running, slice.state
         slice.complete
+
         assert_equal :completed, slice.state
       end
     end

@@ -56,24 +56,28 @@ module Batch
 
           it "handles empty key" do
             stats.inc_key("")
+
             assert_nil stats.stats
             assert_equal({}, stats.in_memory)
           end
 
           it "handles nil key" do
             stats.inc_key(nil)
+
             assert_nil stats.stats
             assert_equal({}, stats.in_memory)
           end
 
           it "increments simple key" do
             stats.inc_key(:user_count)
+
             assert_nil stats.stats
             assert_equal({"user_count" => 1}, stats.in_memory)
           end
 
           it "increments nested key" do
             stats.inc_key("us.na.user.count")
+
             assert_nil stats.stats
             assert_equal({"us" => {"na" => {"user" => {"count" => 1}}}}, stats.in_memory)
           end
@@ -91,24 +95,28 @@ module Batch
 
           it "handles empty key" do
             stats.inc_key("")
+
             assert_nil stats.in_memory
             assert_equal({}, stats.stats)
           end
 
           it "handles nil key" do
             stats.inc_key(nil)
+
             assert_nil stats.in_memory
             assert_equal({}, stats.stats)
           end
 
           it "increments simple key" do
             stats.inc_key(:user_count)
+
             assert_nil stats.in_memory
             assert_equal({"statistics.user_count" => 1}, stats.stats)
           end
 
           it "increments nested key" do
             stats.inc_key("us.na.user.count")
+
             assert_nil stats.in_memory
             assert_equal({"statistics.us.na.user.count" => 1}, stats.stats)
           end
@@ -128,24 +136,28 @@ module Batch
 
           it "handles empty key" do
             stats.inc("" => 21)
+
             assert_nil stats.stats
             assert_equal({}, stats.in_memory)
           end
 
           it "handles nil key" do
             stats.inc(nil => 24)
+
             assert_nil stats.stats
             assert_equal({}, stats.in_memory)
           end
 
           it "increments simple key" do
             stats.inc(user_count: 24)
+
             assert_nil stats.stats
             assert_equal({"user_count" => 24}, stats.in_memory)
           end
 
           it "increments nested key" do
             stats.inc("us.na.user.count" => 23)
+
             assert_nil stats.stats
             assert_equal({"us" => {"na" => {"user" => {"count" => 23}}}}, stats.in_memory)
           end
@@ -163,24 +175,28 @@ module Batch
 
           it "handles empty key" do
             stats.inc("" => 21)
+
             assert_nil stats.in_memory
             assert_equal({}, stats.stats)
           end
 
           it "handles nil key" do
             stats.inc(nil => 21)
+
             assert_nil stats.in_memory
             assert_equal({}, stats.stats)
           end
 
           it "increments simple key" do
             stats.inc(user_count: 24)
+
             assert_nil stats.in_memory
             assert_equal({"statistics.user_count" => 24}, stats.stats)
           end
 
           it "increments nested key" do
             stats.inc("us.na.user.count" => 23)
+
             assert_nil stats.in_memory
             assert_equal({"statistics.us.na.user.count" => 23}, stats.stats)
           end
@@ -205,7 +221,8 @@ module Batch
       describe "#statistics_inc" do
         it "in memory model" do
           job.perform_now
-          assert job.completed?, job.attributes.ai
+
+          assert_predicate job, :completed?, job.attributes.ai
           assert_equal %w[and even odd], job.statistics.keys.sort
           assert_equal 4, job.statistics["even"], job.statistics.ai
           assert_equal 3, job.statistics["odd"], job.statistics.ai
@@ -215,12 +232,14 @@ module Batch
         it "persisted model" do
           job.save!
           job.perform_now
-          assert job.completed?, job.attributes.ai
+
+          assert_predicate job, :completed?, job.attributes.ai
           assert_equal %w[and even odd], job.statistics.keys.sort
           assert_equal 4, job.statistics["even"], job.statistics.ai
           assert_equal 3, job.statistics["odd"], job.statistics.ai
           assert_equal({"more" => 6}, job.statistics["and"], job.statistics.ai)
           job.reload
+
           assert_equal %w[and even odd], job.statistics.keys.sort
           assert_equal 4, job.statistics["even"], job.statistics.ai
           assert_equal 3, job.statistics["odd"], job.statistics.ai
@@ -233,7 +252,8 @@ module Batch
           job.logger.stub(:info, ->(description_, payload_) { description = description_, payload = payload_ }) do
             job.perform_now
           end
-          assert job.completed?, job.attributes.ai
+
+          assert_predicate job, :completed?, job.attributes.ai
 
           assert_equal "Complete", description.first
           assert_equal :complete, payload[:event]
@@ -255,7 +275,8 @@ module Batch
           job.logger.stub(:info, ->(description_, payload_) { description = description_, payload = payload_ }) do
             job.fail
           end
-          assert job.failed?, job.attributes.ai
+
+          assert_predicate job, :failed?, job.attributes.ai
 
           assert_equal "Fail", description.first
           assert_equal :fail, payload[:event]
@@ -286,35 +307,39 @@ module Batch
 
           it "handles retries" do
             job.rocket_job_work(RocketJob::Worker.new, false)
-            assert job.failed?, -> { job.as_document.ai }
+
+            assert_predicate job, :failed?, -> { job.as_document.ai }
             job.exception_record = nil
             job.retry
             job.perform_now
-            assert job.completed?, -> { job.as_document.ai }
+
+            assert_predicate job, :completed?, -> { job.as_document.ai }
             stats = job.statistics.dup
 
             assert_equal record_count, stats.delete("record_count")
             (1..record_count).each do |count|
               assert_equal count, stats.delete(count.to_s)
             end
-            assert stats.empty?, stats.ai
+            assert_empty stats, stats.ai
           end
 
           it "handles persisted retries" do
             job.save!
             job.rocket_job_work(RocketJob::Worker.new, false)
-            assert job.failed?, -> { job.as_document.ai }
+
+            assert_predicate job, :failed?, -> { job.as_document.ai }
             job.exception_record = nil
             job.retry!
             job.perform_now
-            assert job.completed?, -> { job.as_document.ai }
+
+            assert_predicate job, :completed?, -> { job.as_document.ai }
             stats = job.statistics.dup
 
             assert_equal record_count, stats.delete("record_count")
             (1..record_count).each do |count|
               assert_equal count, stats.delete(count.to_s)
             end
-            assert stats.empty?, stats.ai
+            assert_empty stats, stats.ai
           end
         end
       end

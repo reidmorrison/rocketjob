@@ -36,48 +36,57 @@ module Batch
           assert_equal [:main], @job.input_categories.collect(&:name)
 
           @job.start!
-          assert @job.running?
+
+          assert_predicate @job, :running?
           assert_equal @worker_name, @job.worker_name
           assert_equal :before, @job.sub_state
 
           @job.fail!(@worker_name, "oh no")
-          assert @job.failed?
+
+          assert_predicate @job, :failed?
           assert_equal @worker_name, @job.exception.worker_name
 
           @job.retry!
-          assert @job.queued?, @job.state
+
+          assert_predicate @job, :queued?, @job.state
           assert_nil @job.worker_name
           assert_nil @job.sub_state
         end
 
         it "with substate :after" do
           @job.start!
-          assert @job.running?
+
+          assert_predicate @job, :running?
           assert_equal @worker_name, @job.worker_name
           assert_equal :before, @job.sub_state
 
           @job.sub_state = :after
           @job.fail!(@worker_name, "oh no")
-          assert @job.failed?
+
+          assert_predicate @job, :failed?
           assert_equal @worker_name, @job.exception.worker_name
 
           @job.retry!
-          assert @job.running?
+
+          assert_predicate @job, :running?
           assert_nil @job.worker_name
           assert_equal :processing, @job.sub_state
         end
 
         it "not affect parent class" do
           @job.start!
-          assert @job.running?
+
+          assert_predicate @job, :running?
           assert_equal @worker_name, @job.worker_name
 
           @job.fail!(@worker_name, "oh no")
-          assert @job.failed?
+
+          assert_predicate @job, :failed?
           assert_equal @worker_name, @job.exception.worker_name
 
           @job.retry!
-          assert @job.queued?
+
+          assert_predicate @job, :queued?
           assert_nil @job.worker_name
         end
       end
@@ -85,12 +94,14 @@ module Batch
       describe "#requeue" do
         it "with substate :before" do
           @job.start!
-          assert @job.running?
+
+          assert_predicate @job, :running?
           assert_equal @worker_name, @job.worker_name
           assert_equal :before, @job.sub_state
 
           @job.requeue(@worker_name)
-          assert @job.queued?
+
+          assert_predicate @job, :queued?
           assert_nil @job.worker_name
         end
 
@@ -98,7 +109,8 @@ module Batch
           @job.upload_slice([1, 2, 3, 4, 5])
           @job.upload_slice([6, 7, 8, 9, 10])
           @job.start!
-          assert @job.running?
+
+          assert_predicate @job, :running?
           assert_equal @worker_name, @job.worker_name
           assert_equal :before, @job.sub_state
           assert_equal 2, @job.input.count, -> { @job.input.to_a.ai }
@@ -106,36 +118,43 @@ module Batch
           @job.sub_state = :processing
           @job.save!
           slice1 = @job.input.next_slice(@worker_name)
+
           assert_equal @worker_name, slice1.worker_name
-          assert slice1.running?
+          assert_predicate slice1, :running?
 
           slice2 = @job.input.last
+
           assert_nil slice2.worker_name
-          assert slice2.queued?
+          assert_predicate slice2, :queued?
 
           @job.requeue!(@worker_name)
-          assert @job.running?, @job.state
+
+          assert_predicate @job, :running?, @job.state
           assert_nil @job.worker_name
 
           slice1 = @job.input.first
+
           assert_nil slice1.worker_name
-          assert slice1.queued?
+          assert_predicate slice1, :queued?
 
           slice2 = @job.input.last
+
           assert_nil slice2.worker_name
-          assert slice2.queued?
+          assert_predicate slice2, :queued?
         end
 
         it "with substate :after" do
           @job.start!
-          assert @job.running?
+
+          assert_predicate @job, :running?
           assert_equal @worker_name, @job.worker_name
           assert_equal :before, @job.sub_state
 
           @job.sub_state = :after
 
           @job.requeue!(@worker_name)
-          assert @job.running?
+
+          assert_predicate @job, :running?
           assert_nil @job.worker_name
         end
       end
@@ -151,20 +170,23 @@ module Batch
 
         it "with substate :before" do
           @job.start!
-          assert @job.running?
+
+          assert_predicate @job, :running?
           assert_equal @worker_name, @job.worker_name
           assert_equal :before, @job.sub_state
 
           @job2.start!
-          assert @job2.running?
+
+          assert_predicate @job2, :running?
           assert_equal @worker_name2, @job2.worker_name
           assert_equal :before, @job2.sub_state
 
           RocketJob::Job.requeue_dead_server(@worker_name)
-          assert @job.reload.queued?, @job.state
+
+          assert_predicate @job.reload, :queued?, @job.state
           assert_nil @job.worker_name
 
-          assert @job2.reload.running?, "Job2 on another worker must not be affected"
+          assert_predicate @job2.reload, :running?, "Job2 on another worker must not be affected"
           assert_equal @worker_name2, @job2.worker_name
           assert_equal :before, @job2.sub_state
         end
@@ -173,7 +195,8 @@ module Batch
           @job.upload_slice([1, 2, 3, 4, 5])
           @job.upload_slice([6, 7, 8, 9, 10])
           @job.start!
-          assert @job.running?
+
+          assert_predicate @job, :running?
           assert_equal @worker_name, @job.worker_name
           assert_equal :before, @job.sub_state
           assert_equal 2, @job.input.count, -> { @job.input.to_a.ai }
@@ -183,37 +206,44 @@ module Batch
           @job2.start
           @job2.sub_state = :processing
           @job2.save!
-          assert @job2.reload.running?
+
+          assert_predicate @job2.reload, :running?
           assert_equal @worker_name2, @job2.worker_name
           assert_equal :processing, @job2.sub_state
 
           slice1 = @job.input.next_slice(@worker_name)
+
           assert_equal @worker_name, slice1.worker_name
-          assert slice1.running?
+          assert_predicate slice1, :running?
 
           slice2 = @job.input.last
+
           assert_nil slice2.worker_name
-          assert slice2.queued?
+          assert_predicate slice2, :queued?
 
           RocketJob::Job.requeue_dead_server(@worker_name)
-          assert @job.reload.running?, @job.state
+
+          assert_predicate @job.reload, :running?, @job.state
           assert_nil @job.worker_name, -> { @job.ai }
 
           slice1 = @job.input.first
+
           assert_nil slice1.worker_name
-          assert slice1.queued?
+          assert_predicate slice1, :queued?
 
           slice2 = @job.input.last
-          assert_nil slice2.worker_name
-          assert slice2.queued?
 
-          assert @job2.reload.running?, "Job2 on another worker must not be affected"
+          assert_nil slice2.worker_name
+          assert_predicate slice2, :queued?
+
+          assert_predicate @job2.reload, :running?, "Job2 on another worker must not be affected"
           assert_equal :processing, @job2.sub_state
         end
 
         it "with substate :after" do
           @job.start!
-          assert @job.running?
+
+          assert_predicate @job, :running?
           assert_equal @worker_name, @job.worker_name
           assert_equal :before, @job.sub_state
           @job.sub_state = :after
@@ -222,15 +252,17 @@ module Batch
           @job2.start
           @job2.sub_state = :after
           @job2.save!
-          assert @job2.reload.running?
+
+          assert_predicate @job2.reload, :running?
           assert_equal @worker_name2, @job2.worker_name
           assert_equal :after, @job2.sub_state
 
           RocketJob::Job.requeue_dead_server(@worker_name)
-          assert @job.reload.running?
+
+          assert_predicate @job.reload, :running?
           assert_nil @job.worker_name
 
-          assert @job2.reload.running?, "Job2 on another worker must not be affected"
+          assert_predicate @job2.reload, :running?, "Job2 on another worker must not be affected"
           assert_equal @worker_name2, @job2.worker_name
           assert_equal :after, @job2.sub_state
         end

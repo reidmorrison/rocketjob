@@ -63,6 +63,7 @@ module Batch
           stream << "second"
         end
         job.save!
+
         assert_equal 2, job.input.count
         job
       end
@@ -80,8 +81,10 @@ module Batch
         it "undefines the running jobs throttle" do
           assert ThrottleJob.batch_throttle?(:throttle_running_workers_exceeded?), ThrottleJob.rocket_job_batch_throttles
           ThrottleJob.undefine_batch_throttle(:throttle_running_workers_exceeded?)
+
           refute ThrottleJob.batch_throttle?(:throttle_running_workers_exceeded?), ThrottleJob.rocket_job_batch_throttles
           ThrottleJob.define_batch_throttle(:throttle_running_workers_exceeded?)
+
           assert ThrottleJob.batch_throttle?(:throttle_running_workers_exceeded?), ThrottleJob.rocket_job_batch_throttles
         end
       end
@@ -89,18 +92,21 @@ module Batch
       describe "#throttle_running_workers_exceeded?" do
         it "does not exceed throttle when no other slices are running" do
           slice = job.input.first
+
           refute job.send(:throttle_running_workers_exceeded?, slice)
         end
 
         it "exceeds throttle when other slices are running" do
           job.input.first.start!
           slice = job.input.last
+
           assert job.send(:throttle_running_workers_exceeded?, slice)
         end
 
         it "does not exceed throttle when other slices are failed" do
           job.input.first.fail!
           slice = job.input.last
+
           refute job.send(:throttle_running_workers_exceeded?, slice)
         end
       end
@@ -108,12 +114,14 @@ module Batch
       describe "#throttle_running_jobs_exceeded?" do
         it "does not exceed throttle when no jobs are running" do
           job = ThrottleJob.create!
+
           refute job.send(:throttle_running_jobs_exceeded?)
         end
 
         it "does not exceed throttle when no other jobs are running" do
           job = ThrottleJob.new
           job.start!
+
           refute job.send(:throttle_running_jobs_exceeded?)
         end
 
@@ -121,6 +129,7 @@ module Batch
           job1 = ThrottleJob.new
           job1.start!
           job = ThrottleJob.create!
+
           assert job.send(:throttle_running_jobs_exceeded?)
         end
 
@@ -128,6 +137,7 @@ module Batch
           job1 = ThrottleGroupJob.new
           job1.start!
           job = ThrottleGroupOtherJob.create!
+
           assert job.send(:throttle_running_jobs_exceeded?)
         end
 
@@ -135,6 +145,7 @@ module Batch
           job1 = ThrottleJob.new
           job1.start!
           job = ThrottleJob.create!(priority: 51)
+
           assert job.send(:throttle_running_jobs_exceeded?)
         end
 
@@ -142,6 +153,7 @@ module Batch
           job1 = ThrottleJob.new
           job1.start!
           job = ThrottleJob.create!(priority: 49)
+
           refute job.send(:throttle_running_jobs_exceeded?)
         end
 
@@ -149,6 +161,7 @@ module Batch
           job1 = ThrottleJob.new
           job1.start!
           job = ThrottleJob.create!(priority: 49, throttle_running_workers: 0)
+
           assert job.send(:throttle_running_jobs_exceeded?)
         end
 
@@ -157,12 +170,14 @@ module Batch
           job1.start
           job1.fail!
           job = ThrottleJob.create!
+
           refute job.send(:throttle_running_jobs_exceeded?)
         end
 
         it "does not exceed throttle when other slices are paused" do
           ThrottleJob.create!(state: :paused)
           job = ThrottleJob.create!
+
           refute job.send(:throttle_running_jobs_exceeded?)
         end
       end
@@ -174,45 +189,51 @@ module Batch
 
         it "process all slices when all are queued" do
           refute job.rocket_job_work(worker, true)
-          assert job.completed?, -> { job.ai }
+          assert_predicate job, :completed?, -> { job.ai }
         end
 
         it "return true when other slices are running" do
           job.input.first.start!
+
           assert job.rocket_job_work(worker, true)
-          assert job.running?
+          assert_predicate job, :running?
           assert_equal 2, job.input.count
         end
 
         it "process non failed slices" do
           job.input.first.fail!
+
           refute job.rocket_job_work(worker, true)
-          assert job.failed?
+          assert_predicate job, :failed?
           assert_equal 1, job.input.count
         end
 
         it "update filter when other slices are running" do
           job.input.first.start!
+
           assert job.rocket_job_work(worker, true)
-          assert job.running?
+          assert_predicate job, :running?
           assert_equal 2, job.input.count
           either_filter = [{:id.nin => [job.id]}, {:_type.nin => [job.class.name]}]
-          assert(either_filter.include?(worker.current_filter), -> { ThrottleJob.all.to_a.ai })
+
+          assert_includes(either_filter, worker.current_filter, -> { ThrottleJob.all.to_a.ai })
         end
 
         it "returns slice when other slices are running for later processing" do
           job.input.first.start!
+
           assert job.rocket_job_work(worker, true)
-          assert job.running?
+          assert_predicate job, :running?
           assert_equal 1, job.input.running.count
           assert_equal 1, job.input.queued.count
 
           job.input.first.destroy
+
           assert_equal 1, job.input.count
           assert_equal 1, job.input.queued.count
           refute job.rocket_job_work(worker, true)
           assert_equal 0, job.input.count, -> { job.input.first.attributes.ai }
-          assert job.completed?, -> { job.ai }
+          assert_predicate job, :completed?, -> { job.ai }
         end
       end
     end

@@ -8,7 +8,7 @@ module RocketJob
     attr_reader :thread
 
     def initialize(id:, server_name:)
-      super(id: id, server_name: server_name)
+      super
       @shutdown = Concurrent::Event.new
       @thread   = Thread.new { run }
     end
@@ -21,8 +21,8 @@ module RocketJob
       @thread.backtrace
     end
 
-    def join(*args)
-      @thread.join(*args)
+    def join(*)
+      @thread.join(*)
     end
 
     # Send each active worker the RocketJob::ShutdownException so that stops processing immediately.

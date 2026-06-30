@@ -48,6 +48,7 @@ module Jobs
           result        = dirmon_entry.stub(:later, nil) do
             dirmon_job.send(:check_file, dirmon_entry, file, previous_size)
           end
+
           assert_equal new_size, result
         end
 
@@ -59,6 +60,7 @@ module Jobs
           result        = dirmon_entry.stub(:later, ->(_fn) { started = true }) do
             dirmon_job.send(:check_file, dirmon_entry, file, previous_size)
           end
+
           assert_nil result
           assert started
         end
@@ -80,6 +82,7 @@ module Jobs
 
         it "no files" do
           result = dirmon_job.send(:check_directories)
+
           assert_equal 0, result.count
         end
 
@@ -88,6 +91,7 @@ module Jobs
           create_file("#{directory}/abc/file2", 10)
 
           result = dirmon_job.send(:check_directories)
+
           assert_equal [5, 10], result.values.sort
         end
 
@@ -98,6 +102,7 @@ module Jobs
           create_file("#{directory}/abc/file1", 10)
           create_file("#{directory}/abc/file2", 15)
           result = dirmon_job.send(:check_directories)
+
           assert_equal [10, 15], result.values.sort
         end
 
@@ -105,6 +110,7 @@ module Jobs
           create_file("#{directory}/abc/file1", 5)
           create_file("#{directory}/abc/file2", 10)
           files = dirmon_job.send(:check_directories)
+
           assert_equal 2, files.count, files
           assert_equal 2, dirmon_job.previous_file_names.count, files
 
@@ -115,6 +121,7 @@ module Jobs
           result = RocketJob::DirmonEntry.stub_any_instance(:later, ->(_path) { count += 1 }) do
             dirmon_job.send(:check_directories)
           end
+
           assert_equal 0, result.count, result
           assert 2, count
         end
@@ -131,6 +138,7 @@ module Jobs
           create_file("#{archive_iopath}/file3", 21)
 
           result = dirmon_job.send(:check_directories)
+
           assert_equal [5, 10], result.values.sort
         end
       end
@@ -145,6 +153,7 @@ module Jobs
             "#{directory}/abc/file1" => 10,
             "#{directory}/abc/file2" => 10
           }
+
           assert_equal 0, RocketJob::Jobs::DirmonJob.count
           # perform_now does not save the job, just runs it
           dirmon_job = RocketJob::Jobs::DirmonJob.create!(
@@ -155,7 +164,8 @@ module Jobs
           RocketJob::Jobs::DirmonJob.stub_any_instance(:check_directories, new_file_names) do
             dirmon_job.perform_now
           end
-          assert dirmon_job.completed?, dirmon_job.status.inspect
+
+          assert_predicate dirmon_job, :completed?, dirmon_job.status.inspect
           # Job must destroy on complete
           assert_equal 0, RocketJob::Jobs::DirmonJob.where(id: dirmon_job.id).count, -> { RocketJob::Jobs::DirmonJob.all.to_a.ai }
 
@@ -166,7 +176,7 @@ module Jobs
           assert new_dirmon_job.run_at
           assert_equal 11, new_dirmon_job.priority
           assert_equal "*/1 * * * * UTC", new_dirmon_job.cron_schedule
-          assert new_dirmon_job.queued?
+          assert_predicate new_dirmon_job, :queued?
 
           new_dirmon_job.destroy
         end
@@ -179,13 +189,15 @@ module Jobs
             cron_schedule:       "*/1 * * * * UTC",
             destroy_on_complete: false
           )
+
           RocketJob::Jobs::DirmonJob.stub_any_instance(:check_directories, -> { raise "Oh no" }) do
             assert_raises RuntimeError do
               dirmon_job.perform_now
             end
           end
           dirmon_job.save!
-          assert dirmon_job.failed?, dirmon_job.status.ai
+
+          assert_predicate dirmon_job, :failed?, dirmon_job.status.ai
           assert_equal "RuntimeError", dirmon_job.exception.class_name, dirmon_job.exception.attributes
           assert_equal "Oh no", dirmon_job.exception.message, dirmon_job.exception.attributes
 
@@ -195,7 +207,7 @@ module Jobs
           assert new_dirmon_job.run_at
           assert_equal 11, new_dirmon_job.priority, -> { new_dirmon_job.attributes.ai }
           assert_equal "*/1 * * * * UTC", new_dirmon_job.cron_schedule
-          assert new_dirmon_job.queued?, new_dirmon_job.state
+          assert_predicate new_dirmon_job, :queued?, new_dirmon_job.state
 
           new_dirmon_job.destroy
         end
@@ -208,7 +220,8 @@ module Jobs
       def create_temp_file(size)
         file      = Tempfile.new("check_file")
         file_name = file.path
-        File.open(file_name, "wb") { |f| f.write("*" * size) }
+        File.binwrite(file_name, "*" * size)
+
         assert_equal size, File.size(file_name)
         file
       end

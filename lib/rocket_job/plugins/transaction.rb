@@ -41,8 +41,8 @@ module RocketJob
 
       private
 
-      def rocket_job_transaction(&block)
-        ActiveRecord::Base.transaction(&block)
+      def rocket_job_transaction(&)
+        ActiveRecord::Base.transaction(&)
       end
     end
   end

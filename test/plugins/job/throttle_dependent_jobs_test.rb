@@ -4,6 +4,7 @@ module Plugins
     class ThrottleDependentJobsTest < Minitest::Test
       class RegularTestJob < RocketJob::Job
         include RocketJob::Plugins::ThrottleDependentJobs
+
         self.dependent_jobs = ["Plugins::Job::ThrottleDependentJobsTest::DependentTestJob"].freeze
       end
 
@@ -31,6 +32,7 @@ module Plugins
           it "exceeds the throttle if there is any dependent job running" do
             dependent_job = DependentTestJob.new
             dependent_job.start!
+
             assert job.send(:dependent_jobs_running?)
           end
 

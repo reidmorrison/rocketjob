@@ -1,10 +1,17 @@
+inherit_from: .rubocop_todo.yml
+
+plugins:
+  - rubocop-minitest
+  - rubocop-rake
+
 AllCops:
-  TargetRubyVersion: 2.5
+  TargetRubyVersion: 3.2
   NewCops: enable
   Exclude:
     - ".git/**/*"
     - "docs/**/*"
     - "gemfiles/*"
+    - "vendor/**/*"
     - "lib/rocket_job/cli.rb"
     - "rocketjob/lib/rocket_job/railtie.rb"
 
@@ -33,6 +40,10 @@ Layout/HashAlignment:
 # Soften limits
 Layout/LineLength:
   Max: 128
+  # Merge, rather than replace, the file list generated in .rubocop_todo.yml
+  inherit_mode:
+    merge:
+      - Exclude
   Exclude:
     - "**/test/**/*"
 
@@ -53,7 +64,7 @@ Metrics/BlockLength:
   Exclude:
     - "test/**/*"
     - "**/*/cli.rb"
-  IgnoredMethods:
+  AllowedMethods:
     - "aasm"
     - "included"
 
@@ -81,6 +92,22 @@ Metrics/ParameterLists:
 # TODO: Soften Limits for phase 1 only
 Metrics/PerceivedComplexity:
   Max: 21
+
+# Action methods such as #rocket_job_work and #fail_on_exception! return a
+# boolean but are commands, not predicates, and are part of the public API.
+Naming/PredicateMethod:
+  Enabled: false
+
+# get_ prefixed reader retained for backward compatibility.
+Naming/AccessorMethodName:
+  Exclude:
+    - "lib/rocket_job/dirmon_entry.rb"
+
+# Psych dispatches to visitor methods named after the class (IOStreams::Path
+# => visit_IOStreams_Path), so the CamelCase name is required.
+Naming/MethodName:
+  Exclude:
+    - "lib/rocket_job/extensions/psych/yaml_tree.rb"
 
 # Initialization Vector abbreviation
 Naming/MethodParameterName:
@@ -113,6 +140,12 @@ Style/NumericPredicate:
 Style/SignalException:
   Enabled: false
 
+# Assumes the receiver responds to #map. Several objects here define a custom
+# #each without including Enumerable (e.g. DirmonEntry, sliced collections), so
+# this unsafe autocorrect rewrites `each { <<  }` into a broken `map` call.
+Style/MapIntoArray:
+  Enabled: false
+
 # Since English may not be loaded, cannot force its use.
 Style/SpecialGlobalVars:
   Enabled: false
@@ -124,3 +157,22 @@ Style/StringConcatenation:
 # Make it easier for developers to move between Elixir and Ruby.
 Style/StringLiterals:
   EnforcedStyle: double_quotes
+
+# Boolean arguments such as re_raise_exceptions and save_before are part of the
+# public worker/slice API; switching them to keyword args would break callers.
+Style/OptionalBooleanParameter:
+  Enabled: false
+
+#
+# Minitest plugin: relax checks that conflict with this suite's conventions.
+#
+
+# Test granularity is intentional; grouping related assertions in one `it` block
+# keeps the specs readable.
+Minitest/MultipleAssertions:
+  Enabled: false
+
+# This suite passes a lambda as the failure message (assert value, -> { debug }),
+# which the cop mistakes for an assert_equal expected argument.
+Minitest/AssertWithExpectedArgument:
+  Enabled: false

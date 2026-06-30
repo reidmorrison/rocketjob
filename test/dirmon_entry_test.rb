@@ -45,7 +45,8 @@ class DirmonEntryTest < Minitest::Test
         archive_directory: archive_directory
       )
       dirmon_entry.enable!
-      assert dirmon_entry.valid?, dirmon_entry.errors.messages.ai
+
+      assert_predicate dirmon_entry, :valid?, dirmon_entry.errors.messages.ai
       dirmon_entry
     end
 
@@ -69,7 +70,8 @@ class DirmonEntryTest < Minitest::Test
         archive_directory: archive_directory
       )
       dirmon_entry.enable!
-      assert dirmon_entry.valid?, dirmon_entry.errors.messages.ai
+
+      assert_predicate dirmon_entry, :valid?, dirmon_entry.errors.messages.ai
       dirmon_entry
     end
 
@@ -89,6 +91,7 @@ class DirmonEntryTest < Minitest::Test
       describe "with a nil job_class_name" do
         it "return nil" do
           entry = RocketJob::DirmonEntry.new
+
           assert_nil entry.job_class
         end
       end
@@ -96,6 +99,7 @@ class DirmonEntryTest < Minitest::Test
       describe "with an unknown job_class_name" do
         it "return nil" do
           entry = RocketJob::DirmonEntry.new(job_class_name: "FakeJobThatDoesNotExistAnyWhereIPromise")
+
           assert_nil entry.job_class
         end
       end
@@ -103,6 +107,7 @@ class DirmonEntryTest < Minitest::Test
       describe "with a valid job_class_name" do
         it "return job class" do
           entry = RocketJob::DirmonEntry.new(job_class_name: "RocketJob::Job")
+
           assert_equal RocketJob::Job, entry.job_class
           assert_equal 0, entry.properties.size
         end
@@ -123,9 +128,11 @@ class DirmonEntryTest < Minitest::Test
       it "returns a copy that does not mutate the original" do
         path = RocketJob::DirmonEntry.add_whitelist_path("test/files")
         copy = RocketJob::DirmonEntry.get_whitelist_paths
+
         assert_equal [path], copy
 
         copy << "should-not-leak"
+
         refute_includes RocketJob::DirmonEntry.whitelist_paths, "should-not-leak"
       end
     end
@@ -145,6 +152,7 @@ class DirmonEntryTest < Minitest::Test
         failing.fail!("worker:1", "boom")
 
         counts = RocketJob::DirmonEntry.counts_by_state
+
         assert_equal 1, counts[:enabled]
         assert_equal 1, counts[:failed]
       end
@@ -157,12 +165,14 @@ class DirmonEntryTest < Minitest::Test
 
       it "convert relative path to an absolute one" do
         path = IOStreams.path("test/files").realpath.to_s
+
         assert_equal path, RocketJob::DirmonEntry.add_whitelist_path("test/files")
         assert_equal [path], RocketJob::DirmonEntry.whitelist_paths
       end
 
       it "prevent duplicates" do
         path = IOStreams.path("test/files").realpath.to_s
+
         assert_equal path, RocketJob::DirmonEntry.add_whitelist_path("test/files")
         assert_equal path, RocketJob::DirmonEntry.add_whitelist_path("test/files")
         assert_equal path, RocketJob::DirmonEntry.add_whitelist_path(path)
@@ -173,7 +183,8 @@ class DirmonEntryTest < Minitest::Test
     describe "#fail!" do
       it "fail with message" do
         dirmon_entry.fail!("myworker:2323", "oh no")
-        assert dirmon_entry.failed?
+
+        assert_predicate dirmon_entry, :failed?
         assert_equal "RocketJob::DirmonEntryException", dirmon_entry.exception.class_name
         assert_equal "oh no", dirmon_entry.exception.message
       end
@@ -187,9 +198,9 @@ class DirmonEntryTest < Minitest::Test
         end
         dirmon_entry.fail!("myworker:2323", exception)
 
-        assert_equal true, dirmon_entry.failed?
+        assert_predicate dirmon_entry, :failed?
         assert_equal exception.class.name.to_s, dirmon_entry.exception.class_name
-        assert dirmon_entry.exception.message.include?("undefined method"), dirmon_entry.attributes.inspect
+        assert_includes dirmon_entry.exception.message, "undefined method", dirmon_entry.attributes.inspect
       end
     end
 
@@ -197,7 +208,8 @@ class DirmonEntryTest < Minitest::Test
       it "strip_whitespace" do
         dirmon_entry.pattern           = " test/files/*"
         dirmon_entry.archive_directory = " test/archive/ "
-        assert dirmon_entry.valid?
+
+        assert_predicate dirmon_entry, :valid?
         assert_equal "test/files/*", dirmon_entry.pattern
         assert_equal "test/archive/", dirmon_entry.archive_directory
       end
@@ -205,7 +217,8 @@ class DirmonEntryTest < Minitest::Test
       describe "pattern" do
         it "present" do
           dirmon_entry.pattern = nil
-          refute dirmon_entry.valid?
+
+          refute_predicate dirmon_entry, :valid?
           assert_equal ["can't be blank"], dirmon_entry.errors[:pattern], dirmon_entry.errors.messages.ai
         end
       end
@@ -213,19 +226,22 @@ class DirmonEntryTest < Minitest::Test
       describe "job_class_name" do
         it "ensure presence" do
           dirmon_entry.job_class_name = nil
-          refute dirmon_entry.valid?
+
+          refute_predicate dirmon_entry, :valid?
           assert_equal ["can't be blank"], dirmon_entry.errors[:job_class_name], dirmon_entry.errors.messages.ai
         end
 
         it "is a RocketJob::Job" do
           dirmon_entry.job_class_name = "String"
-          refute dirmon_entry.valid?
+
+          refute_predicate dirmon_entry, :valid?
           assert_equal ["Job String must be defined and inherit from RocketJob::Job"], dirmon_entry.errors[:job_class_name], dirmon_entry.errors.messages.ai
         end
 
         it "is invalid" do
           dirmon_entry.job_class_name = "Blah"
-          refute dirmon_entry.valid?
+
+          refute_predicate dirmon_entry, :valid?
           assert_equal ["Job Blah must be defined and inherit from RocketJob::Job"], dirmon_entry.errors[:job_class_name], dirmon_entry.errors.messages.ai
         end
       end
@@ -233,23 +249,27 @@ class DirmonEntryTest < Minitest::Test
       describe "properties" do
         it "are valid" do
           dirmon_entry.properties = {user_id: 123}
-          assert dirmon_entry.valid?, dirmon_entry.errors.messages.ai
+
+          assert_predicate dirmon_entry, :valid?, dirmon_entry.errors.messages.ai
         end
 
         it "not valid" do
           dirmon_entry.properties = {blah: 123}
-          refute dirmon_entry.valid?
+
+          refute_predicate dirmon_entry, :valid?
           assert_equal ["Unknown Property: Attempted to set a value for :blah which is not allowed on the job DirmonEntryTest::TestJob"], dirmon_entry.errors[:properties], dirmon_entry.errors.messages.ai
         end
 
         it "allows known category properties" do
           dirmon_entry.properties = {output_categories: [{name: "main"}]}
-          assert dirmon_entry.valid?, dirmon_entry.errors.messages.ai
+
+          assert_predicate dirmon_entry, :valid?, dirmon_entry.errors.messages.ai
         end
 
         it "rejects unknown category properties" do
           dirmon_entry.properties = {output_categories: [{not_a_category_field: 1}]}
-          refute dirmon_entry.valid?
+
+          refute_predicate dirmon_entry, :valid?
           assert(dirmon_entry.errors[:properties].any? { |m| m.include?("not_a_category_field") },
                  dirmon_entry.errors.messages.ai)
         end
@@ -259,7 +279,7 @@ class DirmonEntryTest < Minitest::Test
     describe "with valid entry" do
       let :file do
         file = Tempfile.new("archive")
-        File.open(file.path, "w") { |io| io.write("Hello World") }
+        File.write(file.path, "Hello World")
         file
       end
 
@@ -281,6 +301,7 @@ class DirmonEntryTest < Minitest::Test
           dirmon_entry.archive_directory = nil
           files                          = []
           dirmon_entry.each { |file_name| files << file_name }
+
           assert_nil dirmon_entry.archive_directory
           assert_equal 1, files.count
           assert_equal IOStreams.path("test/files/text.txt").realpath, files.first
@@ -289,6 +310,7 @@ class DirmonEntryTest < Minitest::Test
         it "with archive path" do
           files = []
           dirmon_entry.each { |file_name| files << file_name }
+
           assert_equal 1, files.count
           assert_equal IOStreams.path("test/files/text.txt").realpath, files.first
         end
@@ -299,6 +321,7 @@ class DirmonEntryTest < Minitest::Test
           dirmon_entry.pattern = "test/files/**/*.TxT"
           files                = []
           dirmon_entry.each { |file_name| files << file_name }
+
           assert_equal 1, files.count, -> { IOStreams.path("test/files").children.ai }
           assert_equal IOStreams.path("test/files/text.txt").realpath, files.first
         end
@@ -309,6 +332,7 @@ class DirmonEntryTest < Minitest::Test
           dirmon_entry.stub(:whitelist_paths, [IOStreams.path("test/files").realpath.to_s]) do
             dirmon_entry.each { |file_name| files << file_name }
           end
+
           assert_nil dirmon_entry.archive_directory
           assert_equal 1, files.count
           assert_equal IOStreams.path("test/files/text.txt").realpath, files.first
@@ -320,6 +344,7 @@ class DirmonEntryTest < Minitest::Test
           dirmon_entry.stub(:whitelist_paths, [IOStreams.path("test/config").realpath.to_s]) do
             dirmon_entry.each { |file_name| files << file_name }
           end
+
           assert_nil dirmon_entry.archive_directory
           assert_equal 0, files.count
         end
@@ -328,9 +353,10 @@ class DirmonEntryTest < Minitest::Test
       describe "#later" do
         it "enqueues job" do
           job = dirmon_entry.later(iopath)
+
           assert created_job = RocketJob::Jobs::UploadFileJob.last
           assert_equal job.id, created_job.id
-          assert job.queued?
+          assert_predicate job, :queued?
         end
 
         it "sets attributes" do
@@ -348,9 +374,10 @@ class DirmonEntryTest < Minitest::Test
 
         it "enqueues batch job" do
           job = batch_dirmon_entry.later(iopath)
+
           assert created_job = RocketJob::Jobs::UploadFileJob.last
           assert_equal job.id, created_job.id
-          assert job.queued?
+          assert_predicate job, :queued?
         end
 
         it "sets batch attributes" do
@@ -379,6 +406,7 @@ class DirmonEntryTest < Minitest::Test
 
           it "archive directory" do
             archive_dir = iopath.directory.join(archive_directory)
+
             assert_equal archive_dir.to_s, dirmon_entry.send(:archive_iopath, iopath).to_s
           end
         end
@@ -388,6 +416,7 @@ class DirmonEntryTest < Minitest::Test
             pattern:        "test/files/**/*",
             job_class_name: "RocketJob::Jobs::DirmonJob"
           )
+
           assert_equal "archive", e.archive_directory
         end
       end

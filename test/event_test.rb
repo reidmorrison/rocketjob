@@ -54,12 +54,13 @@ class EventTest < Minitest::Test
     describe "validations" do
       it "requires a name" do
         event = RocketJob::Event.new
-        refute event.valid?
-        assert event.errors[:name].present?
+
+        refute_predicate event, :valid?
+        assert_predicate event.errors[:name], :present?
       end
 
       it "is valid with a name" do
-        assert RocketJob::Event.new(name: "/rocket_job/server").valid?
+        assert_predicate RocketJob::Event.new(name: "/rocket_job/server"), :valid?
       end
     end
 
@@ -67,6 +68,7 @@ class EventTest < Minitest::Test
       it "registers a subscriber and returns its object id as a handle" do
         subscriber = EventTestRecorder.new
         handle     = RocketJob::Event.subscribe(subscriber)
+
         assert_equal subscriber.object_id, handle
       end
 
@@ -77,11 +79,13 @@ class EventTest < Minitest::Test
         RocketJob::Event.subscribe(subscriber) do |s|
           yielded = s
           registered = RocketJob::Event.instance_variable_get(:@subscribers)["EventTestRecorder"]
+
           assert_includes registered, subscriber
         end
 
         assert_equal subscriber, yielded
         registered = RocketJob::Event.instance_variable_get(:@subscribers)["EventTestRecorder"]
+
         refute_includes registered, subscriber
       end
 
@@ -91,6 +95,7 @@ class EventTest < Minitest::Test
           RocketJob::Event.subscribe(subscriber) { raise "kaboom" }
         end
         registered = RocketJob::Event.instance_variable_get(:@subscribers)["EventTestRecorder"]
+
         refute_includes registered, subscriber
       end
     end
@@ -105,6 +110,7 @@ class EventTest < Minitest::Test
         RocketJob::Event.unsubscribe(handle)
 
         registered = RocketJob::Event.instance_variable_get(:@subscribers)["EventTestRecorder"]
+
         assert_includes registered, keep
         refute_includes registered, remove
       end
@@ -158,28 +164,32 @@ class EventTest < Minitest::Test
 
       describe ".collection_exists?" do
         it "is false before the collection is created" do
-          refute RocketJob::Event.collection_exists?
+          refute_predicate RocketJob::Event, :collection_exists?
         end
 
         it "is true once the collection is created" do
           RocketJob::Event.create_capped_collection
-          assert RocketJob::Event.collection_exists?
+
+          assert_predicate RocketJob::Event, :collection_exists?
         end
       end
 
       describe ".create_capped_collection" do
         it "creates a capped collection when none exists" do
           RocketJob::Event.create_capped_collection
-          assert RocketJob::Event.collection.capped?
+
+          assert_predicate RocketJob::Event.collection, :capped?
         end
 
         it "converts an existing non-capped collection to capped" do
           # Create a plain, non-capped collection first.
           RocketJob::Event.create!(name: "/rocket_job/server", action: :seed)
-          refute RocketJob::Event.collection.capped?
+
+          refute_predicate RocketJob::Event.collection, :capped?
 
           RocketJob::Event.create_capped_collection
-          assert RocketJob::Event.collection.capped?
+
+          assert_predicate RocketJob::Event.collection, :capped?
         end
       end
     end

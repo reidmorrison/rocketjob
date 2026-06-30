@@ -1,10 +1,10 @@
 module RocketJob
   module Sliced
     class Input < Slices
-      def upload(**args, &block)
+      def upload(**args, &)
         # Create indexes before uploading
         create_indexes
-        Writer::Input.collect(self, **args, &block)
+        Writer::Input.collect(self, **args, &)
       rescue Exception => e
         drop
         raise(e)
@@ -125,11 +125,11 @@ module RocketJob
         # TODO: Will it perform faster without the id sort?
         # I.e. Just process on a FIFO basis?
         document                 = all.queued.
-          sort("_id" => 1).
-          find_one_and_update(
-            {"$set" => {worker_name: worker_name, state: "running", started_at: Time.now}},
-            return_document: :after
-          )
+                                   sort("_id" => 1).
+                                   find_one_and_update(
+                                     {"$set" => {worker_name: worker_name, state: "running", started_at: Time.now}},
+                                     return_document: :after
+                                   )
         document.collection_name = collection_name if document
         document
       end

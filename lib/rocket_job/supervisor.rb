@@ -92,8 +92,8 @@ module RocketJob
       end
     end
 
-    def synchronize(&block)
-      @mutex.synchronize(&block)
+    def synchronize(&)
+      @mutex.synchronize(&)
     end
   end
 end

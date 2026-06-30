@@ -6,32 +6,38 @@ module Jobs
       describe "#valid?" do
         it "code is parsable" do
           job = RocketJob::Jobs::OnDemandBatchJob.new(code: "row")
-          assert job.valid?
+
+          assert_predicate job, :valid?
         end
 
         it "code is not parsable" do
           job = RocketJob::Jobs::OnDemandBatchJob.new(code: "{oh no")
-          refute job.valid?
+
+          refute_predicate job, :valid?
         end
 
         it "before_code is parsable" do
           job = RocketJob::Jobs::OnDemandBatchJob.new(code: "row", before_code: "true")
-          assert job.valid?
+
+          assert_predicate job, :valid?
         end
 
         it "before_code is not parsable" do
           job = RocketJob::Jobs::OnDemandBatchJob.new(code: "row", before_code: "{oh no")
-          refute job.valid?
+
+          refute_predicate job, :valid?
         end
 
         it "after_code is parsable" do
           job = RocketJob::Jobs::OnDemandBatchJob.new(code: "row", after_code: "true")
-          assert job.valid?
+
+          assert_predicate job, :valid?
         end
 
         it "after_code is not parsable" do
           job = RocketJob::Jobs::OnDemandBatchJob.new(code: "row", after_code: "{oh no")
-          refute job.valid?
+
+          refute_predicate job, :valid?
         end
       end
 
@@ -45,7 +51,8 @@ module Jobs
             stream << 3
           end
           job.perform_now
-          assert job.completed?, -> { job.ai }
+
+          assert_predicate job, :completed?, -> { job.ai }
           assert_equal 1, job.output.count
           assert_equal [2, 3, 4], job.output.first.to_a
           job.cleanup!
@@ -65,7 +72,8 @@ module Jobs
           )
           job.add_output_category
           job.perform_now
-          assert job.completed?, -> { job.ai }
+
+          assert_predicate job, :completed?, -> { job.ai }
           assert_equal 1, job.output.count
           assert_equal [2, 3, 4], job.output.first.to_a
           job.cleanup!
@@ -89,10 +97,12 @@ module Jobs
           )
           job.add_output_category
           job.perform_now
-          assert job.completed?, -> { job.ai }
+
+          assert_predicate job, :completed?, -> { job.ai }
           assert_equal 1, job.output.count
           assert_equal [2, 3, 4], job.output.first.to_a
           job.cleanup!
+
           assert_equal 413, job.statistics["after"]
         end
       end

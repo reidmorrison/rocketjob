@@ -5,7 +5,8 @@ module Batch
     class MainCategoryJob < RocketJob::Job
       include RocketJob::Batch
 
-      def perform(record) end
+      def perform(record)
+      end
     end
 
     class SingleCategoryJob < RocketJob::Job
@@ -13,7 +14,8 @@ module Batch
 
       input_category slice_size: 2_000
 
-      def perform(record) end
+      def perform(record)
+      end
     end
 
     describe RocketJob::Batch::Categories do
@@ -25,6 +27,7 @@ module Batch
       describe "#initialize" do
         it "default input category" do
           job = MainCategoryJob.new
+
           assert_equal 1, job.input_categories.size
           assert_equal :main, job.input_categories.first.name
           assert_equal :main, job.input_category.name
@@ -32,6 +35,7 @@ module Batch
 
         it "default slice_size" do
           job = MainCategoryJob.new
+
           assert_equal 1, job.input_categories.size
           assert_equal 100, job.input_categories.first.slice_size
           assert_equal 100, job.input_category.slice_size
@@ -39,6 +43,7 @@ module Batch
 
         it "custom slice_size" do
           job = SingleCategoryJob.new
+
           assert_equal 1, job.input_categories.size
           assert_equal 2_000, job.input_categories.first.slice_size
           assert_equal 2_000, job.input_category.slice_size
@@ -46,6 +51,7 @@ module Batch
 
         it "serializes" do
           job = SingleCategoryJob.new
+
           assert h = job.as_document
           assert_equal SingleCategoryJob.name, h["_type"]
           assert_equal 1, h["input_categories"].size
@@ -57,7 +63,8 @@ module Batch
         it "restores" do
           job = SingleCategoryJob.create
           job.reload
-          assert job.is_a?(SingleCategoryJob)
+
+          assert_kind_of SingleCategoryJob, job
           assert_equal 1, job.input_categories.size
           assert_equal :main, job.input_categories.first.name
         end

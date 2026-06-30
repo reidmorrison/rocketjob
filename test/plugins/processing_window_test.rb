@@ -14,6 +14,7 @@ module Plugins
       before do
         # destroy_all could create new instances
         ProcessingWindowJob.delete_all
+
         assert_equal 0, ProcessingWindowJob.count
       end
 
@@ -25,8 +26,9 @@ module Plugins
       describe "#create!" do
         it "queues a new job" do
           @job = ProcessingWindowJob.create!(processing_schedule: "0 1 * * *", processing_duration: 1.hour)
-          assert @job.valid?
-          refute @job.new_record?
+
+          assert_predicate @job, :valid?
+          refute_predicate @job, :new_record?
         end
 
         describe "timezones are supported" do
@@ -35,8 +37,9 @@ module Plugins
             Time.stub(:now, time) do
               @job = ProcessingWindowJob.create!(processing_schedule: "0 1 * * * UTC", processing_duration: 1.hour)
             end
-            assert @job.valid?
-            refute @job.new_record?
+
+            assert_predicate @job, :valid?
+            refute_predicate @job, :new_record?
             assert_equal Time.parse("2015-12-10 01:00:00 UTC"), @job.run_at
           end
 
@@ -45,8 +48,9 @@ module Plugins
             Time.stub(:now, time) do
               @job = ProcessingWindowJob.create!(processing_schedule: "0 1 * * * America/New_York", processing_duration: 1.hour)
             end
-            assert @job.valid?
-            refute @job.new_record?
+
+            assert_predicate @job, :valid?
+            refute_predicate @job, :new_record?
             assert_equal Time.parse("2015-12-10 06:00:00 UTC"), @job.run_at
           end
         end
@@ -59,6 +63,7 @@ module Plugins
           result = Time.stub(:now, time) do
             @job.rocket_job_processing_window_active?
           end
+
           assert result, @job.attributes.ai
         end
 
@@ -68,6 +73,7 @@ module Plugins
           result = Time.stub(:now, time) do
             @job.rocket_job_processing_window_active?
           end
+
           refute result, @job.attributes.ai
         end
       end
@@ -75,20 +81,23 @@ module Plugins
       describe "#valid?" do
         it "fails on missing processing_schedule" do
           @job = ProcessingWindowJob.new
-          refute @job.valid?
+
+          refute_predicate @job, :valid?
           assert_equal "can't be blank", @job.errors.messages[:processing_schedule].first
           assert_equal "can't be blank", @job.errors.messages[:processing_duration].first
         end
 
         it "fails on bad cron schedule" do
           @job = ProcessingWindowJob.new(processing_schedule: "blah")
-          refute @job.valid?
+
+          refute_predicate @job, :valid?
           assert_equal "Invalid schedule: \"blah\"", @job.errors.messages[:processing_schedule].first
         end
 
         it "passes on valid cron schedule" do
           @job = ProcessingWindowJob.new(processing_schedule: "0 1 * * *", processing_duration: 1.hour)
-          assert @job.valid?
+
+          assert_predicate @job, :valid?
         end
       end
 
@@ -99,7 +108,8 @@ module Plugins
             @job = ProcessingWindowJob.new(processing_schedule: "0 17 * * * UTC", processing_duration: 1.hour)
             @job.perform_now
           end
-          assert @job.queued?, @job.attributes.ai
+
+          assert_predicate @job, :queued?, @job.attributes.ai
         end
       end
     end

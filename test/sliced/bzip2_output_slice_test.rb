@@ -40,6 +40,7 @@ module Sliced
           slice_with_records.attributes["records"] = BSON::Binary.new(compressed_dataset)
 
           result = slice_with_records.send(:parse_records)
+
           assert_equal [compressed_dataset], result
           assert_equal [compressed_dataset], slice_with_records.records
         end
@@ -48,7 +49,8 @@ module Sliced
       describe "#serialize_records" do
         it "Serializes the records to binary" do
           result = slice_with_records.send(:serialize_records)
-          assert result.is_a?(BSON::Binary)
+
+          assert_kind_of BSON::Binary, result
           assert_equal compressed_dataset, result.data
         end
       end

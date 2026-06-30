@@ -39,6 +39,7 @@ module Batch
           stream << "second"
         end
         job.save!
+
         assert_equal 2, job.input.count
         job
       end
@@ -51,6 +52,7 @@ module Batch
           Time.stub(:now, time) do
             schedule = "0 17 * * 1-5 UTC"
             duration = 1.hour
+
             assert job.send(:throttle_outside_window?, schedule, duration)
           end
         end
@@ -60,6 +62,7 @@ module Batch
           Time.stub(:now, time) do
             schedule = "0 17 * * * UTC"
             duration = 1.hour
+
             refute job.send(:throttle_outside_window?, schedule, duration)
           end
         end
@@ -69,6 +72,7 @@ module Batch
           Time.stub(:now, time) do
             schedule = "0 17 * * * UTC"
             duration = 1.hour
+
             refute job.send(:throttle_outside_window?, schedule, duration)
           end
         end
@@ -78,6 +82,7 @@ module Batch
           Time.stub(:now, time) do
             schedule = "0 17 * * * UTC"
             duration = 1.hour
+
             refute job.send(:throttle_outside_window?, schedule, duration)
           end
         end
@@ -87,6 +92,7 @@ module Batch
           Time.stub(:now, time) do
             schedule = "0 17 * * * UTC"
             duration = 1.hour
+
             assert job.send(:throttle_outside_window?, schedule, duration)
           end
         end
@@ -95,6 +101,7 @@ module Batch
       describe "#throttle_windows_exceeded?" do
         it "runs during primary window" do
           time = Time.parse("2020-06-10 17:10:00 -0400") # Wednesday
+
           Time.stub(:now, time) do
             refute job.send(:throttle_windows_exceeded?)
           end
@@ -102,6 +109,7 @@ module Batch
 
         it "stops outside primary window" do
           time = Time.parse("2020-06-10 16:30:00 -0400") # Wednesday
+
           Time.stub(:now, time) do
             assert job.send(:throttle_windows_exceeded?)
           end
@@ -110,6 +118,7 @@ module Batch
         it "stops outside primary window with now secondary schedule" do
           job.secondary_schedule = nil
           time                   = Time.parse("2020-06-10 16:30:00 -0400") # Wednesday
+
           Time.stub(:now, time) do
             assert job.send(:throttle_windows_exceeded?)
           end
@@ -117,6 +126,7 @@ module Batch
 
         it "runs during secondary window" do
           time = Time.parse("2020-06-13 1:00:00 -0400") # Saturday
+
           Time.stub(:now, time) do
             refute job.send(:throttle_windows_exceeded?)
           end
@@ -124,6 +134,7 @@ module Batch
 
         it "stops outside secondary window" do
           time = Time.parse("2020-06-08 10:00:00 -0400") # Monday
+
           Time.stub(:now, time) do
             assert job.send(:throttle_windows_exceeded?)
           end
@@ -131,6 +142,7 @@ module Batch
 
         it "stops outside secondary window when primary schedule is nil" do
           time = Time.parse("2020-06-08 10:00:00 -0400") # Monday
+
           Time.stub(:now, time) do
             assert job.send(:throttle_windows_exceeded?)
           end
@@ -144,19 +156,21 @@ module Batch
 
         it "process all slices inside window" do
           time = Time.parse("2020-06-10 17:10:00 -0400") # Wednesday
+
           Time.stub(:now, time) do
             refute job.rocket_job_work(worker, true)
           end
-          assert job.completed?, -> { job.ai }
+          assert_predicate job, :completed?, -> { job.ai }
           assert_equal 0, job.input.count
         end
 
         it "stop processing outside window" do
           time = Time.parse("2020-06-10 16:30:00 -0400") # Wednesday
+
           Time.stub(:now, time) do
             assert job.rocket_job_work(worker, true)
           end
-          assert job.running?, -> { job.ai }
+          assert_predicate job, :running?, -> { job.ai }
           assert_equal 2, job.input.count
         end
       end

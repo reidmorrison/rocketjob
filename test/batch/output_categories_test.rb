@@ -82,7 +82,8 @@ module Batch
           @job = MainCategoryJob.new
           @job.upload_slice(lines)
           @job.perform_now
-          assert @job.completed?, -> { @job.attributes.ai }
+
+          assert_predicate @job, :completed?, -> { @job.attributes.ai }
           assert_equal lines, @job.output(:main).first.to_a
         end
       end
@@ -92,7 +93,8 @@ module Batch
           @job = SingleCategoryJob.new
           @job.upload_slice(lines)
           @job.perform_now
-          assert @job.completed?, -> { @job.attributes.ai }
+
+          assert_predicate @job, :completed?, -> { @job.attributes.ai }
           assert_equal lines, @job.output(:other).first.to_a
         end
       end
@@ -112,7 +114,8 @@ module Batch
           @job = TwoCategoryJob.new
           @job.upload_slice(lines)
           @job.perform_now
-          assert @job.completed?, -> { @job.attributes.ai }
+
+          assert_predicate @job, :completed?, -> { @job.attributes.ai }
           assert_equal lines, @job.output(:first).first.to_a
           assert_equal lines, @job.output(:second).first.to_a
         end
@@ -123,7 +126,8 @@ module Batch
           @job = ComplexCategoryJob.new
           @job.upload_slice(lines)
           @job.perform_now
-          assert @job.completed?, -> { @job.attributes.ai }
+
+          assert_predicate @job, :completed?, -> { @job.attributes.ai }
           assert_equal lines, @job.output(:first).first.to_a
           assert_equal lines, @job.output(:second).first.to_a
         end
@@ -136,7 +140,8 @@ module Batch
           @job = BZip2CategoryJob.new
           @job.upload_slice(lines)
           @job.perform_now
-          assert @job.completed?, -> { @job.attributes.ai }
+
+          assert_predicate @job, :completed?, -> { @job.attributes.ai }
 
           # Verify that the output slice is compressed using BZip2
           str = lines.join("\n") + "\n"
@@ -150,6 +155,7 @@ module Batch
       describe "#as_document" do
         it "serializes default" do
           job = MainCategoryJob.new
+
           assert h = job.as_document
           assert_equal MainCategoryJob.name, h["_type"]
           assert_equal 1, h["output_categories"].size
@@ -158,6 +164,7 @@ module Batch
 
         it "serializes named output" do
           job = SingleCategoryJob.new
+
           assert h = job.as_document
           assert_equal SingleCategoryJob.name, h["_type"]
           assert_equal 1, h["output_categories"].size
@@ -166,6 +173,7 @@ module Batch
 
         it "serializes multiple outputs" do
           job = TwoCategoryJob.new
+
           assert h = job.as_document
           assert_equal TwoCategoryJob.name, h["_type"]
           assert_equal 2, h["output_categories"].size
@@ -178,7 +186,8 @@ module Batch
         it "restores" do
           job = TwoCategoryJob.create
           job.reload
-          assert job.is_a?(TwoCategoryJob)
+
+          assert_kind_of TwoCategoryJob, job
           assert_equal 2, job.output_categories.size
           assert_equal :first, job.output_categories.first.name
           assert_equal :second, job.output_categories.last.name

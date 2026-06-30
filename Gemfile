@@ -18,6 +18,8 @@ gem "bzip2-ffi"
 
 group :development do
   gem "rubocop"
+  gem "rubocop-minitest", require: false
+  gem "rubocop-rake", require: false
   gem "solargraph", require: false, platform: :ruby
 
   # Test against master

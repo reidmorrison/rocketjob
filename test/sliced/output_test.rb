@@ -32,6 +32,7 @@ module Sliced
           it "downloads" do
             lines = []
             loaded_job.download { |line| lines << line }
+
             assert_equal rows, lines
           end
         end

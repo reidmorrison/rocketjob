@@ -78,7 +78,6 @@ module RocketJob
               ActiveRecord::Base.clear_active_connections!
             end
           end
-          
 
           # Stagger workers so that they don't all poll at the same time.
           sleep_seconds = random_wait_interval

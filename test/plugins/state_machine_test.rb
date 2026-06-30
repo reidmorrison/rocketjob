@@ -45,15 +45,16 @@ module Plugins
           assert_raises ::Mongoid::Errors::Validations do
             job.enable!
           end
-          assert job.pending?
-          refute job.valid?
+          assert_predicate job, :pending?
+          refute_predicate job, :valid?
         end
       end
 
       describe "#transition" do
         it "does not raise an exception when a validation fails on state transition without save" do
           job.enable
-          assert job.enabled?
+
+          assert_predicate job, :enabled?
         end
       end
     end

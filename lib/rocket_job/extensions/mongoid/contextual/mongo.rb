@@ -1,4 +1,3 @@
-::Mongoid::Contextual::Mongo
 module Mongoid
   module Contextual
     class Mongo

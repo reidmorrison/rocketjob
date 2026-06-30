@@ -18,7 +18,7 @@ module RocketJob
     # Loads the queue with jobs to be processed once the queue is loaded.
     # Retain the first and last job for timings, all others are destroyed on completion.
     def run_test_case(count = self.count)
-      if RocketJob::Server.where(:state.in => %w[running paused]).count.zero?
+      if RocketJob::Server.where(:state.in => %w[running paused]).none?
         raise "Please start servers before starting the performance test"
       end
 

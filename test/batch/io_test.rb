@@ -43,7 +43,8 @@ module Batch
           it "text" do
             IOStreams.temp_file("test", ".txt") do |file_name|
               assert_equal 4, loaded_job.download(file_name.to_s)
-              result = ::File.open(file_name.to_s, &:read)
+              result = ::File.read(file_name.to_s)
+
               assert_equal delimited_rows, result
             end
           end
@@ -52,6 +53,7 @@ module Batch
             IOStreams.temp_file("gzip_test", ".gz") do |file_name|
               assert_equal 4, loaded_job.download(file_name.to_s)
               result = Zlib::GzipReader.open(file_name.to_s, &:read)
+
               assert_equal delimited_rows, result
             end
           end
@@ -62,8 +64,10 @@ module Batch
               job.output_category.format    = :auto
               job.output_category.columns   = csv_columns
               job.output_category.file_name = file_name
+
               assert_equal 3, job.upload(csv_file)
               job.perform_now
+
               assert_equal 3, job.download
               assert_equal csv_file.read, file_name.read
             end
@@ -81,6 +85,7 @@ module Batch
                 ensure
                   io.close
                 end
+
               assert_equal delimited_rows, result
             end
           end
@@ -93,6 +98,7 @@ module Batch
             stream = IOStreams.stream(io_stream).file_name(text_file.to_s)
             loaded_job.download(stream)
             result = io_stream.string
+
             assert_equal delimited_rows, result
           end
 
@@ -103,6 +109,7 @@ module Batch
             gz     = Zlib::GzipReader.new(io)
             result = gz.read
             gz.close
+
             assert_equal delimited_rows, result
           end
         end
@@ -113,38 +120,45 @@ module Batch
           it "text" do
             assert_equal 4, job.upload(text_file)
             result = job.input.collect(&:to_a).join("\n") + "\n"
+
             assert_equal text_file.read, result
           end
 
           it "gzip" do
             assert_equal 4, job.upload(gzip_file)
             result = job.input.collect(&:to_a).join("\n") + "\n"
+
             assert_equal gzip_file.read, result
           end
 
           it "raw csv" do
             assert_equal 4, job.upload(csv_file)
             result = job.input.collect(&:to_a).join("\n") + "\n"
+
             assert_equal csv_file.read, result
           end
 
           it "parsed csv" do
             job.input_category.format = :csv
+
             assert_equal 3, job.upload(csv_file)
 
             assert_equal csv_columns, job.input_category.columns
 
             result = job.input.collect(&:to_a).join("\n") + "\n"
+
             assert_equal csv_file.read, csv_columns.to_csv + result
           end
 
           it "autodetect csv" do
             job.input_category.format = :auto
+
             assert_equal 3, job.upload(csv_file)
 
             assert_equal csv_columns, job.input_category.columns
 
             result = job.input.collect(&:to_a).join("\n") + "\n"
+
             assert_equal csv_file.read, csv_columns.to_csv + result
           end
         end
@@ -156,24 +170,28 @@ module Batch
 
           it "handle single value" do
             count = job.upload(1..1)
+
             assert_equal 1, count, job.input.first.inspect
             assert_equal [[[1, 1]]], job.input.collect(&:to_a)
           end
 
           it "handle single range" do
             count = job.upload(1..10)
+
             assert_equal 1, count, job.input.first.inspect
             assert_equal [[[1, 10]]], job.input.collect(&:to_a)
           end
 
           it "handle longer range" do
             count = job.upload(1..11)
+
             assert_equal 2, count, job.input.collect(&:to_a).inspect
             assert_equal [[[1, 10]], [[11, 11]]], job.input.collect(&:to_a)
           end
 
           it "handle even longer range" do
             count = job.upload(0..44)
+
             assert_equal 5, count, job.input.collect(&:to_a).inspect
             assert_equal [[[0, 9]], [[10, 19]], [[20, 29]], [[30, 39]], [[40, 44]]], job.input.collect(&:to_a)
           end
@@ -186,6 +204,7 @@ module Batch
 
           it "handle single value" do
             count = job.upload(1..1)
+
             assert_equal 1, count, job.input.first.inspect
             assert_equal [[[1, 1]]], job.input.collect(&:to_a)
             assert_equal [1], job.input.collect(&:first_record_number)
@@ -193,6 +212,7 @@ module Batch
 
           it "handle single range" do
             count = job.upload(10..1)
+
             assert_equal 1, count, job.input.first.inspect
             assert_equal [[[1, 10]]], job.input.collect(&:to_a)
             assert_equal [1], job.input.collect(&:first_record_number)
@@ -200,6 +220,7 @@ module Batch
 
           it "handle longer range" do
             count = job.upload(11..1)
+
             assert_equal 2, count, job.input.collect(&:to_a).inspect
             assert_equal [[[2, 11]], [[1, 1]]], job.input.collect(&:to_a)
             assert_equal [1, 2], job.input.collect(&:first_record_number)
@@ -207,6 +228,7 @@ module Batch
 
           it "handle even longer range" do
             count = job.upload(44..0)
+
             assert_equal 5, count, job.input.collect(&:to_a).inspect
             assert_equal [[[35, 44]], [[25, 34]], [[15, 24]], [[5, 14]], [[0, 4]]], job.input.collect(&:to_a)
             assert_equal [1, 2, 3, 4, 5], job.input.collect(&:first_record_number)
@@ -214,6 +236,7 @@ module Batch
 
           it "handle partial range" do
             count = job.upload(44..5)
+
             assert_equal 4, count, job.input.collect(&:to_a).inspect
             assert_equal [[[35, 44]], [[25, 34]], [[15, 24]], [[5, 14]]], job.input.collect(&:to_a)
             assert_equal [1, 2, 3, 4], job.input.collect(&:first_record_number)
@@ -242,6 +265,7 @@ module Batch
       describe "#upload_slice" do
         it "inserts the slice and updates the record count" do
           count = job.upload_slice(%w[a b c])
+
           assert_equal 3, count
           assert_equal 3, job.record_count
           assert_equal 1, job.input.count
@@ -256,6 +280,7 @@ module Batch
 
         it "#upload_integer_range" do
           count = job.upload_integer_range(1, 10)
+
           assert_equal 1, count
           assert_equal 1, job.record_count
           assert_equal [[[1, 10]]], job.input.collect(&:to_a)
@@ -263,6 +288,7 @@ module Batch
 
         it "#upload_integer_range_in_reverse_order" do
           count = job.upload_integer_range_in_reverse_order(1, 11)
+
           assert_equal 2, count
           assert_equal 2, job.record_count
           assert_equal [[[2, 11]], [[1, 1]]], job.input.collect(&:to_a)

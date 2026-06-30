@@ -126,7 +126,7 @@ module RocketJob
       # Or, to see the total durations based on the number of retries:
       #   (0..count).map{|i| "#{i+1} ==> #{RocketJob.seconds_as_duration(intervals[0..i].sum)}"}
       def rocket_job_retry_seconds_to_delay
-        rocket_job_failure_count**4 + 5
+        (rocket_job_failure_count**4) + 5
       end
     end
   end

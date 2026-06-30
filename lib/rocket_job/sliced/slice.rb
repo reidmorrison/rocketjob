@@ -154,8 +154,8 @@ module RocketJob
       end
 
       # Fail this slice if an exception occurs during processing.
-      def fail_on_exception!(re_raise_exceptions = false, &block)
-        SemanticLogger.named_tagged(slice: id.to_s, &block)
+      def fail_on_exception!(re_raise_exceptions = false, &)
+        SemanticLogger.named_tagged(slice: id.to_s, &)
       rescue Exception => e
         SemanticLogger.named_tagged(slice: id.to_s) do
           if failed? || !may_fail?
@@ -175,7 +175,7 @@ module RocketJob
 
       # Always add records to any updates.
       def atomic_updates(*args)
-        r                             = super(*args)
+        r = super
         (r["$set"] ||= {})["records"] = serialize_records if @records
         r
       end

@@ -42,7 +42,7 @@ class WorkerPoolTest < Minitest::Test
     end
 
     # Mirrors ThreadWorker#join, which returns truthy once the thread has stopped.
-    def join(_timeout = nil) # rubocop:disable Naming/PredicateMethod
+    def join(_timeout = nil)
       !@alive
     end
   end
@@ -86,11 +86,13 @@ class WorkerPoolTest < Minitest::Test
       it "returns the worker with the matching id" do
         worker = FakeWorker.new(id: 7, server_name: server_name)
         pool.workers << worker
+
         assert_equal worker, pool.find(7)
       end
 
       it "returns nil when no worker matches" do
         pool.workers << FakeWorker.new(id: 1, server_name: server_name)
+
         assert_nil pool.find(99)
       end
     end
@@ -100,6 +102,7 @@ class WorkerPoolTest < Minitest::Test
         stub_thread_worker do
           pool.rebalance(3)
         end
+
         assert_equal 3, pool.workers.count
         assert_equal [1, 2, 3], pool.workers.map(&:id)
         assert(pool.workers.all? { |w| w.server_name == server_name })
@@ -107,6 +110,7 @@ class WorkerPoolTest < Minitest::Test
 
       it "returns 0 when already at max_workers" do
         3.times { |i| pool.workers << FakeWorker.new(id: i, server_name: server_name) }
+
         stub_thread_worker do
           assert_equal 0, pool.rebalance(3)
         end
@@ -118,6 +122,7 @@ class WorkerPoolTest < Minitest::Test
         stub_thread_worker do
           pool.rebalance(3)
         end
+
         assert_equal 3, pool.workers.count
       end
 
@@ -134,6 +139,7 @@ class WorkerPoolTest < Minitest::Test
       it "returns -1 and stops adding workers when a shutdown is requested" do
         stub_thread_worker do
           RocketJob::Supervisor.shutdown!
+
           assert_equal(-1, pool.rebalance(5, true))
         end
         # The first worker is always added before the shutdown check.
@@ -144,6 +150,7 @@ class WorkerPoolTest < Minitest::Test
     describe "#prune" do
       it "returns 0 when all workers are alive" do
         2.times { |i| pool.workers << FakeWorker.new(id: i, server_name: server_name) }
+
         assert_equal 0, pool.prune
         assert_equal 2, pool.workers.count
       end

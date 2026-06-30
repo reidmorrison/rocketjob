@@ -29,7 +29,7 @@ module RocketJob
       #   - log_exception logs entire exception if raised
       #   - on_exception_level changes log level from info to error on exception
       #   - silence noisy jobs by raising log level
-      def rocket_job_batch_slice_logger(&block)
+      def rocket_job_batch_slice_logger(&)
         logger.measure_info(
           "Completed slice",
           metric:             "#{self.class.name}/slice",
@@ -37,7 +37,7 @@ module RocketJob
           on_exception_level: :error,
           silence:            log_level,
           payload:            {records: rocket_job_slice&.size},
-          &block
+          &
         )
       end
 

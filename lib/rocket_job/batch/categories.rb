@@ -51,12 +51,12 @@ module RocketJob
         # Builds this job instance from the supplied properties hash that may contain input and output categories.
         # Keeps the defaults and merges in settings without replacing existing categories.
         def from_properties(properties)
-          return super(properties) unless properties.key?("input_categories") || properties.key?("output_categories")
+          return super unless properties.key?("input_categories") || properties.key?("output_categories")
 
           properties        = properties.dup
           input_categories  = properties.delete("input_categories")
           output_categories = properties.delete("output_categories")
-          job               = super(properties)
+          job               = super
           job.merge_input_categories(input_categories)
           job.merge_output_categories(output_categories)
           job
@@ -126,7 +126,7 @@ module RocketJob
         categories.each do |properties|
           category_name = (properties["name"] || properties[:name] || :main).to_sym
           category      = input_category(category_name)
-          properties.each { |key, value| category.public_send("#{key}=".to_sym, value) }
+          properties.each { |key, value| category.public_send(:"#{key}=", value) }
         end
       end
 
@@ -136,7 +136,7 @@ module RocketJob
         categories.each do |properties|
           category_name = (properties["name"] || properties[:name] || :main).to_sym
           category      = output_category(category_name)
-          properties.each { |key, value| category.public_send("#{key}=".to_sym, value) }
+          properties.each { |key, value| category.public_send(:"#{key}=", value) }
         end
       end
 
@@ -314,27 +314,27 @@ module RocketJob
 
         existing                 = self[:output_categories]
         self[:output_categories] = []
-        if collect_output
-          if existing.blank?
-            self[:output_categories] = [
-              RocketJob::Category::Output.new(
-                nils:           collect_nil_output,
-                format:         main_output_format,
-                columns:        main_output_columns,
-                format_options: main_output_options
-              ).as_document
-            ]
-          elsif existing.first.is_a?(Symbol)
-            self[:output_categories] = existing.collect do |category_name|
-              RocketJob::Category::Output.new(
-                name:           category_name,
-                serializer:     serializer,
-                nils:           collect_nil_output,
-                format:         [:main, "main"].include?(category_name) ? main_output_format : nil,
-                columns:        [:main, "main"].include?(category_name) ? main_output_columns : nil,
-                format_options: [:main, "main"].include?(category_name) ? main_output_options : nil
-              ).as_document
-            end
+        return unless collect_output
+
+        if existing.blank?
+          self[:output_categories] = [
+            RocketJob::Category::Output.new(
+              nils:           collect_nil_output,
+              format:         main_output_format,
+              columns:        main_output_columns,
+              format_options: main_output_options
+            ).as_document
+          ]
+        elsif existing.first.is_a?(Symbol)
+          self[:output_categories] = existing.collect do |category_name|
+            RocketJob::Category::Output.new(
+              name:           category_name,
+              serializer:     serializer,
+              nils:           collect_nil_output,
+              format:         [:main, "main"].include?(category_name) ? main_output_format : nil,
+              columns:        [:main, "main"].include?(category_name) ? main_output_columns : nil,
+              format_options: [:main, "main"].include?(category_name) ? main_output_options : nil
+            ).as_document
           end
         end
       end

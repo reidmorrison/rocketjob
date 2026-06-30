@@ -43,7 +43,7 @@ class ServerSubscriberTest < Minitest::Test
 
         subscriber.kill
 
-        assert RocketJob::Supervisor.shutdown?
+        assert_predicate RocketJob::Supervisor, :shutdown?
         pool.verify
       end
 
@@ -56,7 +56,7 @@ class ServerSubscriberTest < Minitest::Test
 
         subscriber.kill(wait_timeout: 0.1)
 
-        assert RocketJob::Supervisor.shutdown?
+        assert_predicate RocketJob::Supervisor, :shutdown?
         pool.verify
       end
 
@@ -66,7 +66,7 @@ class ServerSubscriberTest < Minitest::Test
 
         subscriber.kill(server_id: "000000000000000000000000")
 
-        refute RocketJob::Supervisor.shutdown?
+        refute_predicate RocketJob::Supervisor, :shutdown?
         # No interactions expected with the worker pool.
         pool.verify
       end
@@ -78,17 +78,17 @@ class ServerSubscriberTest < Minitest::Test
 
         subscriber.pause
 
-        assert server.paused?
-        assert event_set?
+        assert_predicate server, :paused?
+        assert_predicate self, :event_set?
       end
 
       it "does not pause a server that cannot be paused but still signals an event" do
-        refute server.may_pause?
+        refute_predicate server, :may_pause?
 
         subscriber.pause
 
-        assert server.starting?
-        assert event_set?
+        assert_predicate server, :starting?
+        assert_predicate self, :event_set?
       end
 
       it "ignores the request when it is for a different server" do
@@ -96,20 +96,22 @@ class ServerSubscriberTest < Minitest::Test
 
         subscriber.pause(server_id: "000000000000000000000000")
 
-        assert server.running?
-        refute event_set?
+        assert_predicate server, :running?
+        refute_predicate self, :event_set?
       end
     end
 
     describe "#refresh" do
       it "signals an event" do
         subscriber.refresh
-        assert event_set?
+
+        assert_predicate self, :event_set?
       end
 
       it "ignores the request when it is for a different server" do
         subscriber.refresh(name: "someone-else")
-        refute event_set?
+
+        refute_predicate self, :event_set?
       end
     end
 
@@ -117,34 +119,38 @@ class ServerSubscriberTest < Minitest::Test
       it "resumes a paused server and signals an event" do
         server.started!
         server.pause!
-        assert server.paused?
+
+        assert_predicate server, :paused?
 
         subscriber.resume
 
-        assert server.running?
-        assert event_set?
+        assert_predicate server, :running?
+        assert_predicate self, :event_set?
       end
 
       it "does not resume a server that cannot be resumed but still signals an event" do
         server.started!
-        refute server.may_resume?
+
+        refute_predicate server, :may_resume?
 
         subscriber.resume
 
-        assert server.running?
-        assert event_set?
+        assert_predicate server, :running?
+        assert_predicate self, :event_set?
       end
     end
 
     describe "#stop" do
       it "requests a shutdown" do
         subscriber.stop
-        assert RocketJob::Supervisor.shutdown?
+
+        assert_predicate RocketJob::Supervisor, :shutdown?
       end
 
       it "ignores the request when it is for a different server" do
         subscriber.stop(server_id: "000000000000000000000000")
-        refute RocketJob::Supervisor.shutdown?
+
+        refute_predicate RocketJob::Supervisor, :shutdown?
       end
     end
 
@@ -175,27 +181,32 @@ class ServerSubscriberTest < Minitest::Test
     describe "server targeting" do
       it "acts when neither server_id nor name are supplied" do
         subscriber.stop
-        assert RocketJob::Supervisor.shutdown?
+
+        assert_predicate RocketJob::Supervisor, :shutdown?
       end
 
       it "acts when the name matches this server" do
         subscriber.stop(name: server.name)
-        assert RocketJob::Supervisor.shutdown?
+
+        assert_predicate RocketJob::Supervisor, :shutdown?
       end
 
       it "acts when the server_id matches this server" do
         subscriber.stop(server_id: server.id)
-        assert RocketJob::Supervisor.shutdown?
+
+        assert_predicate RocketJob::Supervisor, :shutdown?
       end
 
       it "ignores a non-matching name" do
         subscriber.stop(name: "someone-else")
-        refute RocketJob::Supervisor.shutdown?
+
+        refute_predicate RocketJob::Supervisor, :shutdown?
       end
 
       it "ignores a non-matching server_id" do
         subscriber.stop(server_id: "000000000000000000000000")
-        refute RocketJob::Supervisor.shutdown?
+
+        refute_predicate RocketJob::Supervisor, :shutdown?
       end
     end
   end

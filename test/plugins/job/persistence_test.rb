@@ -49,7 +49,8 @@ module Plugins
             @job.save!
             @job.worker_name = "123"
             @job.reload
-            assert @job.data.is_a?(Hash), @job.data.class.ai
+
+            assert_kind_of Hash, @job.data, @job.data.class.ai
             assert_equal "value", @job.data["key"]
             assert_nil @job.worker_name
           end
@@ -58,11 +59,12 @@ module Plugins
         describe "#save!" do
           it "save a blank job" do
             @job.save!
+
             assert_nil @job.worker_name
             assert_nil @job.completed_at
             assert @job.created_at
             assert_equal @description, @job.description
-            assert_equal false, @job.destroy_on_complete
+            refute @job.destroy_on_complete
             assert_nil @job.expires_at
             assert_equal @data, @job.data
             assert_equal 0, @job.percent_complete
@@ -80,6 +82,7 @@ module Plugins
             @job2  = PersistJob.create!(data: {key: "value"})
             @job3  = PersistJob.create!(data: {key: "value"}, run_at: 1.day.from_now)
             counts = RocketJob::Job.counts_by_state
+
             assert_equal 4, counts.size, counts.ai
             assert_equal 1, counts[:running]
             assert_equal 2, counts[:queued]
@@ -91,6 +94,7 @@ module Plugins
             @job.save!
             @job2  = PersistJob.create!(data: {key: "value"})
             counts = RocketJob::Job.counts_by_state
+
             assert_equal 2, counts[:queued]
             assert_equal 2, counts[:queued_now]
             refute counts.key?(:scheduled)
@@ -104,15 +108,18 @@ module Plugins
         describe "#create_restart!" do
           it "creates a new queued instance copying copy_on_restart attributes" do
             @job.save!
+
             assert_equal 1, RocketJob::Job.count
             @job.create_restart!
+
             assert_equal 2, RocketJob::Job.count
             @job2 = RocketJob::Job.where(:id.ne => @job.id).first
+
             assert @job2
             assert_equal @description, @job2.description
             assert_equal 53, @job2.priority
-            assert_equal false, @job2.destroy_on_complete
-            assert @job2.queued?
+            refute @job2.destroy_on_complete
+            assert_predicate @job2, :queued?
             # `data` is not a copy_on_restart attribute, so it is not carried over.
             assert_nil @job2.data
           end
@@ -121,6 +128,7 @@ module Plugins
             @job.save!
             @job.create_restart!(priority: 11, description: "Restarted")
             @job2 = RocketJob::Job.where(:id.ne => @job.id).first
+
             assert_equal 11, @job2.priority
             assert_equal "Restarted", @job2.description
           end
@@ -128,6 +136,7 @@ module Plugins
           it "does not create a new instance when the job has expired" do
             @job.expires_at = 1.day.ago
             @job.save!
+
             assert_equal 1, RocketJob::Job.count
             assert_nil @job.create_restart!
             assert_equal 1, RocketJob::Job.count
@@ -137,20 +146,22 @@ module Plugins
         describe "#reload" do
           it "marks an incomplete job complete when destroyed and destroy_on_complete is set" do
             @job2 = PersistJob.create!(data: {key: "value"}, destroy_on_complete: true)
-            refute @job2.completed?
+
+            refute_predicate @job2, :completed?
             # Simulate the job being destroyed from the database by another process.
             RocketJob::Job.where(id: @job2.id).delete_all
             @job2.reload
-            assert @job2.completed?
+
+            assert_predicate @job2, :completed?
             assert @job2.completed_at
           end
         end
 
         describe "#save_with_retry!" do
           it "persists the job and returns true" do
-            assert_equal true, @job.save_with_retry!
-            refute @job.new_record?
-            assert RocketJob::Job.where(id: @job.id).exists?
+            assert @job.save_with_retry!
+            refute_predicate @job, :new_record?
+            assert_predicate RocketJob::Job.where(id: @job.id), :exists?
           end
 
           it "retries on failure and succeeds once save returns true" do
@@ -160,6 +171,7 @@ module Plugins
               calls += 1
               calls >= 3
             end
+
             @job.stub(:save, saver) do
               assert @job.save_with_retry!(5, 0)
             end

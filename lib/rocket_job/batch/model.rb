@@ -66,14 +66,14 @@ module RocketJob
             percent = percent_complete
             if percent >= 5
               secs                        = seconds.to_f
-              h["est_remaining_duration"] = RocketJob.seconds_as_duration((((secs / percent) * 100) - secs))
+              h["est_remaining_duration"] = RocketJob.seconds_as_duration(((secs / percent) * 100) - secs)
             end
           end
         elsif completed?
           secs                  = seconds.to_f
           h["records_per_hour"] = ((record_count.to_f / secs) * 60 * 60).round if record_count&.positive? && (secs > 0.0)
         end
-        h.merge!(super(time_zone))
+        h.merge!(super)
         h.delete("result")
         # Worker name should be retrieved from the slices when processing
         h.delete("worker_name") if sub_state == :processing

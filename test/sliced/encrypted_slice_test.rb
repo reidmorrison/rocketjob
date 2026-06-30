@@ -36,6 +36,7 @@ module Sliced
           slice_with_records.attributes["records"] = BSON::Binary.new(data)
 
           result = slice_with_records.send(:parse_records)
+
           assert_equal dataset, result
           assert_equal dataset, slice_with_records.records
         end
@@ -44,9 +45,10 @@ module Sliced
       describe "#serialize_records" do
         it "Encrypts the records" do
           result = slice_with_records.send(:serialize_records)
-          assert result.is_a?(BSON::Binary)
 
-          encrypted_str   = result.data
+          assert_kind_of BSON::Binary, result
+
+          encrypted_str = result.data
 
           header = SymmetricEncryption::Header.new
           header.parse(encrypted_str)
@@ -54,6 +56,7 @@ module Sliced
           decrypted_str = header.cipher.binary_decrypt(encrypted_str, header: header)
 
           records = Hash.from_bson(BSON::ByteBuffer.new(decrypted_str))["r"]
+
           assert_equal dataset, records
         end
       end

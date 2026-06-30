@@ -46,19 +46,23 @@ class RocketJobTest < Minitest::Test
 
       it "tracks the server flag" do
         RocketJob.instance_variable_set(:@server, false)
-        refute RocketJob.server?
+
+        refute_predicate RocketJob, :server?
         RocketJob.server!
-        assert RocketJob.server?
+
+        assert_predicate RocketJob, :server?
       end
 
       it "tracks the rails flag and standalone is its inverse" do
         RocketJob.instance_variable_set(:@rails, false)
-        refute RocketJob.rails?
-        assert RocketJob.standalone?
+
+        refute_predicate RocketJob, :rails?
+        assert_predicate RocketJob, :standalone?
 
         RocketJob.rails!
-        assert RocketJob.rails?
-        refute RocketJob.standalone?
+
+        assert_predicate RocketJob, :rails?
+        refute_predicate RocketJob, :standalone?
       end
     end
   end

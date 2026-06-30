@@ -82,41 +82,48 @@ module Jobs
 
       describe "#valid?" do
         it "with valid job and upload_file_name" do
-          assert job.valid?
+          assert_predicate job, :valid?
         end
 
         it "validates upload_file_name" do
           job.upload_file_name = ""
-          refute job.valid?
+
+          refute_predicate job, :valid?
           assert_includes job.errors.messages[:upload_file_name], "Upload file name can't be blank."
         end
 
         it "validates file does not exist" do
           job.upload_file_name = "/tmp/blah"
-          refute job.valid?
+
+          refute_predicate job, :valid?
           assert_includes job.errors.messages[:upload_file_name], "Upload file: /tmp/blah does not exist."
         end
 
         it "allows urls other than file for upload_file_name" do
           job.upload_file_name = "https://server/path"
-          assert job.valid?, job.errors.messages
+
+          assert_predicate job, :valid?, job.errors.messages
         end
 
         it "checks the filesystem if the url scheme is file for upload_file_name" do
           job.upload_file_name = "file:/foo/blah"
-          refute job.valid?
+
+          refute_predicate job, :valid?
         end
 
         it "validates job_class_name" do
           job.job_class_name = UploadFileJobTest::BadJob.name
-          refute job.valid?
+
+          refute_predicate job, :valid?
           message = "Jobs::UploadFileJobTest::BadJob must implement any one of: :upload :upload_file_name= :full_file_name= instance methods"
+
           assert_includes job.errors.messages[:job_class_name], message
         end
 
         it "validates the job class inherits from RocketJob::Job" do
           job.job_class_name = "Hash"
-          refute job.valid?
+
+          refute_predicate job, :valid?
           assert_includes job.errors.messages[:job_class_name],
                           "Model Hash must be defined and inherit from RocketJob::Job"
         end
@@ -125,12 +132,14 @@ module Jobs
           # job_class rescues NameError and returns nil, so the class based
           # validations are skipped.
           job.job_class_name = "No::Such::Constant"
-          assert job.valid?, job.errors.messages
+
+          assert_predicate job, :valid?, job.errors.messages
         end
 
         it "rejects unknown top level properties" do
           job.properties = {"does_not_exist" => 1}
-          refute job.valid?
+
+          refute_predicate job, :valid?
           assert(job.errors.messages[:properties].any? { |m| m.include?("does_not_exist") })
         end
       end
