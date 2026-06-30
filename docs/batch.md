@@ -532,7 +532,9 @@ end
 
 Each category has a `serializer` that controls how its slices are stored. Compression reduces network
 and disk usage, and is recommended for large jobs. As of Rocket Job v6 the default serializer is
-`:compress`; set it to `:none` to disable.
+`:compress`; set it to `:none` to disable. Encryption is opt-in and configured per job: setting the
+serializer to `:encrypt` keeps that job's slices protected at rest, which helps meet compliance
+requirements, without any change to your `#perform` code.
 
 ~~~ruby
 class ReverseJob < RocketJob::Job

@@ -136,6 +136,12 @@ Scheduled jobs replace cron, with full visibility into what is scheduled and whe
   hash, so a bad job is rejected at `create!` time, not mid-run.
 * **Reliable and resumable.** Every job and every slice is tracked. Failed slices keep their
   exception and can be retried on their own; whole jobs can be paused, resumed, or aborted.
+* **Compressed by default, encrypted when you need it.** Batch data is compressed in MongoDB out of
+  the box, cutting storage and network bandwidth. Encryption is opt-in and configured per job: turn
+  on encryption at rest for a job's slices with
+  [Symmetric Encryption](https://github.com/reidmorrison/symmetric-encryption), or encrypt
+  individual fields on any job (batch or not) with `field :ssn, type: String, encrypted: true`, to
+  meet compliance requirements for sensitive data, with no change to your `#perform` code.
 * **A familiar, ActiveRecord-like API.** `create!`, `field`, `validates`, queries, and callbacks
   all feel like Rails models, because jobs are Mongoid documents.
 * **Cron without a cron server.** Schedule recurring jobs with a `cron_schedule`; there is no
@@ -248,6 +254,28 @@ end
 
 ~~~ruby
 ReportJob.create!(username: "jbloggs")
+~~~
+
+### Encrypt a sensitive field
+
+Any field on any job can be encrypted at rest by adding `encrypted: true`. The value is transparently
+encrypted with [Symmetric Encryption](https://github.com/reidmorrison/symmetric-encryption) before it
+is written to MongoDB and decrypted when you read it back, so your code just uses `job.ssn` as usual:
+
+~~~ruby
+class ReportJob < RocketJob::Job
+  field :username, type: String
+  field :ssn,      type: String, encrypted: true
+
+  def perform
+    logger.info "Building report for #{username}" # ssn is never logged in the clear
+  end
+end
+~~~
+
+~~~ruby
+job = ReportJob.create!(username: "jbloggs", ssn: "123-45-6789")
+job.ssn # => "123-45-6789" (decrypted), but stored encrypted in MongoDB
 ~~~
 
 ### Set business priority
