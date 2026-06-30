@@ -194,7 +194,7 @@ module Sliced
         it "saves" do
           slice = slices.first
 
-          assert_equal true, slice.save!
+          assert slice.save!
         end
 
         it "fails" do
@@ -208,7 +208,7 @@ module Sliced
           slice.start!
           slice.reload
 
-          assert_equal true, slice.fail!(exception)
+          assert slice.fail!(exception)
           assert_equal 1, slice.failure_count
           assert slice.exception
           assert_equal exception.class.name, slice.exception.class_name

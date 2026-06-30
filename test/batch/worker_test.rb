@@ -308,7 +308,7 @@ module Batch
           assert_equal 1, job.input.failed.count, job.input.to_a.inspect
           assert_equal record_count, job.record_count
           assert_equal 0, job.input.queued.count, job.input.to_a.inspect
-          assert_equal true, job.failed?, job.state
+          assert_predicate job, :failed?, job.state
 
           assert failed_slice = job.input.first
           assert_equal 1, failed_slice.failure_count
@@ -333,7 +333,7 @@ module Batch
           assert_equal 0, job.input.failed.count, job.input.to_a.inspect
           assert_equal record_count, job.record_count
           assert_equal 1, job.input.queued.count, job.input.to_a.inspect
-          assert_equal true, job.running?, job.state
+          assert_predicate job, :running?, job.state
 
           assert slice = job.input.first
           assert_equal 1, slice.failure_count
@@ -367,7 +367,7 @@ module Batch
           assert_equal 1, job.input.failed.count, job.input.to_a.inspect
           assert_equal record_count, job.record_count
           assert_equal 0, job.input.queued.count, job.input.to_a.inspect
-          assert_equal true, job.failed?, job.state
+          assert_predicate job, :failed?, job.state
 
           assert failed_slice = job.input.first
           assert_equal 1, failed_slice.failure_count
@@ -392,7 +392,7 @@ module Batch
           assert_equal 0, job.input.failed.count, job.input.to_a.inspect
           assert_equal record_count, job.record_count
           assert_equal 1, job.input.queued.count, job.input.to_a.inspect
-          assert_equal true, job.running?, job.state
+          assert_predicate job, :running?, job.state
 
           assert slice = job.input.first
           assert_equal 1, slice.failure_count

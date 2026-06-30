@@ -35,13 +35,13 @@ module Batch
           @job           = SimpleJob.new
           @job.exception = RocketJob::JobException.from_exception(@blah_exception)
 
-          assert_equal true, @job.save!
+          assert @job.save!
         end
 
         it "fails" do
           @job = SimpleJob.new
 
-          assert_equal true, @job.fail!(@blah_exception)
+          assert @job.fail!(@blah_exception)
         end
       end
 

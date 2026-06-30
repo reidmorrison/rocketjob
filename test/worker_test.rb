@@ -426,7 +426,7 @@ class WorkerTest < Minitest::Test
 
       describe "batch throttles" do
         before do
-          if BatchThrottleJob.rocket_job_batch_throttles.throttles.count.zero?
+          if BatchThrottleJob.rocket_job_batch_throttles.throttles.none?
             skip "Sometimes a thread startup concurrency issue with `class_attribute` causes it to ignore batch throttles"
           end
         end

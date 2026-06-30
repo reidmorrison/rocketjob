@@ -184,27 +184,27 @@ module Plugins
           it "returns true if job is queued to run in the future" do
             job = SimpleJob.new(run_at: 1.day.from_now)
 
-            assert_equal true, job.queued?
-            assert_equal true, job.scheduled?
+            assert_predicate job, :queued?
+            assert_predicate job, :scheduled?
             job.start
 
-            assert_equal true, job.running?
-            assert_equal false, job.scheduled?
+            assert_predicate job, :running?
+            refute_predicate job, :scheduled?
           end
 
           it "returns false if job is queued and can be run now" do
             job = SimpleJob.new
 
-            assert_equal true, job.queued?
-            assert_equal false, job.scheduled?
+            assert_predicate job, :queued?
+            refute_predicate job, :scheduled?
           end
 
           it "returns false if job is running" do
             job = SimpleJob.new
             job.start
 
-            assert_equal true, job.running?
-            assert_equal false, job.scheduled?
+            assert_predicate job, :running?
+            refute_predicate job, :scheduled?
           end
         end
 

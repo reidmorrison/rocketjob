@@ -22,14 +22,14 @@ module Plugins
         it "returns false if no jobs of this class are active" do
           @job = SingletonJob.new
 
-          assert_equal false, @job.rocket_job_singleton_active?
+          refute_predicate @job, :rocket_job_singleton_active?
         end
 
         it "excludes self when queued from check" do
           @job = SingletonJob.create
 
           assert_predicate @job, :queued?
-          assert_equal false, @job.rocket_job_singleton_active?
+          refute_predicate @job, :rocket_job_singleton_active?
         end
 
         it "excludes self when started from check" do
@@ -37,14 +37,14 @@ module Plugins
           @job.start!
 
           assert_predicate @job, :running?
-          assert_equal false, @job.rocket_job_singleton_active?
+          refute_predicate @job, :rocket_job_singleton_active?
         end
 
         it "returns true when other jobs of this class are queued" do
           @job = SingletonJob.create!
           job2 = SingletonJob.new
 
-          assert_equal true, job2.rocket_job_singleton_active?
+          assert_predicate job2, :rocket_job_singleton_active?
         end
 
         it "returns true when other jobs of this class are running" do
@@ -52,7 +52,7 @@ module Plugins
           @job.start!
           job2 = SingletonJob.new
 
-          assert_equal true, job2.rocket_job_singleton_active?
+          assert_predicate job2, :rocket_job_singleton_active?
         end
 
         it "returns false when other jobs of this class are not active" do
@@ -63,7 +63,7 @@ module Plugins
           assert_predicate @job, :completed?
           job2 = SingletonJob.new
 
-          assert_equal false, job2.rocket_job_singleton_active?
+          refute_predicate job2, :rocket_job_singleton_active?
         end
       end
 
@@ -74,7 +74,7 @@ module Plugins
           @job.save!
           job2 = SingletonJob.new
 
-          assert_equal true, job2.valid?
+          assert_predicate job2, :valid?
         end
 
         it "fails if another job is active" do

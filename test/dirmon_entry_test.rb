@@ -198,7 +198,7 @@ class DirmonEntryTest < Minitest::Test
         end
         dirmon_entry.fail!("myworker:2323", exception)
 
-        assert_equal true, dirmon_entry.failed?
+        assert_predicate dirmon_entry, :failed?
         assert_equal exception.class.name.to_s, dirmon_entry.exception.class_name
         assert_includes dirmon_entry.exception.message, "undefined method", dirmon_entry.attributes.inspect
       end

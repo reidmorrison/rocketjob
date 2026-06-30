@@ -275,7 +275,7 @@ module RocketJob
 
         if block
           raise(ArgumentError, "Cannot supply both an object to upload, and a block.") if object
-          if stream_mode || columns || slice_batch_size || args.size > 0
+          if stream_mode || columns || slice_batch_size || args.size.positive?
             raise(ArgumentError,
                   "Unknown keyword arguments when uploading a block. Only accepts :category, :file_name, or :on_first")
           end
@@ -294,7 +294,7 @@ module RocketJob
         count =
           case object
           when Range
-            if file_name || stream_mode || on_first || args.size > 0
+            if file_name || stream_mode || on_first || args.size.positive?
               raise(ArgumentError,
                     "Unknown keyword arguments when uploading a Range. Only accepts :category, :columns, or :slice_batch_size")
             end
@@ -307,14 +307,14 @@ module RocketJob
               input_collection.upload_integer_range_in_reverse_order(last, first, slice_batch_size: slice_batch_size || 1_000)
             end
           when Mongoid::Criteria
-            if file_name || stream_mode || on_first || args.size > 0
+            if file_name || stream_mode || on_first || args.size.positive?
               raise(ArgumentError,
                     "Unknown keyword arguments when uploading a Mongoid::Criteria. Only accepts :category, :columns, or :slice_batch_size")
             end
 
             input_collection.upload_mongo_query(object, columns: columns, slice_batch_size: slice_batch_size, &block)
           when defined?(ActiveRecord::Relation) ? ActiveRecord::Relation : false
-            if file_name || stream_mode || on_first || args.size > 0
+            if file_name || stream_mode || on_first || args.size.positive?
               raise(ArgumentError,
                     "Unknown keyword arguments when uploading an ActiveRecord::Relation. Only accepts :category, :columns, or :slice_batch_size")
             end

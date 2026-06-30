@@ -64,7 +64,7 @@ module Plugins
             assert_nil @job.completed_at
             assert @job.created_at
             assert_equal @description, @job.description
-            assert_equal false, @job.destroy_on_complete
+            refute @job.destroy_on_complete
             assert_nil @job.expires_at
             assert_equal @data, @job.data
             assert_equal 0, @job.percent_complete
@@ -118,7 +118,7 @@ module Plugins
             assert @job2
             assert_equal @description, @job2.description
             assert_equal 53, @job2.priority
-            assert_equal false, @job2.destroy_on_complete
+            refute @job2.destroy_on_complete
             assert_predicate @job2, :queued?
             # `data` is not a copy_on_restart attribute, so it is not carried over.
             assert_nil @job2.data
@@ -159,7 +159,7 @@ module Plugins
 
         describe "#save_with_retry!" do
           it "persists the job and returns true" do
-            assert_equal true, @job.save_with_retry!
+            assert @job.save_with_retry!
             refute_predicate @job, :new_record?
             assert_predicate RocketJob::Job.where(id: @job.id), :exists?
           end

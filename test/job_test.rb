@@ -20,7 +20,7 @@ class JobTest < Minitest::Test
 
     describe "#status" do
       it "return status for a queued job" do
-        assert_equal true, @job.queued?
+        assert_predicate @job, :queued?
         h = @job.status
 
         assert_equal :queued, h["state"]
@@ -31,7 +31,7 @@ class JobTest < Minitest::Test
         @job.start!
         @job.fail!("worker:1234", "oh no")
 
-        assert_equal true, @job.failed?
+        assert_predicate @job, :failed?
         h = @job.status
 
         assert_equal :failed, h["state"]
@@ -54,7 +54,7 @@ class JobTest < Minitest::Test
         @job2.worker_name = worker_name2
         @job2.start!
 
-        assert_equal true, @job2.valid?
+        assert_predicate @job2, :valid?
         assert_predicate @job2, :running?, @job2.state
         @job2.save!
 

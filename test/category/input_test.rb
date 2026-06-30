@@ -27,7 +27,7 @@ module Batch
             {size: :remainder}
           ]
           category = RocketJob::Category::Input.new(
-            columns:          %w[abc, def],
+            columns:          %w[abc def],
             format:           :fixed,
             format_options:   {layout: layout},
             allowed_columns:  %w[name address zip_code],
@@ -36,7 +36,7 @@ module Batch
           )
 
           assert tabular = category.tabular
-          assert_equal %w[abc, def], tabular.header.columns
+          assert_equal %w[abc def], tabular.header.columns
           assert_kind_of IOStreams::Tabular::Parser::Fixed, tabular.parser, tabular.parser.class.name
           actual = tabular.parser.layout.columns.collect do |col|
             h       = {
@@ -49,7 +49,7 @@ module Batch
           assert_equal layout, actual
           assert_equal %w[name address zip_code], tabular.header.allowed_columns
           assert_equal %w[name address], tabular.header.required_columns
-          assert_equal false, tabular.header.skip_unknown
+          refute tabular.header.skip_unknown
         end
 
         it "uses the file_name when format is not set" do

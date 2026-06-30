@@ -133,6 +133,12 @@ Style/NumericPredicate:
 Style/SignalException:
   Enabled: false
 
+# Assumes the receiver responds to #map. Several objects here define a custom
+# #each without including Enumerable (e.g. DirmonEntry, sliced collections), so
+# this unsafe autocorrect rewrites `each { <<  }` into a broken `map` call.
+Style/MapIntoArray:
+  Enabled: false
+
 # Since English may not be loaded, cannot force its use.
 Style/SpecialGlobalVars:
   Enabled: false

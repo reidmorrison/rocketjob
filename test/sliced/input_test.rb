@@ -207,14 +207,14 @@ module Sliced
 
           assert slice = input.next_slice(worker_name)
           assert_equal first.id, slice.id
-          assert_equal true, slice.running?
+          assert_predicate slice, :running?
           assert_equal 2, input.queued.count
           assert_equal 1, input.running.count
           assert_equal 0, input.failed.count
 
           assert slice = input.next_slice(worker_name)
           assert_equal second.id, slice.id
-          assert_equal true, slice.running?
+          assert_predicate slice, :running?
           assert_equal 1, input.queued.count
           assert_equal 2, input.running.count
           assert_equal 0, input.failed.count
@@ -229,7 +229,7 @@ module Sliced
 
           assert slice = input.next_slice(worker_name)
           assert_equal third.id, slice.id
-          assert_equal true, slice.running?
+          assert_predicate slice, :running?
           assert_equal 0, input.queued.count
           assert_equal 2, input.running.count
           assert_equal 1, input.failed.count
@@ -241,14 +241,14 @@ module Sliced
 
           failed_slice.retry!
 
-          assert_equal true, failed_slice.queued?
+          assert_predicate failed_slice, :queued?
           assert_equal 1, input.queued.count
           assert_equal 2, input.running.count
           assert_equal 0, input.failed.count
 
           assert slice = input.next_slice(worker_name)
           assert_equal second.id, slice.id
-          assert_equal true, slice.running?
+          assert_predicate slice, :running?
           assert_equal 0, input.queued.count
           assert_equal 3, input.running.count
           assert_equal 0, input.failed.count
@@ -382,21 +382,21 @@ module Sliced
           assert slice = input.next_slice(worker_name)
           assert_equal collection_name, slice.collection_name
           assert_equal first.id, slice.id
-          assert_equal true, slice.running?
+          assert_predicate slice, :running?
           assert_equal worker_name, slice.worker_name
           slice = input.find(slice.id)
 
-          assert_equal true, slice.running?
+          assert_predicate slice, :running?
           assert_equal worker_name, slice.worker_name
 
           assert slice = input.next_slice(worker_name)
           assert_equal collection_name, slice.collection_name
           assert_equal second.id, slice.id
-          assert_equal true, slice.running?
+          assert_predicate slice, :running?
           assert_equal worker_name, slice.worker_name
           slice = input.find(slice.id)
 
-          assert_equal true, slice.running?
+          assert_predicate slice, :running?
           assert_equal worker_name, slice.worker_name
 
           assert_nil input.next_slice(worker_name)

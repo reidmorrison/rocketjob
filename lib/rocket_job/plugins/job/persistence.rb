@@ -79,8 +79,8 @@ module RocketJob
             return
           end
 
-          job_attrs = self.class.rocket_job_restart_attributes.each_with_object({}) do |attr, attrs|
-            attrs[attr] = send(attr)
+          job_attrs = self.class.rocket_job_restart_attributes.to_h do |attr|
+            [attr, send(attr)]
           end
           job_attrs.merge!(overrides)
 

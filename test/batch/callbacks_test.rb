@@ -111,7 +111,7 @@ module Batch
           performs = records.times.collect { |i| "perform#{i}" }
           befores  = %w[before_slice_block around_slice_block_before before_slice_method around_slice_method_before]
           afters   = %w[after_slice_method around_slice_method_after around_slice_block_after after_slice_block]
-          expected = befores + performs[0..4] + afters + befores + performs[5..-1] + afters
+          expected = befores + performs[0..4] + afters + befores + performs[5..] + afters
 
           assert_equal expected, @job.call_list, "Sequence of slice callbacks is incorrect"
         end

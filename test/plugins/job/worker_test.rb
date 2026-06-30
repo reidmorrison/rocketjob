@@ -83,7 +83,7 @@ module Plugins
               @job.perform_now
             end
 
-            assert_equal false, logged
+            refute logged
           end
 
           it "raise logging when log_level is set" do
@@ -97,7 +97,7 @@ module Plugins
               end
             end
 
-            assert_equal false, logged
+            refute logged
           end
 
           it "raises a validation error for an invalid job" do
@@ -121,7 +121,7 @@ module Plugins
           it "run the job immediately" do
             @job = SumJob.perform_now(first: 1, second: 5)
 
-            assert_equal true, @job.completed?
+            assert_predicate @job, :completed?
             assert_equal 6, @job.result
           end
         end
