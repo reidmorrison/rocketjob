@@ -122,14 +122,14 @@ Run a quick test with `bundle exec rocketjob_batch_perf -c 1000`, or the full te
 ~~~
 {
   :count              => 10000000,
-  :duration           => 99.473,
-  :records_per_second => 100529.792,
+  :duration           => 93.411,
+  :records_per_second => 107053.773,
   :workers            => 15,
   :worker_processes   => 3
 }
 ~~~
 
-100,529 records per second. Increasing `slice_size` further raises the processing rate, and enabling
+Over 100,000 records per second on a single laptop. Increasing `slice_size` further raises the processing rate, and enabling
 or disabling compression and/or encryption does not appear to have a significant impact on
 processing times.
 

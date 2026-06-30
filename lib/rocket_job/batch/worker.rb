@@ -162,8 +162,11 @@ module RocketJob
         RocketJob::Sliced::Writer::Output.collect(self, input_slice: slice, append: append) do |writer|
           records.each do |record|
             slice.processing_record_number += 1
-            SemanticLogger.named_tagged(record: slice.current_record_number) do
-              writer << rocket_job_batch_perform(slice, record, &block)
+            # `current_record_number` reads Mongoid fields, so compute it once per
+            # record and reuse it for both the log tag and `#perform`.
+            record_number = slice.current_record_number
+            SemanticLogger.named_tagged(record: record_number) do
+              writer << rocket_job_batch_perform(slice, record, record_number, &block)
               count += 1
             end
           end
@@ -172,8 +175,8 @@ module RocketJob
       end
 
       # Perform a single record within the current slice.
-      def rocket_job_batch_perform(slice, record)
-        @rocket_job_record_number = slice.current_record_number
+      def rocket_job_batch_perform(slice, record, record_number = slice.current_record_number)
+        @rocket_job_record_number = record_number
 
         return block_given? ? yield(record) : perform(record) if _perform_callbacks.empty?
 
