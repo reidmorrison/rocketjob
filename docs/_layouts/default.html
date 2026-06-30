@@ -23,16 +23,10 @@
       </a>
     </td>
     <td>
-      <a href="index.html" class="btn">Home</a>
-      <a href="mission_control.html" class="btn">Web UI</a>
-      <a href="installation.html" class="btn">Installation</a>
-      <a href="guide.html" class="btn">Guide</a>
-      <a href="batch.html" class="btn">Batch Guide</a>
-      <a href="dirmon.html" class="btn">Dirmon</a>
-      <a href="jobs.html" class="btn">Jobs</a>
-      <a href="events.html" class="btn">Events</a>
-      <a href="deployment.html" class="btn">Deployment</a>
-      <a href="architecture.html" class="btn">Architecture</a>
+      {% assign current_page = page.name | replace: '.md', '.html' %}
+      {% assign nav_items = "index.html=Home,mission_control.html=Web UI,installation.html=Installation,guide.html=Guide,batch.html=Batch Guide,dirmon.html=Dirmon,jobs.html=Jobs,events.html=Events,deployment.html=Deployment,architecture.html=Architecture" | split: ',' %}
+      {% for item in nav_items %}{% assign pair = item | split: '=' %}
+      <a href="{{ pair[0] }}" class="btn{% if pair[0] == current_page %} active{% endif %}">{{ pair[1] }}</a>{% endfor %}
       <a href="https://github.com/rocketjob/rocketjob" class="btn">GitHub</a>
       <h1 class="project-name">Rocket Job</h1>
       <h2 class="project-tagline">Ruby's missing batch system</h2>
@@ -44,6 +38,21 @@
 <section class="main-content">
   {{content}}
 </section>
+
+<script>
+  // Keep anchor / TOC jumps clear of the sticky header by matching
+  // scroll-padding-top to the header's actual height (it varies by breakpoint).
+  (function () {
+    var header = document.querySelector(".page-header");
+    if (!header) return;
+    function setOffset() {
+      document.documentElement.style.scrollPaddingTop = header.offsetHeight + "px";
+    }
+    setOffset();
+    window.addEventListener("resize", setOffset);
+    window.addEventListener("load", setOffset);
+  })();
+</script>
 </body>
 </html>
 
