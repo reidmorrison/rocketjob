@@ -193,5 +193,95 @@ class EventTest < Minitest::Test
         end
       end
     end
+
+    describe "polling collection" do
+      before do
+        RocketJob::Event.collection.drop
+      end
+
+      after do
+        RocketJob::Event.collection.drop
+      end
+
+      describe ".create_polling_collection" do
+        it "creates a regular, non-capped collection" do
+          RocketJob::Event.create_polling_collection
+
+          assert_predicate RocketJob::Event, :collection_exists?
+          refute_predicate RocketJob::Event.collection, :capped?
+        end
+
+        it "creates a TTL index on created_at" do
+          RocketJob::Event.create_polling_collection
+
+          ttl_index = RocketJob::Event.collection.indexes.find { |i| i["key"] == {"created_at" => 1} }
+
+          refute_nil ttl_index, "expected a created_at index"
+          assert_equal RocketJob::Event.event_retention_seconds, ttl_index["expireAfterSeconds"]
+        end
+
+        it "is idempotent when called repeatedly" do
+          RocketJob::Event.create_polling_collection
+          # Should not raise on the second call.
+          RocketJob::Event.create_polling_collection
+
+          assert_predicate RocketJob::Event, :collection_exists?
+        end
+      end
+
+      describe ".poll_once" do
+        before do
+          RocketJob::Event.create_polling_collection
+        end
+
+        it "yields events newer than the start time" do
+          start = Time.now.utc - 1
+          RocketJob::Event.create!(name: "EventTestRecorder", action: :hello)
+
+          seen = []
+          RocketJob::Event.poll_once(start) { |event| seen << event }
+
+          assert_equal ["EventTestRecorder"], seen.map(&:name)
+        end
+
+        it "ignores events at or before the start time" do
+          RocketJob::Event.create!(name: "EventTestRecorder", action: :hello)
+          future = Time.now.utc + 60
+
+          seen = []
+          RocketJob::Event.poll_once(future) { |event| seen << event }
+
+          assert_empty seen
+        end
+
+        it "returns the last _id as the watermark and uses it on the next pass" do
+          start = Time.now.utc - 1
+          first = RocketJob::Event.create!(name: "EventTestRecorder", action: :hello)
+
+          watermark = RocketJob::Event.poll_once(start) { |_event| nil }
+
+          assert_equal first.id, watermark
+
+          # A second pass from the watermark sees only newer events, not the first one.
+          second = RocketJob::Event.create!(name: "EventTestRecorder", action: :hello)
+
+          seen = []
+          RocketJob::Event.poll_once(start, watermark) { |event| seen << event }
+
+          assert_equal [second.id], seen.map(&:id)
+        end
+
+        it "does not skip events sharing a created_at timestamp" do
+          start = Time.now.utc - 1
+          stamp = Time.now.utc
+          two   = Array.new(2) { RocketJob::Event.create!(name: "EventTestRecorder", action: :hello, created_at: stamp) }
+
+          seen = []
+          RocketJob::Event.poll_once(start) { |event| seen << event }
+
+          assert_equal two.map(&:id).sort, seen.map(&:id).sort
+        end
+      end
+    end
   end
 end

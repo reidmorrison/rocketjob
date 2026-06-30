@@ -12,6 +12,11 @@ module RocketJob
 
     ALL_EVENTS = "*".freeze
 
+    # MongoDB OperationFailure codes that are safe to ignore when concurrently
+    # creating the polling collection and its TTL index:
+    #   48 NamespaceExists, 85 IndexOptionsConflict, 86 IndexKeySpecsConflict.
+    IGNORABLE_CREATE_CODES = [48, 85, 86].freeze
+
     # Capped collection long polling interval.
     class_attribute :long_poll_seconds, instance_accessor: false
     self.long_poll_seconds = 300
@@ -22,6 +27,28 @@ module RocketJob
     # Default: 128MB.
     class_attribute :capped_collection_size, instance_accessor: false
     self.capped_collection_size = 128 * 1024 * 1024
+
+    # Event listener strategy:
+    #   :capped  - Tail a capped collection with a tailable cursor (default).
+    #              Lowest latency, but requires a data store that supports capped
+    #              collections and tailable cursors (i.e. a real MongoDB server).
+    #   :polling - Poll a regular collection for new events. Slightly higher latency
+    #              (bounded by `poll_interval`), but works on any MongoDB-compatible
+    #              store, including AWS DocumentDB which has no capped collections.
+    class_attribute :listener_strategy, instance_accessor: false
+    self.listener_strategy = :capped
+
+    # Polling strategy: seconds to wait between polls for new events.
+    class_attribute :poll_interval, instance_accessor: false
+    self.poll_interval = 1
+
+    # Polling strategy: seconds an event is retained before a TTL index removes it.
+    # Must comfortably exceed the longest expected listener downtime so that a
+    # restarting server can still recover events published while it was away.
+    #
+    # Default: 1 hour.
+    class_attribute :event_retention_seconds, instance_accessor: false
+    self.event_retention_seconds = 60 * 60
 
     # Mandatory Event Name
     #   Examples:
@@ -81,14 +108,23 @@ module RocketJob
       @subscribers.each_value { |v| v.delete_if { |i| i.object_id == handle } }
     end
 
-    # Indefinitely tail the capped collection looking for new events.
+    # Indefinitely watch for new events, dispatching each to its subscribers.
     #   time: the start time from which to start looking for new events.
     def self.listener(time: @load_time)
       Thread.current.name = "rocketjob event"
-      create_capped_collection
 
-      logger.info("Event listener started")
-      tail_capped_collection(time) { |event| process_event(event) }
+      case listener_strategy
+      when :capped
+        create_capped_collection
+        logger.info("Event listener started (capped collection)")
+        tail_capped_collection(time) { |event| process_event(event) }
+      when :polling
+        create_polling_collection
+        logger.info("Event listener started (polling, interval: #{poll_interval}s)")
+        poll_collection(time) { |event| process_event(event) }
+      else
+        raise(ArgumentError, "Unknown RocketJob::Event.listener_strategy: #{listener_strategy.inspect}")
+      end
     rescue Exception => e
       logger.error("#listener Event listener is terminating due to unhandled exception", e)
       raise(e)
@@ -132,6 +168,50 @@ module RocketJob
     rescue Mongo::Error::SocketError, Mongo::Error::SocketTimeoutError, Mongo::Error::OperationFailure, Timeout::Error => e
       logger.info("Creating a new cursor and trying again: #{e.class.name} #{e.message}")
       retry
+    end
+
+    # Create the regular (non-capped) collection used by the polling strategy,
+    # along with a TTL index that expires old events.
+    #
+    # Safe to call repeatedly: it never drops data, and tolerates the collection
+    # and index already existing.
+    def self.create_polling_collection
+      collection.client[collection_name].create unless collection_exists?
+      collection.indexes.create_one({created_at: 1}, expire_after: event_retention_seconds)
+    rescue Mongo::Error::OperationFailure => e
+      # Ignore "collection already exists" and "index already exists" races between
+      # multiple servers starting at once. Anything else is a real error.
+      raise(e) unless IGNORABLE_CREATE_CODES.include?(e.code)
+    end
+
+    # Indefinitely poll a regular collection for new events.
+    #   time: the start time from which to start looking for new events.
+    #
+    # After the first poll the `_id` of the last event seen is used as the
+    # watermark, which is monotonic and unique, so events sharing a `created_at`
+    # timestamp are never skipped.
+    def self.poll_collection(time, &block)
+      last_id = nil
+      loop do
+        last_id = poll_once(time, last_id, &block)
+        sleep(poll_interval)
+      end
+    rescue Mongo::Error::SocketError, Mongo::Error::SocketTimeoutError, Mongo::Error::OperationFailure, Timeout::Error => e
+      logger.info("Polling failed, retrying: #{e.class.name} #{e.message}")
+      sleep(poll_interval)
+      retry
+    end
+
+    # Perform a single polling pass, yielding every event newer than the watermark
+    # and returning the new watermark (the `_id` of the last event seen, or the
+    # supplied `last_id` when no new events were found).
+    def self.poll_once(time, last_id = nil)
+      filter = last_id ? {_id: {"$gt" => last_id}} : {created_at: {"$gt" => time}}
+      collection.find(filter).sort(_id: 1).each do |doc|
+        last_id = doc["_id"]
+        yield(Mongoid::Factory.from_db(Event, doc))
+      end
+      last_id
     end
 
     # Process a new event, calling registered subscribers.

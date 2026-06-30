@@ -27,12 +27,38 @@ exercised in CI are the authoritative list; see
   support MongoDB server 3.6 through 8.x. See the
   [Mongoid compatibility matrix](https://www.mongodb.com/docs/mongoid/current/compatibility/).
 
-### AWS DocumentDB is not supported
+### AWS DocumentDB
 {:.no_toc}
 
-Rocket Job's cross-process event mechanism (used for shutdown, pause, and log-level changes) relies
-on a *tailable capped collection*. [Amazon DocumentDB](https://aws.amazon.com/documentdb/) does not
-support capped collections, so it cannot run Rocket Job. Use a real MongoDB server.
+Rocket Job's cross-process event mechanism (used for shutdown, pause, and log-level changes)
+defaults to a *tailable capped collection*, which [Amazon DocumentDB](https://aws.amazon.com/documentdb/)
+does not support. To run on DocumentDB, switch the event listener to the polling strategy, which uses
+a regular collection instead. Add this to an initializer (for example
+`config/initializers/rocketjob.rb`):
+
+~~~ruby
+RocketJob::Event.listener_strategy = :polling
+~~~
+
+With polling enabled, control events are delivered within `RocketJob::Event.poll_interval` seconds
+(default `1`). Events are stored in a regular collection bounded by a TTL index;
+`RocketJob::Event.event_retention_seconds` (default one hour) controls how long an event is kept,
+which is also the longest a server can be offline and still recover events on restart. On a real
+MongoDB server the default capped-collection strategy remains the lowest-latency choice and needs no
+configuration.
+
+#### Event listener settings
+{:.no_toc}
+
+All of the event listener settings, with their defaults:
+
+| Setting | Default | Applies to | Description |
+|---------|---------|-----------|-------------|
+| `RocketJob::Event.listener_strategy` | `:capped` | both | `:capped` tails a capped collection (lowest latency, requires capped-collection support); `:polling` polls a regular collection (works on any MongoDB-compatible store, including DocumentDB). |
+| `RocketJob::Event.long_poll_seconds` | `300` | `:capped` | How long the tailable cursor waits for new events before re-issuing. |
+| `RocketJob::Event.capped_collection_size` | `134217728` (128 MB) | `:capped` | Size of the capped collection, used only when it is first created. |
+| `RocketJob::Event.poll_interval` | `1` | `:polling` | Seconds between polls. Bounds control-event delivery latency. |
+| `RocketJob::Event.event_retention_seconds` | `3600` (1 hour) | `:polling` | TTL on stored events. Also the longest a server can be offline and still recover events on restart. |
 
 ## Licensing
 
