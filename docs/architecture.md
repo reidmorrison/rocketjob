@@ -122,31 +122,16 @@ Run a quick test with `bundle exec rocketjob_batch_perf -c 1000`, or the full te
 ~~~
 {
   :count              => 10000000,
-  :duration           => 18.731,
-  :records_per_second => 533874.326,
+  :duration           => 99.473,
+  :records_per_second => 100529.792,
   :workers            => 15,
   :worker_processes   => 3
 }
-{count: 10000000, duration: 99.473, records_per_second: 100529.792, workers: 15, servers: 3, compress: false, encrypt: false}
 ~~~
 
-533,874 records per second. Increasing `slice_size` further raises the processing rate, and enabling
+100,529 records per second. Increasing `slice_size` further raises the processing rate, and enabling
 or disabling compression and/or encryption does not appear to have a significant impact on
 processing times.
-
-### Tuning the MongoDB write concern
-
-For a small improvement in throughput, set the MongoDB write concern to `0`. Rocket Job then does
-not wait for each write to reach the journal (disk) before returning. Add the following under
-`:options` in `mongoid.yml`:
-
-~~~yaml
-    :w: 0
-~~~
-
-With this change the simple-job test reached 1,031 jobs per second and the batch test reached
-560,789 records per second, in both cases still processed reliably, in priority order, and with full
-visibility of every job.
 
 ## The job is a composition of plugins
 
