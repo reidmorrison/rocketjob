@@ -47,6 +47,19 @@ which is also the longest a server can be offline and still recover events on re
 MongoDB server the default capped-collection strategy remains the lowest-latency choice and needs no
 configuration.
 
+#### Event listener settings
+{:.no_toc}
+
+All of the event listener settings, with their defaults:
+
+| Setting | Default | Applies to | Description |
+|---------|---------|-----------|-------------|
+| `RocketJob::Event.listener_strategy` | `:capped` | both | `:capped` tails a capped collection (lowest latency, requires capped-collection support); `:polling` polls a regular collection (works on any MongoDB-compatible store, including DocumentDB). |
+| `RocketJob::Event.long_poll_seconds` | `300` | `:capped` | How long the tailable cursor waits for new events before re-issuing. |
+| `RocketJob::Event.capped_collection_size` | `134217728` (128 MB) | `:capped` | Size of the capped collection, used only when it is first created. |
+| `RocketJob::Event.poll_interval` | `1` | `:polling` | Seconds between polls. Bounds control-event delivery latency. |
+| `RocketJob::Event.event_retention_seconds` | `3600` (1 hour) | `:polling` | TTL on stored events. Also the longest a server can be offline and still recover events on restart. |
+
 ## Install MongoDB
 
 Rocket Job stores all job data in [MongoDB](https://www.mongodb.com). The simplest way to run it
