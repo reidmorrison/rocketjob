@@ -24,6 +24,7 @@ module Jobs
 
           job = RocketJob::Jobs::OnDemandJob.new(code: code)
           job.perform_now
+
           assert_equal "h" * 24, job.data["result"]
         end
 
@@ -37,6 +38,7 @@ module Jobs
             data: {"a" => 10, "b" => 2}
           )
           job.perform_now
+
           assert_equal 20, job.data["result"]
         end
 
@@ -46,7 +48,8 @@ module Jobs
           CODE
 
           job = RocketJob::Jobs::OnDemandJob.new(code: code)
-          refute job.valid?
+
+          refute_predicate job, :valid?
           assert_raises ::Mongoid::Errors::Validations do
             job.perform_now
           end

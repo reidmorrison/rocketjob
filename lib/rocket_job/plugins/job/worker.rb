@@ -66,16 +66,20 @@ module RocketJob
         # re_raise_exceptions: [true|false]
         #   Re-raise the exception after updating the job
         #   Default: false
-        def fail_on_exception!(re_raise_exceptions = false, &block)
-          SemanticLogger.named_tagged(job: id.to_s, &block)
+        def fail_on_exception!(re_raise_exceptions = false, &)
+          SemanticLogger.named_tagged(job: id.to_s, &)
         rescue Exception => e
           SemanticLogger.named_tagged(job: id.to_s) do
+            # Not a guard clause: the `fail` event clears `worker_name`, so the
+            # branches are not equivalent and must not be collapsed.
+            # rubocop:disable Style/GuardClause
             if failed? || !may_fail?
               self.exception        = JobException.from_exception(e)
               exception.worker_name = worker_name
             else
               fail(worker_name, e)
             end
+            # rubocop:enable Style/GuardClause
 
             # Prevent validation failures from failing the job
             save(validate: false) unless new_record? || destroyed?

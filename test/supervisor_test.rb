@@ -37,6 +37,7 @@ class SupervisorTest < Minitest::Test
       it "yields the supplied block" do
         called = false
         supervisor.synchronize { called = true }
+
         assert called
       end
 
@@ -48,7 +49,8 @@ class SupervisorTest < Minitest::Test
     describe "#stop!" do
       it "stops a running server" do
         server.started!
-        assert server.running?
+
+        assert_predicate server, :running?
 
         pool = Minitest::Mock.new
         pool.expect(:stop, nil)
@@ -57,15 +59,16 @@ class SupervisorTest < Minitest::Test
 
         supervisor.stop!
 
-        assert server.stopping?
+        assert_predicate server, :stopping?
         pool.verify
       end
 
       it "does not stop a server that cannot be stopped" do
         server.started!
         server.stop!
-        assert server.stopping?
-        refute server.may_stop?
+
+        assert_predicate server, :stopping?
+        refute_predicate server, :may_stop?
 
         pool = Minitest::Mock.new
         pool.expect(:stop, nil)
@@ -74,7 +77,7 @@ class SupervisorTest < Minitest::Test
 
         supervisor.stop!
 
-        assert server.stopping?
+        assert_predicate server, :stopping?
         pool.verify
       end
 
@@ -124,7 +127,7 @@ class SupervisorTest < Minitest::Test
 
         assert supervise_called, "Expected supervise_pool to be invoked"
         assert stop_called, "Expected stop! to be invoked"
-        assert server.reload.running?
+        assert_predicate server.reload, :running?
       end
 
       it "shuts down gracefully when the server document is destroyed" do
@@ -136,7 +139,7 @@ class SupervisorTest < Minitest::Test
           end
         end
 
-        assert server.reload.running?
+        assert_predicate server.reload, :running?
       end
 
       it "rescues unexpected exceptions" do
@@ -147,7 +150,7 @@ class SupervisorTest < Minitest::Test
           end
         end
 
-        assert server.reload.running?
+        assert_predicate server.reload, :running?
       end
     end
 
@@ -184,7 +187,8 @@ class SupervisorTest < Minitest::Test
       it "stops the pool while the server is paused" do
         server.started!
         server.pause!
-        assert server.paused?
+
+        assert_predicate server, :paused?
 
         pool = Minitest::Mock.new
         pool.expect(:stop, nil)
@@ -202,7 +206,8 @@ class SupervisorTest < Minitest::Test
       it "refreshes the heartbeat when the server is neither running nor paused" do
         server.started!
         server.stop!
-        assert server.stopping?
+
+        assert_predicate server, :stopping?
 
         pool = Minitest::Mock.new
         pool.expect(:living_count, 0)
@@ -218,28 +223,31 @@ class SupervisorTest < Minitest::Test
 
     describe ".shutdown?" do
       it "is false until a shutdown is requested" do
-        refute RocketJob::Supervisor.shutdown?
+        refute_predicate RocketJob::Supervisor, :shutdown?
       end
 
       it "is true once a shutdown is requested" do
         RocketJob::Supervisor.shutdown!
-        assert RocketJob::Supervisor.shutdown?
+
+        assert_predicate RocketJob::Supervisor, :shutdown?
       end
     end
 
     describe ".shutdown!" do
       it "sets the shutdown indicator and signals an event" do
         RocketJob::Supervisor.shutdown!
-        assert RocketJob::Supervisor.shutdown?
-        assert RocketJob::Supervisor.instance_variable_get(:@event).set?
+
+        assert_predicate RocketJob::Supervisor, :shutdown?
+        assert_predicate RocketJob::Supervisor.instance_variable_get(:@event), :set?
       end
     end
 
     describe ".event!" do
       it "signals a pending event without requesting shutdown" do
         RocketJob::Supervisor.event!
-        assert RocketJob::Supervisor.instance_variable_get(:@event).set?
-        refute RocketJob::Supervisor.shutdown?
+
+        assert_predicate RocketJob::Supervisor.instance_variable_get(:@event), :set?
+        refute_predicate RocketJob::Supervisor, :shutdown?
       end
     end
 
@@ -247,18 +255,21 @@ class SupervisorTest < Minitest::Test
       it "returns immediately when an event is already set" do
         RocketJob::Supervisor.event!
         elapsed = time_block { RocketJob::Supervisor.wait_for_event(5) }
-        assert elapsed < 1, "Expected to return immediately, took #{elapsed}s"
+
+        assert_operator elapsed, :<, 1, "Expected to return immediately, took #{elapsed}s"
       end
 
       it "resets the event after waiting" do
         RocketJob::Supervisor.event!
         RocketJob::Supervisor.wait_for_event(1)
-        refute RocketJob::Supervisor.instance_variable_get(:@event).set?
+
+        refute_predicate RocketJob::Supervisor.instance_variable_get(:@event), :set?
       end
 
       it "waits for the timeout when no event is set" do
         elapsed = time_block { RocketJob::Supervisor.wait_for_event(0.2) }
-        assert elapsed >= 0.2, "Expected to wait for the timeout, took #{elapsed}s"
+
+        assert_operator elapsed, :>=, 0.2, "Expected to wait for the timeout, took #{elapsed}s"
       end
     end
 
@@ -281,7 +292,8 @@ class SupervisorTest < Minitest::Test
 
             sleep(0.01)
           end
-          assert RocketJob::Supervisor.shutdown?, "Expected the handler to request a shutdown"
+
+          assert_predicate RocketJob::Supervisor, :shutdown?, "Expected the handler to request a shutdown"
         end
       end
 

@@ -34,11 +34,13 @@ module Batch
         it "saves" do
           @job           = SimpleJob.new
           @job.exception = RocketJob::JobException.from_exception(@blah_exception)
+
           assert_equal true, @job.save!
         end
 
         it "fails" do
           @job = SimpleJob.new
+
           assert_equal true, @job.fail!(@blah_exception)
         end
       end
@@ -46,12 +48,14 @@ module Batch
       describe "#percent_complete" do
         it "is 0 when the record count has not been set" do
           @job = SimpleJob.new
+
           assert_equal 0, @job.percent_complete
         end
 
         it "is 100 when completed" do
           @job = SimpleJob.new(state: :completed)
-          assert @job.completed?
+
+          assert_predicate @job, :completed?
           assert_equal 100, @job.percent_complete
         end
 
@@ -67,6 +71,7 @@ module Batch
           @job = SimpleJob.new
           @job.upload { |records| (1..25).each { |i| records << i } }
           @job.record_count = 5
+
           assert_equal 0, @job.percent_complete
         end
       end
@@ -74,6 +79,7 @@ module Batch
       describe "#worker_names" do
         it "is empty when the job is not running" do
           @job = SimpleJob.new
+
           assert_empty @job.worker_names
         end
 
@@ -81,6 +87,7 @@ module Batch
           @job = SimpleJob.create!(worker_name: "worker-1")
           @job.start!
           @job.sub_state = :before
+
           assert_equal ["worker-1"], @job.worker_names
         end
 
@@ -90,6 +97,7 @@ module Batch
           @job.start!
           @job.input.next_slice("slice-worker")
           @job.sub_state = :processing
+
           assert_equal ["slice-worker"], @job.worker_names
         end
       end
@@ -97,6 +105,7 @@ module Batch
       describe "#worker_count" do
         it "is 0 when the job is not running" do
           @job = SimpleJob.new
+
           assert_equal 0, @job.worker_count
         end
 
@@ -104,6 +113,7 @@ module Batch
           @job = SimpleJob.create!
           @job.start!
           @job.sub_state = :before
+
           assert_equal 1, @job.worker_count
         end
 
@@ -111,9 +121,11 @@ module Batch
           @job = SimpleJob.create!
           @job.start!
           @job.sub_state = :before
+
           assert_equal 1, @job.worker_count
           # Switching sub-state should not change the cached value within the same second.
           @job.sub_state = :processing
+
           assert_equal 1, @job.worker_count
         end
       end
@@ -123,6 +135,7 @@ module Batch
           @job = SimpleJob.create!
           @job.upload { |records| (1..25).each { |i| records << i } }
           status = @job.status
+
           assert_equal 3, status["queued_slices"]
         end
 
@@ -132,6 +145,7 @@ module Batch
           @job.start!
           @job.sub_state = :processing
           status = @job.status
+
           assert status.key?("active_slices")
           assert status.key?("failed_slices")
           assert status.key?("queued_slices")
@@ -141,6 +155,7 @@ module Batch
       describe "#upload_file_name" do
         it "delegates to the input category file name" do
           @job = SimpleJob.new
+
           assert_nil @job.upload_file_name
           @job.upload_file_name = "data.csv"
           # Category#file_name wraps the value in an IOStreams path.

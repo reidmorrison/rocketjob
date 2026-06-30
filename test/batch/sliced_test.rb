@@ -36,12 +36,14 @@ module Batch
           it "readable" do
             job.upload(text_file.to_s)
             result = job.input.collect(&:to_a).join("\n") + "\n"
+
             assert_equal text_file.read, result
           end
 
           it "is compressed" do
             job.upload(text_file.to_s)
-            assert_equal RocketJob::Sliced::CompressedSlice, job.input.first.class
+
+            assert_instance_of RocketJob::Sliced::CompressedSlice, job.input.first
           end
         end
 
@@ -51,12 +53,14 @@ module Batch
           it "readable" do
             job.upload(text_file.to_s)
             result = job.input.collect(&:to_a).join("\n") + "\n"
+
             assert_equal text_file.read, result
           end
 
           it "is encrypted" do
             job.upload(text_file.to_s)
-            assert_equal RocketJob::Sliced::EncryptedSlice, job.input.first.class
+
+            assert_instance_of RocketJob::Sliced::EncryptedSlice, job.input.first
           end
         end
       end

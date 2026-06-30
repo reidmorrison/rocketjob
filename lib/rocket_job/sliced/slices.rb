@@ -44,8 +44,8 @@ module RocketJob
 
       # Returns output slices in the order of their id
       # which is usually the order in which they were written.
-      def each(&block)
-        all.sort(id: 1).each(&block)
+      def each(&)
+        all.sort(id: 1).each(&)
       end
 
       # Insert a new slice into the collection
@@ -145,7 +145,6 @@ module RocketJob
       end
 
       # Mongoid does not apply ordering, add sort
-      # rubocop:disable Style/RedundantSort
       def first
         all.sort("_id" => 1).first
       end
@@ -153,8 +152,6 @@ module RocketJob
       def last
         all.sort("_id" => -1).first
       end
-
-      # rubocop:enable Style/RedundantSort
 
       # Returns [Array<Struct>] grouped exceptions by class name,
       # and unique exception messages by exception class.

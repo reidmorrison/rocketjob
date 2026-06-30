@@ -12,8 +12,8 @@ module RocketJob
     #   end
     #
     #   input_category(:my_lookup).find(id: 123).first
-    def upload(batch_size: 10_000, &block)
-      BatchUploader.upload(batch_size: batch_size, &block)
+    def upload(batch_size: 10_000, &)
+      BatchUploader.upload(batch_size: batch_size, &)
     end
 
     # Looks up the value at the specified id.

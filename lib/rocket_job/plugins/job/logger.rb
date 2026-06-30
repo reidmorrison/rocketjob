@@ -17,7 +17,7 @@ module RocketJob
         #   - log_exception logs entire exception if raised
         #   - on_exception_level changes log level from info to error on exception
         #   - silence noisy jobs by raising log level
-        def rocket_job_around_logger(&block)
+        def rocket_job_around_logger(&)
           logger.info("Start #perform")
           logger.measure_info(
             "Completed #perform",
@@ -25,7 +25,7 @@ module RocketJob
             log_exception:      :full,
             on_exception_level: :error,
             silence:            log_level,
-            &block
+            &
           )
         end
       end

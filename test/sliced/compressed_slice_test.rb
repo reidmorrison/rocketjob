@@ -36,6 +36,7 @@ module Sliced
           slice_with_records.attributes["records"] = BSON::Binary.new(data)
 
           result = slice_with_records.send(:parse_records)
+
           assert_equal dataset, result
           assert_equal dataset, slice_with_records.records
         end
@@ -44,11 +45,13 @@ module Sliced
       describe "#serialize_records" do
         it "Serializes the records to binary" do
           result = slice_with_records.send(:serialize_records)
-          assert result.is_a?(BSON::Binary)
+
+          assert_kind_of BSON::Binary, result
 
           compressed_str   = result.data
           uncompressed_str = Zlib::Inflate.inflate(compressed_str)
           records          = Hash.from_bson(BSON::ByteBuffer.new(uncompressed_str))["r"]
+
           assert_equal dataset, records
         end
       end

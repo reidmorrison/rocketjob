@@ -30,6 +30,7 @@ module Server
           create_server(name: "c", state: :paused)
 
           counts = RocketJob::Server.counts_by_state
+
           assert_equal 2, counts[:running]
           assert_equal 1, counts[:paused]
         end
@@ -38,22 +39,26 @@ module Server
       describe "#zombie?" do
         it "is false for a server that is not running, stopping, or paused" do
           server = create_server(name: "starting", state: :starting)
-          refute server.zombie?
+
+          refute_predicate server, :zombie?
         end
 
         it "is true for a running server with no heartbeat" do
           server = create_server(name: "no-beat", state: :running, heartbeat_at: nil)
-          assert server.zombie?
+
+          assert_predicate server, :zombie?
         end
 
         it "is true for a running server whose heartbeat is stale" do
           server = create_server(name: "stale", state: :running, heartbeat_at: 5.minutes.ago)
-          assert server.zombie?
+
+          assert_predicate server, :zombie?
         end
 
         it "is false for a running server with a recent heartbeat" do
           server = create_server(name: "fresh", state: :running, heartbeat_at: Time.now)
-          refute server.zombie?
+
+          refute_predicate server, :zombie?
         end
       end
 
@@ -63,6 +68,7 @@ module Server
           stale = create_server(name: "stale", state: :running, heartbeat_at: 5.minutes.ago)
 
           zombie_names = RocketJob::Server.zombies.collect(&:name)
+
           assert_includes zombie_names, stale.name
           refute_includes zombie_names, "alive"
         end

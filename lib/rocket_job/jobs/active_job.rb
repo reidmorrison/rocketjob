@@ -1,7 +1,7 @@
 module RocketJob
   module Jobs
     # Used to wrap an Active Job
-    class ActiveJob < RocketJob::Job #:nodoc:
+    class ActiveJob < RocketJob::Job # :nodoc:
       field :data, type: Hash
       field :active_job_id, type: String
       field :active_job_class, type: String

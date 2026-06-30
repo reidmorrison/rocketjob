@@ -11,7 +11,6 @@ module RocketJob
         store_in client: "rocketjob"
       end
 
-      # rubocop:disable Style/RedundantSort
       module ClassMethods
         # Mongoid does not apply ordering, add sort
         def first
@@ -23,7 +22,6 @@ module RocketJob
           all.sort("_id" => -1).first
         end
       end
-      # rubocop:enable Style/RedundantSort
 
       private
 

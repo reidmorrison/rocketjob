@@ -54,12 +54,14 @@ module Sliced
 
         it "uploads the id of each record by default" do
           count = input.upload_arel(InputQueryPerson.all)
+
           assert_equal 2, count
           assert_equal [@alice.id, @bob.id].sort, input.collect(&:to_a).flatten.sort
         end
 
         it "uploads a single named column" do
           count = input.upload_arel(InputQueryPerson.all, columns: [:name])
+
           assert_equal 2, count
           assert_equal %w[Alice Bob], input.collect(&:to_a).flatten.sort
         end
@@ -67,11 +69,13 @@ module Sliced
         it "uploads multiple columns as arrays" do
           input.upload_arel(InputQueryPerson.all, columns: %i[name age])
           rows = input.collect(&:to_a).flatten(1).sort
+
           assert_equal [["Alice", 30], ["Bob", 40]], rows
         end
 
         it "honors a supplied block" do
           input.upload_arel(InputQueryPerson.all) { |model| model.name.upcase }
+
           assert_equal %w[ALICE BOB], input.collect(&:to_a).flatten.sort
         end
       end
@@ -84,23 +88,27 @@ module Sliced
 
         it "uploads the _id of each document by default" do
           count = input.upload_mongo_query(InputQueryDoc.all)
+
           assert_equal 2, count
           assert_equal [@alice.id, @bob.id].sort, input.collect(&:to_a).flatten.sort
         end
 
         it "uploads a single named column" do
           input.upload_mongo_query(InputQueryDoc.all, columns: [:name])
+
           assert_equal %w[Alice Bob], input.collect(&:to_a).flatten.sort
         end
 
         it "uploads multiple columns as arrays" do
           input.upload_mongo_query(InputQueryDoc.all, columns: %i[name age])
           rows = input.collect(&:to_a).flatten(1).sort
+
           assert_equal [["Alice", 30], ["Bob", 40]], rows
         end
 
         it "honors a supplied block" do
           input.upload_mongo_query(InputQueryDoc.all) { |document| document["name"].downcase }
+
           assert_equal %w[alice bob], input.collect(&:to_a).flatten.sort
         end
       end

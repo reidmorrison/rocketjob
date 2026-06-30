@@ -62,7 +62,8 @@ module Plugins
           assert_equal 0, User.count
           job = CommitTransactionJob.new(login: "Success")
           job.perform_now
-          assert job.completed?
+
+          assert_predicate job, :completed?
           assert_equal 1, User.count
           assert_equal "Success", User.first.login
         end
@@ -73,7 +74,7 @@ module Plugins
           assert_raises RuntimeError do
             job.perform_now
           end
-          assert job.failed?
+          assert_predicate job, :failed?
           assert_equal 0, User.count
         end
       end

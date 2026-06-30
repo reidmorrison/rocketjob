@@ -124,8 +124,10 @@ module Plugins
           it "runs blocks and functions" do
             @job = BeforePerformJob.new
             @job.perform_now
-            assert @job.completed?, @job.attributes.ai
+
+            assert_predicate @job, :completed?, @job.attributes.ai
             expected = %w[before_perform_block before_perform_method perform]
+
             assert_equal expected, @job.call_list, "Sequence of before_perform callbacks is incorrect"
           end
         end
@@ -134,8 +136,10 @@ module Plugins
           it "runs blocks and functions" do
             @job = AfterPerformJob.new
             @job.perform_now
-            assert @job.completed?, @job.attributes.ai
+
+            assert_predicate @job, :completed?, @job.attributes.ai
             expected = %w[perform after_perform_method after_perform_block]
+
             assert_equal expected, @job.call_list, "Sequence of after_perform callbacks is incorrect"
           end
         end
@@ -144,8 +148,10 @@ module Plugins
           it "runs blocks and functions" do
             @job = AroundPerformJob.new
             @job.perform_now
-            assert @job.completed?, @job.attributes.ai
+
+            assert_predicate @job, :completed?, @job.attributes.ai
             expected = %w[around_perform_block_before around_perform_method_before perform around_perform_method_after around_perform_block_after]
+
             assert_equal expected, @job.call_list, "Sequence of around_perform callbacks is incorrect"
           end
         end
@@ -154,8 +160,10 @@ module Plugins
           it "runs them in the right order" do
             @job = CombinedPerformJob.new
             @job.perform_now
-            assert @job.completed?, @job.attributes.ai
+
+            assert_predicate @job, :completed?, @job.attributes.ai
             expected = %w[before_perform_block around_perform_block_before before_perform_method around_perform_method_before perform after_perform_method around_perform_method_after around_perform_block_after after_perform_block]
+
             assert_equal expected, @job.call_list, "Sequence of around_perform callbacks is incorrect"
           end
         end

@@ -49,6 +49,7 @@ module Batch
       describe "#input_category" do
         it "returns a supplied Category::Input unchanged" do
           category = RocketJob::Category::Input.new(name: :main)
+
           assert_same category, CategoriesJob.new.input_category(category)
         end
 
@@ -66,6 +67,7 @@ module Batch
       describe "#output_category" do
         it "returns a supplied Category::Output unchanged" do
           category = RocketJob::Category::Output.new(name: :main)
+
           assert_same category, CategoriesJob.new.output_category(category)
         end
 
@@ -79,18 +81,21 @@ module Batch
         it "does nothing when blank" do
           job = CategoriesJob.new
           job.merge_input_categories(nil)
+
           assert_equal 100, job.input_category.slice_size
         end
 
         it "merges properties into the matching category" do
           job = CategoriesJob.new
           job.merge_input_categories([{"name" => "main", "slice_size" => 25}])
+
           assert_equal 25, job.input_category(:main).slice_size
         end
 
         it "defaults the category name to main" do
           job = CategoriesJob.new
           job.merge_input_categories([{"slice_size" => 17}])
+
           assert_equal 17, job.input_category(:main).slice_size
         end
       end
@@ -98,6 +103,7 @@ module Batch
       describe "#merge_output_categories" do
         it "does nothing when blank" do
           job = CategoriesJob.new
+
           assert_nil job.merge_output_categories([])
         end
       end
@@ -105,6 +111,7 @@ module Batch
       describe ".from_properties" do
         it "builds a plain job when no categories are supplied" do
           job = CategoriesJob.from_properties("description" => "hello")
+
           assert_equal "hello", job.description
         end
 
@@ -113,6 +120,7 @@ module Batch
             "description"      => "with categories",
             "input_categories" => [{"name" => "main", "slice_size" => 42}]
           )
+
           assert_equal "with categories", job.description
           assert_equal 42, job.input_category(:main).slice_size
         end
@@ -121,6 +129,7 @@ module Batch
       describe "#rocketjob_categories_migrate" do
         it "leaves modern documents untouched" do
           job = from_legacy("input_categories" => [{"name" => "main", "serializer" => "none"}])
+
           assert_equal :main, job.input_category.name
         end
 
@@ -131,6 +140,7 @@ module Batch
             "slice_size"       => 50
           )
           category = job.input_category(:main)
+
           assert_equal :compress, category.serializer
           assert_equal 50, category.slice_size
         end
@@ -138,6 +148,7 @@ module Batch
         it "migrates an encrypted v5 job" do
           job      = from_legacy("input_categories" => [:main], "encrypt" => true)
           category = job.input_category(:main)
+
           assert_equal :encrypt, category.serializer
         end
 
@@ -148,6 +159,7 @@ module Batch
             "tabular_input_header" => %w[name value]
           )
           category = job.input_category(:main)
+
           assert_equal :csv, category.format
           assert_equal %w[name value], category.columns
         end
@@ -157,6 +169,7 @@ module Batch
             "input_categories"     => %i[main other],
             "tabular_input_format" => :csv
           )
+
           assert_equal :csv, job.input_category(:main).format
           assert_nil job.input_category(:other).format
         end
@@ -169,12 +182,14 @@ module Batch
             "tabular_output_header" => %w[a b]
           )
           category = job.output_category(:main)
+
           assert_equal :csv, category.format
           assert_equal %w[a b], category.columns
         end
 
         it "does not build an output category when collect_output was false" do
           job = from_legacy("input_categories" => [:main], "collect_output" => false)
+
           assert_empty job.output_categories
         end
 
@@ -184,6 +199,7 @@ module Batch
             "output_categories" => %i[main extra],
             "collect_output"    => true
           )
+
           assert_equal %i[main extra], job.output_categories.collect(&:name)
         end
       end

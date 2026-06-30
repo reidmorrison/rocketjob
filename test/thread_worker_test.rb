@@ -17,8 +17,9 @@ class ThreadWorkerTest < Minitest::Test
 
     it "starts a live worker thread" do
       worker = new_worker
-      assert worker.alive?
-      refute worker.shutdown?
+
+      assert_predicate worker, :alive?
+      refute_predicate worker, :shutdown?
     ensure
       worker.shutdown!
       worker.join(5)
@@ -27,13 +28,15 @@ class ThreadWorkerTest < Minitest::Test
     it "shuts down cleanly when requested" do
       worker = new_worker
       worker.shutdown!
-      assert worker.shutdown?
+
+      assert_predicate worker, :shutdown?
       assert worker.join(5), "Expected the worker thread to stop"
-      refute worker.alive?
+      refute_predicate worker, :alive?
     end
 
     it "exposes the running thread backtrace" do
       worker = new_worker
+
       assert_kind_of Array, worker.backtrace
     ensure
       worker.shutdown!
@@ -45,8 +48,9 @@ class ThreadWorkerTest < Minitest::Test
       # Allow the thread to enter #run so the Shutdown exception is handled there.
       sleep(0.2)
       worker.kill
+
       assert worker.join(5), "Expected the killed worker thread to stop"
-      refute worker.alive?
+      refute_predicate worker, :alive?
     end
   end
 end

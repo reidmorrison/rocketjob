@@ -85,7 +85,9 @@ module RocketJob
           file_names[key] = size if size
         end
       rescue StandardError => e
-        logger.error("Dirmon Entry: #{dirmon_entry.id} failed. Moved to `failed` state to prevent processing again without manual intervention.", e)
+        logger.error(
+          "Dirmon Entry: #{dirmon_entry.id} failed. Moved to `failed` state to prevent processing again without manual intervention.", e
+        )
         dirmon_entry.fail(worker_name, e)
         dirmon_entry.save(validate: false)
       end

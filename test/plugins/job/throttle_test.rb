@@ -87,8 +87,10 @@ module Plugins
           it "undefines the running jobs throttle" do
             assert ThrottleJob.throttle?(:throttle_running_jobs_exceeded?), ThrottleJob.rocket_job_throttles.throttles
             ThrottleJob.undefine_throttle(:throttle_running_jobs_exceeded?)
+
             refute ThrottleJob.throttle?(:throttle_running_jobs_exceeded?), ThrottleJob.rocket_job_throttles.throttles
             ThrottleJob.define_throttle(:throttle_running_jobs_exceeded?)
+
             assert ThrottleJob.throttle?(:throttle_running_jobs_exceeded?), ThrottleJob.rocket_job_throttles.throttles
           end
         end
@@ -97,6 +99,7 @@ module Plugins
           it "does not exceed throttle when no other jobs are running" do
             ThrottleJob.create!
             job = ThrottleJob.new
+
             refute job.send(:throttle_running_jobs_exceeded?)
           end
 
@@ -104,6 +107,7 @@ module Plugins
             job1 = ThrottleJob.new
             job1.start!
             job2 = ThrottleJob.new
+
             assert job2.send(:throttle_running_jobs_exceeded?)
           end
 
@@ -112,6 +116,7 @@ module Plugins
             job1.start
             job1.pause!
             job2 = ThrottleJob.new
+
             refute job2.send(:throttle_running_jobs_exceeded?)
           end
 
@@ -120,6 +125,7 @@ module Plugins
             job1.start
             job1.fail!
             job2 = ThrottleJob.new
+
             refute job2.send(:throttle_running_jobs_exceeded?)
           end
 
@@ -138,6 +144,7 @@ module Plugins
             ThrottleGroupJob.create!
             ThrottleGroupOtherJob.create!
             job = ThrottleGroupJob.new
+
             refute job.send(:throttle_running_jobs_exceeded?)
           end
 
@@ -145,6 +152,7 @@ module Plugins
             job1 = ThrottleGroupJob.new
             job1.start!
             job2 = ThrottleGroupJob.new
+
             assert job2.send(:throttle_running_jobs_exceeded?)
           end
 
@@ -152,6 +160,7 @@ module Plugins
             job1 = ThrottleGroupOtherJob.new
             job1.start!
             job2 = ThrottleGroupJob.new
+
             assert job2.send(:throttle_running_jobs_exceeded?)
           end
 
@@ -160,6 +169,7 @@ module Plugins
             job1.start
             job1.pause!
             job2 = ThrottleGroupJob.new
+
             refute job2.send(:throttle_running_jobs_exceeded?)
           end
 
@@ -168,6 +178,7 @@ module Plugins
             job1.start
             job1.fail!
             job2 = ThrottleGroupJob.new
+
             refute job2.send(:throttle_running_jobs_exceeded?)
           end
         end

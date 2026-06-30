@@ -69,7 +69,7 @@ module RocketJob
       # Note: The slice will be removed from processing when this method completes
       #
       # @deprecated Please open a ticket if you need this behavior.
-      def work_first_slice(&block)
+      def work_first_slice(&)
         raise "#work_first_slice can only be called from within before_batch callbacks" unless sub_state == :before
 
         # TODO: Make these settings configurable
@@ -89,7 +89,7 @@ module RocketJob
 
         # TODO: Persist that the first slice is being processed by this worker
         slice.start
-        rocket_job_process_slice(slice, &block)
+        rocket_job_process_slice(slice, &)
       end
 
       # Returns [Array<ActiveWorker>] All workers actively working on this job
@@ -248,7 +248,7 @@ module RocketJob
         unless new_record?
           # Fail job iff no other worker has already finished it
           # Must set write concern to at least 1 since we need the nModified back
-          result   = self.class.with(write: {w: 1}) do |query|
+          result = self.class.with(write: {w: 1}) do |query|
             query.
               where(id: id, state: :running, sub_state: :processing).
               update({"$set" => {state: "failed", worker_name: worker_name}})

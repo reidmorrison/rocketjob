@@ -7,6 +7,7 @@ module Extensions
         it "to string" do
           url  = "http://localhost/path/file_name.zip"
           path = IOStreams.path(url)
+
           assert_equal "--- #{url}\n", Psych.dump(path)
         end
       end

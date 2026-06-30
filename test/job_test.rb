@@ -22,6 +22,7 @@ class JobTest < Minitest::Test
       it "return status for a queued job" do
         assert_equal true, @job.queued?
         h = @job.status
+
         assert_equal :queued, h["state"]
         assert_equal @description, h["description"]
       end
@@ -29,8 +30,10 @@ class JobTest < Minitest::Test
       it "return status for a failed job" do
         @job.start!
         @job.fail!("worker:1234", "oh no")
+
         assert_equal true, @job.failed?
         h = @job.status
+
         assert_equal :failed, h["state"]
         assert_equal @description, h["description"]
         assert_equal "RocketJob::JobException", h["exception"]["class_name"], h
@@ -44,25 +47,28 @@ class JobTest < Minitest::Test
         worker_name      = "server:12345"
         @job.worker_name = worker_name
         @job.start!
-        assert @job.running?, @job.state
+
+        assert_predicate @job, :running?, @job.state
 
         worker_name2      = "server:76467"
         @job2.worker_name = worker_name2
         @job2.start!
+
         assert_equal true, @job2.valid?
-        assert @job2.running?, @job2.state
+        assert_predicate @job2, :running?, @job2.state
         @job2.save!
 
         RocketJob::Job.requeue_dead_server(worker_name)
         @job.reload
 
-        assert @job.queued?
+        assert_predicate @job, :queued?
         assert_nil @job.worker_name
 
         assert_equal worker_name2, @job2.worker_name
         @job2.reload
+
         assert_equal worker_name2, @job2.worker_name
-        assert @job2.running?, @job2.state
+        assert_predicate @job2, :running?, @job2.state
         assert_equal worker_name2, @job2.worker_name
       end
     end

@@ -1,5 +1,9 @@
+plugins:
+  - rubocop-minitest
+  - rubocop-rake
+
 AllCops:
-  TargetRubyVersion: 2.5
+  TargetRubyVersion: 3.2
   NewCops: enable
   Exclude:
     - ".git/**/*"
@@ -53,7 +57,7 @@ Metrics/BlockLength:
   Exclude:
     - "test/**/*"
     - "**/*/cli.rb"
-  IgnoredMethods:
+  AllowedMethods:
     - "aasm"
     - "included"
 

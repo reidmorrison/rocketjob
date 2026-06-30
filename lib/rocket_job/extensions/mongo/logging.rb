@@ -4,6 +4,7 @@ module Mongo
   class Monitoring
     class CommandLogSubscriber
       include SemanticLogger::Loggable
+
       logger.name = "Mongo"
 
       undef :started

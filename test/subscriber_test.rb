@@ -55,9 +55,10 @@ class SubscriberTest < Minitest::Test
       end
 
       it "toggles test mode" do
-        refute RocketJob::Subscriber.test_mode?
+        refute_predicate RocketJob::Subscriber, :test_mode?
         RocketJob::Subscriber.test_mode!
-        assert RocketJob::Subscriber.test_mode?
+
+        assert_predicate RocketJob::Subscriber, :test_mode?
       end
     end
 
@@ -80,6 +81,7 @@ class SubscriberTest < Minitest::Test
         begin
           SubscriberTestSubscriber.subscribe do |instance|
             SubscriberTestSubscriber.publish(:show, message: "from publish")
+
             assert_equal [:show, "from publish"], instance.received
           end
         ensure
@@ -91,6 +93,7 @@ class SubscriberTest < Minitest::Test
     describe ".subscribe" do
       it "registers the subscriber and returns a handle" do
         handle = SubscriberTestSubscriber.subscribe
+
         assert_kind_of Integer, handle
         RocketJob::Event.unsubscribe(handle)
       end
@@ -99,6 +102,7 @@ class SubscriberTest < Minitest::Test
         yielded = nil
         SubscriberTestSubscriber.subscribe do |instance|
           yielded = instance
+
           assert_kind_of SubscriberTestSubscriber, instance
         end
         refute_nil yielded
@@ -108,16 +112,19 @@ class SubscriberTest < Minitest::Test
     describe "#process_action" do
       it "calls a zero argument action" do
         subscriber.process_action(:hello, nil)
+
         assert_equal [:hello], subscriber.received
       end
 
       it "calls an action with keyword arguments, symbolizing string keys" do
         subscriber.process_action(:show, "message" => "hi there")
+
         assert_equal [:show, "hi there"], subscriber.received
       end
 
       it "uses default arguments when no parameters are supplied" do
         subscriber.process_action(:show_default, nil)
+
         assert_equal [:show_default, "Hello World"], subscriber.received
       end
 
@@ -129,11 +136,13 @@ class SubscriberTest < Minitest::Test
       it "rescues ArgumentError when required arguments are missing" do
         # Missing the required :message keyword argument.
         subscriber.process_action(:show, {})
+
         assert_nil subscriber.received
       end
 
       it "rescues StandardError raised inside the action" do
         subscriber.process_action(:boom, "message" => "kaboom")
+
         assert_nil subscriber.received
       end
     end

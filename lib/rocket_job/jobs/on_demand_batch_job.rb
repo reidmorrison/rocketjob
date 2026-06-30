@@ -105,7 +105,7 @@ module RocketJob
 
       # Add a new output category and collect output for it.
       def add_output_category(**args)
-        self.output_categories << RocketJob::Category::Output.new(**args)
+        output_categories << RocketJob::Category::Output.new(**args)
       end
 
       private

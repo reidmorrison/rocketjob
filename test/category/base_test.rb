@@ -12,21 +12,25 @@ module Batch
 
         it "none" do
           category = RocketJob::Category::Input.new(name: :blah, serializer: :none)
+
           assert_equal RocketJob::Sliced::Slice, category.serializer_class
         end
 
         it "compress" do
           category = RocketJob::Category::Input.new(name: :blah, serializer: :compress)
+
           assert_equal RocketJob::Sliced::CompressedSlice, category.serializer_class
         end
 
         it "encrypt" do
           category = RocketJob::Category::Input.new(name: :blah, serializer: :encrypt)
+
           assert_equal RocketJob::Sliced::EncryptedSlice, category.serializer_class
         end
 
         it "bz2" do
           category = RocketJob::Category::Input.new(name: :blah, serializer: :bz2)
+
           assert_equal RocketJob::Sliced::BZip2OutputSlice, category.serializer_class
         end
       end
@@ -43,9 +47,10 @@ module Batch
             format:         :fixed,
             format_options: {layout: layout}
           )
+
           assert tabular = category.tabular
           assert_equal %w[abc, def], tabular.header.columns
-          assert tabular.parser.is_a?(IOStreams::Tabular::Parser::Fixed), tabular.parser.class.name
+          assert_kind_of IOStreams::Tabular::Parser::Fixed, tabular.parser, tabular.parser.class.name
           actual = tabular.parser.layout.columns.collect do |col|
             h       = {
               size: col.size == -1 ? :remainder : col.size
@@ -53,30 +58,35 @@ module Batch
             h[:key] = col.key if col.key
             h
           end
+
           assert_equal layout, actual
         end
 
         it "uses the file_name when format is not set" do
           category = RocketJob::Category::Input.new(file_name: "sample.json")
+
           assert tabular = category.tabular
-          assert tabular.parser.is_a?(IOStreams::Tabular::Parser::Json), tabular.parser.class.name
+          assert_kind_of IOStreams::Tabular::Parser::Json, tabular.parser, tabular.parser.class.name
         end
       end
 
       describe "tabular?" do
         it "is tabular when format is set" do
           category = RocketJob::Category::Input.new(format: :psv)
-          assert category.tabular?
+
+          assert_predicate category, :tabular?
         end
 
         it "not tabular when only filename is set" do
           category = RocketJob::Category::Input.new(file_name: "sample.json")
-          refute category.tabular?
+
+          refute_predicate category, :tabular?
         end
 
         it "otherwise not tabular" do
           category = RocketJob::Category::Input.new
-          refute category.tabular?
+
+          refute_predicate category, :tabular?
         end
       end
     end

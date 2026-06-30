@@ -269,13 +269,15 @@ module RocketJob
       # * If an exception is raised while uploading data, the input collection is cleared out
       #   so that if a job is retried during an upload failure, data is not duplicated.
 
-      def upload(object = nil, category: :main, file_name: nil, stream_mode: nil, on_first: nil, columns: nil, slice_batch_size: nil, **args, &block)
+      def upload(object = nil, category: :main, file_name: nil, stream_mode: nil, on_first: nil, columns: nil,
+                 slice_batch_size: nil, **args, &block)
         input_collection = input(category)
 
         if block
           raise(ArgumentError, "Cannot supply both an object to upload, and a block.") if object
           if stream_mode || columns || slice_batch_size || args.size > 0
-            raise(ArgumentError, "Unknown keyword arguments when uploading a block. Only accepts :category, :file_name, or :on_first")
+            raise(ArgumentError,
+                  "Unknown keyword arguments when uploading a block. Only accepts :category, :file_name, or :on_first")
           end
 
           category           = input_category(category)
@@ -293,7 +295,8 @@ module RocketJob
           case object
           when Range
             if file_name || stream_mode || on_first || args.size > 0
-              raise(ArgumentError, "Unknown keyword arguments when uploading a Range. Only accepts :category, :columns, or :slice_batch_size")
+              raise(ArgumentError,
+                    "Unknown keyword arguments when uploading a Range. Only accepts :category, :columns, or :slice_batch_size")
             end
 
             first = object.first
@@ -305,13 +308,15 @@ module RocketJob
             end
           when Mongoid::Criteria
             if file_name || stream_mode || on_first || args.size > 0
-              raise(ArgumentError, "Unknown keyword arguments when uploading a Mongoid::Criteria. Only accepts :category, :columns, or :slice_batch_size")
+              raise(ArgumentError,
+                    "Unknown keyword arguments when uploading a Mongoid::Criteria. Only accepts :category, :columns, or :slice_batch_size")
             end
 
             input_collection.upload_mongo_query(object, columns: columns, slice_batch_size: slice_batch_size, &block)
           when defined?(ActiveRecord::Relation) ? ActiveRecord::Relation : false
             if file_name || stream_mode || on_first || args.size > 0
-              raise(ArgumentError, "Unknown keyword arguments when uploading an ActiveRecord::Relation. Only accepts :category, :columns, or :slice_batch_size")
+              raise(ArgumentError,
+                    "Unknown keyword arguments when uploading an ActiveRecord::Relation. Only accepts :category, :columns, or :slice_batch_size")
             end
 
             input_collection.upload_arel(object, columns: columns, slice_batch_size: slice_batch_size, &block)
@@ -336,15 +341,15 @@ module RocketJob
       end
 
       # @deprecated
-      def upload_arel(arel, *column_names, category: :main, &block)
-        count             = input(category).upload_arel(arel, columns: column_names, &block)
+      def upload_arel(arel, *column_names, category: :main, &)
+        count             = input(category).upload_arel(arel, columns: column_names, &)
         self.record_count = (record_count || 0) + count
         count
       end
 
       # @deprecated
-      def upload_mongo_query(criteria, *column_names, category: :main, &block)
-        count             = input(category).upload_mongo_query(criteria, columns: column_names, &block)
+      def upload_mongo_query(criteria, *column_names, category: :main, &)
+        count             = input(category).upload_mongo_query(criteria, columns: column_names, &)
         self.record_count = (record_count || 0) + count
         count
       end
@@ -358,7 +363,8 @@ module RocketJob
 
       # @deprecated
       def upload_integer_range_in_reverse_order(start_id, last_id, category: :main, slice_batch_size: 1_000)
-        count             = input(category).upload_integer_range_in_reverse_order(start_id, last_id, slice_batch_size: slice_batch_size)
+        count             = input(category).upload_integer_range_in_reverse_order(start_id, last_id,
+                                                                                  slice_batch_size: slice_batch_size)
         self.record_count = (record_count || 0) + count
         count
       end

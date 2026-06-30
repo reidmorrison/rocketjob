@@ -11,7 +11,7 @@ module RocketJob
       end
 
       def collection(parent = nil)
-        @collection_name ? mongo_client[@collection_name] : super(parent)
+        @collection_name ? mongo_client[@collection_name] : super
       end
 
       def collection_name
@@ -31,5 +31,5 @@ module RocketJob
   end
 end
 
-::Mongoid::Criteria.include(RocketJob::MongoidClients::Options)
-::Mongoid::Document.include(RocketJob::MongoidClients::Options)
+Mongoid::Criteria.include(RocketJob::MongoidClients::Options)
+Mongoid::Document.include(RocketJob::MongoidClients::Options)

@@ -42,6 +42,7 @@ module Batch
           job.logger.stub(:info, ->(description, _payload) { info_called = true if description == "Start" }) do
             job.perform_now
           end
+
           assert info_called, "In Batch::Logger.rocket_job_batch_log_state_change logger.info('Start') not called"
         end
 
@@ -56,6 +57,7 @@ module Batch
           }) do
             job.perform_now
           end
+
           assert measure_called, "In Batch::Logger.around_slice logger.measure_info('Completed slice') not called"
         end
 

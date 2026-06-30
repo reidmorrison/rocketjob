@@ -18,7 +18,8 @@ module RocketJob
 
         # Whether to prevent another instance of this job from running with the exact _same_ cron schedule.
         # Another job instance with a different `cron_schedule` string is permitted.
-        field :cron_singleton, type: Mongoid::Boolean, default: true, class_attribute: true, user_editable: true, copy_on_restart: true
+        field :cron_singleton, type: Mongoid::Boolean, default: true, class_attribute: true, user_editable: true,
+copy_on_restart: true
 
         # Whether to re-schedule the next job occurrence when this job starts, or when it is complete.
         #
@@ -38,7 +39,8 @@ module RocketJob
         #     at any time until after the job has failed, or is aborted.
         #   - To prevent this job creating any new duplicate instances during subsequent processing,
         #     its `cron_schedule` is set to `nil` after it fails or is aborted.
-        field :cron_after_start, type: Mongoid::Boolean, default: true, class_attribute: true, user_editable: true, copy_on_restart: true
+        field :cron_after_start, type: Mongoid::Boolean, default: true, class_attribute: true, user_editable: true,
+copy_on_restart: true
 
         validates_each :cron_schedule do |record, attr, value|
           record.errors.add(attr, "Invalid cron_schedule: #{value.inspect}") if value && !Fugit::Cron.new(value)
@@ -88,7 +90,8 @@ module RocketJob
       def rocket_job_cron_singleton_check
         return if cron_schedule.nil? || completed? || aborted? || !rocket_job_cron_duplicate?
 
-        errors.add(:state, "Another instance of #{self.class.name} is already queued, running, failed, or paused with the same cron schedule: #{cron_schedule}")
+        errors.add(:state,
+                   "Another instance of #{self.class.name} is already queued, running, failed, or paused with the same cron schedule: #{cron_schedule}")
       end
     end
   end

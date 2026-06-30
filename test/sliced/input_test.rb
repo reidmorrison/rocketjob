@@ -28,6 +28,7 @@ module Sliced
       describe "initialize" do
         it "create index" do
           input.upload { |io| io << "hello" }
+
           assert input.collection.indexes.any? { |i| i["name"] == "state_1__id_1" }, "must have state and _id index"
         end
       end
@@ -36,32 +37,38 @@ module Sliced
         it "slice size 1" do
           input.slice_size = 1
           count            = input.upload { |records| lines.each { |line| records << line } }
+
           assert_equal 3, count
           assert_equal 3, input.count
           assert_equal 1, input.first.first_record_number
           assert_equal 3, input.last.first_record_number
           result = input.collect(&:to_a).join("\n") + "\n"
+
           assert_equal data, result
         end
 
         it "slice size 2" do
           input.slice_size = 2
           count            = input.upload { |records| lines.each { |line| records << line } }
+
           assert_equal 3, count
           assert_equal 2, input.count
           assert_equal 1, input.first.first_record_number
           assert_equal 3, input.last.first_record_number
           result = input.collect(&:to_a).join("\n") + "\n"
+
           assert_equal data, result
         end
 
         it "slice size 3" do
           input.slice_size = 3
           count            = input.upload { |records| lines.each { |line| records << line } }
+
           assert_equal 3, count
           assert_equal 1, input.count
           assert_equal 1, input.first.first_record_number
           result = input.collect(&:to_a).join("\n") + "\n"
+
           assert_equal data, result
         end
 
@@ -69,6 +76,7 @@ module Sliced
           count = input.upload do |records|
             (1..10).each { |i| records << i }
           end
+
           assert_equal 10, count
           assert_equal 5, input.count
           assert_equal [1, 2], input.first.to_a
@@ -79,6 +87,7 @@ module Sliced
           count = input.upload do |_records|
             nil
           end
+
           assert_equal 0, count
           assert_equal 0, input.count
         end
@@ -87,6 +96,7 @@ module Sliced
           count = input.upload do |records|
             (1..11).each { |i| records << i }
           end
+
           assert_equal 11, count
           assert_equal 6, input.count
           assert_equal [1, 2], input.first.to_a
@@ -101,24 +111,28 @@ module Sliced
 
         it "handle single value" do
           count = input.upload_integer_range(1, 1)
+
           assert_equal 1, count, input.first.inspect
           assert_equal [[[1, 1]]], input.collect(&:to_a)
         end
 
         it "handle single range" do
           count = input.upload_integer_range(1, 10)
+
           assert_equal 1, count, input.first.inspect
           assert_equal [[[1, 10]]], input.collect(&:to_a)
         end
 
         it "handle longer range" do
           count = input.upload_integer_range(1, 11)
+
           assert_equal 2, count, input.collect(&:to_a).inspect
           assert_equal [[[1, 10]], [[11, 11]]], input.collect(&:to_a)
         end
 
         it "handle even longer range" do
           count = input.upload_integer_range(0, 44)
+
           assert_equal 5, count, input.collect(&:to_a).inspect
           assert_equal [[[0, 9]], [[10, 19]], [[20, 29]], [[30, 39]], [[40, 44]]], input.collect(&:to_a)
         end
@@ -131,6 +145,7 @@ module Sliced
 
         it "handle single value" do
           count = input.upload_integer_range_in_reverse_order(1, 1)
+
           assert_equal 1, count, input.first.inspect
           assert_equal [[[1, 1]]], input.collect(&:to_a)
           assert_equal [1], input.collect(&:first_record_number)
@@ -138,6 +153,7 @@ module Sliced
 
         it "handle single range" do
           count = input.upload_integer_range_in_reverse_order(1, 10)
+
           assert_equal 1, count, input.first.inspect
           assert_equal [[[1, 10]]], input.collect(&:to_a)
           assert_equal [1], input.collect(&:first_record_number)
@@ -145,6 +161,7 @@ module Sliced
 
         it "handle longer range" do
           count = input.upload_integer_range_in_reverse_order(1, 11)
+
           assert_equal 2, count, input.collect(&:to_a).inspect
           assert_equal [[[2, 11]], [[1, 1]]], input.collect(&:to_a)
           assert_equal [1, 2], input.collect(&:first_record_number)
@@ -152,6 +169,7 @@ module Sliced
 
         it "handle even longer range" do
           count = input.upload_integer_range_in_reverse_order(0, 44)
+
           assert_equal 5, count, input.collect(&:to_a).inspect
           assert_equal [[[35, 44]], [[25, 34]], [[15, 24]], [[5, 14]], [[0, 4]]], input.collect(&:to_a)
           assert_equal [1, 2, 3, 4, 5], input.collect(&:first_record_number)
@@ -159,6 +177,7 @@ module Sliced
 
         it "handle partial range" do
           count = input.upload_integer_range_in_reverse_order(5, 44)
+
           assert_equal 4, count, input.collect(&:to_a).inspect
           assert_equal [[[35, 44]], [[25, 34]], [[15, 24]], [[5, 14]]], input.collect(&:to_a)
           assert_equal [1, 2, 3, 4], input.collect(&:first_record_number)
@@ -169,14 +188,17 @@ module Sliced
         it "count slices" do
           first = input.new(records: %w[hello world])
           input << first
+
           assert_equal 1, input.count
 
           second = input.new(records: %w[more records and more])
           input << second
+
           assert_equal 2, input.count
 
           third = input.new(records: %w[this is the last])
           input << third
+
           assert_equal 3, input.count
 
           assert_equal 3, input.queued.count
@@ -200,6 +222,7 @@ module Sliced
           slice.fail!
 
           failed_slice = slice
+
           assert_equal 1, input.queued.count
           assert_equal 1, input.running.count
           assert_equal 1, input.failed.count
@@ -217,6 +240,7 @@ module Sliced
           assert_equal 1, input.failed.count
 
           failed_slice.retry!
+
           assert_equal true, failed_slice.queued?
           assert_equal 1, input.queued.count
           assert_equal 2, input.running.count
@@ -236,17 +260,20 @@ module Sliced
           first = input.new(records: %w[hello world])
           first.start
           input << first
+
           assert_equal 1, input.count
 
           second = input.new(records: %w[more records and more])
           second.start
           input << second
           second.processing_record_number = 2
+
           assert_equal 2, input.count
 
           third = input.new(records: %w[this is the last])
           third.start
           input << third
+
           assert_equal 3, input.count
 
           exception = nil
@@ -261,6 +288,7 @@ module Sliced
           count = 0
           input.each_failed_record do |record, slice|
             count += 1
+
             assert_equal "records", record
             assert_equal second.id, slice.id
             assert_equal second.to_a, slice.to_a
@@ -273,15 +301,18 @@ module Sliced
         it "requeue failed slices" do
           first = input.new(records: %w[hello world])
           input << first
+
           assert_equal 1, input.count
 
           second = input.new(records: %w[more records and more])
           input << second
           second.processing_record_number = 2
+
           assert_equal 2, input.count
 
           third = input.new(records: %w[this is the last])
           input << third
+
           assert_equal 3, input.count
 
           exception = nil
@@ -311,15 +342,18 @@ module Sliced
           first = input.new(records: %w[hello world], worker_name: worker_name)
           first.start
           input << first
+
           assert_equal 1, input.count
 
           second = input.new(records: %w[more records and more], worker_name: worker_name)
           input << second
+
           assert_equal 2, input.count
 
           third = input.new(records: %w[this is the last], worker_name: "other")
           third.start
           input << third
+
           assert_equal 3, input.count
 
           assert_equal 1, input.queued.count
@@ -342,6 +376,7 @@ module Sliced
           second = input.create!(records: %w[more records and more])
           third  = input.new(records: %w[this is the last])
           third.start!
+
           assert_equal 3, input.count
 
           assert slice = input.next_slice(worker_name)
@@ -350,6 +385,7 @@ module Sliced
           assert_equal true, slice.running?
           assert_equal worker_name, slice.worker_name
           slice = input.find(slice.id)
+
           assert_equal true, slice.running?
           assert_equal worker_name, slice.worker_name
 
@@ -359,6 +395,7 @@ module Sliced
           assert_equal true, slice.running?
           assert_equal worker_name, slice.worker_name
           slice = input.find(slice.id)
+
           assert_equal true, slice.running?
           assert_equal worker_name, slice.worker_name
 

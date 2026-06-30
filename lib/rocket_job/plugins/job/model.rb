@@ -185,7 +185,7 @@ module RocketJob
               self.rocket_job_restart_attributes += [name.to_sym]
             end
 
-            super(name, options)
+            super
           end
 
           # Builds this job instance from the supplied properties hash.

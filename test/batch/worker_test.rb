@@ -225,6 +225,7 @@ module Batch
 
           processed = []
           count     = job.work_first_slice { |record| processed << record }
+
           assert_equal 5, count
           assert_equal [1, 2, 3, 4, 5], processed
         end
@@ -235,12 +236,14 @@ module Batch
           job          = SimpleJob.new
           record_count = 24
           upload_and_perform(job)
-          assert job.completed?, -> { job.as_document.ai }
+
+          assert_predicate job, :completed?, -> { job.as_document.ai }
           assert_equal [:main], job.output_categories.collect(&:name)
 
           io = StringIO.new
           job.download(io)
           expected = (1..record_count).collect { |i| i }.join("\n") + "\n"
+
           assert_equal expected, io.string
         end
 
@@ -248,13 +251,14 @@ module Batch
           lines = 5.times.collect { |i| "line#{i + 1}" }
           job   = SimpleJob.new
           job.upload_slice(lines)
+
           assert_equal lines.size, job.record_count
 
           job.perform_now
 
           assert_equal 0, job.input.failed.count, job.input.to_a.inspect
           assert_equal 0, job.input.queued.count, job.input.to_a.inspect
-          assert job.completed?
+          assert_predicate job, :completed?
 
           job.output.each do |slice|
             assert_equal lines, slice.to_a
@@ -269,12 +273,13 @@ module Batch
           end
           job = RecordNumberJob.new
           job.upload(file_name)
+
           assert_equal lines.size, job.record_count
           job.perform_now
 
           assert_equal 0, job.input.failed.count, job.input.to_a.inspect
           assert_equal 0, job.input.queued.count, job.input.to_a.inspect
-          assert job.completed?
+          assert_predicate job, :completed?
 
           slice_record_count = 1
           job.output.each do |slice|
@@ -298,7 +303,7 @@ module Batch
           job.rocket_job_work(worker, false)
 
           assert_equal [:main], job.output_categories.collect(&:name)
-          assert job.failed?
+          assert_predicate job, :failed?
 
           assert_equal 1, job.input.failed.count, job.input.to_a.inspect
           assert_equal record_count, job.record_count
@@ -313,16 +318,18 @@ module Batch
 
           # Validate exception model on slice
           exception = failed_slice.exception
+
           assert exception, -> { failed_slice.attributes.ai }
           assert_equal "NoMethodError", exception.class_name
-          assert exception.message.include?("no_method_error_please")
+          assert_includes exception.message, "no_method_error_please"
           assert_equal 2, failed_slice.processing_record_number
           assert exception.worker_name
           assert exception.backtrace
 
           # Requeue failed slices
           job.retry!
-          assert job.running?, job.state
+
+          assert_predicate job, :running?, job.state
           assert_equal 0, job.input.failed.count, job.input.to_a.inspect
           assert_equal record_count, job.record_count
           assert_equal 1, job.input.queued.count, job.input.to_a.inspect
@@ -330,7 +337,7 @@ module Batch
 
           assert slice = job.input.first
           assert_equal 1, slice.failure_count
-          assert slice.queued?
+          assert_predicate slice, :queued?
           assert_nil slice.started_at
           assert_nil slice.worker_name
         end
@@ -350,7 +357,7 @@ module Batch
           job.rocket_job_work(worker, false)
 
           assert_equal [:main], job.output_categories.collect(&:name)
-          assert job.failed?, -> { job.ai }
+          assert_predicate job, :failed?, -> { job.ai }
 
           job.stub(:may_fail?, true) do
             # Ensure second call sees the first as failed
@@ -370,16 +377,18 @@ module Batch
 
           # Validate exception model on slice
           exception = failed_slice.exception
+
           assert exception, -> { failed_slice.attributes.ai }
           assert_equal "NoMethodError", exception.class_name
-          assert exception.message.include?("no_method_error_please")
+          assert_includes exception.message, "no_method_error_please"
           assert_equal 2, failed_slice.processing_record_number
           assert exception.worker_name
           assert exception.backtrace
 
           # Requeue failed slices
           job.retry!
-          assert job.running?, job.state
+
+          assert_predicate job, :running?, job.state
           assert_equal 0, job.input.failed.count, job.input.to_a.inspect
           assert_equal record_count, job.record_count
           assert_equal 1, job.input.queued.count, job.input.to_a.inspect
@@ -387,7 +396,7 @@ module Batch
 
           assert slice = job.input.first
           assert_equal 1, slice.failure_count
-          assert slice.queued?
+          assert_predicate slice, :queued?
           assert_nil slice.started_at
           assert_nil slice.worker_name
         end
@@ -395,13 +404,15 @@ module Batch
         it "fails the job when before_batch raises an exception" do
           job = BadBeforeBatchJob.new
           upload_and_perform(job)
-          assert job.failed?, -> { job.as_document.ai }
+
+          assert_predicate job, :failed?, -> { job.as_document.ai }
         end
 
         it "fails the job when after_batch raises an exception" do
           job = BadAfterBatchJob.new
           upload_and_perform(job)
-          assert job.failed?, -> { job.as_document.ai }
+
+          assert_predicate job, :failed?, -> { job.as_document.ai }
         end
 
         describe "retry handling with no output categories" do
@@ -410,9 +421,11 @@ module Batch
             job          = NoOutputRetryJob.new
             record_count = 24
             upload_and_perform(job, record_count: record_count)
-            assert job.completed?, -> { job.as_document.ai }
+
+            assert_predicate job, :completed?, -> { job.as_document.ai }
 
             expected = (1..record_count).to_a
+
             assert_equal expected, NoOutputRetryJob.processed_records
           end
 
@@ -421,10 +434,12 @@ module Batch
             job          = NoOutputRetryJob.new(exception_record: 3)
             record_count = 24
             upload_and_perform(job, record_count: record_count)
-            assert job.failed?, -> { job.as_document.ai }
+
+            assert_predicate job, :failed?, -> { job.as_document.ai }
             assert_equal "ArgumentError", job.input.first.exception.class_name
 
             expected = (1..2).to_a + (6..record_count).to_a
+
             assert_equal expected, NoOutputRetryJob.processed_records
             NoOutputRetryJob.clear_processed_records
 
@@ -433,10 +448,11 @@ module Batch
             job.retry
             job.perform_now
 
-            assert job.completed?, -> { job.as_document.ai }
+            assert_predicate job, :completed?, -> { job.as_document.ai }
 
             # Only the remaining records on the failed slice need to be processed on retry
             expected = (3..5).to_a
+
             assert_equal expected, NoOutputRetryJob.processed_records
           end
 
@@ -445,10 +461,12 @@ module Batch
             job          = NoOutputRetryJob.new(exception_record: 24)
             record_count = 24
             upload_and_perform(job, record_count: record_count)
-            assert job.failed?, -> { job.as_document.ai }
+
+            assert_predicate job, :failed?, -> { job.as_document.ai }
             assert_equal "ArgumentError", job.input.first.exception.class_name
 
             expected = (1..23).to_a
+
             assert_equal expected, NoOutputRetryJob.processed_records
             NoOutputRetryJob.clear_processed_records
 
@@ -457,10 +475,11 @@ module Batch
             job.retry
             job.perform_now
 
-            assert job.completed?, -> { job.as_document.ai }
+            assert_predicate job, :completed?, -> { job.as_document.ai }
 
             # Only the remaining records on the failed slice need to be processed on retry
             expected = [24]
+
             assert_equal expected, NoOutputRetryJob.processed_records
           end
         end
@@ -471,14 +490,17 @@ module Batch
             job          = WithOutputRetryJob.new
             record_count = 24
             upload_and_perform(job, record_count: record_count)
-            assert job.completed?, -> { job.as_document.ai }
+
+            assert_predicate job, :completed?, -> { job.as_document.ai }
 
             expected = (1..record_count).to_a
+
             assert_equal expected, WithOutputRetryJob.processed_records
 
             io = StringIO.new
             job.download(io)
             expected = (1..record_count).collect { |i| i }.join("\n") + "\n"
+
             assert_equal expected, io.string
           end
 
@@ -487,10 +509,12 @@ module Batch
             job          = WithOutputRetryJob.new(exception_record: 3)
             record_count = 24
             upload_and_perform(job, record_count: record_count)
-            assert job.failed?, -> { job.as_document.ai }
+
+            assert_predicate job, :failed?, -> { job.as_document.ai }
             assert_equal "ArgumentError", job.input.first.exception.class_name
 
             expected = (1..2).to_a + (6..record_count).to_a
+
             assert_equal expected, WithOutputRetryJob.processed_records
             WithOutputRetryJob.clear_processed_records
 
@@ -499,15 +523,17 @@ module Batch
             job.retry
             job.perform_now
 
-            assert job.completed?, -> { job.as_document.ai }
+            assert_predicate job, :completed?, -> { job.as_document.ai }
 
             # Only the remaining records on the failed slice need to be processed on retry
             expected = (3..5).to_a
+
             assert_equal expected, WithOutputRetryJob.processed_records
 
             io = StringIO.new
             job.download(io)
             expected = (1..record_count).collect { |i| i }.join("\n") + "\n"
+
             assert_equal expected, io.string
           end
 
@@ -516,10 +542,12 @@ module Batch
             job          = WithOutputRetryJob.new(exception_record: 24)
             record_count = 24
             upload_and_perform(job, record_count: record_count)
-            assert job.failed?, -> { job.as_document.ai }
+
+            assert_predicate job, :failed?, -> { job.as_document.ai }
             assert_equal "ArgumentError", job.input.first.exception.class_name
 
             expected = (1..23).to_a
+
             assert_equal expected, WithOutputRetryJob.processed_records
             WithOutputRetryJob.clear_processed_records
 
@@ -528,15 +556,17 @@ module Batch
             job.retry
             job.perform_now
 
-            assert job.completed?, -> { job.as_document.ai }
+            assert_predicate job, :completed?, -> { job.as_document.ai }
 
             # Only the remaining records on the failed slice need to be processed on retry
             expected = [24]
+
             assert_equal expected, WithOutputRetryJob.processed_records
 
             io = StringIO.new
             job.download(io)
             expected = (1..record_count).collect { |i| i }.join("\n") + "\n"
+
             assert_equal expected, io.string
           end
 
@@ -545,10 +575,12 @@ module Batch
             job          = MultipleOutputRetryJob.new(exception_record: 24)
             record_count = 24
             upload_and_perform(job, record_count: record_count)
-            assert job.failed?, -> { job.as_document.ai }
+
+            assert_predicate job, :failed?, -> { job.as_document.ai }
             assert_equal "ArgumentError", job.input.first.exception.class_name
 
             expected = (1..23).to_a
+
             assert_equal expected, MultipleOutputRetryJob.processed_records
             MultipleOutputRetryJob.clear_processed_records
 
@@ -557,25 +589,29 @@ module Batch
             job.retry
             job.perform_now
 
-            assert job.completed?, -> { job.as_document.ai }
+            assert_predicate job, :completed?, -> { job.as_document.ai }
 
             # Only the remaining records on the failed slice need to be processed on retry
             expected = [24]
+
             assert_equal expected, MultipleOutputRetryJob.processed_records
 
             io = StringIO.new
             job.download(io)
             expected = (1..record_count).collect { |i| i }.join("\n") + "\n"
+
             assert_equal expected, io.string
 
             io = StringIO.new
             job.download(io, category: :even)
             expected = (1..record_count).collect { |i| i if i.even? }.compact.join("\n") + "\n"
+
             assert_equal expected, io.string
 
             io = StringIO.new
             job.download(io, category: :odd)
             expected = (1..record_count).collect { |i| i unless i.even? }.compact.join("\n") + "\n"
+
             assert_equal expected, io.string
           end
         end
@@ -589,17 +625,20 @@ module Batch
             (1..record_count).each { |i| records << i }
           end
           job.perform_now
-          assert job.completed?, job.attributes.ai
+
+          assert_predicate job, :completed?, job.attributes.ai
           assert_equal %i[main odd even], job.output_categories.collect(&:name)
 
           io = StringIO.new
           job.download(io)
           expected_evens = (1..(record_count / 2)).collect { |i| i * 2 }.join("\n") + "\n"
+
           assert_equal expected_evens, io.string
 
           io = StringIO.new
           job.download(io, category: :odd)
-          expected_odds = (0..(record_count / 2 - 1)).collect { |i| i * 2 + 1 }.join("\n") + "\n"
+          expected_odds = (0..((record_count / 2) - 1)).collect { |i| (i * 2) + 1 }.join("\n") + "\n"
+
           assert_equal expected_odds, io.string
         end
 
@@ -616,11 +655,11 @@ module Batch
           # Complete remainder of job
           job.perform_now
 
-          assert job.failed?, job.status.ai
+          assert_predicate job, :failed?, job.status.ai
           assert_equal 1, job.input.failed.count, job.input.to_a.inspect
 
           assert failed_slice = job.input.first
-          assert failed_slice.failed?, failed_slice
+          assert_predicate failed_slice, :failed?, failed_slice
           assert_equal 1, failed_slice.failure_count
           assert failed_slice.started_at
           assert_nil failed_slice.worker_name
@@ -646,6 +685,7 @@ module Batch
             10.times { |i| stream << "line#{i + 1}" }
           end
           job.save!
+
           assert_equal 5, job.input.count
           job
         end
