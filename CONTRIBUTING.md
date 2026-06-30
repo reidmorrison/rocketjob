@@ -208,8 +208,8 @@ to process.
 ### Runtime: Supervisor, Server, Workers
 
 A running process is driven by the `Supervisor`, started via `bin/rocketjob` (`RocketJob::CLI`). It registers
-a `Server` document, manages a `WorkerPool` of `Worker` threads (`ThreadWorker`, or `RactorWorker` for
-Ractor-based execution), handles OS signals, and runs the listeners. Cross-process coordination (shutdown,
+a `Server` document, manages a `WorkerPool` of `Worker` threads (`ThreadWorker`), handles OS signals, and
+runs the listeners. Cross-process coordination (shutdown,
 pause, log-level changes) does not use a separate broker: it rides on MongoDB through `RocketJob::Event` and
 the `Subscriber` / `Subscribers::*` classes.
 
@@ -305,10 +305,8 @@ classDiagram
         +run +shutdown!
     }
     class ThreadWorker
-    class RactorWorker
     Document <|.. Server : includes
     Worker <|-- ThreadWorker
-    Worker <|-- RactorWorker
     Supervisor o--> "1" Server : registers
     Supervisor o--> "1" WorkerPool : manages
     WorkerPool o--> "*" Worker : runs
