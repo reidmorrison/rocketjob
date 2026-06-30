@@ -1,5 +1,6 @@
 ---
 layout: default
+mermaid: true
 ---
 
 ## What is Rocket Job?
@@ -342,16 +343,34 @@ that is ready to run, using an atomic `find_and_modify` so that thousands of wor
 servers can claim work without ever colliding or running the same job twice. There is no separate
 message broker: MongoDB is both the queue and the system of record.
 
-For a **simple job**, one worker claims the whole job, runs `perform`, and records the result.
+For a **simple job**, one worker claims the whole job, runs `perform`, and records the result. Many
+workers share the same queue, so each job is picked up by whichever worker is free next:
+
+~~~mermaid
+flowchart LR
+    j1["job"] --> queue[("MongoDB queue<br>(priority order)")]
+    j2["job"] --> queue
+    j3["job"] --> queue
+    queue -- find_and_modify --> worker1["worker"]
+    queue -- find_and_modify --> worker2["worker"]
+    queue -- find_and_modify --> workerN["worker"]
+~~~
 
 For a **batch job**, the input you upload is stored in a dedicated MongoDB collection and divided
 into slices. Each slice is an independent unit of work that any worker can claim:
 
-~~~
-                          +-- worker -- slice 1 --+
-   input file -- slices --+-- worker -- slice 2 --+-- output collection -- download
-                          +-- worker -- slice 3 --+
-                          +-- worker -- slice N --+
+~~~mermaid
+flowchart LR
+    input["input file"] --> slices["slices"]
+    slices --> worker1["worker"]
+    slices --> worker2["worker"]
+    slices --> worker3["worker"]
+    slices --> workerN["worker"]
+    worker1 -- slice 1 --> output["output collection"]
+    worker2 -- slice 2 --> output
+    worker3 -- slice 3 --> output
+    workerN -- slice N --> output
+    output --> download["download"]
 ~~~
 
 This is why Rocket Job scales the way it does: adding workers (more threads, more servers, more

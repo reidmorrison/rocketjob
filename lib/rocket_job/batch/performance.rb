@@ -81,7 +81,7 @@ module RocketJob
           o.on("-E", "--encrypt", "Turn on encryption") do
             self.encrypt = true
           end
-          o.on("-s", "--slice_size COUNT", "Slice size") do
+          o.on("-s", "--slice_size COUNT", "Slice size") do |arg|
             self.slice_size = arg.to_i
           end
         end

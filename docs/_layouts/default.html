@@ -53,6 +53,22 @@
     window.addEventListener("load", setOffset);
   })();
 </script>
+{% if page.mermaid %}
+<script type="module">
+  // kramdown wraps ~~~mermaid fences in an element carrying the "language-mermaid"
+  // class (a <div> under rouge, a <code> without a highlighter). Convert either form
+  // into a <div class="mermaid"> block, then let Mermaid render them.
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs";
+  document.querySelectorAll(".language-mermaid").forEach(function (el) {
+    var code = el.querySelector("code") || el;
+    var div = document.createElement("div");
+    div.className = "mermaid";
+    div.textContent = code.textContent;
+    (el.closest("div.language-mermaid") || el.closest("pre") || el).replaceWith(div);
+  });
+  mermaid.initialize({ startOnLoad: true, theme: "neutral" });
+</script>
+{% endif %}
 </body>
 </html>
 

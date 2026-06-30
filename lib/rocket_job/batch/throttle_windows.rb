@@ -62,7 +62,7 @@ module RocketJob
 
       def throttle_outside_window?(schedule, duration)
         cron = Fugit::Cron.new(schedule)
-        time = Time.now.utc + 1
+        time = Time.now.getutc + 1
         # Add 1 second since right now could be the very beginning of the processing window.
         previous_time = cron.previous_time(time).to_utc_time
         previous_time + duration < time

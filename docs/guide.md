@@ -1,5 +1,6 @@
 ---
 layout: default
+mermaid: true
 ---
 
 ## Programmer's Guide
@@ -93,8 +94,47 @@ rest of this guide, and the [web interface](mission_control.html), easier to fol
 | `aborted`   | Cancelled and cannot be resumed. This is an end state.
 
 The transitions between these states are `start`, `complete`, `fail`, `retry`, `pause`, `resume`,
-and `abort`. Each transition has a matching pair of [callbacks](#callbacks), for example
+`abort`, and `requeue`. Each transition has a matching pair of [callbacks](#callbacks), for example
 `before_start` / `after_start`.
+
+~~~mermaid
+stateDiagram-v2
+    [*] --> queued : create
+    queued --> running : start
+    running --> completed : complete
+    completed --> [*]
+
+    running --> failed : fail
+    queued --> failed : fail
+    paused --> failed : fail
+    failed --> queued : retry
+
+    queued --> paused : pause
+    running --> paused : pause (pausable)
+    paused --> running : resume (if started)
+    paused --> queued : resume (if not started)
+
+    running --> queued : requeue (worker died)
+
+    queued --> aborted : abort
+    running --> aborted : abort
+    failed --> aborted : abort
+    paused --> aborted : abort
+    aborted --> [*]
+~~~
+
+Reading the diagram:
+
+* A job is created `queued`, a worker picks it up with `start`, and on success it `complete`s. With
+  the default `destroy_on_complete` the `completed` job is then destroyed.
+* Any exception during processing triggers `fail`. A `failed` job is retained so it can be `retry`ed
+  (back to `queued`) or `abort`ed.
+* `pause` / `resume` temporarily halt a job. Only [batch jobs](batch.html), and any job paused before
+  it starts, are pausable while `running`; a job paused before it started resumes to `queued`, one
+  paused after starting resumes to `running`.
+* `requeue` returns a `running` job to `queued`. Rocket Job does this automatically when the server
+  (worker) processing the job dies, so the job is retried elsewhere.
+* `abort` cancels a job from almost any state. `completed` and `aborted` are the two end states.
 
 Check the current state at any time:
 
@@ -104,6 +144,29 @@ job.state       # => :running
 job.running?    # => true
 job.completed?  # => false
 ~~~
+
+### Triggering a transition
+
+Each transition is callable as a method on the job, and every one comes in two forms:
+
+* `job.abort` runs the transition **in memory only**. The state field is updated on the instance,
+  but nothing is written to the database until you call `job.save!` yourself.
+* `job.abort!` (the bang form) runs the transition **and persists** the job in one step.
+
+~~~ruby
+# In-memory only: the database still shows the old state
+job.abort
+job.save!        # now the change is persisted
+
+# Equivalent, in a single step
+job.abort!
+~~~
+
+This applies to every transition, not just `abort`: `start`/`start!`, `complete`/`complete!`,
+`fail`/`fail!`, `retry`/`retry!`, `pause`/`pause!`, `resume`/`resume!`, and `requeue`/`requeue!`. Use
+the non-bang form when you want to make other changes to the job and save them together; use the bang
+form for a one-shot transition. (Persistence is whiny: a failed save raises rather than returning
+`false`.)
 
 ## Fields
 

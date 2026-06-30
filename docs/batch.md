@@ -1,5 +1,6 @@
 ---
 layout: default
+mermaid: true
 ---
 
 ## Batch Jobs Guide
@@ -795,16 +796,87 @@ job.status
 # => {"active_slices" => 8, "failed_slices" => 0, "queued_slices" => 1200, ... }
 ~~~
 
+## The batch job lifecycle
+
+A batch job uses the same top-level states as a [simple job](guide.html#the-job-lifecycle)
+(`queued`, `running`, `completed`, `failed`, `paused`, `aborted`), but the `running` state is broken
+into `sub_state` phases so that the one-time `before_batch` / `after_batch` work is coordinated
+separately from the many slices processed in parallel:
+
+~~~mermaid
+stateDiagram-v2
+    [*] --> queued : create / upload
+    queued --> running : start
+
+    state running {
+        [*] --> before : sub_state
+        before --> processing : before_batch done
+        processing --> after : all slices done
+        after --> [*]
+    }
+
+    running --> completed : complete
+    completed --> [*]
+
+    running --> failed : a slice (or callback) fails
+    failed --> queued : retry (was in before_batch)
+    failed --> running : retry (re-run failed slices / after_batch)
+
+    queued --> paused : pause
+    running --> paused : pause (only during processing)
+    paused --> running : resume
+
+    running --> queued : requeue (worker died, in before_batch)
+    running --> running : requeue (worker died, processing / after_batch)
+
+    queued --> aborted : abort
+    running --> aborted : abort
+    failed --> aborted : abort
+    paused --> aborted : abort
+    aborted --> [*]
+~~~
+
+The three `running` sub-states, exposed on the read-only `sub_state` field:
+
+* **`before`**: the job has started and its `before_batch` callbacks are running on a single worker.
+  This is where input is typically uploaded.
+* **`processing`**: slices are being claimed and processed concurrently by many workers. This is the
+  only sub-state in which a batch job is [pausable](#throttling-concurrent-workers).
+* **`after`**: every slice has finished, and the `after_batch` callbacks are running on a single
+  worker (downloading results, final bookkeeping). `complete` then clears `sub_state` and moves the
+  job to `completed`.
+
+How batch jobs differ from simple jobs in this diagram:
+
+* **`fail`**: if any slice raises and only failed slices remain, the job as a whole becomes `failed`
+  (see [Error handling](#error-handling)). Individual slices carry their own state and exceptions.
+* **`retry`** is sub-state aware: a job that failed during `before_batch` retries back to `queued`,
+  while one that failed during or after processing retries straight to `running` and reprocesses only
+  the failed slices, leaving already-completed records untouched.
+* **`requeue`** (automatic when a worker's server dies) also depends on sub-state: work interrupted
+  during `before_batch` goes back to `queued`; work interrupted during processing or `after_batch` is
+  requeued within `running` so the running slices are reclaimed by other workers.
+
+As with simple jobs, each transition is callable on the job and comes in two forms: `job.abort`
+changes the state in memory only (call `job.save!` to persist), while `job.abort!` transitions and
+saves in one step. See [Triggering a transition](guide.html#triggering-a-transition).
+
 ## How batch jobs work
 
 A batch job's input is uploaded into a MongoDB collection dedicated to that job and split into
 slices. Each slice is an independent unit of work that any worker can claim with an atomic operation,
 so thousands of workers across many servers process slices concurrently without colliding:
 
-~~~
-                          +-- worker -- slice 1 --+
-   input file -- slices --+-- worker -- slice 2 --+-- output collection -- download
-                          +-- worker -- slice N --+
+~~~mermaid
+flowchart LR
+    input["input file"] --> slices["slices"]
+    slices --> worker1["worker"]
+    slices --> worker2["worker"]
+    slices --> workerN["worker"]
+    worker1 -- slice 1 --> output["output collection"]
+    worker2 -- slice 2 --> output
+    workerN -- slice N --> output
+    output --> download["download"]
 ~~~
 
 Slices live in a separate MongoDB client (`rocketjob_slices`) from the jobs themselves. MongoDB's

@@ -240,6 +240,49 @@ module Batch
           assert_equal :processing, @job2.sub_state
         end
 
+        it "with substate :processing requeues slices by slice owner, not the job worker_name" do
+          # Workers join a running batch job read-only (see Worker#find_and_assign_job),
+          # so the job's worker_name stays as the worker that entered :processing and
+          # does not track the servers currently claiming slices. Recovery of a dead
+          # server's in-flight slices must therefore key off the per-slice worker_name.
+          live_server = "live_server:222"
+          dead_server = "dead_server:333"
+
+          @job.upload_slice([1, 2, 3])
+          @job.upload_slice([4, 5, 6])
+          @job.start!
+          @job.sub_state = :processing
+          @job.save!
+
+          live_slice = @job.input.next_slice(live_server)
+          dead_slice = @job.input.next_slice(dead_server)
+
+          assert_equal live_server, live_slice.worker_name
+          assert_equal dead_server, dead_slice.worker_name
+
+          # The job document points at neither slice owner.
+          refute_equal live_server, @job.worker_name
+          refute_equal dead_server, @job.worker_name
+
+          RocketJob::Job.requeue_dead_server(dead_server)
+
+          assert_predicate @job.reload, :running?, @job.state
+          assert_equal :processing, @job.sub_state
+          assert_nil @job.worker_name
+
+          # The dead server's slice is requeued for another worker to pick up.
+          dead_slice = @job.input.find(dead_slice.id)
+
+          assert_predicate dead_slice, :queued?
+          assert_nil dead_slice.worker_name
+
+          # The live server's slice is untouched and keeps processing.
+          live_slice = @job.input.find(live_slice.id)
+
+          assert_predicate live_slice, :running?
+          assert_equal live_server, live_slice.worker_name
+        end
+
         it "with substate :after" do
           @job.start!
 

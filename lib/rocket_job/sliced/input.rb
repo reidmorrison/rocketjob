@@ -117,15 +117,20 @@ module RocketJob
         )
       end
 
-      # Returns the next slice to work on in id order
-      # Returns nil if there are currently no queued slices
+      # Claims and returns the next queued slice for this worker.
+      # Returns nil if there are currently no queued slices.
       #
-      # If a slice is in queued state it will be started and assigned to this worker
+      # No explicit sort is applied. Forcing the global minimum `_id` (a
+      # `sort("_id" => 1)`) makes every worker target the same document, so under
+      # concurrency they collide on the atomic claim: one wins and the rest hit a
+      # WriteConflict ("Document no longer matches the predicate") and retry,
+      # which throttles a large batch job as workers are added. Without the sort,
+      # the `{state: 1, _id: 1}` index still yields queued slices in roughly `_id`
+      # (upload) order, but concurrent workers land on different documents instead
+      # of contending for one. Output ordering is unaffected: each output slice
+      # inherits its input slice's `_id` and downloads read in `_id` order.
       def next_slice(worker_name)
-        # TODO: Will it perform faster without the id sort?
-        # I.e. Just process on a FIFO basis?
         document                 = all.queued.
-                                   sort("_id" => 1).
                                    find_one_and_update(
                                      {"$set" => {worker_name: worker_name, state: "running", started_at: Time.now}},
                                      return_document: :after

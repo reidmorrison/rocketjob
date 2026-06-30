@@ -14,7 +14,7 @@ Gem::Specification.new do |s|
                             "Run conventional background jobs, or split a single job's input into slices and process it " \
                             "concurrently across thousands of workers, spilling from memory to disk so very large files " \
                             "never fall over."
-  s.executables           = %w[rocketjob rocketjob_perf]
+  s.executables           = %w[rocketjob rocketjob_perf rocketjob_batch_perf]
   s.files                 = Dir["lib/**/*", "bin/*", "LICENSE.txt", "README.md"]
   s.license               = "Apache-2.0"
   s.required_ruby_version = ">= 3.2.0"

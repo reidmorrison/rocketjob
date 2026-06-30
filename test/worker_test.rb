@@ -309,6 +309,23 @@ class WorkerTest < Minitest::Test
         assert_nil worker.find_and_assign_job
       end
 
+      it "joins a running batch job without writing to the job document" do
+        # Concurrency for a batch job is coordinated per-slice, so joining a
+        # running batch job must be read-only. Writing worker_name/state on every
+        # poll turns the job document into a write-contention hotspot at scale.
+        batch_job.start!
+        batch_job.sub_state = :processing
+        batch_job.save!
+        batch_job.set(worker_name: nil)
+
+        assert found_job = worker.find_and_assign_job, "Failed to find running batch job"
+        assert_equal batch_job.id, found_job.id
+
+        batch_job.reload
+
+        assert_nil batch_job.worker_name, "Joining a running batch job must not stamp worker_name"
+      end
+
       it "excludes filtered jobs" do
         job.save!
         worker.add_to_current_filter(:id.nin => [job.id])
