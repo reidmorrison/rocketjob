@@ -66,7 +66,7 @@ Including `RocketJob::Batch` ([lib/rocket_job/batch.rb](lib/rocket_job/batch.rb)
 ### Runtime: Supervisor → WorkerPool → Workers
 
 - `Supervisor` ([lib/rocket_job/supervisor.rb](lib/rocket_job/supervisor.rb)) is the process entry point (`bin/rocketjob` → `RocketJob::CLI`). It registers a `Server` document, manages the `WorkerPool`, handles signals, and runs the event/subscriber listeners.
-- `Server` is a Mongoid document representing a running process; `Worker` represents one thread. `ThreadWorker` and `RactorWorker` are the execution strategies.
+- `Server` is a Mongoid document representing a running process; `Worker` represents one thread. `ThreadWorker` is the execution strategy.
 - Cross-process coordination (shutdown, pause, log-level changes) uses a pub/sub mechanism over MongoDB: `RocketJob::Event` + `Subscriber`/`Subscribers::*`. There is no separate message broker.
 
 ### Config and persistence
