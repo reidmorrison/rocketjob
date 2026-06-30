@@ -2,120 +2,175 @@
 layout: default
 ---
 
-## Rocket Job Web Interface
+## Mission Control: The Web UI
+{:.no_toc}
 
-The Rocket Job Web Interface is used for managing and monitoring [Rocket Job][0].
+**Contents**
 
-![Screen shot](images/rjmc_running.png)
+* TOC
+{:toc}
 
-Rocket Job Web Interface first opens with the list of running jobs in the system, listed in reverse chronological order.
-I.e. With the newest job at the top.
+Rocket Job Mission Control is the web interface for managing and monitoring Rocket Job.
+It lets operators see what every job is doing, retry or abort work, pace the cluster, and
+manage [directory monitoring](dirmon.html) entries, all without writing or deploying any
+code.
 
-Each job entry in the list includes:
+![Running jobs](images/rjmc_running.png "Running jobs")
 
-* The class name of the job
-* An icon indicating the state of the job
-* A duration indicating:
-    * For completed jobs: How long the job took to run.
-    * For queued jobs: How long the job has been queued for.
-    * For running jobs: How long the jobs has been processing.
-    * For aborted or failed jobs: How long the job had been processing until it was failed or aborted.
-* For running jobs, it also includes a progress bar indicating the percent complete.
+It ships as a separate gem, [`rocketjob_mission_control`](https://github.com/reidmorrison/rocketjob_mission_control),
+so the web UI and its Rails dependencies are not loaded everywhere Rocket Job jobs are
+defined or run. Workers stay lean; the console runs wherever it is convenient to host a
+small Rails app.
 
-### Features
+### Installation
 
-* View all queued, running, failed, and running jobs
-* View all completed jobs where `destroy_on_complete == false`
-* Pause any running jobs
-* Resume paused jobs
-* Retry failed jobs
-* Abort, or fail queued or running jobs
-* Destroy a completed or aborted job
-* By separating Rocket Job Web Interface into a separate gem means it does not
-  have to be loaded everywhere [Rocket Job][0] jobs are defined or run.
+Mission Control is a Rails engine. Mount it into a new or existing Rails application.
 
-### Managing Jobs
+Add it to the `Gemfile`:
 
-Select a job in Rocket Job Web Interface to see more details about the status of that job:
+~~~ruby
+gem "rocketjob_mission_control", "~> 6.0"
+~~~
 
-![Screen shot](images/rjmc_job_running.png)
+Install it:
 
-Based on the state of the job, the relevant actions will appear:
+~~~bash
+bundle install
+~~~
 
-* `retry`
-    * When a job has failed, it can be resumed / retried by hitting the `retry` button.
-* `pause`
-    * Pause a `running` or `queued` job to temporarily stop processing on the job.
-    * The job will only continue processing once the `resume` button is hit.
-    * Note: `pause` and `resume` is intended for jobs that include `RocketJob::Plugins::BatchJob` since
-      those jobs can be pre-empted during processing. Otherwise, the job needs to manually perform
-      checks to see if the job is paused and halt processing.
-* `resume`
-    * Resume a `paused` job so that it can continue processing again.
-* `fail`
-    * Fail a `running` or `queued` job so that no more processing will occur.
-    * All input & output collections will be cleaned up for jobs that include `RocketJob::Plugins::BatchJob`.
-    * The job can be retried later after it has failed.
-* `abort`
-    * Abort a `running` or `queued` job so that no more processing will occur.
-    * All input & output collections will be cleaned up for jobs that include `RocketJob::Plugins::BatchJob`.
-    * The job _cannot_ be retried after it has been aborted.
-* `destroy`
-    * Destroy the job entirely from the system.
+Mount the engine in `config/routes.rb`, pointing it at whatever path you want it served
+from:
 
-For example for a failed job:
+~~~ruby
+Rails.application.routes.draw do
+  mount RocketJobMissionControl::Engine => "rocketjob"
+end
+~~~
 
-![Screen shot](images/rjmc_job_failed.png)
+The application that hosts Mission Control needs the same Mongoid configuration as the
+rest of the cluster (the `rocketjob` and `rocketjob_slices` clients) so that it reads and
+writes the same jobs and slices. See [Installation](installation.html) for the Mongoid
+setup.
 
-#### Scheduled Jobs
+Mission Control is a Rails engine and only needs `railties`; it does not require a full
+Rails stack, so it can be mounted into a minimal app dedicated to operations. Because it
+exposes destructive actions (aborting jobs, stopping servers), put it behind your own
+authentication and authorization before exposing it outside a trusted network.
 
-Scheduled jobs are jobs scheduled to be run in the future and include jobs that repeat such as Cron Jobs.
+### Monitoring jobs
 
-To run a job immediately instead of waiting until its next scheduled time, select the `Run` button.
+The interface opens on the list of running jobs, newest first. Each entry shows:
 
-![Screen shot](images/rjmc_scheduled.png)
+* The class name of the job.
+* An icon indicating the job's state.
+* A duration that means different things depending on state:
+    * **Completed:** how long the job took to run.
+    * **Queued:** how long it has been waiting.
+    * **Running:** how long it has been processing.
+    * **Failed or aborted:** how long it ran before it stopped.
+* For running jobs, a progress bar showing percent complete.
 
-#### Queued Jobs
+Jobs are grouped by state, each on its own tab:
 
-![Screen shot](images/rjmc_queued.png)
+* **Running** is the default view.
 
-#### Running Jobs
+  ![Running jobs](images/rjmc_running.png "Running jobs")
 
-![Screen shot](images/rjmc_running.png)
+* **Scheduled** lists jobs set to run in the future, including recurring
+  [Cron jobs](guide.html). Select **Run** on any scheduled job to run it immediately
+  instead of waiting for its next scheduled time.
 
-#### Completed Jobs
+  ![Scheduled jobs](images/rjmc_scheduled.png "Scheduled jobs")
 
-![Screen shot](images/rjmc_completed.png)
+* **Queued** lists jobs waiting for a free worker.
 
-#### Paused Jobs
+  ![Queued jobs](images/rjmc_queued.png "Queued jobs")
 
-![Screen shot](images/rjmc_paused.png)
+* **Completed** lists finished jobs. Only jobs with `destroy_on_complete == false` are kept
+  and shown here; by default completed jobs delete themselves.
 
-#### Failed Jobs
+  ![Completed jobs](images/rjmc_completed.png "Completed jobs")
 
-![Screen shot](images/rjmc_failed.png)
+* **Paused** lists jobs whose processing has been temporarily stopped.
 
-#### Aborted Jobs
+  ![Paused jobs](images/rjmc_paused.png "Paused jobs")
 
-![Screen shot](images/rjmc_aborted.png)
+* **Failed** lists jobs that raised an exception. The failure, including the backtrace, is
+  recorded on the job so it can be inspected and retried.
 
-### Job Activity by Worker
+  ![Failed jobs](images/rjmc_failed.png "Failed jobs")
 
-To see what each worker is currently busy with select the `Activity` menu option:
+* **Aborted** lists jobs that were stopped and cannot be retried.
 
-![Screen shot](images/rjmc_active.png)
+  ![Aborted jobs](images/rjmc_aborted.png "Aborted jobs")
 
+### Managing a job
 
-### Managing Workers
+Select any job to open its detail page. The job's current fields, timing, and (for failed
+jobs) its exception and backtrace are shown, along with the actions that are valid for its
+current state.
 
-To manage workers, select the `Workers` menu option:
+![Job detail](images/rjmc_job_running.png "Job detail")
 
-![Screen shot](images/rjmc_workers.png)
+The available actions are:
 
-Each worker can be managed individually, or to pause all current work, select `Pause All`.
+* **Retry** restarts a failed job from where it left off. For [batch jobs](batch.html) only
+  the unprocessed and failed slices are run again, so retrying a large job does not reprocess
+  records that already succeeded.
+* **Pause** temporarily stops a running or queued job; it resumes only when **Resume** is
+  selected. Batch jobs can be paused mid-flight because they are pre-empted between slices.
+  A simple (non-batch) job is only checked between runs, so pausing one does not interrupt a
+  `#perform` that is already in progress.
+* **Resume** continues a paused job.
+* **Fail** stops a running or queued job and marks it failed. A failed job can be retried
+  later.
+* **Abort** stops a running or queued job permanently; an aborted job cannot be retried.
+  Aborting or failing a batch job cleans up its input and output slice collections.
+* **Destroy** removes the job from the system entirely.
 
-The workers can be resumed later by selecting `Resume All`.
+A failed job shows the captured exception so the cause can be diagnosed before retrying:
 
-To shutdown all workers via Rocket Job Web Interface, click on `Actions` and select `Stop All`.
+![Failed job detail](images/rjmc_job_failed.png "Failed job detail")
 
-[0]: http://rocketjob.io
+For [batch jobs](batch.html), the detail page also exposes the individual slices. Failed
+slices and their exceptions can be inspected, a single record can be removed from a slice,
+and slice contents can be edited before retrying, which makes it possible to recover a large
+job from a handful of bad records without rerunning the whole thing.
+
+### Job activity
+
+The **Activity** view shows what every worker across the cluster is doing right now: which
+job and, for batch jobs, which slice each worker thread is currently processing. It is the
+quickest way to see whether the cluster is busy and where its capacity is going.
+
+![Job activity](images/rjmc_active.png "Job activity by worker")
+
+### Managing servers
+
+The **Servers** view lists the running Rocket Job server processes (each `Server` is one
+running process; see [Architecture](architecture.html)), grouped by state: starting,
+running, paused, stopping, and zombie. Servers that have stopped reporting in are flagged as
+zombies so dead processes can be spotted and cleaned up.
+
+![Servers](images/rjmc_workers.png "Servers")
+
+Servers can be controlled from here without shell access to the hosts:
+
+* **Pause** / **Resume** an individual server to stop or restart it pulling new work.
+* **Stop** an individual server to shut it down gracefully.
+* **Pause All**, **Resume All**, and **Stop All** apply the same actions to every server at
+  once, which is useful for draining the cluster before a deploy and bringing it back
+  afterward.
+
+These actions are delivered to the servers over Rocket Job's MongoDB-backed
+[pub/sub mechanism](events.html), so they take effect across every process in the cluster
+without a separate message broker.
+
+### Managing directory monitors
+
+Mission Control includes a full management screen for [Dirmon](dirmon.html), Rocket Job's
+directory monitor. Directory monitoring entries can be created, edited, copied, enabled, and
+disabled directly from the web UI, so the files and schedules a system watches can be changed
+without a code deploy. Entries are grouped by state (pending, enabled, failed, disabled), and
+a failed entry can be corrected and re-enabled in place. See the [Dirmon guide](dirmon.html)
+for what each entry controls.
