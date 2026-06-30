@@ -1,3 +1,5 @@
+inherit_from: .rubocop_todo.yml
+
 plugins:
   - rubocop-minitest
   - rubocop-rake
@@ -9,6 +11,7 @@ AllCops:
     - ".git/**/*"
     - "docs/**/*"
     - "gemfiles/*"
+    - "vendor/**/*"
     - "lib/rocket_job/cli.rb"
     - "rocketjob/lib/rocket_job/railtie.rb"
 
@@ -37,6 +40,10 @@ Layout/HashAlignment:
 # Soften limits
 Layout/LineLength:
   Max: 128
+  # Merge, rather than replace, the file list generated in .rubocop_todo.yml
+  inherit_mode:
+    merge:
+      - Exclude
   Exclude:
     - "**/test/**/*"
 
