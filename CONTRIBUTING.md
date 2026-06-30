@@ -74,6 +74,21 @@ documentation would look like locally after any changes.
 
 11. Submit a Pull Request back to the Rocket Job repository.
 
+#### Conventions
+
+New and updated pages follow a few conventions so the site stays consistent:
+
+* Markdown is rendered with [kramdown](https://kramdown.gettalong.org). Generate the table of
+  contents automatically instead of maintaining it by hand: start the page with a `{:.no_toc}`
+  heading, followed by a `**Contents**` line and a `* TOC` / `{:toc}` block. See `index.md` or
+  `guide.md` for the pattern.
+* Use tilde code fences (`~~~ruby`, `~~~bash`, `~~~yaml`), not triple backticks.
+* Link between pages with inline relative links to the rendered `.html`, for example
+  `[Batch Guide](batch.html)`.
+* Avoid em dashes in prose. Use commas, colons, parentheses, or separate sentences instead.
+* When renaming a page, preserve the old URL by adding a `redirect_from` entry to the new page's
+  front matter. The `jekyll-redirect-from` plugin is enabled in `_config.yml`.
+
 ## Code Changes
 
 Since changes cannot be made directly to the Rocket Job repository, fork it to your own account on Github.
