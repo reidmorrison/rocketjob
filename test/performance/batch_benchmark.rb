@@ -199,7 +199,13 @@ def run_dequeue
   job = build_job
   job.upload { |writer| SLICE_SIZE.times { |i| writer << i } }
   job.save!
-  job.start! # running + sub_state: processing for the whole test
+  job.start!
+  # `start!` leaves a batch job in sub_state :before; the :before->:processing
+  # transition normally happens inside a worker. Force it so the dequeue query
+  # actually matches the running batch job (and exercises the join path).
+  job.sub_state = :processing
+  job.save!
+  job.set(worker_name: nil)
 
   THREAD_LIST.each do |nthreads|
     realtime = Benchmark.realtime { hammer_dequeue(nthreads) }
@@ -207,6 +213,12 @@ def run_dequeue
     puts format("threads=%<n>2d  polls=%<p>7s  %<t>6.2fs  %<r>8s polls/s",
                 n: nthreads, p: commas(total), t: realtime, r: commas((total / realtime).round))
   end
+
+  # Write evidence: with the contention fix, joining a running batch job is
+  # read-only, so worker_name is never re-stamped on the job document.
+  job.reload
+  puts "job.worker_name after #{commas(POLLS * THREAD_LIST.sum)} joins: #{job.worker_name.inspect} " \
+       "(nil => no writes to the job document; non-nil => every poll wrote it)"
   drop_collections!
 end
 

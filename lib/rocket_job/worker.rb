@@ -163,14 +163,41 @@ module RocketJob
     # Applies the current filter to exclude filtered jobs.
     #
     # Returns nil if no jobs are available for processing.
+    #
+    # Notes:
+    # - An already running batch job is _joined_ with a read-only query, since
+    #   concurrency for a batch job is coordinated per-slice (see
+    #   `Sliced::Input#next_slice`), not on the job document. Writing
+    #   `worker_name`/`state` to the shared job document on every poll turns it
+    #   into a write-contention hotspot: with many workers MongoDB serializes the
+    #   updates and retries the write conflicts (server log id 46404), which is
+    #   what makes a large batch job slow down as workers are added.
+    # - Only a queued job is claimed with a write, transitioning it to running.
+    #   That write is naturally distributed: each queued job is claimed once.
     def find_and_assign_job
       SemanticLogger.silence(:info) do
         scheduled = RocketJob::Job.where(run_at: nil).or(:run_at.lte => Time.now)
         working   = RocketJob::Job.queued.or(state: "running", sub_state: "processing")
         query     = RocketJob::Job.and(working, scheduled)
         query     = query.and(current_filter) unless current_filter.blank?
-        update    = {"$set" => {"worker_name" => name, "state" => "running"}}
-        query.sort(priority: 1, _id: 1).find_one_and_update(update, bypass_document_validation: true)
+        query     = query.sort(priority: 1, _id: 1)
+
+        # Retry only when a queued job was claimed by another worker first.
+        loop do
+          job = query.first
+          return nil unless job
+
+          # Already running batch job: join it without writing to the job document.
+          return job if job.running?
+
+          # Queued job: claim it atomically, guarding on it still being queued.
+          # find_one_and_update returns the pre-image (state: queued) so that the
+          # caller still runs throttles and `start!`.
+          update  = {"$set" => {"worker_name" => name, "state" => "running"}}
+          claimed = RocketJob::Job.queued.where(id: job.id).
+                    find_one_and_update(update, bypass_document_validation: true)
+          return claimed if claimed
+        end
       end
     end
 
