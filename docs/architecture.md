@@ -79,6 +79,74 @@ large pool of workers. Within a single job, [throttles](guide.html#throttling) a
 [batch worker limits](batch.html#throttling-concurrent-workers) cap how hard a shared resource is
 hit, so adding workers does not overwhelm it.
 
+## Performance
+
+The benchmarks below were run with the bundled `rocketjob_perf` (simple jobs) and
+`rocketjob_batch_perf` (batch jobs) scripts. They are historical numbers, captured on modest
+hardware, and are included to show the order of magnitude Rocket Job reaches and how it scales with
+more processes. Real throughput depends on your hardware, MongoDB deployment, and what each job does.
+
+Both tests used the same setup:
+
+* 13" MacBook Air (M5)
+* macOS 26.5.1
+* Ruby 3.4.9 (CRuby)
+* MongoDB 8.2.11 in a default Docker container
+
+Start the worker processes by running the following in 3 separate windows:
+
+~~~
+bundle exec rocketjob --log_level warn --workers 5
+~~~
+
+### Simple jobs
+
+Run a quick test with `bundle exec rocketjob_perf -c 1000`, or the full test with
+`bundle exec rocketjob_perf`. With 15 workers distributed across 3 processes:
+
+~~~
+{
+  :count           => 100000,
+  :duration        => 70.493,
+  :jobs_per_second => 1418
+}
+~~~
+
+1,418 jobs per second, processed reliably, in priority order, and with full visibility of every job.
+
+### Batch jobs
+
+Run a quick test with `bundle exec rocketjob_batch_perf -c 1000`, or the full test with
+`bundle exec rocketjob_batch_perf`. With 15 workers distributed across 3 processes:
+
+~~~
+{
+  :count              => 10000000,
+  :duration           => 18.731,
+  :records_per_second => 533874.326,
+  :workers            => 15,
+  :worker_processes   => 3
+}
+~~~
+
+533,874 records per second. Increasing `slice_size` further raises the processing rate, and enabling
+or disabling compression and/or encryption does not appear to have a significant impact on
+processing times.
+
+### Tuning the MongoDB write concern
+
+For a small improvement in throughput, set the MongoDB write concern to `0`. Rocket Job then does
+not wait for each write to reach the journal (disk) before returning. Add the following under
+`:options` in `mongoid.yml`:
+
+~~~yaml
+    :w: 0
+~~~
+
+With this change the simple-job test reached 1,031 jobs per second and the batch test reached
+560,789 records per second, in both cases still processed reliably, in priority order, and with full
+visibility of every job.
+
 ## The job is a composition of plugins
 
 `RocketJob::Job` is deliberately almost empty. Its behavior is assembled by including a stack of
