@@ -5,6 +5,8 @@
   <meta name="description" content="Rocket Job: a distributed, MongoDB-backed batch processing system for Ruby that processes millions of records across thousands of workers.">
   <title>Rocket Job. Process millions of records across thousands of workers</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="images/favicon.ico">
+  <link rel="apple-touch-icon" href="images/apple-touch-icon.png">
   <link rel="stylesheet" type="text/css" href="stylesheets/normalize.css" media="screen">
   <link href='http://fonts.googleapis.com/css?family=Open+Sans:400,700' rel='stylesheet' type='text/css'>
   <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen">
@@ -19,7 +21,7 @@
     <td>
     <td>
       <a href="http://rocketjob.io/">
-        <img src="images/rocket/rocket-icon-256.png" alt="Rocket Job" class="header-image">
+        <img src="images/header-rocket-256.png" alt="Rocket Job" class="header-image">
       </a>
     </td>
     <td>
@@ -28,7 +30,7 @@
       {% for item in nav_items %}{% assign pair = item | split: '=' %}
       <a href="{{ pair[0] }}" class="btn{% if pair[0] == current_page %} active{% endif %}">{{ pair[1] }}</a>{% endfor %}
       <a href="https://github.com/reidmorrison/rocketjob" class="btn">GitHub</a>
-      <h1 class="project-name">Rocket Job</h1>
+      <h1 class="project-name"><span class="brand-rocket">Rocket</span> <span class="brand-job">Job</span></h1>
       <h2 class="project-tagline">Process millions of records across thousands of workers</h2>
     </td>
     </tr>
