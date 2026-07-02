@@ -471,6 +471,34 @@ class WorkerTest < Minitest::Test
           assert_equal({:_type.nin => [ThrottledJob.name]}, worker.current_filter)
         end
 
+        it "records the throttle reason on the requeued job" do
+          job1 = ThrottledJob.create!
+          ThrottledJob.new.start!
+
+          assert_nil worker.next_available_job, -> { ThrottledJob.all.to_a.ai }
+
+          job1.reload
+
+          assert_predicate job1, :queued?
+          assert_equal "Throttled: maximum of 1 running jobs reached", job1.throttled_by
+          assert job1.throttled_at, "throttled_at should be set"
+        end
+
+        it "clears a stale throttle reason when the job is later claimed" do
+          job.throttled_by = "Throttled: maximum of 1 running jobs reached"
+          job.throttled_at = Time.now
+          job.save!
+
+          assert found_job = worker.find_and_assign_job, "Failed to find job"
+          assert_equal job.id, found_job.id
+
+          found_job.reload
+
+          assert_predicate found_job, :running?
+          assert_nil found_job.throttled_by
+          assert_nil found_job.throttled_at
+        end
+
         it "allows a higher priority Batch queued job to replace a running one with a lower priority" do
           running_job = BatchThrottleJob.create!
 
@@ -526,6 +554,17 @@ class WorkerTest < Minitest::Test
           assert processing_throttled_batch_job.rocket_job_work(worker, true), -> { processing_throttled_batch_job.input.all.to_a.ai }
 
           assert_equal({:id.nin => [processing_throttled_batch_job.id]}, worker.current_filter)
+        end
+
+        it "records the throttle reason on the batch job document" do
+          processing_throttled_batch_job.input.first.start!
+
+          assert processing_throttled_batch_job.rocket_job_work(worker, true), -> { processing_throttled_batch_job.input.all.to_a.ai }
+
+          processing_throttled_batch_job.reload
+
+          assert_equal "Throttled: maximum of 1 running workers reached", processing_throttled_batch_job.throttled_by
+          assert processing_throttled_batch_job.throttled_at, "throttled_at should be set"
         end
       end
     end

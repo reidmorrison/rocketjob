@@ -6,13 +6,13 @@ module RocketJob
       @throttles = []
     end
 
-    def add(method_name, filter)
+    def add(method_name, filter, description = nil)
       unless filter.is_a?(Symbol) || filter.is_a?(Proc)
         raise(ArgumentError, "Filter for #{method_name} must be a Symbol or Proc")
       end
       raise(ArgumentError, "Cannot define #{method_name} twice, undefine previous throttle first") if exist?(method_name)
 
-      @throttles += [ThrottleDefinition.new(method_name, filter)]
+      @throttles += [ThrottleDefinition.new(method_name, filter, description)]
     end
 
     # Undefine a previously defined throttle
@@ -25,15 +25,20 @@ module RocketJob
       throttles.any? { |throttle| throttle.method_name == method_name }
     end
 
+    # Returns [ThrottleDefinition] the first throttle that was triggered,
+    # or nil if no throttles were triggered.
+    #
+    # The returned definition exposes both the filter (`extract_filter`) and the
+    # human readable reason (`extract_description`) so callers can apply the filter
+    # and persist why the job was throttled.
+    def matching_throttle(job, *args)
+      throttles.find { |throttle| throttle.throttled?(job, *args) }
+    end
+
     # Returns the matching filter,
     # or nil if no throttles were triggered.
-    def matching_filter(job, *args)
-      throttles.each do |throttle|
-        next unless throttle.throttled?(job, *args)
-
-        return throttle.extract_filter(job, *args)
-      end
-      nil
+    def matching_filter(job, *)
+      matching_throttle(job, *)&.extract_filter(job, *)
     end
 
     def deep_dup

@@ -642,6 +642,10 @@ class MyJob < RocketJob::Job
 end
 ~~~
 
+As with simple jobs, pass a `description:` (a String, or a Proc receiving the job and slice) to set
+the reason shown in Mission Control while slices are throttled. It is recorded on the job in
+`throttled_by` and cleared once slices resume processing.
+
 ### Processing windows
 
 `RocketJob::Batch::ThrottleWindows` restricts when slices may be processed, which is useful for a

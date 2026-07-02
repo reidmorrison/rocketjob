@@ -855,6 +855,10 @@ end
 Throttles limit how much work of a given kind runs at once, so jobs cannot overwhelm shared
 resources.
 
+Whenever a throttle holds a job back, the reason is recorded on the job in the `throttled_by` field
+(with `throttled_at`) and shown in Mission Control, so it is clear why a job is sitting in `queued`
+rather than running. The reason is cleared automatically once the job is allowed to start.
+
 ### Throttle Running Jobs
 
 Because it is common to run hundreds or thousands of workers, an unbounded job class could mount a
@@ -941,6 +945,18 @@ class MyJob < RocketJob::Job
   end
 end
 ~~~
+
+Pass a `description:` to control the reason shown in Mission Control when this throttle holds the job
+back. It can be a String, or a Proc that receives the job and returns a String so the reason can
+include runtime detail:
+
+~~~ruby
+define_throttle :mysql_throttle_exceeded?,
+                description: "Throttled: MySQL replica delay exceeds 5 minutes"
+~~~
+
+When no `description:` is given, a humanized form of the method name is used. The same `description:`
+option is available on `define_batch_throttle` for batch jobs.
 
 ## Transactions
 

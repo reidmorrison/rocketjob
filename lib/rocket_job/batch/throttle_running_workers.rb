@@ -36,7 +36,11 @@ module RocketJob
 
         validates :throttle_running_workers, numericality: {greater_than_or_equal_to: 0}, allow_nil: true
 
-        define_batch_throttle :throttle_running_workers_exceeded?, filter: :throttle_filter_id
+        define_batch_throttle :throttle_running_workers_exceeded?,
+                              filter:      :throttle_filter_id,
+                              description: lambda { |job, *|
+                                "Throttled: maximum of #{job.throttle_running_workers} running workers reached"
+                              }
       end
 
       private
