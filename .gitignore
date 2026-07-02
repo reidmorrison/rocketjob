@@ -29,3 +29,5 @@ gemfiles/*.lock
 
 *.sqlite3
 .rakeTasks
+
+.DS_Store

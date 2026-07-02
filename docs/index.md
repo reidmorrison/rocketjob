@@ -116,11 +116,11 @@ Rocket Job ships with a web interface,
 failed jobs are all visible, and you can change priority, retry, pause, or abort them from the
 browser.
 
-![Running jobs](images/rjmc_running.png "Running jobs")
+![Running jobs](images/rjmc/jobs/running.png "Running jobs")
 
 Scheduled jobs replace cron, with full visibility into what is scheduled and when it last ran:
 
-![Scheduled jobs](images/rjmc_scheduled.png "Scheduled jobs")
+![Scheduled jobs](images/rjmc/jobs/scheduled.png "Scheduled jobs")
 
 ### Reasons developers choose Rocket Job
 
