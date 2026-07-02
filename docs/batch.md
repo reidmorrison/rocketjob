@@ -708,6 +708,132 @@ Once every slice has either completed or failed, and only failed slices remain, 
 marked `failed`. Retrying the job retries only the failed slices, so successfully processed records
 are not reprocessed.
 
+## Inspecting slices from the console
+
+The slices that make up a batch job are ordinary MongoDB documents, so a running or failed job can be
+inspected directly from a Rails (or `irb`) console. `job.input` returns the input slice collection and
+`job.output` (when the job collects output) returns the output slice collection. Both respond to the
+same set of query and enumeration methods.
+
+**Counting slices.** `count` returns the total number of slices, and each state has its own scope
+(`queued`, `running`, `failed`, `completed`) that can be counted or iterated:
+
+~~~ruby
+job = RocketJob::Job.find("55bbce6b498e76424fa103e8")
+
+job.input.count           # Total number of input slices
+job.input.failed.count    # Number of failed slices
+job.input.running.count   # Slices currently being processed
+job.input.queued.count    # Slices still waiting to be processed
+~~~
+
+**Fetching slices.** The state scopes, together with `first`, `last`, `each`, `where`, and the standard
+`Enumerable` methods, return individual slices. `first`/`last` are sorted by `_id`, which is usually the
+order in which the data was uploaded:
+
+~~~ruby
+job.input.failed.first            # First failed slice
+job.input.first                   # First input slice, in upload order
+
+# Iterate over every failed slice and print its exception class:
+job.input.failed.each { |slice| puts slice.exception.class_name }
+~~~
+
+**Reading records within a slice.** A slice behaves like an array of its records, and carries metadata
+about how it was processed:
+
+~~~ruby
+slice = job.input.failed.first
+
+slice.records                     # Array of records in this slice
+slice.size                        # Number of records in the slice
+slice.first_record_number         # Line number of the first record in the original upload
+slice.failure_count               # How many times this slice has failed
+slice.worker_name                 # Worker that last processed the slice
+slice.failed_record               # The specific record that raised the exception
+~~~
+
+**Inspecting the exception.** A failed slice embeds a `RocketJob::JobException` on `slice.exception`
+exposing `class_name`, `message`, `backtrace`, and `worker_name`:
+
+~~~ruby
+exception = job.input.failed.first.exception
+exception.class_name              # e.g. "RuntimeError"
+exception.message
+exception.backtrace
+~~~
+
+**Summarizing failures.** For a large job with many failed slices, `group_exceptions` aggregates the
+failures by exception class, returning the count and the unique messages for each class. This is the
+fastest way to see _what_ is failing without paging through slices one at a time:
+
+~~~ruby
+job.input.group_exceptions.each do |summary|
+  puts "#{summary.class_name}: #{summary.count}"
+  summary.messages.each { |message| puts "  #{message}" }
+end
+~~~
+
+All of the above work equally on `job.output` for jobs that collect output, and on named categories via
+`job.input(:category_name)` / `job.output(:category_name)`.
+
+## Editing and retrying failed records
+
+Sometimes a slice fails because of bad data rather than a code bug. Rather than fixing the source file
+and re-uploading the whole job, the offending record can be corrected directly on the slice and the job
+retried. A slice behaves like a plain `Array` of records via `records`, and saving the slice persists the
+edited records.
+
+**Example: correct the failed record and retry the job.**
+`failed_record` returns the record that raised the exception, and `processing_record_number` is its
+(1-based) position within the slice:
+
+~~~ruby
+job   = RocketJob::Job.find("55bbce6b498e76424fa103e8")
+slice = job.input.failed.first
+
+slice.failed_record               # => "12345,,Jack"  (missing middle field)
+
+# Edit the record in place. `records` is a regular Array.
+index                = slice.processing_record_number - 1
+slice.records[index] = "12345,A,Jack"
+slice.save!
+
+# Retry the job: every failed slice is requeued and reprocessed.
+job.retry!
+~~~
+
+On retry each slice resumes from `processing_record_number`, so records that already completed
+successfully within the slice are not reprocessed. The corrected record is the next one processed.
+
+**Example: fix every record in a slice.**
+Any change to the `records` array is persisted by `save!`:
+
+~~~ruby
+slice          = job.input.failed.first
+slice.records  = slice.records.map(&:strip)   # Clean up all records in the slice
+slice.save!
+
+job.retry!
+~~~
+
+**Example: retry a single slice that failed while the job is still running.**
+While a job is still `running` (some slices failed but others are still processing), an individual slice
+can be edited and requeued on its own without retrying the whole job. An active worker picks it up:
+
+~~~ruby
+slice = job.input.failed.first
+slice.records[0] = "corrected value"
+slice.save!
+
+slice.retry!   # Move just this slice from failed back to queued
+~~~
+
+Note that workers only process slices for a job that is in the `running` state. Once all slices have
+finished and only failed slices remain, the job itself transitions to `failed`, and `slice.retry!`
+alone will not reprocess it. In that case use `job.retry!`, which returns the job to `running` and
+requeues all of its failed slices.
+
 ## Batch callbacks
 
 In addition to the standard [job callbacks](guide.html#callbacks), batch jobs add callbacks at the
