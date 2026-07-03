@@ -23,7 +23,6 @@ jobs:
   test:
     name: "Test: Mongoid ${{ matrix.mongoid }} on Ruby ${{ matrix.ruby }}"
     runs-on: ubuntu-latest
-    continue-on-error: ${{ matrix.experimental || false }}
     services:
       mongodb:
         image: mongo:8
@@ -54,6 +53,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Set up Ruby
+        # JRuby is best-effort: swallow install failures so the entry never blocks.
+        continue-on-error: ${{ matrix.experimental || false }}
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ matrix.ruby }}
@@ -67,4 +68,5 @@ jobs:
         run: ruby --version
 
       - name: Run Tests
+        continue-on-error: ${{ matrix.experimental || false }}
         run: bundle exec rake test
