@@ -16,7 +16,6 @@ group :development do
   gem "rubocop-minitest", require: false
   gem "rubocop-rake", require: false
   gem "solargraph", require: false, platform: :ruby
-  gem "semantic_logger", github: "reidmorrison/semantic_logger"
 end
 
 group :test do

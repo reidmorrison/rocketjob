@@ -3,7 +3,7 @@ source "https://rubygems.org"
 gemspec
 
 gem "activerecord", "~> 8.1.0"
-gem "mongoid", "~> 9.0.0"
+gem "mongoid", "~> 9.1.0"
 gem "sqlite3", platform: :ruby
 
 gem "amazing_print"
@@ -27,7 +27,7 @@ group :development do
 
   # Testing against locally cloned repos
   # gem "iostreams", path: "../iostreams"
-  gem "semantic_logger", github: "reidmorrison/semantic_logger"
+  # gem "semantic_logger", github: "reidmorrison/semantic_logger"
   # gem "symmetric-encryption", path: "../symmetric-encryption"
 end
 
