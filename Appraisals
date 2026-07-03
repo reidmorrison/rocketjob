@@ -1,5 +1,5 @@
 appraise "mongoid_8.1" do
-  gem "activerecord", "~> 7.2.0"
+  gem "activerecord", "~> 7.2.3"
   gem "activerecord-jdbcsqlite3-adapter", "~> 72.1", platform: :jruby
   gem "jdbc-sqlite3", platform: :jruby
   gem "mongoid", "~> 8.1.0"

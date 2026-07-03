@@ -9,7 +9,7 @@ jobs:
     name: "RuboCop"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
@@ -23,9 +23,10 @@ jobs:
   test:
     name: "Test: Mongoid ${{ matrix.mongoid }} on Ruby ${{ matrix.ruby }}"
     runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.experimental || false }}
     services:
       mongodb:
-        image: mongo
+        image: mongo:8
         ports:
           - 27017:27017
     strategy:
@@ -41,12 +42,17 @@ jobs:
           - mongoid: "9.1"
             ruby: "4.0"
 
+          # Non-blocking: JRuby support is best-effort (see :jruby gems in Appraisals).
+          - mongoid: "9.0"
+            ruby: "jruby-10.0"
+            experimental: true
+
     env:
       BUNDLE_GEMFILE: gemfiles/mongoid_${{ matrix.mongoid }}.gemfile
       DISPLAY: ":99.0"
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
