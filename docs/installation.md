@@ -17,8 +17,8 @@ Rocket Job runs with or without Rails. This guide covers both, plus the optional
 
 Rocket Job is tested against a matrix of Ruby, Mongoid, and Rails versions. The combinations
 exercised in CI are the authoritative list; see
-[ci.yml](https://github.com/reidmorrison/rocketjob/blob/master/.github/workflows/ci.yml) and
-[Appraisals](https://github.com/reidmorrison/rocketjob/blob/master/Appraisals).
+[ci.yml](https://github.com/reidmorrison/rocketjob/blob/main/.github/workflows/ci.yml) and
+[Appraisals](https://github.com/reidmorrison/rocketjob/blob/main/Appraisals).
 
 * **Ruby:** MRI 3.2, 3.4, and 4.0. JRuby 9.4 or newer is also supported.
 * **Mongoid:** 8.1, 9.0, and 9.1.

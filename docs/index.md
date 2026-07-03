@@ -433,9 +433,9 @@ runs.
 Rocket Job is tested against a matrix of Ruby, Mongoid, and Rails versions:
 
 * **Ruby:** MRI 3.2, 3.4, and 4.0 are exercised in CI; JRuby 9.4 or newer is also supported. The
-  authoritative list is the [CI matrix](https://github.com/reidmorrison/rocketjob/blob/master/.github/workflows/ci.yml).
+  authoritative list is the [CI matrix](https://github.com/reidmorrison/rocketjob/blob/main/.github/workflows/ci.yml).
 * **Mongoid:** 8.1, 9.0, and 9.1, as defined in
-  [Appraisals](https://github.com/reidmorrison/rocketjob/blob/master/Appraisals).
+  [Appraisals](https://github.com/reidmorrison/rocketjob/blob/main/Appraisals).
 * **Rails / Active Record:** 7.2, 8.0, and 8.1, each paired with the Mongoid versions above (also
   in `Appraisals`). Rails is optional; Rocket Job runs equally well standalone.
 * **MongoDB server:** whatever your Mongoid version supports. Mongoid 8.1 through 9.1 currently
@@ -443,8 +443,8 @@ Rocket Job is tested against a matrix of Ruby, Mongoid, and Rails versions:
   [Mongoid compatibility matrix](https://www.mongodb.com/docs/mongoid/current/compatibility/).
 
 These are the combinations run in CI. See
-[ci.yml](https://github.com/reidmorrison/rocketjob/blob/master/.github/workflows/ci.yml) and
-[Appraisals](https://github.com/reidmorrison/rocketjob/blob/master/Appraisals) for the current,
+[ci.yml](https://github.com/reidmorrison/rocketjob/blob/main/.github/workflows/ci.yml) and
+[Appraisals](https://github.com/reidmorrison/rocketjob/blob/main/Appraisals) for the current,
 authoritative list.
 
 ## Next steps
