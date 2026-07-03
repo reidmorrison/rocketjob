@@ -9,7 +9,7 @@ jobs:
     name: "RuboCop"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
@@ -51,7 +51,7 @@ jobs:
       DISPLAY: ":99.0"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Set up Ruby
         # JRuby is best-effort: swallow install failures so the entry never blocks.
         continue-on-error: ${{ matrix.experimental || false }}
