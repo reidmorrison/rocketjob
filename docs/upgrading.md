@@ -195,7 +195,7 @@ V3 replaces MongoMapper with Mongoid, which supports the latest MongoDB Ruby cli
 ### Mongo config file
 
 Replace `mongo.yml` with `mongoid.yml`. Start with the sample
-[mongoid.yml](https://github.com/reidmorrison/rocketjob/blob/master/test/config/mongoid.yml).
+[mongoid.yml](https://github.com/reidmorrison/rocketjob/blob/main/test/config/mongoid.yml).
 
 Note: the `rocketjob` and `rocketjob_slices` clients in the above `mongoid.yml` file are both
 required.
