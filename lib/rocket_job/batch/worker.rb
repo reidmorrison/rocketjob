@@ -111,13 +111,50 @@ module RocketJob
       end
 
       def rocket_job_batch_throttled?(slice, worker)
-        filter = self.class.rocket_job_batch_throttles.matching_filter(self, slice)
-        return false unless filter
+        throttle = self.class.rocket_job_batch_throttles.matching_throttle(self, slice)
+        unless throttle
+          rocket_job_clear_throttled
+          return false
+        end
 
         # Restore retrieved slice so that other workers can process it later.
         slice.set(worker_name: nil, state: :queued, started_at: nil)
-        worker.add_to_current_filter(filter)
+        worker.add_to_current_filter(throttle.extract_filter(self, slice))
+        rocket_job_set_throttled(throttle.extract_description(self, slice))
         true
+      end
+
+      # Record why this batch job's slices are being throttled, for visibility in
+      # Mission Control.
+      #
+      # Unlike a simple job, a running batch job document is shared by every worker
+      # and is deliberately not written on each poll (see Worker#find_and_assign_job).
+      # The reason is therefore persisted with a guarded conditional update so the
+      # shared document is only written when the reason actually changes, not on
+      # every throttled poll.
+      def rocket_job_set_throttled(reason)
+        return if throttled_by == reason
+
+        self.class.with(write: {w: 1}) do |query|
+          query.where(id: id, state: :running, :throttled_by.ne => reason).
+            update_all("$set" => {throttled_by: reason, throttled_at: Time.now})
+        end
+        self.throttled_by = reason
+      end
+
+      # Clear the throttle reason once slices are flowing again.
+      #
+      # Gated on the in-memory value so a worker that never throttled this job
+      # issues no database round trip per slice; only a worker that previously set
+      # a reason clears it, with a guarded update to avoid a redundant write.
+      def rocket_job_clear_throttled
+        return if throttled_by.nil?
+
+        self.class.with(write: {w: 1}) do |query|
+          query.where(id: id, :throttled_by.ne => nil).
+            update_all("$unset" => {throttled_by: "", throttled_at: ""})
+        end
+        self.throttled_by = nil
       end
 
       # Process a single slice from Mongo

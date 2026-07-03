@@ -45,11 +45,16 @@ module RocketJob
         #     Or, a block that will return the filter.
         #     Default: :throttle_filter_class (Throttle all jobs of this class)
         #
+        #   description: [String|Proc]
+        #     Human readable reason why the job is throttled, persisted to `throttled_by`
+        #     and shown in Mission Control. A Proc is called with the job and slice and
+        #     must return a String. Default: a humanized version of the method name.
+        #
         # Note: Throttles are executed in the order they are defined.
-        def define_batch_throttle(method_name, filter: :throttle_filter_class)
+        def define_batch_throttle(method_name, filter: :throttle_filter_class, description: nil)
           # Duplicate to prevent modifying parent class throttles
           definitions = rocket_job_batch_throttles ? rocket_job_batch_throttles.dup : ThrottleDefinitions.new
-          definitions.add(method_name, filter)
+          definitions.add(method_name, filter, description)
           self.rocket_job_batch_throttles = definitions
         end
 

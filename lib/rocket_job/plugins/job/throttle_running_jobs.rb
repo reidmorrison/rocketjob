@@ -32,7 +32,10 @@ module RocketJob
           # Allow jobs to be throttled by group name instance of the job class name.
           field :throttle_group, type: String, class_attribute: true, user_editable: true, copy_on_restart: true
 
-          define_throttle :throttle_running_jobs_exceeded?
+          define_throttle :throttle_running_jobs_exceeded?,
+                          description: lambda { |job, *|
+                            "Throttled: maximum of #{job.throttle_running_jobs} running jobs reached"
+                          }
         end
 
         private

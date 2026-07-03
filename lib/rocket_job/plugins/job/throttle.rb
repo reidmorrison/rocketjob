@@ -30,6 +30,13 @@ module RocketJob
 
         included do
           class_attribute :rocket_job_throttles
+
+          # Human readable reason why this job is currently being throttled.
+          # Set when a throttle prevents the job from running, cleared when it starts.
+          # Surfaced in Rocket Job Mission Control.
+          field :throttled_by, type: String
+          # Time at which this job was last throttled.
+          field :throttled_at, type: Time
         end
 
         module ClassMethods
@@ -45,11 +52,16 @@ module RocketJob
           #     Or, a block that will return the filter.
           #     Default: :throttle_filter_class (Throttle all jobs of this class)
           #
+          #   description: [String|Proc]
+          #     Human readable reason why the job is throttled, persisted to `throttled_by`
+          #     and shown in Mission Control. A Proc is called with the job and must
+          #     return a String. Default: a humanized version of the method name.
+          #
           # Note: Throttles are executed in the order they are defined.
-          def define_throttle(method_name, filter: :throttle_filter_class)
+          def define_throttle(method_name, filter: :throttle_filter_class, description: nil)
             # Duplicate to prevent modifying parent class throttles
             definitions = rocket_job_throttles ? rocket_job_throttles.deep_dup : ThrottleDefinitions.new
-            definitions.add(method_name, filter)
+            definitions.add(method_name, filter, description)
             self.rocket_job_throttles = definitions
           end
 

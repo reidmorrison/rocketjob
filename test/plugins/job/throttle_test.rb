@@ -55,6 +55,34 @@ module Plugins
         end
       end
 
+      class RunningJobsDescriptionJob < RocketJob::Job
+        self.throttle_running_jobs = 7
+
+        def perform
+          21
+        end
+      end
+
+      class DescribedThrottleJob < RocketJob::Job
+        define_throttle :static_throttle, description: "Custom static reason"
+        define_throttle :proc_throttle, description: ->(job, *) { "Reason for #{job.class.name}" }
+        define_throttle :default_throttle_exceeded?
+
+        private
+
+        def static_throttle
+          false
+        end
+
+        def proc_throttle
+          false
+        end
+
+        def default_throttle_exceeded?
+          false
+        end
+      end
+
       describe RocketJob::Plugins::Job::Throttle do
         before do
           RocketJob::Job.delete_all
@@ -92,6 +120,53 @@ module Plugins
             ThrottleJob.define_throttle(:throttle_running_jobs_exceeded?)
 
             assert ThrottleJob.throttle?(:throttle_running_jobs_exceeded?), ThrottleJob.rocket_job_throttles.throttles
+          end
+        end
+
+        describe "throttle descriptions" do
+          let(:throttles) { DescribedThrottleJob.rocket_job_throttles }
+
+          it "uses a static description string" do
+            throttle = throttles.throttles.find { |t| t.method_name == :static_throttle }
+
+            assert_equal "Custom static reason", throttle.extract_description(DescribedThrottleJob.new)
+          end
+
+          it "evaluates a Proc description" do
+            throttle = throttles.throttles.find { |t| t.method_name == :proc_throttle }
+
+            assert_equal "Reason for #{DescribedThrottleJob.name}", throttle.extract_description(DescribedThrottleJob.new)
+          end
+
+          it "humanizes the method name when no description is given" do
+            throttle = throttles.throttles.find { |t| t.method_name == :default_throttle_exceeded? }
+
+            assert_equal "Default throttle", throttle.extract_description(DescribedThrottleJob.new)
+          end
+
+          it "describes the running jobs throttle with the limit" do
+            throttle = RunningJobsDescriptionJob.rocket_job_throttles.throttles.find { |t| t.method_name == :throttle_running_jobs_exceeded? }
+
+            assert_equal "Throttled: maximum of 7 running jobs reached", throttle.extract_description(RunningJobsDescriptionJob.new)
+          end
+        end
+
+        describe "#matching_throttle" do
+          it "returns the triggered throttle" do
+            job1 = ThrottleJob.new
+            job1.start!
+            job2 = ThrottleJob.new
+
+            throttle = job2.rocket_job_throttles.matching_throttle(job2)
+
+            assert throttle
+            assert_equal :throttle_running_jobs_exceeded?, throttle.method_name
+          end
+
+          it "returns nil when no throttle is triggered" do
+            job = ThrottleJob.new
+
+            assert_nil job.rocket_job_throttles.matching_throttle(job)
           end
         end
 
