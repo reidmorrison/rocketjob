@@ -99,7 +99,7 @@ module RocketJob
       # Validates job_class is a Rocket Job
       def job_implements_upload
         klass = job_class
-        return if klass.nil? || klass.instance_methods.any? { |m| VALID_INSTANCE_METHODS.include?(m) }
+        return if klass.nil? || klass.instance_methods.intersect?(VALID_INSTANCE_METHODS)
 
         errors.add(:job_class_name,
                    "#{job_class} must implement any one of: :#{VALID_INSTANCE_METHODS.join(' :')} instance methods")
