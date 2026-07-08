@@ -3,7 +3,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
-## [6.4.0] Unreleased
+## [7.0.0] Unreleased
+
+### Breaking changes
+
+- Raise minimum dependency versions: Ruby 3.2 (was 2.7), Mongoid 8.1 (was 7.5),
+  Semantic Logger 5.0 (was 4.7), Symmetric Encryption 4.6 (was 4.3), IOStreams 2.0
+  (was 1.9). No Rocket Job API changes; upgrade these gems before installing v7.
 
 ### Fixes
 
@@ -13,16 +19,39 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   `#perform` allowed. Workers now poll again immediately when work was performed, and only
   wait the full interval when no job is found. A completed batch job is likewise no longer
   delayed. Regression introduced in v5.2.0 (the "Worker refactor").
+- Fix batch-job dequeue write contention that made large batch jobs progressively slower
+  as workers scaled (observed ~5x: 10M records 18.7s -> 98.8s). Every worker was
+  re-stamping the one running job document on every poll and claiming slices sorted by
+  the global-minimum `_id`, so MongoDB serialized and retried the colliding writes.
+  Joining an already-running batch job is now a read-only query (slice concurrency is
+  already coordinated per-slice), and slice claims no longer force a global sort, letting
+  concurrent claims land on different documents.
 
 ### New features
 
 - Support Mongoid 9.0 / 9.1 and ActiveRecord 8.1.
+- Add a pluggable event listener strategy, including a `:polling` mode that lets the
+  Event/Subscriber pub-sub mechanism run without a tailable capped collection. This
+  enables Rocket Job's cross-process shutdown/pause/log-level signaling on MongoDB-
+  compatible stores that don't support capped collections, such as AWS DocumentDB.
+  Configurable via `RocketJob::Event.listener_strategy`, `Config.poll_interval`, and
+  `Config.event_retention_seconds`.
+- Capture the reason a job is throttled and surface it in Mission Control. Throttles can
+  now declare a `description:` (String or Proc); the triggered description is persisted
+  on new `throttled_by`/`throttled_at` fields on both simple and batch jobs, and cleared
+  automatically once the job is no longer throttled.
 
 ### Documentation
 
 - Rewrite the documentation site: landing page, installation, Programmer's Guide, Batch
   Guide, Architecture and Internals (formerly "Advanced"), Included Jobs, Dirmon, and
   Mission Control (Web UI) pages, plus a new Upgrading guide and a rewritten README.
+- Cosmic theme revamp for the documentation site, plus a reorganization of the Mission
+  Control screenshots.
+- Add pages addressing MongoDB adoption objections (licensing and fit) and positioning
+  compression/encryption as reasons to choose Rocket Job.
+- Document inspecting and editing batch slices from the console, and add an event
+  listener settings reference table.
 - Add `CLAUDE.md` and expand `CONTRIBUTING.md` with an architecture guide.
 
 ### Internal
@@ -31,6 +60,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Substantially expand test coverage across the worker pool, supervisor, subscribers,
   events, batch categories, batch IO, sliced input queries, Dirmon, and built-in jobs.
 - Remove the unused `RactorWorker` placeholder.
+- Add an in-process batch benchmark harness (`rocketjob_batch_perf`) covering throughput,
+  micro, and dequeue-contention modes, and move performance results into
+  `docs/architecture.md`.
+- Modernize CI: update dependency setup, make the JRuby matrix entry non-blocking, and
+  bump `actions/checkout` to v7.
 
 ## [6.3.2] 2026-01-24
 
