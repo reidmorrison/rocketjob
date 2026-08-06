@@ -29,7 +29,7 @@ how the project grows, and they are warmly welcomed and appreciated.
 
 Documentation updates are welcome and appreciated by all users of Rocket Job.
 
-The documentation is a Jekyll site under the `docs` subdirectory, published to [rocketjob.io](https://rocketjob.io).
+The documentation is a Jekyll site under the `docs` subdirectory, published to [rocketjob.reidmorrison.com](https://rocketjob.reidmorrison.com).
 
 #### Small changes
 
@@ -188,7 +188,7 @@ MongoDB or Mongoid rather than from choices made here.
 
 ## Architecture
 
-The architecture is documented on the [Architecture and Internals](https://rocketjob.io/architecture.html)
+The architecture is documented on the [Architecture and Internals](https://rocketjob.reidmorrison.com/architecture.html)
 page (source: `docs/architecture.md`). It covers the public vs internal API boundary, the
 plugin-composition design, batch jobs and slices, the Supervisor / Server / Worker runtime, and a class
 diagram of the core relationships. Start there before making changes to core behavior.

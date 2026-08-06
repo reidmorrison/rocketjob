@@ -4,7 +4,7 @@ module ActiveJob
     #
     # Ruby's missing batch system.
     #
-    # Read more about Rocket Job {here}[http://rocketjob.io].
+    # Read more about Rocket Job {here}[https://rocketjob.reidmorrison.com].
     #
     # To use Rocket Job set the queue_adapter config to +:rocket_job+.
     #

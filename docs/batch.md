@@ -114,7 +114,7 @@ It has built-in support for:
 
 * `Zip` files (add the `rubyzip` gem on CRuby; JRuby uses native Java Zip)
 * `GZip` files
-* files encrypted with [Symmetric Encryption](https://github.com/reidmorrison/symmetric-encryption)
+* files encrypted with [Symmetric Encryption](https://encryption.reidmorrison.com)
 * delimited files (Windows CR/LF or Linux LF line endings, auto-detected, or a custom delimiter)
 * fixed-length record files
 
@@ -147,7 +147,7 @@ tabular parsing is deliberately left to the workers (see [Reading tabular files]
 so by default a file is uploaded a raw line at a time.
 
 For the full list of supported file types and transformations, see
-[IOStreams](https://github.com/reidmorrison/iostreams).
+[IOStreams](https://iostreams.reidmorrison.com).
 
 ### Active Record queries
 
@@ -550,7 +550,7 @@ end
 ~~~
 
 Set the serializer to `:encrypt` to encrypt slices at rest with
-[Symmetric Encryption](https://github.com/reidmorrison/symmetric-encryption). Data is compressed
+[Symmetric Encryption](https://encryption.reidmorrison.com). Data is compressed
 before being encrypted, to reduce the volume encrypted:
 
 ~~~ruby
@@ -563,7 +563,7 @@ Output categories also support `:bz2` and `:encrypted_bz2` serializers.
 ### PGP encrypted output files
 
 When exchanging files with another system, an open standard like PGP is ideal. Because `download`
-accepts an [IOStreams](https://github.com/reidmorrison/iostreams) path, the output file can be PGP
+accepts an [IOStreams](https://iostreams.reidmorrison.com) path, the output file can be PGP
 encrypted for a recipient on the way out:
 
 ~~~ruby

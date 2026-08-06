@@ -60,7 +60,7 @@ application at runtime, without restarting any process or deploying any code.
 This is invaluable for diagnosing a problem in production: turn on `:debug` or
 `:trace` logging, capture what you need, then turn it back down again.
 
-Rocket Job uses [Semantic Logger](https://logger.rocketjob.io), so the log
+Rocket Job uses [Semantic Logger](https://logger.reidmorrison.com), so the log
 level can be changed globally, for a single class, or targeted at a single host
 or process.
 
@@ -200,7 +200,7 @@ RocketJob::Subscribers::Worker.publish(:thread_dump, worker_id: 1, server_id: se
 ### Refreshing Secret Config
 
 When running Rocket Job in a container it is recommended to manage settings and
-application credentials with [Secret Config](https://config.rocketjob.io).
+application credentials with [Secret Config](https://config.reidmorrison.com).
 Rocket Job ships with a subscriber that refreshes every server's in-memory copy
 of the Secret Config registry, so updated settings take effect without a
 restart:
