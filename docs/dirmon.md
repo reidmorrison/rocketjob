@@ -147,7 +147,7 @@ The fields of `DirmonEntry`:
 
 * **`pattern`** (required, String)
   A path glob used to find files. Standard `Dir.glob` wildcards apply, evaluated through
-  [IOStreams](https://github.com/reidmorrison/iostreams) so local paths and remote paths (SFTP, S3,
+  [IOStreams](https://iostreams.reidmorrison.com) so local paths and remote paths (SFTP, S3,
   and so on) are supported. Examples:
     * `input_files/process1/*.csv`
     * `input_files/process2/**/*` (all files, recursively)

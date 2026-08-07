@@ -139,7 +139,7 @@ Scheduled jobs replace cron, with full visibility into what is scheduled and whe
 * **Compressed by default, encrypted when you need it.** Batch data is compressed in MongoDB out of
   the box, cutting storage and network bandwidth. Encryption is opt-in and configured per job: turn
   on encryption at rest for a job's slices with
-  [Symmetric Encryption](https://github.com/reidmorrison/symmetric-encryption), or encrypt
+  [Symmetric Encryption](https://encryption.reidmorrison.com), or encrypt
   individual fields on any job (batch or not) with `field :ssn, type: String, encrypted: true`, to
   meet compliance requirements for sensitive data, with no change to your `#perform` code.
 * **A familiar, ActiveRecord-like API.** `create!`, `field`, `validates`, queries, and callbacks
@@ -147,7 +147,7 @@ Scheduled jobs replace cron, with full visibility into what is scheduled and whe
 * **Cron without a cron server.** Schedule recurring jobs with a `cron_schedule`; there is no
   central scheduler to keep alive and no missed runs when one box is down.
 * **Visible in production.** The web interface, plus high-performance structured logging via
-  [Semantic Logger](https://logger.rocketjob.io), make it easy to operate.
+  [Semantic Logger](https://logger.reidmorrison.com), make it easy to operate.
 
 ## Quick start
 
@@ -259,7 +259,7 @@ ReportJob.create!(username: "jbloggs")
 ### Encrypt a sensitive field
 
 Any field on any job can be encrypted at rest by adding `encrypted: true`. The value is transparently
-encrypted with [Symmetric Encryption](https://github.com/reidmorrison/symmetric-encryption) before it
+encrypted with [Symmetric Encryption](https://encryption.reidmorrison.com) before it
 is written to MongoDB and decrypted when you read it back, so your code just uses `job.ssn` as usual:
 
 ~~~ruby

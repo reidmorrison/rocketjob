@@ -152,7 +152,7 @@ job.save!
 ## Copy File Job
 
 `RocketJob::Jobs::CopyFileJob` copies a file from a source to a target, where each can be a local path,
-a URL, or any location supported by [IOStreams](https://github.com/reidmorrison/iostreams) (SFTP, S3,
+a URL, or any location supported by [IOStreams](https://iostreams.reidmorrison.com) (SFTP, S3,
 HTTP, and more). It is commonly used to push a finished output file to an SFTP server or object store.
 
 Because it includes the [Retry](guide.html#automatic-retry) plugin, a failed copy is retried
@@ -179,7 +179,7 @@ The `source_streams` and `target_streams` options apply IOStreams transformation
 compression or encryption) on the way through, and `source_args` / `target_args` pass options to the
 underlying source and target. When the Symmetric Encryption gem is installed, any argument whose key
 starts with `encrypted_` is decrypted before use, and any whose key starts with `secret_config_` is
-looked up via [Secret Config](https://config.rocketjob.io); the connection password is also stored
+looked up via [Secret Config](https://config.reidmorrison.com); the connection password is also stored
 encrypted.
 
 Instead of a `source_url`, raw data can be supplied directly with `source_data` (limited to about
@@ -375,7 +375,7 @@ the code are aggregated and visible on the completed job.
 
 `RocketJob::Jobs::ReEncrypt::RelationalJob` re-encrypts every `encrypted_` column in a relational
 database, rotating data to the current
-[Symmetric Encryption](https://github.com/reidmorrison/symmetric-encryption) key. It is a batch job
+[Symmetric Encryption](https://encryption.reidmorrison.com) key. It is a batch job
 that works directly against table and column names rather than models, so it covers tables whose
 models have been removed and picks up new `encrypted_` columns automatically.
 

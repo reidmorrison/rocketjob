@@ -7,21 +7,21 @@ Rocket Job is a distributed, priority-based, MongoDB-backed batch processing sys
 conventional background jobs, or split a single job's input into slices and process it concurrently
 across thousands of workers, spilling from memory to disk so very large files never fall over.
 
-Full documentation is at **[rocketjob.io](https://rocketjob.io/)**.
+Full documentation is at **[rocketjob.reidmorrison.com](https://rocketjob.reidmorrison.com/)**.
 
-![Rocket Job](https://rocketjob.io/images/rocket/rocket-icon-512x512.png)
+![Rocket Job](https://rocketjob.reidmorrison.com/images/rocket/rocket-icon-512x512.png)
 
 ## Documentation
 
-* [Introduction](https://rocketjob.io/) &mdash; what Rocket Job is and why it exists
-* [Installation](https://rocketjob.io/installation.html)
-* [Programmer's Guide](https://rocketjob.io/guide.html) &mdash; simple jobs
-* [Batch Guide](https://rocketjob.io/batch.html) &mdash; parallel batch jobs
-* [Included Jobs](https://rocketjob.io/jobs.html) and [Directory Monitor](https://rocketjob.io/dirmon.html)
-* [Events](https://rocketjob.io/events.html)
-* [Web UI (Mission Control)](https://rocketjob.io/mission_control.html)
-* [Deployment](https://rocketjob.io/deployment.html)
-* [Architecture and Internals](https://rocketjob.io/architecture.html)
+* [Introduction](https://rocketjob.reidmorrison.com/) &mdash; what Rocket Job is and why it exists
+* [Installation](https://rocketjob.reidmorrison.com/installation.html)
+* [Programmer's Guide](https://rocketjob.reidmorrison.com/guide.html) &mdash; simple jobs
+* [Batch Guide](https://rocketjob.reidmorrison.com/batch.html) &mdash; parallel batch jobs
+* [Included Jobs](https://rocketjob.reidmorrison.com/jobs.html) and [Directory Monitor](https://rocketjob.reidmorrison.com/dirmon.html)
+* [Events](https://rocketjob.reidmorrison.com/events.html)
+* [Web UI (Mission Control)](https://rocketjob.reidmorrison.com/mission_control.html)
+* [Deployment](https://rocketjob.reidmorrison.com/deployment.html)
+* [Architecture and Internals](https://rocketjob.reidmorrison.com/architecture.html)
 * [API Reference](https://www.rubydoc.info/gems/rocketjob/)
 
 ## Support
@@ -31,14 +31,14 @@ Full documentation is at **[rocketjob.io](https://rocketjob.io/)**.
 
 ## Upgrading
 
-See the [Upgrading guide](https://rocketjob.io/upgrading.html) for the code and data changes needed
+See the [Upgrading guide](https://rocketjob.reidmorrison.com/upgrading.html) for the code and data changes needed
 between major versions. Per-release notes are in the
 [GitHub Releases](https://github.com/reidmorrison/rocketjob/releases).
 
 ## Contributing
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup and how
-to run the test suite, and the [Architecture and Internals](https://rocketjob.io/architecture.html)
+to run the test suite, and the [Architecture and Internals](https://rocketjob.reidmorrison.com/architecture.html)
 page for how Rocket Job is put together.
 
 The documentation site lives in [`docs/`](docs/) as Jekyll markdown. To preview changes locally:

@@ -1409,7 +1409,7 @@ hand-rolling a singleton validation.
 
 ## Logging
 
-Every job has a `logger`, provided by [Semantic Logger](https://logger.rocketjob.io), with the job's
+Every job has a `logger`, provided by [Semantic Logger](https://logger.reidmorrison.com), with the job's
 class name and id already tagged onto each entry:
 
 ~~~ruby
@@ -1434,7 +1434,7 @@ noisy job or, conversely, turning up logging to `:trace` to debug one job:
 ReportJob.create!(log_level: :warn)
 ~~~
 
-For full logging configuration, see the [Semantic Logger documentation](https://logger.rocketjob.io).
+For full logging configuration, see the [Semantic Logger documentation](https://logger.reidmorrison.com).
 
 ## Writing Tests
 

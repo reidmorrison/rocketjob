@@ -79,7 +79,7 @@ names without baking them into the image.
 `host.docker.internal:27017` so the container can reach out to the host.
 
 **Production.** Store all configuration in a central store using
-[Secret Config](https://config.rocketjob.io), and override individual settings with environment
+[Secret Config](https://config.reidmorrison.com), and override individual settings with environment
 variables where needed. Pass environment variables into the container with Docker's
 `--env-file` option (see `docker run --help`), or through your orchestrator's secret mechanism.
 

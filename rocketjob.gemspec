@@ -7,7 +7,7 @@ Gem::Specification.new do |s|
   s.version               = RocketJob::VERSION
   s.platform              = Gem::Platform::RUBY
   s.authors               = ["Reid Morrison"]
-  s.homepage              = "https://rocketjob.io"
+  s.homepage              = "https://rocketjob.reidmorrison.com"
   s.summary               = "Process millions of records across thousands of workers. " \
                             "A distributed, MongoDB-backed batch processing system for Ruby."
   s.description           = "Rocket Job is a distributed, priority-based, MongoDB-backed batch processing system for Ruby. " \
@@ -27,9 +27,9 @@ Gem::Specification.new do |s|
   s.add_dependency "symmetric-encryption", "~> 4.6"
   s.metadata = {
     "bug_tracker_uri"       => "https://github.com/reidmorrison/rocketjob/issues",
-    "changelog_uri"         => "https://github.com/reidmorrison/rocketjob/releases",
-    "documentation_uri"     => "https://rocketjob.io",
-    "homepage_uri"          => "https://rocketjob.io",
+    "changelog_uri"         => "https://github.com/reidmorrison/rocketjob/blob/main/CHANGELOG.md",
+    "documentation_uri"     => "https://rocketjob.reidmorrison.com",
+    "homepage_uri"          => "https://rocketjob.reidmorrison.com",
     "source_code_uri"       => "https://github.com/reidmorrison/rocketjob/tree/v#{RocketJob::VERSION}",
     "rubygems_mfa_required" => "true"
   }

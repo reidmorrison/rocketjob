@@ -344,7 +344,7 @@ I [job:5731...] (0.120ms) HelloWorldJob -- Completed #perform
 
 `RocketJob::Config.load!` reads `config/mongoid.yml` relative to the current directory by default.
 Pass an explicit path as the second argument to load it from elsewhere, and a third argument to
-load a [Symmetric Encryption](https://github.com/reidmorrison/symmetric-encryption) configuration file.
+load a [Symmetric Encryption](https://encryption.reidmorrison.com) configuration file.
 
 ### Standalone web interface
 
