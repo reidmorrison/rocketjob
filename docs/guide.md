@@ -1,10 +1,8 @@
 ---
 layout: default
+title: Programmer's Guide
 mermaid: true
 ---
-
-## Programmer's Guide
-{:.no_toc}
 
 **Contents**
 

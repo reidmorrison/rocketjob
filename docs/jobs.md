@@ -1,9 +1,7 @@
 ---
 layout: default
+title: Included Jobs
 ---
-
-## Included Jobs
-{:.no_toc}
 
 **Contents**
 

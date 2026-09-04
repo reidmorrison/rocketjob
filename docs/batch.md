@@ -1,10 +1,8 @@
 ---
 layout: default
+title: Batch Jobs Guide
 mermaid: true
 ---
-
-## Batch Jobs Guide
-{:.no_toc}
 
 **Contents**
 
