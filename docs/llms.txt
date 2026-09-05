@@ -1,0 +1,34 @@
+# Rocket Job
+
+> Rocket Job is a distributed, priority-based background job and batch processing system for Ruby, backed by MongoDB. A job is a Ruby class with typed, validated fields that is persisted to MongoDB and processed in priority order by any available worker. Adding `include RocketJob::Batch` uploads a job's input into MongoDB, splits it into slices, and processes those slices concurrently across every worker in the cluster, so one job can span thousands of workers.
+
+Key facts:
+
+- Install with `gem install rocketjob` or `gem "rocketjob"` in a Gemfile. Requires Ruby 3.2 or later (MRI 3.2, 3.4 and 4.0, or JRuby 9.4+), Mongoid 8.1 to 9.1, and a MongoDB server. Rails is optional; Rocket Job also runs standalone.
+- A simple job is a class inheriting from `RocketJob::Job` that implements `perform`. It is queued with `MyJob.create!(...)` and picked up by any running server.
+- A batch job is the same class plus `include RocketJob::Batch`. Its input is uploaded with `upload`, split into slices, and processed one slice at a time per worker, with results collected into output categories.
+- Servers are started with `bundle exec rocketjob`. Workers are threads within a server process, and any number of servers can run against the same MongoDB.
+- The web interface is a separate gem, `rocketjob_mission_control`, mounted in a Rails application. It is optional; the cluster runs without it.
+- Rocket Job itself is Apache-2.0. MongoDB's SSPL applies to distributing MongoDB as a service, not to applications that connect to it. See the Installation page.
+- Human-readable documentation lives at https://rocketjob.reidmorrison.com. The links below point at the raw markdown sources of the same pages.
+- The complete documentation concatenated into a single file: https://rocketjob.reidmorrison.com/llms-full.txt
+- Source code: https://github.com/reidmorrison/rocketjob
+
+## Documentation
+
+- [What is Rocket Job?](https://raw.githubusercontent.com/reidmorrison/rocketjob/main/docs/index.md): What Rocket Job is, the two things it does that ordinary job frameworks struggle with, how it compares to other Ruby job systems, and a quick start.
+- [Installation](https://raw.githubusercontent.com/reidmorrison/rocketjob/main/docs/installation.md): Installing with or without Rails: the tested Ruby / Mongoid / Rails matrix, running on AWS DocumentDB with the polling event listener, what MongoDB's SSPL does and does not require, MongoDB configuration, and adding the optional Mission Control web interface.
+- [Programmer's Guide](https://raw.githubusercontent.com/reidmorrison/rocketjob/main/docs/guide.md): The full programming interface for simple jobs: writing a job class, the job lifecycle and its states, typed fields, priorities, delayed processing, expiry, throttling, retries and callbacks.
+- [Batch Jobs Guide](https://raw.githubusercontent.com/reidmorrison/rocketjob/main/docs/batch.md): Processing a large workload in parallel across many workers: `include RocketJob::Batch`, uploading input, slice size, input and output categories, reading tabular files, and collecting results.
+- [Included Jobs](https://raw.githubusercontent.com/reidmorrison/rocketjob/main/docs/jobs.md): The jobs that ship with the gem: housekeeping, directory monitoring, file copy and conversion, upload, and running ad-hoc Ruby on demand.
+- [Directory Monitoring](https://raw.githubusercontent.com/reidmorrison/rocketjob/main/docs/dirmon.md): Watching directories for new files and starting a job for each one: how a scan works, creating and managing entries, how a file reaches the job, and archiving.
+- [Events](https://raw.githubusercontent.com/reidmorrison/rocketjob/main/docs/events.md): Near real-time control of running servers and a publish/subscribe mechanism for the application: built-in subscribers, subscribing from other processes, custom events, and how the mechanism works.
+- [Mission Control: The Web UI](https://raw.githubusercontent.com/reidmorrison/rocketjob/main/docs/mission_control.md): The web interface for managing and monitoring a cluster: watching work in progress, retrying and aborting jobs, draining servers, and managing Dirmon entries.
+- [Deployment](https://raw.githubusercontent.com/reidmorrison/rocketjob/main/docs/deployment.md): Running servers in production: Docker and Capistrano deployments, high-availability MongoDB, running several servers per host, and what to do after a deploy.
+- [Architecture and Internals](https://raw.githubusercontent.com/reidmorrison/rocketjob/main/docs/architecture.md): How Rocket Job works under the hood: the concurrency model, processing in place in MongoDB, and the design decisions behind its reliability and scale.
+
+## Optional
+
+- [Upgrading Rocket Job](https://raw.githubusercontent.com/reidmorrison/rocketjob/main/docs/upgrading.md): The upgrade steps that need code or data changes when moving between major versions, for v6 and v3.
+- [README](https://raw.githubusercontent.com/reidmorrison/rocketjob/main/README.md): Project overview and links.
+- [CHANGELOG](https://raw.githubusercontent.com/reidmorrison/rocketjob/main/CHANGELOG.md): The complete change record.
