@@ -3,7 +3,7 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
-## [7.0.0] Unreleased
+## [7.0.0] 2026-09-05
 
 ### Breaking changes
 
@@ -46,8 +46,12 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Rewrite the documentation site: landing page, installation, Programmer's Guide, Batch
   Guide, Architecture and Internals (formerly "Advanced"), Included Jobs, Dirmon, and
   Mission Control (Web UI) pages, plus a new Upgrading guide and a rewritten README.
-- Cosmic theme revamp for the documentation site, plus a reorganization of the Mission
-  Control screenshots.
+- Move the documentation site to the shared `rm-docs-theme` (the look and feel now lives
+  in that theme, not in this repo), after an initial cosmic theme revamp, plus a
+  reorganization of the Mission Control screenshots.
+- Move the documentation site to `https://rocketjob.reidmorrison.com` and point all
+  sister-project links at their `*.reidmorrison.com` doc sites. Repository links now
+  reference the `main` branch.
 - Add pages addressing MongoDB adoption objections (licensing and fit) and positioning
   compression/encryption as reasons to choose Rocket Job.
 - Document inspecting and editing batch slices from the console, and add an event
