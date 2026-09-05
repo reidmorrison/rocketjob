@@ -1,4 +1,83 @@
+# Shared look and feel comes from reidmorrison/rm-docs-theme, which supplies
+# the layout, the sidebar, the stylesheet, the syntax sheet and the Mermaid
+# loader. This repo keeps only its own content: the markdown pages and
+# docs/images.
+#
+# Pinned to a major tag. v1 moves as the theme is fixed, so this site picks up
+# changes on its next build; breaking changes go to v2 and are opted into here.
+remote_theme: reidmorrison/rm-docs-theme@v1
+
 markdown: kramdown
+kramdown:
+  # Added with the theme. This site previously had no toc_levels, so kramdown
+  # defaulted to 1..6 and the contents card on guide.html ran to sixty entries.
+  # Matching the other doc sites drops only the three h4s on that page.
+  toc_levels: "2..3"
 
 plugins:
+  # Pre-existing: architecture.md carries redirect_from for /advanced.html.
   - jekyll-redirect-from
+  # GitHub Pages enables this on its own, but a local `bundle exec jekyll
+  # build` does not: Jekyll only auto-requires gems in the :jekyll_plugins
+  # bundler group, so without it the theme is silently skipped and every page
+  # reports "Layout 'default' does not exist".
+  - jekyll-remote-theme
+
+# Read by the theme's masthead, head and footer. The theme ships no defaults:
+# Jekyll exposes only _layouts, _includes, _sass and assets from a theme, so
+# every site declares this block in full.
+project:
+  name: Rocket Job
+  tagline: Batch processing that scales.
+  github: reidmorrison/rocketjob
+  gem: rocketjob
+  license: Apache 2.0 License
+
+  # The rocket, not the shared shield. Rocket Job's identity is an
+  # illustration, and a detailed full-colour drawing does not reduce to the two
+  # flat fills the theme's inline-SVG mark uses, so `mark_image` renders it as
+  # an <img> instead. Requires theme v1.2.0 or later.
+  #
+  # The tradeoff of a raster mark is that it cannot respond to the theme, so it
+  # has to be legible on both grounds unaided. This one was checked against
+  # white and #161D26 at its rendered size; the dark outlines and the orange
+  # flame carry it. Master art is images/rocket_1024.png.
+  mark_image: images/rocket.png
+
+  # Carried over from the layout this replaces, which hard-coded one title and
+  # one description for all eleven pages.
+  seo_title: "Rocket Job. Process millions of records across thousands of workers."
+  description: >-
+    Rocket Job: a distributed, MongoDB-backed batch processing system for Ruby
+    that processes millions of records across thousands of workers.
+
+# The sidebar. Group names match the other doc sites so the family reads the
+# same way; order within a group is reading order, not alphabetical.
+nav:
+  - group: Start here
+    items:
+      - { page: index.html,           label: Overview }
+      - { page: installation.html,    label: Installation }
+      - { page: guide.html,           label: Guide }
+
+  - group: Jobs
+    items:
+      - { page: batch.html,           label: Batch Jobs }
+      - { page: jobs.html,            label: Included Jobs }
+      - { page: dirmon.html,          label: Directory Monitoring }
+      - { page: events.html,          label: Events }
+
+  - group: In production
+    items:
+      - { page: mission_control.html, label: Web UI }
+      - { page: deployment.html,      label: Deployment }
+
+  - group: Reference
+    items:
+      - { page: architecture.html,    label: Architecture }
+      - { page: upgrading.html,       label: Upgrading }
+
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - vendor

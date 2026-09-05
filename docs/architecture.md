@@ -1,12 +1,10 @@
 ---
 layout: default
+title: Architecture and Internals
 mermaid: true
 redirect_from:
   - /advanced.html
 ---
-
-## Architecture and Internals
-{:.no_toc}
 
 **Contents**
 

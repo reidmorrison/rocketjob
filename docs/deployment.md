@@ -1,9 +1,7 @@
 ---
 layout: default
+title: Deployment
 ---
-
-## Deployment
-{:.no_toc}
 
 A Rocket Job "server" is the `bin/rocketjob` process. It registers itself in MongoDB, starts a
 pool of worker threads (10 by default), and pulls queued jobs to run. Deploying Rocket Job means

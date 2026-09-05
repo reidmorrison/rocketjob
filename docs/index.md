@@ -1,10 +1,8 @@
 ---
 layout: default
+heading: What is Rocket Job?
 mermaid: true
 ---
-
-## What is Rocket Job?
-{:.no_toc}
 
 **Contents**
 

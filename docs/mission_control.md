@@ -1,9 +1,7 @@
 ---
 layout: default
+title: "Mission Control: The Web UI"
 ---
-
-## Mission Control: The Web UI
-{:.no_toc}
 
 **Contents**
 

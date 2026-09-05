@@ -1,9 +1,7 @@
 ---
 layout: default
+title: Upgrading Rocket Job
 ---
-
-## Upgrading Rocket Job
-{:.no_toc}
 
 **Contents**
 

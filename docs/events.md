@@ -1,9 +1,7 @@
 ---
 layout: default
+title: Events
 ---
-
-## Events
-{:.no_toc}
 
 Near real-time control of running Rocket Job servers, and a general purpose
 publish / subscribe mechanism for your own application.

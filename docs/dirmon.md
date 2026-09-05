@@ -1,9 +1,7 @@
 ---
 layout: default
+title: Directory Monitoring
 ---
-
-## Directory Monitoring
-{:.no_toc}
 
 **Contents**
 
