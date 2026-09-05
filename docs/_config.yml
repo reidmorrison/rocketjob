@@ -33,6 +33,17 @@ project:
   gem: rocketjob
   license: Apache 2.0 License
 
+  # The rocket, not the shared shield. Rocket Job's identity is an
+  # illustration, and a detailed full-colour drawing does not reduce to the two
+  # flat fills the theme's inline-SVG mark uses, so `mark_image` renders it as
+  # an <img> instead. Requires theme v1.2.0 or later.
+  #
+  # The tradeoff of a raster mark is that it cannot respond to the theme, so it
+  # has to be legible on both grounds unaided. This one was checked against
+  # white and #161D26 at its rendered size; the dark outlines and the orange
+  # flame carry it. Master art is images/rocket_1024.png.
+  mark_image: images/rocket.png
+
   # Carried over from the layout this replaces, which hard-coded one title and
   # one description for all eleven pages.
   seo_title: "Rocket Job. Process millions of records across thousands of workers."
