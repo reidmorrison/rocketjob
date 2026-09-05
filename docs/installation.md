@@ -1,6 +1,9 @@
 ---
 layout: default
 title: Installation
+description: >-
+  Installing Rocket Job with or without Rails: compatibility, licensing, MongoDB
+  setup and configuration, and the optional Mission Control web interface.
 ---
 
 Rocket Job runs with or without Rails. This guide covers both, plus the optional web interface,

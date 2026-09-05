@@ -1,6 +1,9 @@
 ---
 layout: default
 title: Upgrading Rocket Job
+description: >-
+  The upgrade steps that need code or data changes when moving between major
+  versions, for v6 and v3.
 ---
 
 **Contents**

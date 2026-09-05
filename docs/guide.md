@@ -2,6 +2,9 @@
 layout: default
 title: Programmer's Guide
 mermaid: true
+description: >-
+  The full programming interface for simple jobs: writing them, the job lifecycle,
+  fields, priorities, delayed processing, expiry, throttling and callbacks.
 ---
 
 **Contents**

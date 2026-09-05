@@ -1,6 +1,9 @@
 ---
 layout: default
 title: Deployment
+description: >-
+  Running rocketjob servers in production: Docker and Capistrano deployments,
+  high-availability MongoDB, multiple servers per host, and what to do after.
 ---
 
 A Rocket Job "server" is the `bin/rocketjob` process. It registers itself in MongoDB, starts a

@@ -2,6 +2,9 @@
 layout: default
 title: Batch Jobs Guide
 mermaid: true
+description: >-
+  Jobs that process a large workload in parallel across many workers: uploading
+  input, input and output categories, and reading tabular files.
 ---
 
 **Contents**

@@ -1,6 +1,9 @@
 ---
 layout: default
 title: "Mission Control: The Web UI"
+description: >-
+  The web interface for managing and monitoring a Rocket Job cluster: watching work,
+  retrying and aborting jobs, draining servers, and managing Dirmon entries.
 ---
 
 **Contents**
