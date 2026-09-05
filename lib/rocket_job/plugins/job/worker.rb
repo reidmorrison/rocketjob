@@ -72,14 +72,13 @@ module RocketJob
           SemanticLogger.named_tagged(job: id.to_s) do
             # Not a guard clause: the `fail` event clears `worker_name`, so the
             # branches are not equivalent and must not be collapsed.
-            # rubocop:disable Style/GuardClause
+            # rubocop:disable-next Style/GuardClause
             if failed? || !may_fail?
               self.exception        = JobException.from_exception(e)
               exception.worker_name = worker_name
             else
               fail(worker_name, e)
             end
-            # rubocop:enable Style/GuardClause
 
             # Prevent validation failures from failing the job
             save(validate: false) unless new_record? || destroyed?
