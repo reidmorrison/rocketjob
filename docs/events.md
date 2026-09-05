@@ -1,6 +1,9 @@
 ---
 layout: default
 title: Events
+description: >-
+  Near real-time control of running servers, and a publish/subscribe mechanism for
+  your own application: built-in subscribers, custom events, and how it works.
 ---
 
 Near real-time control of running Rocket Job servers, and a general purpose

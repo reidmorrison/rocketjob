@@ -4,6 +4,9 @@ title: Architecture and Internals
 mermaid: true
 redirect_from:
   - /advanced.html
+description: >-
+  How Rocket Job works under the hood: the concurrency model, in-place processing
+  in MongoDB, and what makes the design reliable and scalable.
 ---
 
 **Contents**

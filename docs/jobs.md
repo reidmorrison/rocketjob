@@ -1,6 +1,9 @@
 ---
 layout: default
 title: Included Jobs
+description: >-
+  The jobs that ship with the gem: housekeeping, directory monitoring, file copy and
+  conversion, upload, and running ad-hoc Ruby on demand.
 ---
 
 **Contents**

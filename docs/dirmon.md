@@ -1,6 +1,9 @@
 ---
 layout: default
 title: Directory Monitoring
+description: >-
+  Watching directories for new files and starting a job for each one: how a scan
+  works, creating entries, how the file reaches the job, and archiving.
 ---
 
 **Contents**
