@@ -486,7 +486,7 @@ module RocketJob
         else
           # TODO: Add category to named tags to aid problem determination
           # And RJ Download metric with duration
-          IOStreams.new(stream || category.file_name).writer(:line, **args) do |io|
+          category.download_path(stream).writer(:line, **args) do |io|
             output_collection.download(header_line: header_line) { |record| io << record }
           end
         end

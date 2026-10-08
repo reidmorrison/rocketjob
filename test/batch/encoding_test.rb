@@ -227,6 +227,30 @@ module Batch
         end
       end
 
+      describe "#download fixed width" do
+        before do
+          job.output_category.format         = :fixed
+          job.output_category.format_options = {layout: [{size: 10, key: "name"}, {size: 5, key: "zip"}]}
+          job.output << ["José      12345", "Jack      54321"]
+        end
+
+        it "rejects a character that is not ASCII" do
+          IOStreams.temp_file("encoding_test", ".txt") do |path|
+            assert_raises(Encoding::UndefinedConversionError) { job.download(path.to_s) }
+          end
+        end
+
+        it "writes the encoding set on the path, one byte per character" do
+          IOStreams.temp_file("encoding_test", ".txt") do |path|
+            job.download(IOStreams.path(path.to_s).encoding("ISO-8859-1"))
+            lines = ::File.binread(path.to_s).lines
+
+            assert_equal ["Jos\xE9      12345\n".b, "Jack      54321\n".b], lines
+            assert(lines.all? { |line| line.bytesize == 16 })
+          end
+        end
+      end
+
       describe RocketJob::Jobs::CopyFileJob do
         it "copies a binary file byte for byte" do
           data = (0..255).to_a.pack("C*") * 300

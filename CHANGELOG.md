@@ -40,6 +40,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   path to keep its characters, such as `IOStreams.path("file.txt").encoding("ISO-8859-1:UTF-8")`, or
   `"IBM037:UTF-8"` for EBCDIC, or `encoding("UTF-8")` when the sizes count UTF-8 characters, or
   `encoding(replace: " ")` to replace them with spaces as before.
+- Fixed width output is downloaded as ASCII, so a value that is not ASCII raises
+  `Encoding::UndefinedConversionError` when the output is downloaded. Previously it was written as UTF-8,
+  so a line with such a character was longer, in bytes, than its layout, which a program that counts
+  bytes, such as one on a mainframe, reads into the wrong columns. Set the encoding of the download path,
+  such as `IOStreams.path("file.txt").encoding("ISO-8859-1")`, or `encoding(replace: " ")`.
 
 ### Security
 
