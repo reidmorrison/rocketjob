@@ -83,9 +83,8 @@ module RocketJob
 
         # The url can include credentials, which the display name of the path leaves out.
         self.description = "Copying to #{IOStreams.path(target_url).display_name}"
-      rescue StandardError, LoadError
-        # The path cannot be created in this process, for example when the gem for its storage is not installed
-        # here, or its url is not valid, which #perform reports.
+      rescue StandardError
+        # The url is not valid, which #perform reports.
         self.description = "Copying file"
       end
 

@@ -24,7 +24,13 @@ module Jobs
           assert_equal "Copying to https://example.org/uploads/source.csv", job.description
         end
 
-        it "leaves out a target that cannot be created in this process" do
+        it "names an S3 target without loading the AWS SDK" do
+          job = create_job("s3://bucket/uploads/source.csv")
+
+          assert_equal "Copying to s3://bucket/uploads/source.csv", job.description
+        end
+
+        it "leaves out a target whose url is not valid" do
           job = create_job("ftp://jack:secret@ftp.example.org/source.csv")
 
           assert_equal "Copying file", job.description
