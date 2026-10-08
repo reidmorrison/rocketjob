@@ -119,6 +119,65 @@ module Batch
         end
       end
 
+      describe "csv" do
+        it "keeps a quoted value with a line break in one record, whatever the file name" do
+          upload(".txt", %(name,note\nJack,"line one\nline two"\n))
+
+          assert_equal [{"name" => "Jack", "note" => "line one\nline two"}], output_records
+        end
+      end
+
+      describe "fixed width" do
+        before do
+          job.input_category.format         = :fixed
+          job.input_category.format_options = {layout: [{size: 10, key: "name"}, {size: 5, key: "zip"}]}
+        end
+
+        it "reads ASCII" do
+          upload(".txt", "Jack      54321\n")
+
+          assert_equal [{"name" => "Jack", "zip" => "54321"}], output_records
+        end
+
+        it "replaces non-printable characters with spaces, so that the columns stay in place" do
+          upload(".txt", "Jack#{"\x00" * 6}54321\n")
+
+          assert_equal [{"name" => "Jack", "zip" => "54321"}], output_records
+        end
+
+        it "rejects a character that is not ASCII, and uploads nothing" do
+          with_file(".txt", "Jos\xE9      12345\n".b) do |file_name|
+            assert_raises(Encoding::UndefinedConversionError) { job.upload(file_name) }
+          end
+
+          assert_equal 0, job.input.count
+        end
+
+        it "reads the encoding set on the path" do
+          with_file(".txt", "Jos\xE9      12345\n".b) do |file_name|
+            job.upload(IOStreams.path(file_name).encoding("ISO-8859-1:UTF-8"))
+          end
+
+          assert_equal [{"name" => "José", "zip" => "12345"}], output_records
+        end
+
+        it "reads UTF-8 whose sizes count characters, when set on the path" do
+          with_file(".txt", "José      12345\n") do |file_name|
+            job.upload(IOStreams.path(file_name).encoding("UTF-8"))
+          end
+
+          assert_equal [{"name" => "José", "zip" => "12345"}], output_records
+        end
+
+        it "replaces characters that are not ASCII when the path supplies replace" do
+          with_file(".txt", "Jos\xE9      12345\n".b) do |file_name|
+            job.upload(IOStreams.path(file_name).encoding(replace: " "))
+          end
+
+          assert_equal [{"name" => "Jos", "zip" => "12345"}], output_records
+        end
+      end
+
       describe "column restrictions" do
         before do
           job.input_category.allowed_columns = %w[name age]

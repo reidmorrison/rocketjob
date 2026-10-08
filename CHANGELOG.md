@@ -34,6 +34,12 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   raises `IOStreams::Errors::InvalidHeader` when it is processed, unless `skip_unknown` is true.
   A job that accepted such data before will now fail it. Set
   `IOStreams.enforce_column_restrictions = false` to keep the previous behavior.
+- Fixed width uploads are read as ASCII, which IOStreams 3.0 uses for the fixed width format, so a file
+  with any other character raises `IOStreams::Errors::InvalidEncoding` and nothing is uploaded.
+  Previously each byte of a character that is not ASCII became a space. Set the file's encoding on the
+  path to keep its characters, such as `IOStreams.path("file.txt").encoding("ISO-8859-1:UTF-8")`, or
+  `"IBM037:UTF-8"` for EBCDIC, or `encoding("UTF-8")` when the sizes count UTF-8 characters, or
+  `encoding(replace: " ")` to replace them with spaces as before.
 
 ### Security
 
@@ -52,6 +58,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   `upload` still overrides it.
 - Hashes uploaded with `mode: :hash`, or `stream_mode: :hash`, are no longer parsed again by the workers.
   Previously a worker tried to parse them again in the category's format, which raised for CSV.
+- Non-printable characters in a fixed width upload, such as NUL padding, are replaced with spaces.
+  Previously they were removed, which moved the columns after them, so the line raised
+  `IOStreams::Errors::InvalidLineLength`.
+- A quoted CSV value that contains a line break is uploaded as one record, whatever the file name.
+  Previously, when the file name did not end in `.csv`, the line was split at the line break.
 - v5 jobs with a `tabular_input_mode` of `:row` or `:record` are migrated to the input category
   `mode` of `:array` or `:hash`. Previously the v5 value was copied as is, and failed validation.
 

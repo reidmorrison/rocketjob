@@ -8,6 +8,10 @@ module RocketJob
 
       embedded_in :job, class_name: "RocketJob::Job", inverse_of: :input_categories
 
+      # Replaces each non-printable character, other than line endings, with a space.
+      FIXED_WIDTH_CLEANER = ->(data, _replace) { data.gsub(/[^[:print:]\r\n]/, " ") }
+      private_constant :FIXED_WIDTH_CLEANER
+
       # Slice size for this input collection
       field :slice_size, type: Integer, default: 100
       validates_presence_of :slice_size
@@ -145,13 +149,19 @@ module RocketJob
           @tabular = nil
         end
 
-        # Remove non-printable characters, and characters that are not valid in the file's encoding, from
-        # tabular input formats. The encoding is left to IOStreams (UTF-8 unless set on the supplied path),
+        # Read tabular input in its format, so that IOStreams reads it in the format's encoding, such as ASCII for
+        # fixed width, and splits its lines where the format expects. An encoding set on the supplied path is kept,
         # since only the caller knows how the file was written.
         if tabular?
-          # Cannot change the length of fixed width lines.
-          replace = format == :fixed ? " " : ""
-          path.option_or_stream(:encode, cleaner: :printable, replace: replace)
+          path.format(format)
+          if format == :fixed
+            # Replace non-printable characters, such as NUL padding, so that the columns stay in place. A character
+            # that is not valid in the file's encoding still raises, unless the caller supplied `replace:`.
+            path.encoding(cleaner: FIXED_WIDTH_CLEANER)
+          else
+            # Remove non-printable characters, and characters that are not valid in the file's encoding.
+            path.encoding(cleaner: :printable, replace: "")
+          end
         end
         path
       end
