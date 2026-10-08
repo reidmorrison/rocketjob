@@ -110,12 +110,12 @@ module RocketJob
       # Example:
       #   # Load plain text records from a file, stripping all non-printable characters,
       #   # as well as any characters that are not valid UTF-8
-      #   path = IOStreams.path('hello.txt').option(:encode, cleaner: :printable, replace: '')
+      #   path = IOStreams.path('hello.txt').encoding(cleaner: :printable, replace: '')
       #   job.upload(path)
       #
       # Example:
-      #   # Load a file that is not UTF-8. Its records are converted to UTF-8 when stored.
-      #   path = IOStreams.path('hello.csv').option(:encode, encoding: 'Windows-1252')
+      #   # Load a file that is not UTF-8, converting its records to UTF-8.
+      #   path = IOStreams.path('hello.csv').encoding('Windows-1252:UTF-8')
       #   job.upload(path)
       #
       # Example: Zip
@@ -152,8 +152,10 @@ module RocketJob
       # * Files are read as UTF-8 text, since MongoDB only stores UTF-8 strings. A UTF-8 byte order mark at
       #   the start of the file is removed. Data that is not valid UTF-8 raises
       #   Encoding::UndefinedConversionError and nothing is uploaded, unless the file's encoding is set with
-      #   `option(:encode, encoding: ...)`, or `replace:` is supplied to remove invalid characters.
+      #   `encoding(...)`, or `replace:` is supplied to remove invalid characters.
       #   Tabular formats, such as CSV, remove non-printable and invalid characters by default.
+      # * Fixed width files are read as ASCII, and raise for any other character unless the file's encoding is
+      #   set, such as `encoding('ISO-8859-1:UTF-8')`. Non-printable characters are replaced with spaces.
       # * When zip format, the Zip file/stream must contain only one file, the first file found will be
       #   loaded into the job
       # * If an io stream is supplied, it is read until it returns nil.

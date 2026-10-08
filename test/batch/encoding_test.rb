@@ -45,7 +45,7 @@ module Batch
       describe "#upload" do
         it "keeps UTF-8 text decoded with the encode stream" do
           with_file(".txt", utf8_text) do |path|
-            assert_equal 4, job.upload(path.option(:encode, encoding: "UTF-8"))
+            assert_equal 4, job.upload(path.encoding("UTF-8"))
           end
 
           assert_equal utf8_lines, input_records
@@ -56,7 +56,7 @@ module Batch
           IOStreams.temp_file("encoding_test", ".txt.gz") do |path|
             IOStreams.path(path.to_s).write(utf8_text)
 
-            assert_equal 4, job.upload(IOStreams.path(path.to_s).option(:encode, encoding: "UTF-8"))
+            assert_equal 4, job.upload(IOStreams.path(path.to_s).encoding("UTF-8"))
           end
 
           assert_equal utf8_lines, input_records
@@ -81,7 +81,7 @@ module Batch
 
         it "converts text in the encoding set on the path to UTF-8" do
           with_file(".txt", "Jos\xE9\nZ\xFCrich\n".b) do |path|
-            assert_equal 2, job.upload(path.option(:encode, encoding: "Windows-1252"))
+            assert_equal 2, job.upload(path.encoding("Windows-1252:UTF-8"))
           end
 
           assert_equal %w[José Zürich], input_records
@@ -142,7 +142,7 @@ module Batch
 
           it "removes non-ASCII characters when the path is set to US-ASCII" do
             with_file(".csv", "name,city\nJosé,Zürich\n") do |path|
-              assert_equal 1, job.upload(path.option(:encode, encoding: "US-ASCII"))
+              assert_equal 1, job.upload(path.encoding("US-ASCII"))
             end
 
             assert_equal ["Jos,Zrich"], input_records
@@ -150,7 +150,7 @@ module Batch
 
           it "converts text in the encoding set on the path to UTF-8" do
             with_file(".csv", "name,city\nJos\xE9,Z\xFCrich\n".b) do |path|
-              assert_equal 1, job.upload(path.option(:encode, encoding: "Windows-1252"))
+              assert_equal 1, job.upload(path.encoding("Windows-1252:UTF-8"))
             end
 
             assert_equal ["José,Zürich"], input_records

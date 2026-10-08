@@ -13,7 +13,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   setting `option(:encode, encoding: "UTF-8")` on the path, raised `Encoding::UndefinedConversionError`
   when the slice was saved. A file that is not valid UTF-8 still raises
   `Encoding::UndefinedConversionError`, now while it is read, unless its encoding is set on the path,
-  for example `option(:encode, encoding: "Windows-1252")`.
+  for example `IOStreams.path("file.csv").encoding("Windows-1252:UTF-8")`.
 - Tabular uploads, such as CSV, keep non-ASCII characters. Previously every non-ASCII character was
   removed, so `José` was uploaded as `Jos`. Non-printable characters, and characters that are not
   valid in the file's encoding, are still removed.
@@ -24,7 +24,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   from a tabular upload, set the encoding on the path:
 
   ~~~ruby
-  job.upload(IOStreams.path("file.csv").option(:encode, encoding: "US-ASCII"))
+  job.upload(IOStreams.path("file.csv").encoding("US-ASCII"))
   ~~~
 - An input category's `allowed_columns`, `required_columns` and `skip_unknown` now apply to every
   tabular input. Previously they only applied to a header row read from the file, and only when it
@@ -53,7 +53,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixes
 
-- A tabular upload, such as CSV, uses the encoding set on the path with `option(:encode, encoding: ...)`.
+- A tabular upload, such as CSV, uses the encoding set on the path, such as `encoding("Windows-1252:UTF-8")`.
   Previously it was always replaced with UTF-8, so the characters of a Windows-1252 file that are not
   ASCII were removed.
 - An input category's `mode` of `:array` or `:hash` is used by `upload`. Since v6.0.0 `upload` read

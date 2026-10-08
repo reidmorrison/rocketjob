@@ -145,14 +145,22 @@ Useful `upload` keyword options:
 Files are read as UTF-8 text, since MongoDB only stores UTF-8 strings, and a UTF-8 byte order mark
 at the start of the file (as Excel writes) is removed. A file that is not valid UTF-8 raises
 `Encoding::UndefinedConversionError` and nothing is uploaded. For a file in another encoding, set it
-on the path, and its records are converted to UTF-8 when stored:
+on the path, converting its records to UTF-8:
 
 ~~~ruby
-job.upload(IOStreams.path("legacy.csv").option(:encode, encoding: "Windows-1252"))
+job.upload(IOStreams.path("legacy.csv").encoding("Windows-1252:UTF-8"))
 ~~~
 
 Tabular formats, such as CSV, remove non-printable characters and characters that are not valid in
 the file's encoding. Binary files cannot be uploaded as records.
+
+Fixed width files are read as ASCII, as most are written by programs whose sizes count bytes, such as
+those on a mainframe. A file with any other character raises `IOStreams::Errors::InvalidEncoding` and
+nothing is uploaded, until its encoding is set on the path: for example `encoding("ISO-8859-1:UTF-8")`,
+`encoding("IBM037:UTF-8")` for EBCDIC, `encoding("UTF-8")` when its sizes count UTF-8 characters, or
+`encoding(replace: " ")` to replace such characters with spaces. Non-printable characters, such as NUL
+padding, are replaced with spaces so that the columns stay in place. Fixed width output is downloaded
+as ASCII too, unless the encoding of the download path is set.
 
 A Zip stream must contain only one file; the first file found is loaded. CSV and other tabular
 parsing is deliberately left to the workers (see [Reading tabular files](#reading-tabular-files)),
