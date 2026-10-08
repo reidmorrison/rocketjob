@@ -3,6 +3,36 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [Unreleased]
+
+### Breaking changes
+
+- Require IOStreams 3.0.
+- Uploaded files are read as UTF-8 text, and a UTF-8 byte order mark at the start of a file is removed.
+  Previously the lines were binary strings, so uploading any file with a non-ASCII character, without
+  setting `option(:encode, encoding: "UTF-8")` on the path, raised `Encoding::UndefinedConversionError`
+  when the slice was saved. A file that is not valid UTF-8 still raises
+  `Encoding::UndefinedConversionError`, now while it is read, unless its encoding is set on the path,
+  for example `option(:encode, encoding: "Windows-1252")`.
+- Tabular uploads, such as CSV, keep non-ASCII characters. Previously every non-ASCII character was
+  removed, so `José` was uploaded as `Jos`. Non-printable characters, and characters that are not
+  valid in the file's encoding, are still removed.
+
+  Both changes fix data handling, but any code that depends on uploaded records being ASCII only, for
+  example a fixed width layout, a downstream system that rejects other characters, or a comparison
+  with previously processed output, will now see the non-ASCII characters. To keep removing them
+  from a tabular upload, set the encoding on the path:
+
+  ~~~ruby
+  job.upload(IOStreams.path("file.csv").option(:encode, encoding: "US-ASCII"))
+  ~~~
+
+### Fixes
+
+- A tabular upload, such as CSV, uses the encoding set on the path with `option(:encode, encoding: ...)`.
+  Previously it was always replaced with UTF-8, so the characters of a Windows-1252 file that are not
+  ASCII were removed.
+
 ## [7.0.0] 2026-09-05
 
 ### Breaking changes

@@ -108,8 +108,13 @@ module RocketJob
       #
       # Example:
       #   # Load plain text records from a file, stripping all non-printable characters,
-      #   # as well as any characters that cannot be converted to UTF-8
-      #   path = IOStreams.path('hello.csv').option(:encode, cleaner: :printable, replace: '')
+      #   # as well as any characters that are not valid UTF-8
+      #   path = IOStreams.path('hello.txt').option(:encode, cleaner: :printable, replace: '')
+      #   job.upload(path)
+      #
+      # Example:
+      #   # Load a file that is not UTF-8. Its records are converted to UTF-8 when stored.
+      #   path = IOStreams.path('hello.csv').option(:encode, encoding: 'Windows-1252')
       #   job.upload(path)
       #
       # Example: Zip
@@ -120,11 +125,11 @@ module RocketJob
       #   job.upload('myfile.csv.zip.enc')
       #
       # Example: Explicitly set the streams
-      #   path = IOStreams.path('myfile.ze').stream(:encode, encoding: 'UTF-8').stream(:zip).stream(:enc)
+      #   path = IOStreams.path('myfile.ze').stream(:zip).stream(:enc)
       #   job.upload(path)
       #
       # Example: Supply custom options
-      #   path = IOStreams.path('myfile.csv.enc').option(:enc, compress: false).option(:encode, encoding: 'UTF-8')
+      #   path = IOStreams.path('myfile.csv.enc').option(:enc, compress: false)
       #   job.upload(path)
       #
       # Example: Read from a tempfile and use the original file name to determine which streams to apply
@@ -143,12 +148,15 @@ module RocketJob
       # * The record_count for the job is set to the number of records returned by the arel.
       # * If an exception is raised while uploading data, the input collection is cleared out
       #   so that if a job is retried during an upload failure, data is not duplicated.
-      # * By default all data read from the file/stream is converted into UTF-8 before being persisted. This
-      #   is recommended since Mongo only supports UTF-8 strings.
+      # * Files are read as UTF-8 text, since MongoDB only stores UTF-8 strings. A UTF-8 byte order mark at
+      #   the start of the file is removed. Data that is not valid UTF-8 raises
+      #   Encoding::UndefinedConversionError and nothing is uploaded, unless the file's encoding is set with
+      #   `option(:encode, encoding: ...)`, or `replace:` is supplied to remove invalid characters.
+      #   Tabular formats, such as CSV, remove non-printable and invalid characters by default.
       # * When zip format, the Zip file/stream must contain only one file, the first file found will be
       #   loaded into the job
       # * If an io stream is supplied, it is read until it returns nil.
-      # * Only use this method for UTF-8 data, for binary data use #input_slice or #input_records.
+      # * Binary data cannot be uploaded as records, since they are stored as UTF-8 strings.
       # * CSV parsing is slow, so it is usually left for the workers to do.
       #
       # Upload results from an Arel into RocketJob::SlicedJob.

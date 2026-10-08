@@ -2585,9 +2585,20 @@ Useful `upload` keyword options:
 | `delimiter`    | Record delimiter. Default: auto-detect line endings.
 | `on_first`     | A lambda called with the first line, for example to capture a header.
 
-By default all data is converted to UTF-8 before being stored, since MongoDB only stores UTF-8
-strings. A Zip stream must contain only one file; the first file found is loaded. CSV and other
-tabular parsing is deliberately left to the workers (see [Reading tabular files](#reading-tabular-files)),
+Files are read as UTF-8 text, since MongoDB only stores UTF-8 strings, and a UTF-8 byte order mark
+at the start of the file (as Excel writes) is removed. A file that is not valid UTF-8 raises
+`Encoding::UndefinedConversionError` and nothing is uploaded. For a file in another encoding, set it
+on the path, and its records are converted to UTF-8 when stored:
+
+~~~ruby
+job.upload(IOStreams.path("legacy.csv").option(:encode, encoding: "Windows-1252"))
+~~~
+
+Tabular formats, such as CSV, remove non-printable characters and characters that are not valid in
+the file's encoding. Binary files cannot be uploaded as records.
+
+A Zip stream must contain only one file; the first file found is loaded. CSV and other tabular
+parsing is deliberately left to the workers (see [Reading tabular files](#reading-tabular-files)),
 so by default a file is uploaded a raw line at a time.
 
 For the full list of supported file types and transformations, see

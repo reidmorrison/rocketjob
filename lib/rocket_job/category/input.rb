@@ -133,11 +133,13 @@ module RocketJob
           @tabular = nil
         end
 
-        # Remove non-printable characters from tabular input formats.
+        # Remove non-printable characters, and characters that are not valid in the file's encoding, from
+        # tabular input formats. The encoding is left to IOStreams (UTF-8 unless set on the supplied path),
+        # since only the caller knows how the file was written.
         if tabular?
           # Cannot change the length of fixed width lines.
           replace = format == :fixed ? " " : ""
-          path.option_or_stream(:encode, encoding: "UTF-8", cleaner: :printable, replace: replace)
+          path.option_or_stream(:encode, cleaner: :printable, replace: replace)
         end
         path
       end
