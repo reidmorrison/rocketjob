@@ -1655,8 +1655,9 @@ end
 
 ### Retry attempts
 
-The default number of attempts before giving up is 25, which spans almost 25 days because of the
-exponential back-off between retries. Change it with `retry_limit`:
+The default number of attempts before giving up is 25, which spans about 20 days because of the
+exponential back-off between retries: the delay before retry `n` is `(n - 1)**4 + 5` seconds.
+Change the number of attempts with `retry_limit`:
 
 ~~~ruby
 class ReportJob < RocketJob::Job
