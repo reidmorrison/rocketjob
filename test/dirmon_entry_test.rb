@@ -248,6 +248,72 @@ class DirmonEntryTest < Minitest::Test
       end
     end
 
+    describe "#pattern_display_name" do
+      it "returns a local pattern as is" do
+        assert_equal "test/files/**", dirmon_entry.pattern_display_name
+      end
+
+      it "leaves out the credentials of a url" do
+        dirmon_entry.pattern = "sftp://user:secret@sftp.example.org/in/*.csv?password=other"
+
+        assert_equal "sftp://sftp.example.org/in/*.csv", dirmon_entry.pattern_display_name
+      end
+
+      it "leaves out a pattern that is not a valid path, since its credentials cannot be found" do
+        dirmon_entry.pattern = "sftp://user:p@ss@sftp.example.org/in/*.csv"
+
+        assert_equal "(not a valid path)", dirmon_entry.pattern_display_name
+      end
+
+      it "returns nil without a pattern" do
+        assert_nil RocketJob::DirmonEntry.new.pattern_display_name
+      end
+    end
+
+    describe "#archive_directory_display_name" do
+      it "returns a local directory as is" do
+        assert_equal archive_directory, dirmon_entry.archive_directory_display_name
+      end
+
+      it "leaves out the credentials of a url" do
+        dirmon_entry.archive_directory = "sftp://user:secret@sftp.example.org/archive"
+
+        assert_equal "sftp://sftp.example.org/archive", dirmon_entry.archive_directory_display_name
+      end
+    end
+
+    describe "#replicate" do
+      it "copies the settings, overridden by the supplied attributes" do
+        entry = dirmon_entry.replicate(name: "Copy", pattern: "test/other/**")
+
+        assert_predicate entry, :new_record?
+        refute_equal dirmon_entry.id, entry.id
+        assert_equal "Copy", entry.name
+        assert_equal "test/other/**", entry.pattern
+        assert_equal dirmon_entry.job_class_name, entry.job_class_name
+        assert_equal dirmon_entry.archive_directory, entry.archive_directory
+        assert_equal dirmon_entry.properties, entry.properties
+        assert entry.save, entry.errors.messages.ai
+      end
+
+      it "does not copy what happened to the entry" do
+        dirmon_entry.unavailable_at = Time.now - RocketJob::DirmonEntry.max_unavailable_seconds - 1
+        dirmon_entry.fail!("worker", "Storage unavailable")
+        entry = dirmon_entry.replicate(name: "Copy", pattern: "test/other/**")
+
+        assert_predicate entry, :pending?
+        assert_nil entry.exception
+        assert_nil entry.unavailable_at
+      end
+
+      it "does not share its properties with the entry" do
+        entry = dirmon_entry.replicate
+        entry.properties[:user_id] = 42
+
+        assert_equal 341, dirmon_entry.properties[:user_id]
+      end
+    end
+
     describe "#fail!" do
       it "fail with message" do
         dirmon_entry.fail!("myworker:2323", "oh no")

@@ -13,6 +13,10 @@ module RocketJob
           class_attribute :user_editable_fields, instance_accessor: false
           self.user_editable_fields = []
 
+          # Fields that hold a path or url, which can include credentials, see #display_attributes.
+          class_attribute :path_fields, instance_accessor: false
+          self.path_fields = []
+
           # Attributes to include when copying across the attributes to a new instance on restart.
           class_attribute :rocket_job_restart_attributes
           self.rocket_job_restart_attributes = []
@@ -168,12 +172,17 @@ module RocketJob
           # @option options [ Object, Proc ] :default The field's default
           # @option options [ Boolean ] :class_attribute Keep the fields default in a class_attribute
           # @option options [ Boolean ] :user_editable Field can be edited by end users in RJMC
+          # @option options [ Boolean ] :path Field holds a path or url, which is shown without its credentials,
+          #   see #display_attributes. Always true for a field of type IOStreams::Path.
           #
           # @return [ Field ] The generated field
           def field(name, options)
             if (options.delete(:user_editable) == true) && !user_editable_fields.include?(name.to_sym)
               self.user_editable_fields += [name.to_sym]
             end
+
+            path = (options.delete(:path) == true) || (options[:type] == IOStreams::Path)
+            self.path_fields += [name.to_sym] if path && !path_fields.include?(name.to_sym)
 
             if options.delete(:class_attribute) == true
               class_attribute(name, instance_accessor: false)
@@ -252,6 +261,17 @@ module RocketJob
         # intended window. Especially if a failed job is only retried quite sometime later.
         def scheduled_at
           run_at || created_at
+        end
+
+        # Returns [Hash] the attributes of this job to show to people, for example in Rocket Job Mission Control,
+        # with each path or url shown by its display name, without any credentials, see `path_fields`.
+        def display_attributes
+          attrs = attributes.dup
+          self.class.path_fields.each do |name|
+            key        = name.to_s
+            attrs[key] = RocketJob.path_display_name(attrs[key]) if attrs.key?(key)
+          end
+          attrs
         end
 
         # Returns [Hash] status of this job

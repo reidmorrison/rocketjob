@@ -66,6 +66,17 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   it. Set `max_unavailable_seconds` to `0` to keep the previous behavior. On Ruby 3.3 and later, a host
   name that does not exist, such as a mistyped one, is not reported as unavailable, so it still fails the
   entry on the first scan.
+- `RocketJob.path_display_name` returns a path or url to show, for example in Rocket Job Mission Control,
+  without the user name, password or query of a url. A value that is not a valid path, or that needs a gem
+  that is not installed, such as an S3 url with options in its query, is shown as `(not a valid path)`.
+- `RocketJob::DirmonEntry#pattern_display_name` and `#archive_directory_display_name` return the pattern
+  and archive directory to show, see `RocketJob.path_display_name`.
+- `RocketJob::Job#display_attributes` returns the attributes of a job to show, with each path or url field
+  shown without its credentials. A field is a path when it is declared with `path: true`, such as the
+  `source_url` and `target_url` of `CopyFileJob`, or has the type `IOStreams::Path`. `.path_fields` lists them.
+- `RocketJob::DirmonEntry#replicate` returns a new, pending entry with the settings of an entry, such as
+  its job class and properties, overridden by the supplied attributes. Its state, exception and
+  `unavailable_at` are not copied.
 
 ### Fixes
 

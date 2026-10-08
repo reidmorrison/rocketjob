@@ -11,6 +11,19 @@ module Jobs
         RocketJob::Jobs::CopyFileJob.create!(source_url: "/tmp/source.csv", target_url: target_url, **)
       end
 
+      describe "#display_attributes" do
+        it "shows the urls without their credentials" do
+          job = RocketJob::Jobs::CopyFileJob.new(
+            source_url: "https://user:secret@example.org/exports/source.csv",
+            target_url: "sftp://jack:secret@sftp.example.org/uploads/source.csv"
+          )
+          attrs = job.display_attributes
+
+          assert_equal "https://example.org/exports/source.csv", attrs["source_url"]
+          assert_equal "sftp://sftp.example.org/uploads/source.csv", attrs["target_url"]
+        end
+      end
+
       describe "#description" do
         it "names the target without the credentials in its url" do
           job = create_job("sftp://jack:secret@sftp.example.org/uploads/source.csv")
