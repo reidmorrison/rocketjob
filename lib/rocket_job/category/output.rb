@@ -23,6 +23,15 @@ module RocketJob
         tabular.render_header
       end
 
+      # Returns [IOStreams::Path] of the file to download into, in this category's format when it is tabular, so
+      # that IOStreams writes it in that format's encoding, such as ASCII for fixed width. An encoding set on the
+      # supplied path is kept.
+      def download_path(stream = nil)
+        path = IOStreams.new(stream || file_name)
+        path.format(tabular.format) if tabular?
+        path
+      end
+
       def data_store(job)
         RocketJob::Sliced::Output.new(
           collection_name: build_collection_name(:output, job),

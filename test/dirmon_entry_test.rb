@@ -28,6 +28,8 @@ class DirmonEntryTest < Minitest::Test
   end
 
   describe RocketJob::DirmonEntry do
+    include SemanticLogger::Test::Minitest
+
     let :archive_directory do
       "/tmp/archive_directory"
     end
@@ -177,6 +179,72 @@ class DirmonEntryTest < Minitest::Test
         assert_equal path, RocketJob::DirmonEntry.add_whitelist_path("test/files")
         assert_equal path, RocketJob::DirmonEntry.add_whitelist_path(path)
         assert_equal [path], RocketJob::DirmonEntry.whitelist_paths
+      end
+
+      it "raises NotFound for a path that does not exist" do
+        assert_raises(IOStreams::Errors::NotFound) { RocketJob::DirmonEntry.add_whitelist_path("test/does_not_exist") }
+        assert_empty RocketJob::DirmonEntry.whitelist_paths
+      end
+    end
+
+    describe "#storage_unavailable!" do
+      let :unavailable do
+        IOStreams::Errors::Unavailable.tag(Errno::ECONNREFUSED.new("sftp.example.org"), "sftp://sftp.example.org/files")
+      end
+
+      it "keeps the entry enabled until max_unavailable_seconds" do
+        dirmon_entry.storage_unavailable!("worker", unavailable)
+        dirmon_entry.reload
+
+        assert_predicate dirmon_entry, :enabled?
+        assert dirmon_entry.unavailable_at
+        assert_nil dirmon_entry.exception
+      end
+
+      it "keeps the time that the storage was first unavailable" do
+        first_unavailable_at        = Time.at(Time.now.to_i - 60)
+        dirmon_entry.unavailable_at = first_unavailable_at
+        dirmon_entry.storage_unavailable!("worker", unavailable)
+
+        assert_equal first_unavailable_at, dirmon_entry.reload.unavailable_at
+      end
+
+      it "fails the entry once the storage has been unavailable for longer than max_unavailable_seconds" do
+        dirmon_entry.unavailable_at = Time.now - RocketJob::DirmonEntry.max_unavailable_seconds - 1
+        dirmon_entry.storage_unavailable!("worker", unavailable)
+        dirmon_entry.reload
+
+        assert_predicate dirmon_entry, :failed?
+        assert_equal "Errno::ECONNREFUSED", dirmon_entry.exception.class_name
+        assert_equal "worker", dirmon_entry.exception.worker_name
+      end
+
+      it "fails the entry the first time when max_unavailable_seconds is 0" do
+        dirmon_entry.stub(:max_unavailable_seconds, 0) do
+          dirmon_entry.storage_unavailable!("worker", unavailable)
+        end
+
+        assert_predicate dirmon_entry.reload, :failed?
+      end
+    end
+
+    describe "#storage_available!" do
+      it "ends the outage" do
+        dirmon_entry.unavailable_at = Time.now
+        dirmon_entry.save!
+        dirmon_entry.storage_available!
+
+        assert_nil dirmon_entry.reload.unavailable_at
+      end
+    end
+
+    describe "#enable!" do
+      it "starts a new period in which the storage can be unavailable" do
+        dirmon_entry.unavailable_at = Time.now - RocketJob::DirmonEntry.max_unavailable_seconds - 1
+        dirmon_entry.fail!("worker", "Storage unavailable")
+        dirmon_entry.enable!
+
+        assert_nil dirmon_entry.reload.unavailable_at
       end
     end
 
@@ -348,9 +416,43 @@ class DirmonEntryTest < Minitest::Test
           assert_nil dirmon_entry.archive_directory
           assert_equal 0, files.count
         end
+
+        it "logs a file outside of the whitelist without the credentials in its url" do
+          sftp   = IOStreams.path("sftp://jack:secret@sftp.example.org/files/data.csv")
+          events = semantic_logger_events do
+            IOStreams.stub(:each_child, ->(_pattern, &block) { block.call(sftp) }) do
+              dirmon_entry.stub(:whitelist_paths, ["/var/sftp"]) do
+                dirmon_entry.each { |_path| flunk("Must skip a file outside of the whitelist") }
+              end
+            end
+          end
+
+          assert(events.any? { |event| event.message.include?("sftp://sftp.example.org/files/data.csv") })
+          refute(events.any? { |event| "#{event.message}#{event.payload}".include?("secret") })
+        end
+
+        it "skips a file that was removed after it was found" do
+          removed = IOStreams.path("test/files/removed.txt")
+          files   = []
+          IOStreams.stub(:each_child, ->(_pattern, &block) { block.call(removed) }) do
+            dirmon_entry.each { |file_name| files << file_name }
+          end
+
+          assert_empty files
+        end
       end
 
       describe "#later" do
+        let :removed_from_http do
+          path      = IOStreams.path("https://example.org/files/removed.csv")
+          not_found = IOStreams::Errors::NotFound.tag(
+            IOStreams::Errors::CommunicationsFailure.new("404 Not Found"), path.display_name
+          )
+          path.define_singleton_method(:move_to) { |_target| raise not_found }
+          path.define_singleton_method(:exist?) { false }
+          path
+        end
+
         it "enqueues job" do
           job = dirmon_entry.later(iopath)
 
@@ -368,8 +470,44 @@ class DirmonEntryTest < Minitest::Test
           assert_equal dirmon_entry.properties, job.properties
           assert_equal upload_file_name, job.upload_file_name.to_s
           assert_equal "#{dirmon_entry.name}: #{iopath.basename}", job.description
-          assert_equal iopath.to_s, job.original_file_name
+          assert_equal iopath.display_name, job.original_file_name
           assert job.job_id
+        end
+
+        it "records and logs the original file name without the credentials in its url" do
+          sftp = IOStreams.path("sftp://jack:secret@sftp.example.org/files/data.csv")
+          sftp.define_singleton_method(:move_to) do |target|
+            target.write("data")
+            target
+          end
+
+          job    = nil
+          events = semantic_logger_events { job = dirmon_entry.later(sftp) }
+
+          assert_equal "sftp://sftp.example.org/files/data.csv", job.original_file_name
+          refute(events.any? { |event| "#{event.message}#{event.payload}".include?("secret") })
+        end
+
+        it "skips a file that was removed after it was found" do
+          assert_nil dirmon_entry.later(IOStreams.path("test/files/removed.txt"))
+          assert_equal 0, RocketJob::Jobs::UploadFileJob.count
+        end
+
+        it "skips a file that was removed from S3, SFTP or HTTP after it was found" do
+          assert_nil dirmon_entry.later(removed_from_http)
+          assert_equal 0, RocketJob::Jobs::UploadFileJob.count
+        end
+
+        it "raises when the archive path is not found" do
+          not_found = IOStreams::Errors::NotFound.tag(
+            RuntimeError.new("The specified bucket does not exist"), "s3://archive-bucket/archive"
+          )
+
+          iopath.stub(:move_to, ->(_target) { raise not_found }) do
+            assert_raises(IOStreams::Errors::NotFound) { dirmon_entry.later(iopath) }
+          end
+
+          assert_equal 0, RocketJob::Jobs::UploadFileJob.count
         end
 
         it "enqueues batch job" do
@@ -389,7 +527,7 @@ class DirmonEntryTest < Minitest::Test
           assert_equal batch_dirmon_entry.properties, job.properties
           assert_equal upload_file_name, job.upload_file_name.to_s
           assert_equal "#{batch_dirmon_entry.name}: #{iopath.basename}", job.description
-          assert_equal iopath.to_s, job.original_file_name
+          assert_equal iopath.display_name, job.original_file_name
           assert job.job_id
         end
       end

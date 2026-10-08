@@ -3,6 +3,96 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [Unreleased]
+
+### Breaking changes
+
+- Require IOStreams 3.0.
+- Uploaded files are read as UTF-8 text, and a UTF-8 byte order mark at the start of a file is removed.
+  Previously the lines were binary strings, so uploading any file with a non-ASCII character, without
+  setting `option(:encode, encoding: "UTF-8")` on the path, raised `Encoding::UndefinedConversionError`
+  when the slice was saved. A file that is not valid UTF-8 still raises
+  `Encoding::UndefinedConversionError`, now while it is read, unless its encoding is set on the path,
+  for example `IOStreams.path("file.csv").encoding("Windows-1252:UTF-8")`.
+- Tabular uploads, such as CSV, keep non-ASCII characters. Previously every non-ASCII character was
+  removed, so `José` was uploaded as `Jos`. Non-printable characters, and characters that are not
+  valid in the file's encoding, are still removed.
+
+  Both changes fix data handling, but any code that depends on uploaded records being ASCII only, for
+  example a fixed width layout, a downstream system that rejects other characters, or a comparison
+  with previously processed output, will now see the non-ASCII characters. To keep removing them
+  from a tabular upload, set the encoding on the path:
+
+  ~~~ruby
+  job.upload(IOStreams.path("file.csv").encoding("US-ASCII"))
+  ~~~
+- An input category's `allowed_columns`, `required_columns` and `skip_unknown` now apply to every
+  tabular input. Previously they only applied to a header row read from the file, and only when it
+  was cleansed, so they were ignored for JSON records, for columns supplied with `columns`, and with
+  `header_cleanser: :none`. JSON keys are now cleansed like a header row when either is set, for
+  example `"Name"` becomes `"name"`, and a record with an unknown key, or without a required column,
+  raises `IOStreams::Errors::InvalidHeader` when it is processed, unless `skip_unknown` is true.
+  A job that accepted such data before will now fail it. Set
+  `IOStreams.enforce_column_restrictions = false` to keep the previous behavior.
+- Fixed width uploads are read as ASCII, which IOStreams 3.0 uses for the fixed width format, so a file
+  with any other character raises `IOStreams::Errors::InvalidEncoding` and nothing is uploaded.
+  Previously each byte of a character that is not ASCII became a space. Set the file's encoding on the
+  path to keep its characters, such as `IOStreams.path("file.txt").encoding("ISO-8859-1:UTF-8")`, or
+  `"IBM037:UTF-8"` for EBCDIC, or `encoding("UTF-8")` when the sizes count UTF-8 characters, or
+  `encoding(replace: " ")` to replace them with spaces as before.
+- Fixed width output is downloaded as ASCII, so a value that is not ASCII raises
+  `Encoding::UndefinedConversionError` when the output is downloaded. Previously it was written as UTF-8,
+  so a line with such a character was longer, in bytes, than its layout, which a program that counts
+  bytes, such as one on a mainframe, reads into the wrong columns. Set the encoding of the download path,
+  such as `IOStreams.path("file.txt").encoding("ISO-8859-1")`, or `encoding(replace: " ")`.
+
+### Security
+
+- With `format: :auto`, renaming an upload from `.csv` to `.json` bypassed `allowed_columns` and
+  `required_columns`. They now apply to JSON records too, see above.
+- Dirmon's log messages, the original file name that it records on each `UploadFileJob`, and its list
+  of the files waiting to stabilize, no longer include the user name, password or query of a url, such
+  as `sftp://user:password@host/file.csv`, and neither does the description of a `CopyFileJob`. They
+  use the display name of the path, see `IOStreams::Path#display_name`. A file that is waiting to
+  stabilize when Dirmon is upgraded is picked up one scan later, since that list is now also keyed by
+  the entry.
+
+### New features
+
+- A Dirmon entry whose storage cannot be reached, such as an SFTP server that is restarting, is
+  scanned again on the next run instead of failing, until its storage has been unavailable for longer
+  than `RocketJob::DirmonEntry.max_unavailable_seconds`, an hour by default. Previously the first
+  `IOStreams::Errors::Unavailable` failed the entry, so it stopped scanning until someone re-enabled
+  it. Set `max_unavailable_seconds` to `0` to keep the previous behavior. On Ruby 3.3 and later, a host
+  name that does not exist, such as a mistyped one, is not reported as unavailable, so it still fails the
+  entry on the first scan.
+
+### Fixes
+
+- A tabular upload, such as CSV, uses the encoding set on the path, such as `encoding("Windows-1252:UTF-8")`.
+  Previously it was always replaced with UTF-8, so the characters of a Windows-1252 file that are not
+  ASCII were removed.
+- An input category's `mode` of `:array` or `:hash` is used by `upload`. Since v6.0.0 `upload` read
+  the file a line at a time unless `stream_mode` was supplied, and the category's `mode` only changed
+  how the header row was read: `:array` raised `NameError` or `NoMethodError`, and with `:hash` the
+  workers raised `ArgumentError` because the header columns were not set. The `stream_mode` of
+  `upload` still overrides it.
+- Hashes uploaded with `mode: :hash`, or `stream_mode: :hash`, are no longer parsed again by the workers.
+  Previously a worker tried to parse them again in the category's format, which raised for CSV.
+- Non-printable characters in a fixed width upload, such as NUL padding, are replaced with spaces.
+  Previously they were removed, which moved the columns after them, so the line raised
+  `IOStreams::Errors::InvalidLineLength`.
+- A quoted CSV value that contains a line break is uploaded as one record, whatever the file name.
+  Previously, when the file name did not end in `.csv`, the line was split at the line break.
+- v5 jobs with a `tabular_input_mode` of `:row` or `:record` are migrated to the input category
+  `mode` of `:array` or `:hash`. Previously the v5 value was copied as is, and failed validation.
+- Dirmon skips a file that is removed after a scan finds it, instead of failing its entry.
+  Previously a local file that was removed while it was being checked or archived failed its entry
+  with `Errno::ENOENT`, as did a file removed from S3 while it was being archived. Dirmon rescues
+  `IOStreams::Errors::NotFound`, so this applies to every storage, now that IOStreams 3.0 raises it
+  from `#size` for a missing S3, SFTP or HTTP file, where 2.x returned nil. A missing archive
+  location, such as an S3 bucket that does not exist, still fails the entry.
+
 ## [7.0.0] 2026-09-05
 
 ### Breaking changes

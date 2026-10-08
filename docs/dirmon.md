@@ -132,6 +132,9 @@ Amazon S3), the file is processed on the first scan that sees it, with no stabil
 When a file is ready, Dirmon archives it first and then starts the job, so the same file can never be
 picked up twice (see [Archiving](#archiving)).
 
+A file that is removed after a scan finds it, for example by another process, is skipped with a log
+message, whichever storage it is on, rather than failing its entry.
+
 ## Creating a DirmonEntry
 
 ~~~ruby
@@ -186,8 +189,9 @@ The states are:
 * **`enabled`** – actively scanned by `DirmonJob`.
 * **`disabled`** – manually paused.
 * **`failed`** – an error occurred while processing the entry (for example a security violation or an
-  unreadable path). The entry is removed from scanning until it is re-enabled. The cause is stored in
-  the entry's embedded `exception`.
+  unreadable path), or its storage has been unavailable for too long (see
+  [High availability](#high-availability)). The entry is removed from scanning until it is
+  re-enabled. The cause is stored in the entry's embedded `exception`.
 
 A snapshot of how many entries are in each state:
 
@@ -242,8 +246,9 @@ RocketJob::DirmonEntry.delete_whitelist_path("/var/sftp")
 Notes:
 
 * If no paths are registered, the check is skipped entirely.
-* Registering a path confirms it exists (`realpath` is resolved), so absolute paths are recommended.
-  Relative paths are accepted but are not considered safe, since they can be manipulated.
+* Registering a path confirms it exists (`realpath` is resolved), and raises
+  `IOStreams::Errors::NotFound` when it does not, so absolute paths are recommended. Relative paths
+  are accepted but are not considered safe, since they can be manipulated.
 * These should be set in application code (an initializer), not made editable in the web UI.
 
 ## Starting the directory monitor
@@ -287,7 +292,25 @@ and go. There is only ever one `DirmonJob` queued or running at a time.
 
 If a scan raises an exception, the responsible `DirmonEntry` is moved to the `failed` state with the
 exception recorded, so the rest of the entries keep working and the failure can be investigated and
-re-enabled from Mission Control.
+re-enabled from Mission Control. A file that was removed after it was found is not a failure: it is
+skipped. A missing archive location, such as an S3 bucket that does not exist, still fails the entry.
+
+An entry whose storage cannot be reached, such as an SFTP server that is restarting
+(`IOStreams::Errors::Unavailable`), is not failed straight away. A warning is logged and the entry is
+scanned again on the next run, so it recovers on its own once the storage is back. Only once its
+storage has been unavailable for longer than `max_unavailable_seconds`, an hour by default, is the
+entry failed, since by then the cause may not be temporary, such as a server that stays down. A host
+name that does not exist, such as a mistyped one, is not reported as unavailable, so it fails the entry
+on the first scan. A host that only resolves over a VPN therefore fails its entry while the VPN is down.
+Re-enabling the entry starts a new period.
+
+~~~ruby
+# In an initializer: allow the storage of an entry to be unavailable for up to 2 hours.
+RocketJob::DirmonEntry.max_unavailable_seconds = 2 * 60 * 60
+
+# Or fail an entry the first time its storage is unavailable, as before.
+RocketJob::DirmonEntry.max_unavailable_seconds = 0
+~~~
 
 ## Managing Dirmon in the web UI
 

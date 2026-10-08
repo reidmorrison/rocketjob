@@ -21,7 +21,7 @@ Gem::Specification.new do |s|
   s.add_dependency "aasm", ">= 5.1"
   s.add_dependency "concurrent-ruby", ">= 1.1"
   s.add_dependency "fugit", ">= 1.4"
-  s.add_dependency "iostreams", "~> 2.0"
+  s.add_dependency "iostreams", "~> 3.0"
   s.add_dependency "mongoid", ">= 8.1"
   s.add_dependency "semantic_logger", "~> 5.0"
   s.add_dependency "symmetric-encryption", "~> 4.6"

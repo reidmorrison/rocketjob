@@ -95,6 +95,7 @@ module RocketJob
       #       Parses each line from the file as an Array and uploads each array for processing by workers.
       #     :hash
       #       Parses each line from the file into a Hash and uploads each hash for processing by workers.
+      #     Default: The input category's `mode`, which defaults to :line.
       #     See IOStreams::Stream#each.
       #
       #   category [Symbol|RocketJob::Category::Input]
@@ -108,8 +109,13 @@ module RocketJob
       #
       # Example:
       #   # Load plain text records from a file, stripping all non-printable characters,
-      #   # as well as any characters that cannot be converted to UTF-8
-      #   path = IOStreams.path('hello.csv').option(:encode, cleaner: :printable, replace: '')
+      #   # as well as any characters that are not valid UTF-8
+      #   path = IOStreams.path('hello.txt').encoding(cleaner: :printable, replace: '')
+      #   job.upload(path)
+      #
+      # Example:
+      #   # Load a file that is not UTF-8, converting its records to UTF-8.
+      #   path = IOStreams.path('hello.csv').encoding('Windows-1252:UTF-8')
       #   job.upload(path)
       #
       # Example: Zip
@@ -120,11 +126,11 @@ module RocketJob
       #   job.upload('myfile.csv.zip.enc')
       #
       # Example: Explicitly set the streams
-      #   path = IOStreams.path('myfile.ze').stream(:encode, encoding: 'UTF-8').stream(:zip).stream(:enc)
+      #   path = IOStreams.path('myfile.ze').stream(:zip).stream(:enc)
       #   job.upload(path)
       #
       # Example: Supply custom options
-      #   path = IOStreams.path('myfile.csv.enc').option(:enc, compress: false).option(:encode, encoding: 'UTF-8')
+      #   path = IOStreams.path('myfile.csv.enc').option(:enc, compress: false)
       #   job.upload(path)
       #
       # Example: Read from a tempfile and use the original file name to determine which streams to apply
@@ -143,12 +149,17 @@ module RocketJob
       # * The record_count for the job is set to the number of records returned by the arel.
       # * If an exception is raised while uploading data, the input collection is cleared out
       #   so that if a job is retried during an upload failure, data is not duplicated.
-      # * By default all data read from the file/stream is converted into UTF-8 before being persisted. This
-      #   is recommended since Mongo only supports UTF-8 strings.
+      # * Files are read as UTF-8 text, since MongoDB only stores UTF-8 strings. A UTF-8 byte order mark at
+      #   the start of the file is removed. Data that is not valid UTF-8 raises
+      #   Encoding::UndefinedConversionError and nothing is uploaded, unless the file's encoding is set with
+      #   `encoding(...)`, or `replace:` is supplied to remove invalid characters.
+      #   Tabular formats, such as CSV, remove non-printable and invalid characters by default.
+      # * Fixed width files are read as ASCII, and raise for any other character unless the file's encoding is
+      #   set, such as `encoding('ISO-8859-1:UTF-8')`. Non-printable characters are replaced with spaces.
       # * When zip format, the Zip file/stream must contain only one file, the first file found will be
       #   loaded into the job
       # * If an io stream is supplied, it is read until it returns nil.
-      # * Only use this method for UTF-8 data, for binary data use #input_slice or #input_records.
+      # * Binary data cannot be uploaded as records, since they are stored as UTF-8 strings.
       # * CSV parsing is slow, so it is usually left for the workers to do.
       #
       # Upload results from an Arel into RocketJob::SlicedJob.
@@ -325,13 +336,16 @@ module RocketJob
             raise(ArgumentError, "Unknown keyword argument :columns when uploading a file") if columns
 
             category = input_category(category)
+            mode     = stream_mode || category.mode
 
-            # Extract the header line during the upload when applicable.
-            extract_header = category.extract_header_callback(on_first)
+            # Sets the format first when it is :auto, since the format determines whether there is a header line.
             path = category.upload_path(object, original_file_name: file_name)
 
+            # Extract the header line during the upload when applicable.
+            extract_header = category.extract_header_callback(on_first, mode: mode)
+
             input_collection.upload(on_first: extract_header, slice_batch_size: slice_batch_size) do |io|
-              path.each(stream_mode || :line, **args) { |line| io << line }
+              category.each_record(path, mode: mode, **args) { |record| io << record }
             end
 
           end
@@ -474,7 +488,7 @@ module RocketJob
         else
           # TODO: Add category to named tags to aid problem determination
           # And RJ Download metric with duration
-          IOStreams.new(stream || category.file_name).writer(:line, **args) do |io|
+          category.download_path(stream).writer(:line, **args) do |io|
             output_collection.download(header_line: header_line) { |record| io << record }
           end
         end

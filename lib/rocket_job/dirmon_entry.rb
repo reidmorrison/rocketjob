@@ -10,6 +10,12 @@ module RocketJob
     class_attribute :default_archive_directory
     self.default_archive_directory = "archive".freeze
 
+    # Number of seconds that the storage of an entry, such as an SFTP server, can be unavailable before the
+    # entry fails. Until then the entry is scanned again on each run, see #storage_unavailable!.
+    # Set to 0 to fail an entry the first time that its storage is unavailable.
+    class_attribute :max_unavailable_seconds
+    self.max_unavailable_seconds = 3600
+
     store_in collection: "rocket_job.dirmon_entries"
 
     # User defined name used to identify this DirmonEntry in the Web Interface.
@@ -64,6 +70,10 @@ module RocketJob
     # Current state, as set by the state machine. Do not modify directly.
     field :state, type: Mongoid::StringifiedSymbol, default: :pending
 
+    # When the storage of this entry could not be reached, the time that it was first unavailable,
+    # see #storage_unavailable!. Cleared once a scan succeeds, or the entry is enabled again.
+    field :unavailable_at, type: Time
+
     # Unique index on pattern to help prevent two entries from scanning the same files
     index({pattern: 1}, background: true, unique: true)
 
@@ -95,7 +105,7 @@ module RocketJob
       # DirmonEntry has been manually disabled
       state :disabled
 
-      event :enable do
+      event :enable, before: :clear_unavailable_at do
         transitions from: :pending, to: :enabled
         transitions from: :disabled, to: :enabled
         transitions from: :failed, to: :enabled
@@ -133,7 +143,7 @@ module RocketJob
     end
 
     # Add a path to the whitelist
-    # Raises: Errno::ENOENT: No such file or directory
+    # Raises: IOStreams::Errors::NotFound when the path does not exist
     def self.add_whitelist_path(path)
       # Confirms that path exists
       path = IOStreams.path(path).realpath.to_s
@@ -143,7 +153,7 @@ module RocketJob
     end
 
     # Deletes a path from the whitelist paths
-    # Raises: Errno::ENOENT: No such file or directory
+    # Raises: IOStreams::Errors::NotFound when the path does not exist
     def self.delete_whitelist_path(path)
       # Confirms that path exists
       path = IOStreams.path(path).realpath.to_s
@@ -180,13 +190,15 @@ module RocketJob
       SemanticLogger.named_tagged(dirmon_entry: id.to_s) do
         # Case insensitive filename matching
         IOStreams.each_child(pattern) do |path|
-          path = path.realpath
+          path = existing_realpath(path)
+          next unless path
+
           # Skip archive directories
           next if path.to_s.include?(archive_directory || self.class.default_archive_directory)
 
           # Security check?
           if whitelist_paths.size.positive? && whitelist_paths.none? { |whitepath| path.to_s.start_with?(whitepath) }
-            logger.warn "Skipping file: #{path} since it is not in any of the whitelisted paths: #{whitelist_paths.join(', ')}"
+            logger.warn "Skipping file: #{path.display_name} since it is not in any of the whitelisted paths: #{whitelist_paths.join(', ')}"
             next
           end
 
@@ -215,6 +227,36 @@ module RocketJob
       end
     end
 
+    # Records that the storage of this entry could not be reached, such as an SFTP server that is restarting,
+    # see IOStreams::Errors::Unavailable, so that the entry is scanned again on the next run.
+    #
+    # Fails this entry once its storage has been unavailable for longer than `max_unavailable_seconds`, since the
+    # failure may not be temporary, for example when a server stays down.
+    def storage_unavailable!(worker_name, exception)
+      self.unavailable_at ||= Time.now
+      unavailable_seconds = Time.now - unavailable_at
+      if unavailable_seconds < max_unavailable_seconds
+        logger.warn("Dirmon Entry: #{id} storage is unavailable. Scanning it again on the next run.", exception)
+      else
+        logger.error(
+          "Dirmon Entry: #{id} storage has been unavailable for #{unavailable_seconds.round} seconds. " \
+          "Moved to `failed` state to prevent processing again without manual intervention.",
+          exception
+        )
+        fail(worker_name, exception)
+      end
+      save(validate: false)
+    end
+
+    # Records that the storage of this entry was available for a scan, which ends any outage,
+    # see #storage_unavailable!.
+    def storage_available!
+      return if unavailable_at.nil?
+
+      self.unavailable_at = nil
+      save(validate: false)
+    end
+
     # Returns the Job to be created.
     def job_class
       return if job_class_name.nil?
@@ -225,17 +267,19 @@ module RocketJob
     end
 
     # Archives the file, then kicks off a file upload job to upload the archived file.
+    #
+    # Returns [RocketJob::Jobs::UploadFileJob] the job, or nil when the file was removed after it was found.
     def later(iopath)
       job_id       = BSON::ObjectId.new
       archive_path = archive_iopath(iopath).join("#{job_id}_#{iopath.basename}")
-      iopath.move_to(archive_path)
+      return unless archive_file(iopath, archive_path)
 
       job = RocketJob::Jobs::UploadFileJob.create!(
         job_class_name:     job_class_name,
         properties:         properties,
         description:        "#{name}: #{iopath.basename}",
         upload_file_name:   archive_path,
-        original_file_name: iopath.to_s,
+        original_file_name: iopath.display_name,
         job_id:             job_id
       )
 
@@ -243,8 +287,8 @@ module RocketJob
         message: "Created RocketJob::Jobs::UploadFileJob",
         payload: {
           dirmon_entry_name:  name,
-          upload_file_name:   archive_path,
-          original_file_name: iopath.to_s,
+          upload_file_name:   archive_path.display_name,
+          original_file_name: iopath.display_name,
           job_class_name:     job_class_name,
           job_id:             job_id.to_s,
           upload_job_id:      job.id.to_s
@@ -255,6 +299,11 @@ module RocketJob
 
     private
 
+    # An entry that is enabled again starts a new period in which its storage can be unavailable.
+    def clear_unavailable_at
+      self.unavailable_at = nil
+    end
+
     # strip whitespaces from all variables that reference paths or patterns
     def strip_whitespace
       self.pattern           = pattern.strip unless pattern.nil?
@@ -263,6 +312,31 @@ module RocketJob
 
     class_attribute :whitelist_paths
     self.whitelist_paths = Concurrent::Array.new
+
+    # Returns [IOStreams::Path] the real path of the supplied file, or nil when it was removed after it was found,
+    # whichever storage it is on.
+    def existing_realpath(path)
+      path.realpath
+    rescue IOStreams::Errors::NotFound
+      logger.info("Skipping file: #{path.display_name} since it no longer exists")
+      nil
+    end
+
+    # Moves the file to the archive path.
+    #
+    # Returns [true|false] whether the file was moved, false when it was removed after it was found.
+    #
+    # Raises IOStreams::Errors::NotFound when the file still exists, since then it is the archive path that was
+    # not found, for example when its S3 bucket does not exist.
+    def archive_file(iopath, archive_path)
+      iopath.move_to(archive_path)
+      true
+    rescue IOStreams::Errors::NotFound
+      raise if iopath.exist?
+
+      logger.info("Skipping file: #{iopath.display_name} since it no longer exists")
+      false
+    end
 
     # Returns [Pathname] to the archive directory, and creates it if it does not exist.
     #
