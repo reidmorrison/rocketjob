@@ -2,6 +2,7 @@
 
 source "https://rubygems.org"
 
+gem "iostreams", github: "reidmorrison/iostreams", branch: "main"
 gem "activerecord", "~> 8.0.0"
 gem "mongoid", "~> 9.0.0"
 gem "sqlite3", platform: :ruby

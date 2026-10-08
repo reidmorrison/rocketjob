@@ -2,6 +2,10 @@ source "https://rubygems.org"
 
 gemspec
 
+# IOStreams 3.0 has not been released yet.
+# Remove once it is published to rubygems.org, which the gemspec already requires.
+gem "iostreams", github: "reidmorrison/iostreams", branch: "main"
+
 gem "activerecord", "~> 8.1.0"
 gem "mongoid", "~> 9.1.0"
 gem "sqlite3", platform: :ruby
