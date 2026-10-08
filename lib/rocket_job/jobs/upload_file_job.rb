@@ -21,7 +21,7 @@ module RocketJob
       # File to upload
       field :upload_file_name, type: IOStreams::Path, user_editable: true
 
-      # The original Input file name.
+      # The original Input file name, without any credentials, see IOStreams::Path#display_name.
       # Used by #upload to extract the IOStreams when present.
       field :original_file_name, type: String, user_editable: true
 
@@ -112,7 +112,7 @@ module RocketJob
 
         return if upload_file_name.exist?
 
-        errors.add(:upload_file_name, "Upload file: #{upload_file_name} does not exist.")
+        errors.add(:upload_file_name, "Upload file: #{upload_file_name.display_name} does not exist.")
       rescue NotImplementedError
         nil
       end

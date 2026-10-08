@@ -28,6 +28,8 @@ class DirmonEntryTest < Minitest::Test
   end
 
   describe RocketJob::DirmonEntry do
+    include SemanticLogger::Test::Minitest
+
     let :archive_directory do
       "/tmp/archive_directory"
     end
@@ -415,6 +417,20 @@ class DirmonEntryTest < Minitest::Test
           assert_equal 0, files.count
         end
 
+        it "logs a file outside of the whitelist without the credentials in its url" do
+          sftp   = IOStreams.path("sftp://jack:secret@sftp.example.org/files/data.csv")
+          events = semantic_logger_events do
+            IOStreams.stub(:each_child, ->(_pattern, &block) { block.call(sftp) }) do
+              dirmon_entry.stub(:whitelist_paths, ["/var/sftp"]) do
+                dirmon_entry.each { |_path| flunk("Must skip a file outside of the whitelist") }
+              end
+            end
+          end
+
+          assert(events.any? { |event| event.message.include?("sftp://sftp.example.org/files/data.csv") })
+          refute(events.any? { |event| "#{event.message}#{event.payload}".include?("secret") })
+        end
+
         it "skips a file that was removed after it was found" do
           removed = IOStreams.path("test/files/removed.txt")
           files   = []
@@ -454,8 +470,22 @@ class DirmonEntryTest < Minitest::Test
           assert_equal dirmon_entry.properties, job.properties
           assert_equal upload_file_name, job.upload_file_name.to_s
           assert_equal "#{dirmon_entry.name}: #{iopath.basename}", job.description
-          assert_equal iopath.to_s, job.original_file_name
+          assert_equal iopath.display_name, job.original_file_name
           assert job.job_id
+        end
+
+        it "records and logs the original file name without the credentials in its url" do
+          sftp = IOStreams.path("sftp://jack:secret@sftp.example.org/files/data.csv")
+          sftp.define_singleton_method(:move_to) do |target|
+            target.write("data")
+            target
+          end
+
+          job    = nil
+          events = semantic_logger_events { job = dirmon_entry.later(sftp) }
+
+          assert_equal "sftp://sftp.example.org/files/data.csv", job.original_file_name
+          refute(events.any? { |event| "#{event.message}#{event.payload}".include?("secret") })
         end
 
         it "skips a file that was removed after it was found" do
@@ -497,7 +527,7 @@ class DirmonEntryTest < Minitest::Test
           assert_equal batch_dirmon_entry.properties, job.properties
           assert_equal upload_file_name, job.upload_file_name.to_s
           assert_equal "#{batch_dirmon_entry.name}: #{iopath.basename}", job.description
-          assert_equal iopath.to_s, job.original_file_name
+          assert_equal iopath.display_name, job.original_file_name
           assert job.job_id
         end
       end

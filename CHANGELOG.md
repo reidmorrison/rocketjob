@@ -50,6 +50,12 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 - With `format: :auto`, renaming an upload from `.csv` to `.json` bypassed `allowed_columns` and
   `required_columns`. They now apply to JSON records too, see above.
+- Dirmon's log messages, the original file name that it records on each `UploadFileJob`, and its list
+  of the files waiting to stabilize, no longer include the user name, password or query of a url, such
+  as `sftp://user:password@host/file.csv`, and neither does the description of a `CopyFileJob`. They
+  use the display name of the path, see `IOStreams::Path#display_name`. A file that is waiting to
+  stabilize when Dirmon is upgraded is picked up one scan later, since that list is now also keyed by
+  the entry.
 
 ### New features
 

@@ -72,13 +72,15 @@ module RocketJob
         dirmon_entry.each do |path|
           # Skip file size checking since S3 files are only visible once completely uploaded.
           unless path.partial_files_visible?
-            logger.info("File: #{path}. Starting: #{dirmon_entry.job_class_name}")
+            logger.info("File: #{path.display_name}. Starting: #{dirmon_entry.job_class_name}")
             dirmon_entry.later(path)
             next
           end
 
+          # The display name leaves out any credentials, and also the user name, which can select another
+          # home directory on the same SFTP server, so the key includes the entry.
           # BSON Keys cannot contain periods
-          key           = path.to_s.tr(".", "_")
+          key           = "#{dirmon_entry.id}:#{path.display_name}".tr(".", "_")
           previous_size = previous_file_names[key]
           # Check every few minutes for a file size change before trying to process the file.
           size            = check_file(dirmon_entry, path, previous_size)
@@ -102,11 +104,11 @@ module RocketJob
         return unless size
 
         if previous_size && (previous_size == size)
-          logger.info("File stabilized: #{path}. Starting: #{dirmon_entry.job_class_name}")
+          logger.info("File stabilized: #{path.display_name}. Starting: #{dirmon_entry.job_class_name}")
           dirmon_entry.later(path)
           nil
         else
-          logger.info("Found file: #{path}. File size: #{size}")
+          logger.info("Found file: #{path.display_name}. File size: #{size}")
           # Keep for the next run
           size
         end
