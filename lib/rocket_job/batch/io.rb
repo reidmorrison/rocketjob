@@ -95,6 +95,7 @@ module RocketJob
       #       Parses each line from the file as an Array and uploads each array for processing by workers.
       #     :hash
       #       Parses each line from the file into a Hash and uploads each hash for processing by workers.
+      #     Default: The input category's `mode`, which defaults to :line.
       #     See IOStreams::Stream#each.
       #
       #   category [Symbol|RocketJob::Category::Input]
@@ -333,13 +334,16 @@ module RocketJob
             raise(ArgumentError, "Unknown keyword argument :columns when uploading a file") if columns
 
             category = input_category(category)
+            mode     = stream_mode || category.mode
 
-            # Extract the header line during the upload when applicable.
-            extract_header = category.extract_header_callback(on_first)
+            # Sets the format first when it is :auto, since the format determines whether there is a header line.
             path = category.upload_path(object, original_file_name: file_name)
 
+            # Extract the header line during the upload when applicable.
+            extract_header = category.extract_header_callback(on_first, mode: mode)
+
             input_collection.upload(on_first: extract_header, slice_batch_size: slice_batch_size) do |io|
-              path.each(stream_mode || :line, **args) { |line| io << line }
+              category.each_record(path, mode: mode, **args) { |record| io << record }
             end
 
           end

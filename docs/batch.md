@@ -254,9 +254,9 @@ Input category options:
 | `format_options`   | `nil`       | Format-specific options, for example a `:layout` for `:fixed`.
 | `columns`          | `nil`       | Header columns, when the file has no header row.
 | `mode`             | `:line`     | How a file is uploaded: `:line`, `:array`, or `:hash`.
-| `allowed_columns`  | `nil`       | Restrict tabular input to these columns; others are returned as nil.
+| `allowed_columns`  | `nil`       | Restrict tabular input to these columns. See [Validating columns](#validating-columns).
 | `required_columns` | `nil`       | Tabular columns that must be present, or an exception is raised.
-| `skip_unknown`     | `false`     | When `allowed_columns` is set, ignore unknown columns instead of raising.
+| `skip_unknown`     | `false`     | When `allowed_columns` is set, skip unknown columns instead of raising.
 | `header_cleanser`  | `:default`  | Cleanse tabular header column names (`:default`) or leave them as-is (`:none`).
 
 The `mode` option controls how a file is read during upload:
@@ -266,6 +266,8 @@ The `mode` option controls how a file is read during upload:
 * `:array` parses each line into an Array before uploading. The whole file is parsed up front, so an
   invalid file is detected before processing starts. Not recommended for very large files.
 * `:hash` parses each line into a Hash before uploading. Like `:array`, but slightly less efficient.
+
+The `stream_mode` option of `upload` overrides `mode` for that upload.
 
 ## Collecting output
 
@@ -438,8 +440,9 @@ TabularJob.new.tap { |j| j.upload("really_big.json") }.save!
 
 ### Validating columns
 
-When a tabular `input_category` has `allowed_columns`, `required_columns`, or `skip_unknown` set,
-Rocket Job validates the header during upload, so a malformed file is rejected before any worker runs:
+Set `allowed_columns` and `required_columns` on a tabular `input_category` to restrict the columns
+it accepts. An unknown column raises `IOStreams::Errors::InvalidHeader`, unless `skip_unknown` is
+true, in which case it is left out of every record. A missing required column always raises.
 
 ~~~ruby
 input_category format:           :csv,
@@ -447,6 +450,18 @@ input_category format:           :csv,
                required_columns: %w[login],
                skip_unknown:     true
 ~~~
+
+The restrictions apply to every input:
+
+* A header row is checked during upload, so a malformed file is rejected before any worker runs.
+  Column names are compared after cleansing, or as they are with `header_cleanser: :none`.
+* Columns supplied with `columns`, in place of a header row, are checked during upload.
+* A format without a header row, such as JSON, supplies the keys of each record, so they are
+  checked as each record is processed, and are cleansed like a header row. With `format: :auto`
+  the allow list therefore still applies when a `.csv` file is renamed to `.json`.
+
+Set `IOStreams.enforce_column_restrictions = false` to apply them only to a cleansed header row, as
+earlier versions did. IOStreams then logs a warning when applying them would change the input.
 
 ## Writing tabular files
 

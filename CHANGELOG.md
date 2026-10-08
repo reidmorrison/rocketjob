@@ -26,12 +26,34 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   ~~~ruby
   job.upload(IOStreams.path("file.csv").option(:encode, encoding: "US-ASCII"))
   ~~~
+- An input category's `allowed_columns`, `required_columns` and `skip_unknown` now apply to every
+  tabular input. Previously they only applied to a header row read from the file, and only when it
+  was cleansed, so they were ignored for JSON records, for columns supplied with `columns`, and with
+  `header_cleanser: :none`. JSON keys are now cleansed like a header row when either is set, for
+  example `"Name"` becomes `"name"`, and a record with an unknown key, or without a required column,
+  raises `IOStreams::Errors::InvalidHeader` when it is processed, unless `skip_unknown` is true.
+  A job that accepted such data before will now fail it. Set
+  `IOStreams.enforce_column_restrictions = false` to keep the previous behavior.
+
+### Security
+
+- With `format: :auto`, renaming an upload from `.csv` to `.json` bypassed `allowed_columns` and
+  `required_columns`. They now apply to JSON records too, see above.
 
 ### Fixes
 
 - A tabular upload, such as CSV, uses the encoding set on the path with `option(:encode, encoding: ...)`.
   Previously it was always replaced with UTF-8, so the characters of a Windows-1252 file that are not
   ASCII were removed.
+- An input category's `mode` of `:array` or `:hash` is used by `upload`. Since v6.0.0 `upload` read
+  the file a line at a time unless `stream_mode` was supplied, and the category's `mode` only changed
+  how the header row was read: `:array` raised `NameError` or `NoMethodError`, and with `:hash` the
+  workers raised `ArgumentError` because the header columns were not set. The `stream_mode` of
+  `upload` still overrides it.
+- Hashes uploaded with `mode: :hash`, or `stream_mode: :hash`, are no longer parsed again by the workers.
+  Previously a worker tried to parse them again in the category's format, which raised for CSV.
+- v5 jobs with a `tabular_input_mode` of `:row` or `:record` are migrated to the input category
+  `mode` of `:array` or `:hash`. Previously the v5 value was copied as is, and failed validation.
 
 ## [7.0.0] 2026-09-05
 

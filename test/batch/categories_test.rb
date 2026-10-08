@@ -164,6 +164,19 @@ module Batch
           assert_equal %w[name value], category.columns
         end
 
+        it "migrates the v5 tabular input modes" do
+          {"line" => :line, "row" => :array, "record" => :hash}.each_pair do |v5_mode, mode|
+            job = from_legacy(
+              "input_categories"     => [:main],
+              "tabular_input_format" => :csv,
+              "tabular_input_mode"   => v5_mode
+            )
+
+            assert_equal mode, job.input_category.mode, v5_mode
+            assert_predicate job.input_category, :valid?
+          end
+        end
+
         it "migrates a non-main input category without tabular settings" do
           job = from_legacy(
             "input_categories"     => %i[main other],

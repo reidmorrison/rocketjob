@@ -5,6 +5,9 @@ module RocketJob
     module Categories
       extend ActiveSupport::Concern
 
+      # The v5 `tabular_input_mode` values, and the input category `mode` that replaced each one.
+      V5_INPUT_MODES = {"row" => :array, "record" => :hash}.freeze
+
       included do
         after_initialize :rocketjob_categories_assign, if: :new_record?
         after_initialize :rocketjob_categories_migrate, unless: :new_record?
@@ -183,15 +186,7 @@ module RocketJob
         return row if category.nil? || !category.tabular?
         return nil if row.blank?
 
-        tabular = category.tabular
-
-        # Return the row as-is if the required header has not yet been set.
-        if tabular.header?
-          raise(ArgumentError,
-                "The tabular header columns _must_ be set before attempting to parse data that requires it.")
-        end
-
-        tabular.record_parse(row)
+        category.parse_record(row)
       end
 
       def rocketjob_categories_output_render_row(row)
@@ -248,7 +243,7 @@ module RocketJob
           end
 
           if attribute_present?(:tabular_input_mode)
-            main_input_mode = self[:tabular_input_mode]
+            main_input_mode = V5_INPUT_MODES.fetch(self[:tabular_input_mode].to_s, self[:tabular_input_mode])
             remove_attribute(:tabular_input_mode)
           end
 

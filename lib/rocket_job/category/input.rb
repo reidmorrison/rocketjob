@@ -85,14 +85,26 @@ module RocketJob
 
       validates_inclusion_of :serializer, in: %i[none compress encrypt]
 
-      # Cleanses the header column names when `cleanse_header` is true
+      # Treats the current columns as a header row read from the file: cleanses their names when
+      # `header_cleanser` is :default, and applies `allowed_columns`, `required_columns` and `skip_unknown`.
       def cleanse_header!
-        return unless header_cleanser == :default
+        read_header(columns)
+      end
 
-        ignored_columns = tabular.header.cleanse!
-        logger.warn("Stripped out invalid columns from custom header", ignored_columns) unless ignored_columns.empty?
+      # Returns [Hash|Array|String] the record uploaded into this category, parsed for `#perform`.
+      #
+      # A Hash was parsed when it was uploaded, for example in :hash mode, so it is only narrowed to the
+      # columns, when they are set. For a format whose records supply their own keys, such as JSON, the
+      # column restrictions are applied to each record's keys.
+      def parse_record(record)
+        return tabular.header.to_hash(record) if record.is_a?(Hash)
 
-        self.columns = tabular.header.columns
+        if tabular.header?
+          raise(ArgumentError,
+                "The tabular header columns _must_ be set before attempting to parse data that requires it.")
+        end
+
+        tabular.read_record(record, rename: cleanse_header?)
       end
 
       def tabular
@@ -144,28 +156,72 @@ module RocketJob
         path
       end
 
-      # Return a lambda to extract the header row from the uploaded file.
-      def extract_header_callback(on_first)
-        return on_first unless tabular? && tabular.header?
+      # Yields each record read from the supplied path in the supplied mode, see #mode.
+      #
+      # In :hash mode IOStreams reads the header row, and applies the column restrictions, since the header row
+      # is not yielded. In :array mode the header row is yielded, and read by #extract_header_callback.
+      def each_record(path, mode: self.mode, **args, &)
+        path.each(mode, **read_options(mode), **args, &)
+      end
 
-        case mode
-        when :line
-          lambda do |line|
-            tabular.parse_header(line)
-            cleanse_header!
-            self.columns = tabular.header.columns
-            # Call chained on_first if present
-            on_first&.call(line)
-          end
-        when :array
-          lambda do |row|
-            tabular.header.columns = row
-            cleanse_header!
-            self.columns = category.tabular.header.columns
-            # Call chained on_first if present
-            on_first&.call(line)
-          end
+      # Returns the lambda to call with the first record uploaded, that reads the header row, when the upload
+      # starts with one, otherwise the supplied `on_first`.
+      #
+      # When the columns were supplied they take the place of a header row, so the column restrictions are
+      # applied to them now. In :hash mode IOStreams applies them instead, see #each_record.
+      def extract_header_callback(on_first, mode: self.mode)
+        return on_first unless tabular? && mode != :hash
+
+        unless tabular.header?
+          restrict_columns!
+          return on_first
         end
+
+        lambda do |row|
+          read_header(row)
+          # Call chained on_first if present
+          on_first&.call(row)
+        end
+      end
+
+      private
+
+      def cleanse_header?
+        header_cleanser == :default
+      end
+
+      # Reads the header row, cleansing it and applying the column restrictions, see `IOStreams::Tabular#read_header`.
+      def read_header(row)
+        tabular.read_header(row, cleanse: cleanse_header?)
+        header_read
+      end
+
+      # Applies the column restrictions to the supplied columns, see `IOStreams::Tabular#restrict_columns`.
+      def restrict_columns!
+        tabular.restrict_columns(rename: cleanse_header?)
+        header_read
+      end
+
+      def header_read
+        self.columns = tabular.header.columns
+        rejected     = columns&.select { |column| column.start_with?(IOStreams::Tabular::Header::IGNORE_PREFIX) }
+        logger.warn("Stripped out invalid columns from custom header", rejected) if rejected.present?
+      end
+
+      # Returns [Hash] the options for IOStreams to read records in the supplied mode.
+      def read_options(mode)
+        return {} if mode == :line || !tabular?
+
+        options = {format: tabular.format, format_options: format_options&.to_h&.deep_symbolize_keys, columns: columns}
+        if mode == :hash
+          options.merge!(
+            allowed_columns:  allowed_columns,
+            required_columns: required_columns,
+            skip_unknown:     skip_unknown,
+            cleanse_header:   cleanse_header?
+          )
+        end
+        options.compact
       end
     end
   end
