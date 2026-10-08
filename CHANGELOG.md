@@ -68,25 +68,36 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   entry on the first scan.
 - `RocketJob.path_display_name` returns a path or url to show, for example in Rocket Job Mission Control,
   without the user name, password or query of a url. A value that is not a valid path, or that needs a gem
-  that is not installed, such as an S3 url with options in its query, is shown as `(not a valid path)`.
+  that is not installed, is shown as `(not a valid path)`.
 - `RocketJob::DirmonEntry#pattern_display_name` and `#archive_directory_display_name` return the pattern
-  and archive directory to show, see `RocketJob.path_display_name`.
+  and archive directory to show, see `RocketJob.path_display_name`. A remote pattern with characters that
+  a url cannot hold, such as `sftp://host/in/*.{csv,txt}`, is shown as the directory it scans followed by
+  the pattern within it. `#display_properties` returns its properties with the paths in them, as declared
+  by its job class, shown without credentials.
 - `RocketJob::Job#display_attributes` returns the attributes of a job to show, with each path or url field
   shown without its credentials. A field is a path when it is declared with `path: true`, such as the
   `source_url` and `target_url` of `CopyFileJob`, or has the type `IOStreams::Path`. `.path_fields` lists them.
+  The `file_name` of each input and output category of a batch job is also shown without its credentials,
+  and so are the paths in the `properties` of an `UploadFileJob`. `.display_properties` does the same for
+  a hash of properties for a job class, such as those of a Dirmon entry.
 - `CopyFileJob#display_attributes` also replaces the secrets in `source_args`, `target_args`,
   `source_streams` and `target_streams`, such as an SFTP password or a PGP passphrase, as decided by
   `IOStreams.redact_path_options` and `IOStreams.redact_stream_options`.
 - A `CopyFileJob` checks its source and target when it is created, or when their url, arguments or
   streams change, by building each path, so a url that is not valid, or an argument or stream option that
   the path does not accept, such as a misspelled `passwrd:`, fails validation instead of failing the job
-  when it runs. Encrypted arguments are not decrypted to check them.
+  when it runs. Encrypted arguments are not decrypted to check them. A value of the wrong type is reported
+  without including it in the message, since it could be a secret.
 - `RocketJob::DirmonEntry#replicate` returns a new, pending entry with the settings of an entry, such as
-  its job class and properties, overridden by the supplied attributes. Its state, exception and
-  `unavailable_at` are not copied.
+  its job class and properties, overridden by the supplied attributes. Only its name, pattern, job class,
+  properties and archive directory are copied. Since the name and pattern must each be unique, the new
+  entry is not valid until both are changed.
 
 ### Fixes
 
+- A `CopyFileJob` fetches its `secret_config_` arguments from Secret Config even when Symmetric Encryption
+  is not loaded. Previously they were passed to IOStreams under their stored names, which failed the job.
+  A source or target whose streams are `nil` copies without any streams, instead of raising `NoMethodError`.
 - A tabular upload, such as CSV, uses the encoding set on the path, such as `encoding("Windows-1252:UTF-8")`.
   Previously it was always replaced with UTF-8, so the characters of a Windows-1252 file that are not
   ASCII were removed.

@@ -78,6 +78,36 @@ module Jobs
           assert_equal ["is not a valid url"], job.errors[:target_url]
         end
 
+        it "rejects an argument value of the wrong type, without including it in the message" do
+          job = RocketJob::Jobs::CopyFileJob.new(source_url: "/tmp/source.csv", target_url: "sftp://sftp.example.org/a.csv",
+                                                 target_args: {ssh_options: "secret"})
+
+          refute_predicate job, :valid?
+          assert_equal ["are not valid"], job.errors[:target_args]
+        end
+
+        it "rejects a secret_config argument when Secret Config is not loaded, as the job would when it runs" do
+          job = RocketJob::Jobs::CopyFileJob.new(source_url: "/tmp/source.csv", target_url: "sftp://sftp.example.org/a.csv",
+                                                 target_args: {secret_config_password: "sftp/password"})
+
+          refute_predicate job, :valid?
+          assert_includes job.errors[:target_args].first, "secret_config_password"
+        end
+
+        it "accepts streams that are not set" do
+          job = RocketJob::Jobs::CopyFileJob.new(source_url: "/tmp/source.csv", target_url: "/tmp/target.csv", target_streams: nil)
+
+          assert_predicate job, :valid?, job.errors.full_messages
+        end
+
+        it "rejects stream options of the wrong type, without including them in the message" do
+          job = RocketJob::Jobs::CopyFileJob.new(source_url: "/tmp/source.csv", target_url: "/tmp/target.csv",
+                                                 target_streams: {pgp: "secret"})
+
+          refute_predicate job, :valid?
+          assert_equal ["are not valid"], job.errors[:target_streams]
+        end
+
         it "does not check the paths of a saved job whose paths did not change" do
           job = create_job("/tmp/target.csv")
           job.set(target_args: {passwrd: "secret"})

@@ -268,6 +268,41 @@ class DirmonEntryTest < Minitest::Test
       it "returns nil without a pattern" do
         assert_nil RocketJob::DirmonEntry.new.pattern_display_name
       end
+
+      it "leaves out the credentials of a url with pattern characters that a url cannot hold" do
+        dirmon_entry.pattern = "sftp://user:secret@sftp.example.org/in/*.{csv,txt}"
+
+        assert_equal "sftp://sftp.example.org/in/*.{csv,txt}", dirmon_entry.pattern_display_name
+      end
+
+      it "shows a url with a character class" do
+        dirmon_entry.pattern = "sftp://sftp.example.org/in/[ab]*.csv"
+
+        assert_equal "sftp://sftp.example.org/in/[ab]*.csv", dirmon_entry.pattern_display_name
+      end
+    end
+
+    describe "#display_properties" do
+      it "shows the paths in the properties without their credentials" do
+        dirmon_entry.properties = {"user_id" => 341, "upload_file_name" => "sftp://user:secret@sftp.example.org/in.csv"}
+
+        assert_equal({"user_id" => 341, "upload_file_name" => "sftp://sftp.example.org/in.csv"}, dirmon_entry.display_properties)
+      end
+
+      it "shows the paths in the categories of a batch job without their credentials" do
+        batch_dirmon_entry.properties = {"input_categories" => [{"file_name" => "sftp://user:secret@sftp.example.org/in.csv"}]}
+
+        assert_equal(
+          {"input_categories" => [{"file_name" => "sftp://sftp.example.org/in.csv"}]},
+          batch_dirmon_entry.display_properties
+        )
+      end
+
+      it "shows the properties as stored when the job class is not defined" do
+        dirmon_entry.job_class_name = "NoSuchJob"
+
+        assert_equal dirmon_entry.properties, dirmon_entry.display_properties
+      end
     end
 
     describe "#archive_directory_display_name" do
@@ -304,6 +339,23 @@ class DirmonEntryTest < Minitest::Test
         assert_predicate entry, :pending?
         assert_nil entry.exception
         assert_nil entry.unavailable_at
+      end
+
+      it "is not valid until its name and pattern are changed, since each must be unique" do
+        dirmon_entry.save!
+        entry = dirmon_entry.replicate
+
+        refute entry.save
+        assert_includes entry.errors[:name], "has already been taken"
+        assert_includes entry.errors[:pattern], "has already been taken"
+      end
+
+      it "copies only the settings of the entry" do
+        dirmon_entry.unavailable_at = Time.now
+        entry = dirmon_entry.replicate
+
+        assert_equal %w[_id archive_directory job_class_name name pattern properties state],
+                     entry.attributes.compact.keys.sort
       end
 
       it "does not share its properties with the entry" do

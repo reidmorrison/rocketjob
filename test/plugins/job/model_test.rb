@@ -207,6 +207,14 @@ module Plugins
           end
         end
 
+        describe ".display_properties" do
+          it "shows the paths of the job class without their credentials" do
+            properties = PathJob.display_properties(url: "sftp://user:secret@sftp.example.org/in/file.csv", note: "sftp://user:secret@h")
+
+            assert_equal({url: "sftp://sftp.example.org/in/file.csv", note: "sftp://user:secret@h"}, properties)
+          end
+        end
+
         describe "#status" do
           it "stringifies times and ids for a queued job" do
             job    = SimpleJob.create!

@@ -39,6 +39,16 @@ module RocketJob
         field :file_name, type: IOStreams::Path
       end
 
+      class_methods do
+        # Returns [Hash] the supplied attributes or properties of a category to show to people, with its file name
+        # shown by its display name, without any credentials, see RocketJob.path_display_name.
+        def display_properties(properties)
+          properties.to_h do |key, value|
+            [key, key.to_s == "file_name" ? RocketJob.path_display_name(value) : value]
+          end
+        end
+      end
+
       # Return which slice serializer class to use that matches the current options.
       def serializer_class
         case serializer
