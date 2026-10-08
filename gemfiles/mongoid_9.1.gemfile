@@ -24,7 +24,7 @@ group :test do
   gem "minitest-mock"
   gem "minitest-reporters"
   gem "minitest-stub_any_instance"
-  gem "simplecov", "~> 1.0", require: false
+  gem "simplecov", require: false
 end
 
 gemspec path: "../"
