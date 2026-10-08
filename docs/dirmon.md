@@ -299,8 +299,10 @@ An entry whose storage cannot be reached, such as an SFTP server that is restart
 (`IOStreams::Errors::Unavailable`), is not failed straight away. A warning is logged and the entry is
 scanned again on the next run, so it recovers on its own once the storage is back. Only once its
 storage has been unavailable for longer than `max_unavailable_seconds`, an hour by default, is the
-entry failed, since by then the cause may not be temporary: a host name that cannot be resolved, such
-as a mistyped one, is also reported as unavailable. Re-enabling the entry starts a new period.
+entry failed, since by then the cause may not be temporary, such as a server that stays down. A host
+name that does not exist, such as a mistyped one, is not reported as unavailable, so it fails the entry
+on the first scan. A host that only resolves over a VPN therefore fails its entry while the VPN is down.
+Re-enabling the entry starts a new period.
 
 ~~~ruby
 # In an initializer: allow the storage of an entry to be unavailable for up to 2 hours.

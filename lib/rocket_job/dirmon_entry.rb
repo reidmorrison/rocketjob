@@ -231,7 +231,7 @@ module RocketJob
     # see IOStreams::Errors::Unavailable, so that the entry is scanned again on the next run.
     #
     # Fails this entry once its storage has been unavailable for longer than `max_unavailable_seconds`, since the
-    # failure may not be temporary, for example when the host name in the pattern cannot be resolved.
+    # failure may not be temporary, for example when a server stays down.
     def storage_unavailable!(worker_name, exception)
       self.unavailable_at ||= Time.now
       unavailable_seconds = Time.now - unavailable_at

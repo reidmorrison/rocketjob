@@ -63,7 +63,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   scanned again on the next run instead of failing, until its storage has been unavailable for longer
   than `RocketJob::DirmonEntry.max_unavailable_seconds`, an hour by default. Previously the first
   `IOStreams::Errors::Unavailable` failed the entry, so it stopped scanning until someone re-enabled
-  it. Set `max_unavailable_seconds` to `0` to keep the previous behavior.
+  it. Set `max_unavailable_seconds` to `0` to keep the previous behavior. On Ruby 3.3 and later, a host
+  name that does not exist, such as a mistyped one, is not reported as unavailable, so it still fails the
+  entry on the first scan.
 
 ### Fixes
 

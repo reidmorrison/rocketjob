@@ -1,4 +1,5 @@
 require_relative "../test_helper"
+require "socket"
 
 module Jobs
   class DirmonJobTest < Minitest::Test
@@ -144,6 +145,20 @@ module Jobs
 
           assert_predicate dirmon_entry, :failed?
           assert_equal "Errno::ECONNREFUSED", dirmon_entry.exception.class_name
+        end
+
+        it "fails the entry on the first scan when its host does not exist" do
+          skip "Socket::ResolutionError requires Ruby 3.3" unless defined?(Socket::ResolutionError)
+
+          unknown_host = Socket::ResolutionError.new("getaddrinfo: nodename nor servname provided, or not known")
+          unknown_host.define_singleton_method(:error_code) { Socket::EAI_NONAME }
+          dirmon_entry.stub(:each, -> { raise unknown_host }) do
+            dirmon_job.send(:check_entry, dirmon_entry, {})
+          end
+          dirmon_entry.reload
+
+          assert_predicate dirmon_entry, :failed?
+          assert_equal "Socket::ResolutionError", dirmon_entry.exception.class_name
         end
 
         it "ends the outage once a scan succeeds" do
