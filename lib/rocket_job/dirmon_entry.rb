@@ -133,7 +133,7 @@ module RocketJob
     end
 
     # Add a path to the whitelist
-    # Raises: Errno::ENOENT: No such file or directory
+    # Raises: IOStreams::Errors::NotFound when the path does not exist
     def self.add_whitelist_path(path)
       # Confirms that path exists
       path = IOStreams.path(path).realpath.to_s
@@ -143,7 +143,7 @@ module RocketJob
     end
 
     # Deletes a path from the whitelist paths
-    # Raises: Errno::ENOENT: No such file or directory
+    # Raises: IOStreams::Errors::NotFound when the path does not exist
     def self.delete_whitelist_path(path)
       # Confirms that path exists
       path = IOStreams.path(path).realpath.to_s
@@ -180,7 +180,9 @@ module RocketJob
       SemanticLogger.named_tagged(dirmon_entry: id.to_s) do
         # Case insensitive filename matching
         IOStreams.each_child(pattern) do |path|
-          path = path.realpath
+          path = existing_realpath(path)
+          next unless path
+
           # Skip archive directories
           next if path.to_s.include?(archive_directory || self.class.default_archive_directory)
 
@@ -225,10 +227,12 @@ module RocketJob
     end
 
     # Archives the file, then kicks off a file upload job to upload the archived file.
+    #
+    # Returns [RocketJob::Jobs::UploadFileJob] the job, or nil when the file was removed after it was found.
     def later(iopath)
       job_id       = BSON::ObjectId.new
       archive_path = archive_iopath(iopath).join("#{job_id}_#{iopath.basename}")
-      iopath.move_to(archive_path)
+      return unless archive_file(iopath, archive_path)
 
       job = RocketJob::Jobs::UploadFileJob.create!(
         job_class_name:     job_class_name,
@@ -263,6 +267,31 @@ module RocketJob
 
     class_attribute :whitelist_paths
     self.whitelist_paths = Concurrent::Array.new
+
+    # Returns [IOStreams::Path] the real path of the supplied file, or nil when it was removed after it was found,
+    # whichever storage it is on.
+    def existing_realpath(path)
+      path.realpath
+    rescue IOStreams::Errors::NotFound
+      logger.info("Skipping file: #{path.display_name} since it no longer exists")
+      nil
+    end
+
+    # Moves the file to the archive path.
+    #
+    # Returns [true|false] whether the file was moved, false when it was removed after it was found.
+    #
+    # Raises IOStreams::Errors::NotFound when the file still exists, since then it is the archive path that was
+    # not found, for example when its S3 bucket does not exist.
+    def archive_file(iopath, archive_path)
+      iopath.move_to(archive_path)
+      true
+    rescue IOStreams::Errors::NotFound
+      raise if iopath.exist?
+
+      logger.info("Skipping file: #{iopath.display_name} since it no longer exists")
+      false
+    end
 
     # Returns [Pathname] to the archive directory, and creates it if it does not exist.
     #

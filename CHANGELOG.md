@@ -70,6 +70,12 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   Previously, when the file name did not end in `.csv`, the line was split at the line break.
 - v5 jobs with a `tabular_input_mode` of `:row` or `:record` are migrated to the input category
   `mode` of `:array` or `:hash`. Previously the v5 value was copied as is, and failed validation.
+- Dirmon skips a file that is removed after a scan finds it, instead of failing its entry.
+  Previously a local file that was removed while it was being checked or archived failed its entry
+  with `Errno::ENOENT`, as did a file removed from S3 while it was being archived. Dirmon rescues
+  `IOStreams::Errors::NotFound`, so this applies to every storage, now that IOStreams 3.0 raises it
+  from `#size` for a missing S3, SFTP or HTTP file, where 2.x returned nil. A missing archive
+  location, such as an S3 bucket that does not exist, still fails the entry.
 
 ## [7.0.0] 2026-09-05
 

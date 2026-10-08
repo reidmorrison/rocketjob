@@ -93,9 +93,11 @@ module RocketJob
       end
 
       # Checks if a file should result in starting a job
-      # Returns [Integer] file size, or nil if the file started a job
+      # Returns [Integer] file size, or nil if the file started a job, or no longer exists
       def check_file(dirmon_entry, path, previous_size)
-        size = path.size
+        size = file_size(path)
+        return unless size
+
         if previous_size && (previous_size == size)
           logger.info("File stabilized: #{path}. Starting: #{dirmon_entry.job_class_name}")
           dirmon_entry.later(path)
@@ -105,6 +107,15 @@ module RocketJob
           # Keep for the next run
           size
         end
+      end
+
+      # Returns [Integer] the size of the file, or nil when it was removed after it was found,
+      # whichever storage it is on.
+      def file_size(path)
+        path.size
+      rescue IOStreams::Errors::NotFound
+        logger.info("Skipping file: #{path.display_name} since it no longer exists")
+        nil
       end
     end
   end

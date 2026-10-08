@@ -178,6 +178,11 @@ class DirmonEntryTest < Minitest::Test
         assert_equal path, RocketJob::DirmonEntry.add_whitelist_path(path)
         assert_equal [path], RocketJob::DirmonEntry.whitelist_paths
       end
+
+      it "raises NotFound for a path that does not exist" do
+        assert_raises(IOStreams::Errors::NotFound) { RocketJob::DirmonEntry.add_whitelist_path("test/does_not_exist") }
+        assert_empty RocketJob::DirmonEntry.whitelist_paths
+      end
     end
 
     describe "#fail!" do
@@ -348,9 +353,29 @@ class DirmonEntryTest < Minitest::Test
           assert_nil dirmon_entry.archive_directory
           assert_equal 0, files.count
         end
+
+        it "skips a file that was removed after it was found" do
+          removed = IOStreams.path("test/files/removed.txt")
+          files   = []
+          IOStreams.stub(:each_child, ->(_pattern, &block) { block.call(removed) }) do
+            dirmon_entry.each { |file_name| files << file_name }
+          end
+
+          assert_empty files
+        end
       end
 
       describe "#later" do
+        let :removed_from_http do
+          path      = IOStreams.path("https://example.org/files/removed.csv")
+          not_found = IOStreams::Errors::NotFound.tag(
+            IOStreams::Errors::CommunicationsFailure.new("404 Not Found"), path.display_name
+          )
+          path.define_singleton_method(:move_to) { |_target| raise not_found }
+          path.define_singleton_method(:exist?) { false }
+          path
+        end
+
         it "enqueues job" do
           job = dirmon_entry.later(iopath)
 
@@ -370,6 +395,28 @@ class DirmonEntryTest < Minitest::Test
           assert_equal "#{dirmon_entry.name}: #{iopath.basename}", job.description
           assert_equal iopath.to_s, job.original_file_name
           assert job.job_id
+        end
+
+        it "skips a file that was removed after it was found" do
+          assert_nil dirmon_entry.later(IOStreams.path("test/files/removed.txt"))
+          assert_equal 0, RocketJob::Jobs::UploadFileJob.count
+        end
+
+        it "skips a file that was removed from S3, SFTP or HTTP after it was found" do
+          assert_nil dirmon_entry.later(removed_from_http)
+          assert_equal 0, RocketJob::Jobs::UploadFileJob.count
+        end
+
+        it "raises when the archive path is not found" do
+          not_found = IOStreams::Errors::NotFound.tag(
+            RuntimeError.new("The specified bucket does not exist"), "s3://archive-bucket/archive"
+          )
+
+          iopath.stub(:move_to, ->(_target) { raise not_found }) do
+            assert_raises(IOStreams::Errors::NotFound) { dirmon_entry.later(iopath) }
+          end
+
+          assert_equal 0, RocketJob::Jobs::UploadFileJob.count
         end
 
         it "enqueues batch job" do

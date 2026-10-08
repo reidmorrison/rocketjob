@@ -132,6 +132,9 @@ Amazon S3), the file is processed on the first scan that sees it, with no stabil
 When a file is ready, Dirmon archives it first and then starts the job, so the same file can never be
 picked up twice (see [Archiving](#archiving)).
 
+A file that is removed after a scan finds it, for example by another process, is skipped with a log
+message, whichever storage it is on, rather than failing its entry.
+
 ## Creating a DirmonEntry
 
 ~~~ruby
@@ -242,8 +245,9 @@ RocketJob::DirmonEntry.delete_whitelist_path("/var/sftp")
 Notes:
 
 * If no paths are registered, the check is skipped entirely.
-* Registering a path confirms it exists (`realpath` is resolved), so absolute paths are recommended.
-  Relative paths are accepted but are not considered safe, since they can be manipulated.
+* Registering a path confirms it exists (`realpath` is resolved), and raises
+  `IOStreams::Errors::NotFound` when it does not, so absolute paths are recommended. Relative paths
+  are accepted but are not considered safe, since they can be manipulated.
 * These should be set in application code (an initializer), not made editable in the web UI.
 
 ## Starting the directory monitor
@@ -287,7 +291,8 @@ and go. There is only ever one `DirmonJob` queued or running at a time.
 
 If a scan raises an exception, the responsible `DirmonEntry` is moved to the `failed` state with the
 exception recorded, so the rest of the entries keep working and the failure can be investigated and
-re-enabled from Mission Control.
+re-enabled from Mission Control. A file that was removed after it was found is not a failure: it is
+skipped. A missing archive location, such as an S3 bucket that does not exist, still fails the entry.
 
 ## Managing Dirmon in the web UI
 

@@ -44,9 +44,9 @@ module Jobs
         it "check growing file" do
           previous_size = 5
           new_size      = 10
-          file          = create_temp_file(new_size)
+          path          = create_temp_file(new_size)
           result        = dirmon_entry.stub(:later, nil) do
-            dirmon_job.send(:check_file, dirmon_entry, file, previous_size)
+            dirmon_job.send(:check_file, dirmon_entry, path, previous_size)
           end
 
           assert_equal new_size, result
@@ -55,22 +55,80 @@ module Jobs
         it "check completed file" do
           previous_size = 10
           new_size      = 10
-          file          = create_temp_file(new_size)
+          path          = create_temp_file(new_size)
           started       = false
           result        = dirmon_entry.stub(:later, ->(_fn) { started = true }) do
-            dirmon_job.send(:check_file, dirmon_entry, file, previous_size)
+            dirmon_job.send(:check_file, dirmon_entry, path, previous_size)
           end
 
           assert_nil result
           assert started
         end
 
-        it "check deleted file" do
-          previous_size = 5
-          file_name     = Pathname.new("blah")
-          assert_raises Errno::ENOENT do
-            dirmon_job.send(:check_file, dirmon_entry, file_name, previous_size)
+        it "skips a file that no longer exists" do
+          started = false
+          result  = dirmon_entry.stub(:later, ->(_fn) { started = true }) do
+            dirmon_job.send(:check_file, dirmon_entry, IOStreams.path(directory, "abc", "removed"), 5)
           end
+
+          assert_nil result
+          refute started
+        end
+
+        it "skips a file that was removed from S3, SFTP or HTTP" do
+          path      = IOStreams.path("https://example.org/files/removed.csv")
+          not_found = IOStreams::Errors::NotFound.tag(
+            IOStreams::Errors::CommunicationsFailure.new("404 Not Found"), path.display_name
+          )
+          result = path.stub(:size, -> { raise not_found }) do
+            dirmon_job.send(:check_file, dirmon_entry, path, 5)
+          end
+
+          assert_nil result
+        end
+
+        it "raises any other failure" do
+          path   = IOStreams.path("https://example.org/files/locked.csv")
+          denied = IOStreams::Errors::PermissionDenied.tag(
+            IOStreams::Errors::CommunicationsFailure.new("403 Forbidden"), path.display_name
+          )
+
+          path.stub(:size, -> { raise denied }) do
+            assert_raises(IOStreams::Errors::PermissionDenied) do
+              dirmon_job.send(:check_file, dirmon_entry, path, 5)
+            end
+          end
+        end
+      end
+
+      describe "#check_entry" do
+        before do
+          RocketJob::DirmonEntry.destroy_all
+          dirmon_entry.enable!
+        end
+
+        it "skips a file that was removed after it was found, without failing the entry" do
+          removed    = IOStreams.path(directory, "abc", "removed")
+          file_names = {}
+          dirmon_entry.stub(:each, ->(&block) { block.call(removed) }) do
+            dirmon_job.send(:check_entry, dirmon_entry, file_names)
+          end
+
+          assert_predicate dirmon_entry, :enabled?
+          assert_empty file_names
+        end
+
+        it "fails the entry on any other failure" do
+          path   = IOStreams.path(directory, "abc", "locked")
+          denied = IOStreams::Errors::PermissionDenied.tag(Errno::EACCES.new(path.to_s), path.display_name)
+          path.stub(:size, -> { raise denied }) do
+            dirmon_entry.stub(:each, ->(&block) { block.call(path) }) do
+              dirmon_job.send(:check_entry, dirmon_entry, {})
+            end
+          end
+
+          assert_predicate dirmon_entry.reload, :failed?
+          assert_equal "Errno::EACCES", dirmon_entry.exception.class_name
         end
       end
 
@@ -218,12 +276,11 @@ module Jobs
       end
 
       def create_temp_file(size)
-        file      = Tempfile.new("check_file")
-        file_name = file.path
-        File.binwrite(file_name, "*" * size)
+        path = IOStreams.path(directory, "abc", "check_file")
+        create_file(path, size)
 
-        assert_equal size, File.size(file_name)
-        file
+        assert_equal size, path.size
+        path
       end
     end
   end
