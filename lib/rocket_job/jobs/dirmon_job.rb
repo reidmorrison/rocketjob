@@ -84,6 +84,9 @@ module RocketJob
           size            = check_file(dirmon_entry, path, previous_size)
           file_names[key] = size if size
         end
+        dirmon_entry.storage_available!
+      rescue IOStreams::Errors::Unavailable => e
+        dirmon_entry.storage_unavailable!(worker_name, e)
       rescue StandardError => e
         logger.error(
           "Dirmon Entry: #{dirmon_entry.id} failed. Moved to `failed` state to prevent processing again without manual intervention.", e

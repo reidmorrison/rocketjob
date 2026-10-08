@@ -51,6 +51,14 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - With `format: :auto`, renaming an upload from `.csv` to `.json` bypassed `allowed_columns` and
   `required_columns`. They now apply to JSON records too, see above.
 
+### New features
+
+- A Dirmon entry whose storage cannot be reached, such as an SFTP server that is restarting, is
+  scanned again on the next run instead of failing, until its storage has been unavailable for longer
+  than `RocketJob::DirmonEntry.max_unavailable_seconds`, an hour by default. Previously the first
+  `IOStreams::Errors::Unavailable` failed the entry, so it stopped scanning until someone re-enabled
+  it. Set `max_unavailable_seconds` to `0` to keep the previous behavior.
+
 ### Fixes
 
 - A tabular upload, such as CSV, uses the encoding set on the path, such as `encoding("Windows-1252:UTF-8")`.

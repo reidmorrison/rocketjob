@@ -10,6 +10,12 @@ module RocketJob
     class_attribute :default_archive_directory
     self.default_archive_directory = "archive".freeze
 
+    # Number of seconds that the storage of an entry, such as an SFTP server, can be unavailable before the
+    # entry fails. Until then the entry is scanned again on each run, see #storage_unavailable!.
+    # Set to 0 to fail an entry the first time that its storage is unavailable.
+    class_attribute :max_unavailable_seconds
+    self.max_unavailable_seconds = 3600
+
     store_in collection: "rocket_job.dirmon_entries"
 
     # User defined name used to identify this DirmonEntry in the Web Interface.
@@ -64,6 +70,10 @@ module RocketJob
     # Current state, as set by the state machine. Do not modify directly.
     field :state, type: Mongoid::StringifiedSymbol, default: :pending
 
+    # When the storage of this entry could not be reached, the time that it was first unavailable,
+    # see #storage_unavailable!. Cleared once a scan succeeds, or the entry is enabled again.
+    field :unavailable_at, type: Time
+
     # Unique index on pattern to help prevent two entries from scanning the same files
     index({pattern: 1}, background: true, unique: true)
 
@@ -95,7 +105,7 @@ module RocketJob
       # DirmonEntry has been manually disabled
       state :disabled
 
-      event :enable do
+      event :enable, before: :clear_unavailable_at do
         transitions from: :pending, to: :enabled
         transitions from: :disabled, to: :enabled
         transitions from: :failed, to: :enabled
@@ -217,6 +227,36 @@ module RocketJob
       end
     end
 
+    # Records that the storage of this entry could not be reached, such as an SFTP server that is restarting,
+    # see IOStreams::Errors::Unavailable, so that the entry is scanned again on the next run.
+    #
+    # Fails this entry once its storage has been unavailable for longer than `max_unavailable_seconds`, since the
+    # failure may not be temporary, for example when the host name in the pattern cannot be resolved.
+    def storage_unavailable!(worker_name, exception)
+      self.unavailable_at ||= Time.now
+      unavailable_seconds = Time.now - unavailable_at
+      if unavailable_seconds < max_unavailable_seconds
+        logger.warn("Dirmon Entry: #{id} storage is unavailable. Scanning it again on the next run.", exception)
+      else
+        logger.error(
+          "Dirmon Entry: #{id} storage has been unavailable for #{unavailable_seconds.round} seconds. " \
+          "Moved to `failed` state to prevent processing again without manual intervention.",
+          exception
+        )
+        fail(worker_name, exception)
+      end
+      save(validate: false)
+    end
+
+    # Records that the storage of this entry was available for a scan, which ends any outage,
+    # see #storage_unavailable!.
+    def storage_available!
+      return if unavailable_at.nil?
+
+      self.unavailable_at = nil
+      save(validate: false)
+    end
+
     # Returns the Job to be created.
     def job_class
       return if job_class_name.nil?
@@ -258,6 +298,11 @@ module RocketJob
     end
 
     private
+
+    # An entry that is enabled again starts a new period in which its storage can be unavailable.
+    def clear_unavailable_at
+      self.unavailable_at = nil
+    end
 
     # strip whitespaces from all variables that reference paths or patterns
     def strip_whitespace

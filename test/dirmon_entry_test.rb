@@ -185,6 +185,67 @@ class DirmonEntryTest < Minitest::Test
       end
     end
 
+    describe "#storage_unavailable!" do
+      let :unavailable do
+        IOStreams::Errors::Unavailable.tag(Errno::ECONNREFUSED.new("sftp.example.org"), "sftp://sftp.example.org/files")
+      end
+
+      it "keeps the entry enabled until max_unavailable_seconds" do
+        dirmon_entry.storage_unavailable!("worker", unavailable)
+        dirmon_entry.reload
+
+        assert_predicate dirmon_entry, :enabled?
+        assert dirmon_entry.unavailable_at
+        assert_nil dirmon_entry.exception
+      end
+
+      it "keeps the time that the storage was first unavailable" do
+        first_unavailable_at        = Time.at(Time.now.to_i - 60)
+        dirmon_entry.unavailable_at = first_unavailable_at
+        dirmon_entry.storage_unavailable!("worker", unavailable)
+
+        assert_equal first_unavailable_at, dirmon_entry.reload.unavailable_at
+      end
+
+      it "fails the entry once the storage has been unavailable for longer than max_unavailable_seconds" do
+        dirmon_entry.unavailable_at = Time.now - RocketJob::DirmonEntry.max_unavailable_seconds - 1
+        dirmon_entry.storage_unavailable!("worker", unavailable)
+        dirmon_entry.reload
+
+        assert_predicate dirmon_entry, :failed?
+        assert_equal "Errno::ECONNREFUSED", dirmon_entry.exception.class_name
+        assert_equal "worker", dirmon_entry.exception.worker_name
+      end
+
+      it "fails the entry the first time when max_unavailable_seconds is 0" do
+        dirmon_entry.stub(:max_unavailable_seconds, 0) do
+          dirmon_entry.storage_unavailable!("worker", unavailable)
+        end
+
+        assert_predicate dirmon_entry.reload, :failed?
+      end
+    end
+
+    describe "#storage_available!" do
+      it "ends the outage" do
+        dirmon_entry.unavailable_at = Time.now
+        dirmon_entry.save!
+        dirmon_entry.storage_available!
+
+        assert_nil dirmon_entry.reload.unavailable_at
+      end
+    end
+
+    describe "#enable!" do
+      it "starts a new period in which the storage can be unavailable" do
+        dirmon_entry.unavailable_at = Time.now - RocketJob::DirmonEntry.max_unavailable_seconds - 1
+        dirmon_entry.fail!("worker", "Storage unavailable")
+        dirmon_entry.enable!
+
+        assert_nil dirmon_entry.reload.unavailable_at
+      end
+    end
+
     describe "#fail!" do
       it "fail with message" do
         dirmon_entry.fail!("myworker:2323", "oh no")

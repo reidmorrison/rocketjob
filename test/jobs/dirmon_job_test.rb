@@ -102,6 +102,10 @@ module Jobs
       end
 
       describe "#check_entry" do
+        let :unavailable do
+          IOStreams::Errors::Unavailable.tag(Errno::ECONNREFUSED.new("sftp.example.org"), "sftp://sftp.example.org/abc")
+        end
+
         before do
           RocketJob::DirmonEntry.destroy_all
           dirmon_entry.enable!
@@ -116,6 +120,39 @@ module Jobs
 
           assert_predicate dirmon_entry, :enabled?
           assert_empty file_names
+        end
+
+        it "keeps the entry enabled when its storage is unavailable" do
+          dirmon_entry.stub(:each, -> { raise unavailable }) do
+            dirmon_job.send(:check_entry, dirmon_entry, {})
+          end
+          dirmon_entry.reload
+
+          assert_predicate dirmon_entry, :enabled?
+          assert dirmon_entry.unavailable_at
+        end
+
+        it "fails the entry once its storage has been unavailable for longer than max_unavailable_seconds" do
+          dirmon_entry.unavailable_at = Time.now - RocketJob::DirmonEntry.max_unavailable_seconds - 1
+          dirmon_entry.save!
+          dirmon_entry.stub(:each, -> { raise unavailable }) do
+            dirmon_job.send(:check_entry, dirmon_entry, {})
+          end
+          dirmon_entry.reload
+
+          assert_predicate dirmon_entry, :failed?
+          assert_equal "Errno::ECONNREFUSED", dirmon_entry.exception.class_name
+        end
+
+        it "ends the outage once a scan succeeds" do
+          dirmon_entry.unavailable_at = Time.now
+          dirmon_entry.save!
+          dirmon_entry.stub(:each, -> {}) do
+            dirmon_job.send(:check_entry, dirmon_entry, {})
+          end
+
+          assert_predicate dirmon_entry.reload, :enabled?
+          assert_nil dirmon_entry.unavailable_at
         end
 
         it "fails the entry on any other failure" do
