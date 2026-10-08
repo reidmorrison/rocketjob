@@ -74,6 +74,13 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - `RocketJob::Job#display_attributes` returns the attributes of a job to show, with each path or url field
   shown without its credentials. A field is a path when it is declared with `path: true`, such as the
   `source_url` and `target_url` of `CopyFileJob`, or has the type `IOStreams::Path`. `.path_fields` lists them.
+- `CopyFileJob#display_attributes` also replaces the secrets in `source_args`, `target_args`,
+  `source_streams` and `target_streams`, such as an SFTP password or a PGP passphrase, as decided by
+  `IOStreams.redact_path_options` and `IOStreams.redact_stream_options`.
+- A `CopyFileJob` checks its source and target when it is created, or when their url, arguments or
+  streams change, by building each path, so a url that is not valid, or an argument or stream option that
+  the path does not accept, such as a misspelled `passwrd:`, fails validation instead of failing the job
+  when it runs. Encrypted arguments are not decrypted to check them.
 - `RocketJob::DirmonEntry#replicate` returns a new, pending entry with the settings of an entry, such as
   its job class and properties, overridden by the supplied attributes. Its state, exception and
   `unavailable_at` are not copied.

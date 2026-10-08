@@ -22,6 +22,69 @@ module Jobs
           assert_equal "https://example.org/exports/source.csv", attrs["source_url"]
           assert_equal "sftp://sftp.example.org/uploads/source.csv", attrs["target_url"]
         end
+
+        it "shows the arguments and streams without their secrets" do
+          job = RocketJob::Jobs::CopyFileJob.new(
+            source_url:     "s3://bucket/exports/source.csv",
+            source_args:    {client: {region: "us-east-1", secret_access_key: "s3-secret"}},
+            target_url:     "sftp://sftp.example.org/uploads/source.csv",
+            target_args:    {username: "jack", password: "sftp-secret", ssh_options: {"IdentityKey" => "key", "IdentityFile" => "~/.ssh/id"}},
+            target_streams: {pgp: {passphrase: "pgp-secret", recipient: "a@b.org"}}
+          )
+          attrs = job.display_attributes
+
+          assert_equal({"client" => {"region" => "us-east-1", "secret_access_key" => "[FILTERED]"}}, attrs["source_args"].deep_stringify_keys)
+          assert_equal(
+            {"username" => "jack", "password" => "[FILTERED]", "ssh_options" => {"IdentityKey" => "[FILTERED]", "IdentityFile" => "~/.ssh/id"}},
+            attrs["target_args"].deep_stringify_keys
+          )
+          assert_equal({"pgp" => {"passphrase" => "[FILTERED]", "recipient" => "a@b.org"}}, attrs["target_streams"].deep_stringify_keys)
+          assert_equal "sftp-secret", job.target_args[:password]
+        end
+      end
+
+      describe "#valid?" do
+        it "accepts the arguments and streams of each path" do
+          job = RocketJob::Jobs::CopyFileJob.new(
+            source_url:     "/tmp/source.csv",
+            target_url:     "sftp://sftp.example.org/uploads/source.csv",
+            target_args:    {username: "jack", encrypted_password: "not-decrypted", ssh_options: {"IdentityFile" => "~/.ssh/id"}},
+            target_streams: {pgp: {recipient: "a@b.org"}}
+          )
+
+          assert_predicate job, :valid?, job.errors.full_messages
+        end
+
+        it "rejects an argument that the path does not accept" do
+          job = RocketJob::Jobs::CopyFileJob.new(source_url: "/tmp/source.csv", target_url: "sftp://sftp.example.org/a.csv",
+                                                 target_args: {passwrd: "secret"})
+
+          refute_predicate job, :valid?
+          assert_includes job.errors[:target_args].first, "passwrd"
+        end
+
+        it "rejects a stream option that the stream does not accept" do
+          job = RocketJob::Jobs::CopyFileJob.new(source_url: "/tmp/source.csv", target_url: "/tmp/target.csv",
+                                                 target_streams: {pgp: {recepient: "a@b.org"}})
+
+          refute_predicate job, :valid?
+          assert_includes job.errors[:target_streams].first, "recepient"
+        end
+
+        it "rejects a url that is not valid, without including it in the message" do
+          job = RocketJob::Jobs::CopyFileJob.new(source_url: "/tmp/source.csv", target_url: "sftp://jack:p@ss@sftp.example.org/a.csv")
+
+          refute_predicate job, :valid?
+          assert_equal ["is not a valid url"], job.errors[:target_url]
+        end
+
+        it "does not check the paths of a saved job whose paths did not change" do
+          job = create_job("/tmp/target.csv")
+          job.set(target_args: {passwrd: "secret"})
+          job.reload
+
+          assert_predicate job, :valid?
+        end
       end
 
       describe "#description" do
@@ -43,8 +106,9 @@ module Jobs
           assert_equal "Copying to s3://bucket/uploads/source.csv", job.description
         end
 
-        it "leaves out a target whose url is not valid" do
-          job = create_job("ftp://jack:secret@ftp.example.org/source.csv")
+        it "leaves out a target whose url is not valid, such as a job saved without validation" do
+          job = RocketJob::Jobs::CopyFileJob.new(source_url: "/tmp/source.csv", target_url: "ftp://jack:secret@ftp.example.org/source.csv")
+          job.save!(validate: false)
 
           assert_equal "Copying file", job.description
         end
