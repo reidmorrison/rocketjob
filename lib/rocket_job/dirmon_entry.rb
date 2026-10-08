@@ -257,6 +257,52 @@ module RocketJob
       save(validate: false)
     end
 
+    # Returns [String] the pattern to show, for example in a web interface, which leaves out any credentials,
+    # such as the user name and password of `sftp://user:password@host/in/*.csv`, see IOStreams::Path#display_name.
+    #
+    # A url cannot hold some pattern characters, such as the braces of `sftp://host/in/*.{csv,txt}`. Such a pattern
+    # is shown as the display name of the directory that is scanned, followed by the pattern within it,
+    # the same way that IOStreams.each_child splits it.
+    def pattern_display_name
+      display_name = RocketJob.path_display_name(pattern)
+      return display_name unless display_name == RocketJob::INVALID_PATH_DISPLAY_NAME
+
+      matcher = IOStreams::Paths::Matcher.new(pattern)
+      return display_name if matcher.directory.empty?
+
+      directory = RocketJob.path_display_name(matcher.directory)
+      directory == RocketJob::INVALID_PATH_DISPLAY_NAME ? directory : "#{directory}/#{matcher.pattern}"
+    rescue ArgumentError
+      RocketJob::INVALID_PATH_DISPLAY_NAME
+    end
+
+    # Returns [String] the archive directory to show, without any credentials, see #pattern_display_name.
+    def archive_directory_display_name
+      RocketJob.path_display_name(archive_directory)
+    end
+
+    # Returns [Hash] the properties to show, with each path or url that the job class holds in them shown without
+    # any credentials, see RocketJob::Plugins::Job::Model.display_properties. The properties are shown as stored when
+    # the job class is not defined, since then it cannot say which of them are paths.
+    def display_properties
+      klass = job_class
+      klass ? klass.display_properties(properties) : properties
+    end
+
+    # Returns [RocketJob::DirmonEntry] a new, unsaved, pending entry with the settings of this entry, such as its
+    # job class and properties, overridden by the supplied attributes, which usually include a new name and pattern.
+    #
+    # Only the settings in REPLICATED_ATTRIBUTES are copied, not what happened to this entry, such as its state,
+    # why it failed, or when its storage became unavailable.
+    #
+    # The name and pattern must each be unique, so the replica is not valid until both are changed. They are copied
+    # so that, for example, a web interface can show them to be edited.
+    def replicate(**attributes)
+      entry = self.class.new(self.attributes.slice(*REPLICATED_ATTRIBUTES).deep_dup)
+      entry.assign_attributes(attributes)
+      entry
+    end
+
     # Returns the Job to be created.
     def job_class
       return if job_class_name.nil?
@@ -298,6 +344,10 @@ module RocketJob
     end
 
     private
+
+    # The settings of an entry, which #replicate copies. A new field is not copied unless it is added here.
+    REPLICATED_ATTRIBUTES = %w[name pattern job_class_name properties archive_directory].freeze
+    private_constant :REPLICATED_ATTRIBUTES
 
     # An entry that is enabled again starts a new period in which its storage can be unavailable.
     def clear_unavailable_at

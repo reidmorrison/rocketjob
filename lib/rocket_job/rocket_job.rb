@@ -23,6 +23,22 @@ module RocketJob
     !@rails
   end
 
+  # Shown in place of a path that is not valid, since its credentials cannot be found to leave them out.
+  INVALID_PATH_DISPLAY_NAME = "(not a valid path)".freeze
+
+  # Returns [String] the supplied path or url to show, for example in a web interface, without any credentials,
+  # such as the user name and password of `sftp://user:password@host/file.csv`, see IOStreams::Path#display_name.
+  #
+  # A path that is not valid is shown as INVALID_PATH_DISPLAY_NAME, as is one that needs a gem that is not installed
+  # in this process.
+  def self.path_display_name(path)
+    return path if path.blank?
+
+    IOStreams.path(path).display_name
+  rescue StandardError, LoadError
+    INVALID_PATH_DISPLAY_NAME
+  end
+
   # Returns a human readable duration from the supplied [Float] number of seconds
   def self.seconds_as_duration(seconds)
     return nil unless seconds

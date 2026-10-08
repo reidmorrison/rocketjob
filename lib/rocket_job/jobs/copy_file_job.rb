@@ -29,8 +29,8 @@ module RocketJob
       self.priority = 30
 
       # File names in IOStreams URL format.
-      field :source_url, type: String, user_editable: true
-      field :target_url, type: String, user_editable: true
+      field :source_url, type: String, user_editable: true, path: true
+      field :target_url, type: String, user_editable: true, path: true
 
       # Any optional arguments to pass through to the IOStreams source and/or target.
       field :source_args, type: Hash, default: -> { {} }, user_editable: true
@@ -51,6 +51,8 @@ module RocketJob
       validates_presence_of :source_url, unless: :source_data
       validates_presence_of :target_url
       validates_presence_of :source_data, unless: :source_url
+      validate :source_path_is_valid, if: -> { source_url && path_changed?(:source) }
+      validate :target_path_is_valid, if: -> { target_url && path_changed?(:target) }
 
       before_save :set_description
 
@@ -76,7 +78,78 @@ module RocketJob
         target
       end
 
+      # Returns [Hash] the attributes to show, see RocketJob::Plugins::Job::Model#display_attributes, with the secrets
+      # in the arguments and streams of the source and target replaced, such as an SFTP password or a PGP passphrase.
+      # IOStreams decides which are secret, from the kind of path of each url.
+      def display_attributes
+        attrs = super
+        %w[source target].each do |side|
+          args    = attrs["#{side}_args"]
+          streams = attrs["#{side}_streams"]
+          attrs["#{side}_args"]    = IOStreams.redact_path_options(self["#{side}_url"].to_s, args) if args.is_a?(Hash)
+          attrs["#{side}_streams"] = IOStreams.redact_stream_options(streams) if streams.is_a?(Hash)
+        end
+        attrs
+      end
+
       private
+
+      def source_path_is_valid
+        validate_path(:source)
+      end
+
+      def target_path_is_valid
+        validate_path(:target)
+      end
+
+      # Whether the url, arguments or streams of the source or target are new or changed, so that a job whose path
+      # was valid when it was created, can still be saved, for example when it fails.
+      def path_changed?(side)
+        new_record? || %w[url args streams].any? { |name| attribute_changed?("#{side}_#{name}") }
+      end
+
+      # Builds the path of the source or target without using it, so that IOStreams checks its url, the names and
+      # values of its arguments, and its streams, in the same way as #perform. Encrypted arguments are not decrypted,
+      # nor secrets fetched, since their values are not used.
+      def validate_path(side)
+        url  = public_send("#{side}_url")
+        path = IOStreams.path(url, **decode_args(public_send("#{side}_args"), decode: false))
+      rescue LoadError
+        # A gem that the path needs is not installed in this process, so the path is checked when the job runs.
+        nil
+      rescue StandardError => e
+        # The url is not included in an error message, since it can include credentials.
+        if valid_url?(url)
+          errors.add(:"#{side}_args", path_error_message(e))
+        else
+          errors.add(:"#{side}_url", "is not a valid url")
+        end
+      else
+        validate_streams(side, path)
+      end
+
+      def validate_streams(side, path)
+        apply_streams(path, public_send("#{side}_streams"), decode: false)
+      rescue StandardError => e
+        errors.add(:"#{side}_streams", path_error_message(e))
+      end
+
+      # Whether the url on its own is valid, so that a path that is not valid has arguments that are not.
+      def valid_url?(url)
+        IOStreams.path(url)
+        true
+      rescue LoadError
+        true
+      rescue StandardError
+        false
+      end
+
+      # The message of an ArgumentError names the argument or stream that is not valid, such as
+      # "unknown keyword: :passwrd". Any other error, such as a TypeError from a value of the wrong type, is not
+      # shown, since its message can include that value, which can be a secret.
+      def path_error_message(exception)
+        exception.is_a?(ArgumentError) ? exception.message : "are not valid"
+      end
 
       def set_description
         return if description || target_url.nil?
@@ -88,29 +161,29 @@ module RocketJob
         self.description = "Copying file"
       end
 
-      def apply_streams(path, streams)
-        streams.each_pair do |stream, args|
-          stream_args = args.nil? ? {} : decode_args(args)
-          path.stream(stream.to_sym, **stream_args)
+      def apply_streams(path, streams, decode: true)
+        streams.to_h.each_pair do |stream, args|
+          path.stream(stream.to_sym, **decode_args(args, decode: decode))
         end
       end
 
-      def decode_args(args)
-        return args.symbolize_keys unless defined?(SymmetricEncryption)
-
-        decoded_args = {}
-        args.each_pair do |key, value|
-          if key.to_s.start_with?("encrypted_") && defined?(SymmetricEncryption)
-            original_key               = key.to_s.sub("encrypted_", "").to_sym
-            decoded_args[original_key] = SymmetricEncryption.decrypt(value)
-          elsif key.to_s.start_with?("secret_config_") && defined?(SecretConfig)
-            original_key               = key.to_s.sub("secret_config_", "").to_sym
-            decoded_args[original_key] = SecretConfig.fetch(value)
+      # Returns [Hash] the arguments to supply to IOStreams, with the value of each `encrypted_` argument decrypted
+      # with Symmetric Encryption, and each `secret_config_` argument fetched from Secret Config, under its name
+      # without that prefix. The prefix is kept when its gem is not loaded, so that IOStreams rejects the argument.
+      #
+      # With `decode: false` the names are the same, but the values are as stored, so that the arguments can be
+      # checked without decrypting them or fetching any secrets.
+      def decode_args(args, decode: true)
+        args.to_h do |key, value|
+          name = key.to_s
+          if name.start_with?("encrypted_") && defined?(SymmetricEncryption)
+            [name.delete_prefix("encrypted_").to_sym, decode ? SymmetricEncryption.decrypt(value) : value]
+          elsif name.start_with?("secret_config_") && defined?(SecretConfig)
+            [name.delete_prefix("secret_config_").to_sym, decode ? SecretConfig.fetch(value) : value]
           else
-            decoded_args[key.to_sym] = value
+            [name.to_sym, value]
           end
         end
-        decoded_args
       end
     end
   end

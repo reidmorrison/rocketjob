@@ -65,6 +65,22 @@ module RocketJob
           job
         end
 
+        # Returns [Hash] the supplied attributes or properties of this job class to show to people, see
+        # RocketJob::Plugins::Job::Model.display_properties, with each of its input and output categories also
+        # showing its file name without any credentials.
+        def display_properties(properties)
+          super.to_h do |key, value|
+            category_class =
+              case key.to_s
+              when "input_categories" then RocketJob::Category::Input
+              when "output_categories" then RocketJob::Category::Output
+              end
+            next [key, value] unless category_class && value.is_a?(Array)
+
+            [key, value.map { |category| category.is_a?(Hash) ? category_class.display_properties(category) : category }]
+          end
+        end
+
         private
 
         def rocketjob_categories_set(category, categories)

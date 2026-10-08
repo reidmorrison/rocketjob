@@ -4,7 +4,7 @@ ENV["TZ"] = "America/New_York"
 # Start SimpleCov before any application code is loaded so coverage is tracked.
 require "simplecov"
 SimpleCov.start do
-  add_filter "/test/"
+  skip "/test/"
 end
 
 require "yaml"
