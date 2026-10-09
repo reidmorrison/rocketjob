@@ -337,6 +337,66 @@ module Batch
         end
       end
 
+      describe "the input category's invalid_characters" do
+        let(:windows_1252_csv) { "name,city\nJos\xE9,Z\xFCrich\n".b }
+
+        before do
+          job.input_category.format = :csv
+        end
+
+        def upload_csv(data, path_encoding: nil)
+          with_file(".csv", data) do |path|
+            path = path.encoding(**path_encoding) if path_encoding
+            job.upload(path)
+          end
+        end
+
+        it "removes them from a tabular file by default" do
+          upload_csv(windows_1252_csv)
+
+          assert_equal ["Jos,Zrich"], input_records
+        end
+
+        it "replaces them with U+FFFD" do
+          job.input_category.invalid_characters = :replace
+          upload_csv(windows_1252_csv)
+
+          assert_equal ["Jos�,Z�rich"], input_records
+        end
+
+        it "raises, naming the line of the first one, and uploads nothing" do
+          job.input_category.invalid_characters = :raise
+
+          error = assert_raises(IOStreams::Errors::InvalidEncoding) { upload_csv(windows_1252_csv) }
+
+          assert_equal 2, error.line_number
+          assert_equal 0, job.input.count
+        end
+
+        it "raises for a line by default, and removes them when requested" do
+          job.input_category.format = nil
+          assert_raises(IOStreams::Errors::InvalidEncoding) { upload_csv("Jos\xE9\n".b) }
+
+          job.input_category.invalid_characters = :remove
+          upload_csv("Jos\xE9\n".b)
+
+          assert_equal ["Jos"], input_records
+        end
+
+        it "uses the replace: set on the path instead" do
+          job.input_category.invalid_characters = :raise
+          upload_csv(windows_1252_csv, path_encoding: {replace: "?"})
+
+          assert_equal ["Jos?,Z?rich"], input_records
+        end
+
+        it "must be :remove, :replace or :raise" do
+          job.input_category.invalid_characters = :ignore
+
+          refute_predicate job.input_category, :valid?
+        end
+      end
+
       describe RocketJob::Jobs::CopyFileJob do
         it "copies a binary file byte for byte" do
           data = (0..255).to_a.pack("C*") * 300

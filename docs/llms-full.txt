@@ -2608,7 +2608,15 @@ job.upload(IOStreams.path("legacy.csv").encoding("Windows-1252:UTF-8"))
 ~~~
 
 Tabular formats, such as CSV, remove non-printable characters and characters that are not valid in
-the file's encoding. Binary files cannot be uploaded as records.
+the file's encoding. A file in another encoding then loses those characters without any error, so when
+its records must be complete, set the input category's `invalid_characters` to `:raise`, which fails the
+upload with `IOStreams::Errors::InvalidEncoding`, naming the line of the first one, or to `:replace`,
+which replaces each with `�` (U+FFFD) so that it can be seen in the record. Binary files cannot be
+uploaded as records.
+
+~~~ruby
+input_category format: :csv, invalid_characters: :raise
+~~~
 
 Fixed width files are read as ASCII, as most are written by programs whose sizes count bytes, such as
 those on a mainframe. A file with any other character raises `IOStreams::Errors::InvalidEncoding` and
@@ -2718,6 +2726,7 @@ Input category options:
 | `format`           | `nil`       | Parse each record before `perform`: `nil` (raw line), `:auto`, or a tabular format such as `:csv`. See [Reading tabular files](#reading-tabular-files).
 | `format_options`   | `nil`       | Format-specific options, for example a `:layout` for `:fixed`.
 | `encoding`         | `nil`       | The encoding of the files, such as `"Windows-1252"`, which is converted to UTF-8. `nil` reads UTF-8, or the format's own encoding, such as ASCII for `:fixed`. See [Files](#files).
+| `invalid_characters` | `nil`     | What to do with a character that is not valid in the file's encoding: `:remove`, `:replace` with U+FFFD, or `:raise`. `nil` removes them from tabular formats, such as CSV, and raises for `:fixed` and lines.
 | `columns`          | `nil`       | Header columns, when the file has no header row.
 | `mode`             | `:line`     | How a file is uploaded: `:line`, `:array`, or `:hash`.
 | `allowed_columns`  | `nil`       | Restrict tabular input to these columns. See [Validating columns](#validating-columns).

@@ -67,6 +67,12 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   `properties`, such as `input_categories: [{name: "main", encoding: "Windows-1252"}]`. Previously the
   encoding could only be set on a path supplied to `upload` or `download`, which still takes its place,
   so the characters of such a file uploaded by file name were removed, or raised.
+- An input category's `invalid_characters` sets what an upload does with each character that is not
+  valid in the file's encoding: `:remove` it, `:replace` it with U+FFFD, or `:raise`
+  `IOStreams::Errors::InvalidEncoding`, which names the line of the first one, and upload nothing. By
+  default tabular formats, such as CSV, still remove them, while fixed width files and lines still raise.
+  A `replace:` set on the path supplied to `upload` is now used instead, where a tabular upload replaced
+  it with its own.
 - A Dirmon entry whose storage cannot be reached, such as an SFTP server that is restarting, is
   scanned again on the next run instead of failing, until its storage has been unavailable for longer
   than `RocketJob::DirmonEntry.max_unavailable_seconds`, an hour by default. Previously the first
