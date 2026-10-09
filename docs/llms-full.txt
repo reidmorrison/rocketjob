@@ -2699,6 +2699,11 @@ job.upload do |writer|
 end
 ~~~
 
+Text in a record must be UTF-8, since MongoDB only stores UTF-8. A string in another encoding, such as
+ISO-8859-1 from a database connection, is converted, but a binary string, or one that is not valid
+UTF-8, raises an `EncodingError` that names the number of the first such record, and nothing is
+uploaded. Convert such text first, such as `text.encode("UTF-8", "Windows-1252")`.
+
 ## Input categories
 
 The `input_category` class method configures how uploaded data is sliced and parsed. With no

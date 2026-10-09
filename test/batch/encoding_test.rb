@@ -93,6 +93,26 @@ module Batch
           assert_equal utf8_lines, input_records
         end
 
+        %i[none compress encrypt].each do |serializer|
+          it "names a record written with a block that is not valid UTF-8, and leaves no partial upload, with the #{serializer} serializer" do
+            job.input_category.serializer = serializer
+            records                       = ["first", "second", "third", "Jos\xE9", "fifth"]
+
+            error = assert_raises(EncodingError) { job.upload { |io| records.each { |record| io << record } } }
+
+            assert_includes error.message, "Cannot upload record 4,"
+            assert_equal 0, job.input.count
+          end
+        end
+
+        it "names a binary record within a hash" do
+          error = assert_raises(EncodingError) do
+            job.upload { |io| io << {"name" => "Jack"} << {"name" => "José".b} }
+          end
+
+          assert_includes error.message, "Cannot upload record 2,"
+        end
+
         it "rejects text that is not UTF-8, and leaves no partial upload" do
           with_file(".txt", "first\nJos\xE9\n".b) do |path|
             assert_raises(Encoding::UndefinedConversionError) { job.upload(path) }

@@ -58,11 +58,11 @@ module RocketJob
         def flush
           if @slice_batch_size
             @batch << @slice if @slice.size.positive?
-            @data_store.insert_many(@batch)
+            save_slices(@batch) { @data_store.insert_many(@batch) }
             @batch       = []
             @batch_count = 0
           elsif @slice.size.positive?
-            @data_store.insert(@slice)
+            save_slices([@slice]) { @data_store.insert(@slice) }
           end
         end
 
@@ -77,6 +77,30 @@ module RocketJob
           return flush if @batch_count >= @slice_batch_size
 
           @batch << @slice
+        end
+
+        private
+
+        # Saves the supplied slices with the block. When a record holds text that MongoDB cannot store, since it is
+        # binary or not valid UTF-8, raises BSON's error with the number of the first such record, which its message
+        # does not include.
+        def save_slices(slices)
+          yield
+        rescue EncodingError => e
+          number = first_unstorable_record_number(slices)
+          raise(number ? e.exception("Cannot upload record #{number}, since MongoDB only stores UTF-8 text: #{e.message}") : e)
+        end
+
+        # Returns [Integer] the number of the first record in the supplied slices that BSON cannot store, or nil.
+        def first_unstorable_record_number(slices)
+          slices.each do |slice|
+            slice.records.each_with_index do |record, index|
+              {"r" => record}.to_bson
+            rescue EncodingError
+              return slice.first_record_number + index
+            end
+          end
+          nil
         end
       end
     end

@@ -120,6 +120,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixes
 
+- An upload of records, such as with a block, `upload_arel` or `upload_mongo_query`, that holds text that is
+  binary or not valid UTF-8 raises an error that names the number of the first such record, such as
+  `Cannot upload record 4, since MongoDB only stores UTF-8 text: ...`. Previously the error from BSON did not
+  say which record it was. Nothing is uploaded, as before.
 - Downloading output written by the `:encrypted_bz2` serializer with a header line, such as CSV output,
   writes the header line. Previously it raised `NotImplementedError`.
 - Dirmon processes a file on an SFTP server whose name is not ASCII, such as `café.csv`. Net::SFTP lists
