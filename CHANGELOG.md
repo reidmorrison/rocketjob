@@ -59,6 +59,14 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### New features
 
+- Input and output categories have an `encoding`, such as `input_category format: :csv, encoding:
+  "Windows-1252"`, the encoding of the text in their files. An uploaded file is converted from it to UTF-8,
+  and a downloaded file is converted to it from UTF-8, such as `"ISO-8859-1"` or `"IBM037"` for a fixed
+  width file for a mainframe. It is saved with the job, so it also applies when a worker uploads the
+  category's file, as a `ConversionJob` does, and a Dirmon entry can set it for its files in its
+  `properties`, such as `input_categories: [{name: "main", encoding: "Windows-1252"}]`. Previously the
+  encoding could only be set on a path supplied to `upload` or `download`, which still takes its place,
+  so the characters of such a file uploaded by file name were removed, or raised.
 - A Dirmon entry whose storage cannot be reached, such as an SFTP server that is restarting, is
   scanned again on the next run instead of failing, until its storage has been unavailable for longer
   than `RocketJob::DirmonEntry.max_unavailable_seconds`, an hour by default. Previously the first

@@ -150,6 +150,17 @@ job.output_category.file_name = "data.json.gz"
 job.save!
 ~~~
 
+Convert a CSV file that Excel saved on Windows, in Windows-1252, to JSON, which is written in UTF-8.
+The `encoding` of the output category writes the output file in another encoding the same way:
+
+~~~ruby
+job = RocketJob::Jobs::ConversionJob.new
+job.input_category.file_name  = "legacy.csv"
+job.input_category.encoding   = "Windows-1252"
+job.output_category.file_name = "data.json"
+job.save!
+~~~
+
 ## Copy File Job
 
 `RocketJob::Jobs::CopyFileJob` copies a file from a source to a target, where each can be a local path,

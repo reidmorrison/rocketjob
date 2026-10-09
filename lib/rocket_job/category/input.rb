@@ -149,6 +149,9 @@ module RocketJob
           @tabular = nil
         end
 
+        # Read the file in this category's encoding, unless the caller set one on the path, see #encoding.
+        apply_encoding(path)
+
         # Read tabular input in its format, so that IOStreams reads it in the format's encoding, such as ASCII for
         # fixed width, and splits its lines where the format expects. An encoding set on the supplied path is kept,
         # since only the caller knows how the file was written.

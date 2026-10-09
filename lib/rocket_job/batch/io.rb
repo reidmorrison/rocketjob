@@ -151,11 +151,12 @@ module RocketJob
       #   so that if a job is retried during an upload failure, data is not duplicated.
       # * Files are read as UTF-8 text, since MongoDB only stores UTF-8 strings. A UTF-8 byte order mark at
       #   the start of the file is removed. Data that is not valid UTF-8 raises
-      #   Encoding::UndefinedConversionError and nothing is uploaded, unless the file's encoding is set with
-      #   `encoding(...)`, or `replace:` is supplied to remove invalid characters.
+      #   Encoding::UndefinedConversionError and nothing is uploaded, unless the file's encoding is set, either
+      #   as the input category's `encoding`, or on the path with `encoding(...)`, which takes its place, or
+      #   `replace:` is supplied to remove invalid characters.
       #   Tabular formats, such as CSV, remove non-printable and invalid characters by default.
       # * Fixed width files are read as ASCII, and raise for any other character unless the file's encoding is
-      #   set, such as `encoding('ISO-8859-1:UTF-8')`. Non-printable characters are replaced with spaces.
+      #   set, such as the category's `encoding: "ISO-8859-1"`. Non-printable characters are replaced with spaces.
       # * When zip format, the Zip file/stream must contain only one file, the first file found will be
       #   loaded into the job
       # * If an io stream is supplied, it is read until it returns nil.
@@ -431,7 +432,7 @@ module RocketJob
       #   job.download(path)
       #
       # Example: Supply custom options. Set the file name within the zip file.
-      #   path = IOStreams.path('myfile.csv.zip').option(:zip, zip_file_name: 'myfile.csv')
+      #   path = IOStreams.path('myfile.csv.zip').option(:zip, entry_file_name: 'myfile.csv')
       #   job.download(path)
       #
       # Example: Download into a tempfile, or stream, using the original file name to determine the streams to apply:

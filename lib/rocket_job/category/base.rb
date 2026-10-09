@@ -37,6 +37,18 @@ module RocketJob
         # Optional.
         # Default: nil
         field :file_name, type: IOStreams::Path
+
+        # The character encoding of the text in this category's files, such as "Windows-1252", "ISO-8859-1", or
+        # "IBM037" for EBCDIC. Records are always UTF-8 within the job, since MongoDB only stores UTF-8, so an input
+        # file is converted from this encoding when it is uploaded, and an output file is converted to it when it is
+        # downloaded.
+        #
+        # An encoding set on the path supplied to `upload` or `download` is used instead, since that caller knows
+        # how that file was written.
+        #
+        # Default: nil, which reads and writes UTF-8, or the format's own encoding, such as ASCII for fixed width.
+        field :encoding, type: String
+        validate :encoding_is_known
       end
 
       class_methods do
@@ -85,6 +97,25 @@ module RocketJob
         collection_name = "rocket_job.#{direction}s.#{job.id}"
         collection_name << ".#{name}" unless name == :main
         collection_name
+      end
+
+      private
+
+      # Sets this category's encoding on the supplied path, see #encoding, converting its text to and from the UTF-8
+      # of the records, unless the caller already set an encoding on the path.
+      def apply_encoding(path)
+        return if encoding.blank? || path.setting(:encode)&.key?(:encoding)
+
+        path.encoding("#{encoding}:UTF-8")
+      end
+
+      def encoding_is_known
+        return if encoding.blank?
+        return errors.add(:encoding, "must name one encoding, such as Windows-1252, not a conversion") if encoding.include?(":")
+
+        Encoding.find(encoding)
+      rescue ArgumentError
+        errors.add(:encoding, "#{encoding.inspect} is not an encoding that Ruby knows, such as Windows-1252")
       end
     end
   end

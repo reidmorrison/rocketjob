@@ -112,6 +112,15 @@ built-in fields such as `priority`, `description`, and `run_at`, as well as the 
 rejected by validation, so a typo fails fast when the entry is saved rather than silently doing
 nothing.
 
+For example, when one partner sends files in Windows-1252, set the `encoding` of the input category
+for that partner's entry only, and the job converts its files to UTF-8:
+
+~~~ruby
+properties: {
+  input_categories: [{name: "main", encoding: "Windows-1252"}]
+}
+~~~
+
 > Fields that should also be editable from the Mission Control web UI must be declared with
 > `user_editable: true`, as shown above. Setting `properties` programmatically does not require it.
 

@@ -251,6 +251,92 @@ module Batch
         end
       end
 
+      describe "the category's encoding" do
+        it "converts an uploaded file from the input category's encoding" do
+          job.input_category.encoding = "Windows-1252"
+
+          with_file(".txt", "Jos\xE9\nZ\xFCrich\n".b) do |path|
+            assert_equal 2, job.upload(path.to_s)
+          end
+
+          assert_equal %w[José Zürich], input_records
+        end
+
+        it "converts a tabular file from the input category's encoding, instead of removing its characters" do
+          job.input_category.format   = :csv
+          job.input_category.encoding = "Windows-1252"
+
+          with_file(".csv", "name,city\nJos\xE9,Z\xFCrich\n".b) do |path|
+            assert_equal 1, job.upload(path.to_s)
+          end
+
+          assert_equal ["José,Zürich"], input_records
+        end
+
+        it "uses the encoding set on the path instead" do
+          job.input_category.encoding = "Windows-1252"
+
+          with_file(".txt", "José\n") do |path|
+            assert_equal 1, job.upload(path.encoding("UTF-8"))
+          end
+
+          assert_equal ["José"], input_records
+        end
+
+        it "is kept with the job, so that a worker that uploads the category's file uses it" do
+          with_file(".txt", "Jos\xE9\n".b) do |path|
+            job.input_category.file_name = path.to_s
+            job.input_category.encoding  = "Windows-1252"
+            job.save!
+            loaded = EncodingJob.find(job.id)
+
+            assert_equal 1, loaded.upload
+            assert_equal ["José"], loaded.input.collect(&:to_a).flatten
+          end
+        end
+
+        it "converts a downloaded file to the output category's encoding" do
+          job.output_category.encoding = "ISO-8859-1"
+          job.output << %w[José Zürich]
+
+          IOStreams.temp_file("encoding_test", ".txt") do |path|
+            job.download(path.to_s)
+
+            assert_equal "Jos\xE9\nZ\xFCrich\n".b, ::File.binread(path.to_s)
+          end
+        end
+
+        it "writes fixed width in the output category's encoding, one byte per character" do
+          job.output_category.format         = :fixed
+          job.output_category.format_options = {layout: [{size: 10, key: "name"}, {size: 5, key: "zip"}]}
+          job.output_category.encoding       = "ISO-8859-1"
+          job.output << ["José      12345"]
+
+          IOStreams.temp_file("encoding_test", ".txt") do |path|
+            job.download(path.to_s)
+
+            assert_equal "Jos\xE9      12345\n".b, ::File.binread(path.to_s)
+          end
+        end
+
+        it "must be one encoding that Ruby knows" do
+          category = job.input_category
+
+          category.encoding = "Windows-1252:UTF-8"
+
+          refute_predicate category, :valid?
+          assert_includes category.errors[:encoding].first, "not a conversion"
+
+          category.encoding = "Latin-9999"
+
+          refute_predicate category, :valid?
+
+          category.encoding = "IBM037"
+
+          assert_predicate category, :valid?
+        end
+      end
+
       describe RocketJob::Jobs::CopyFileJob do
         it "copies a binary file byte for byte" do
           data = (0..255).to_a.pack("C*") * 300
