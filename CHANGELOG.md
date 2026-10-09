@@ -65,6 +65,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### New features
 
+- `CopyFileJob` converts the text of a file from its `source_encoding` to its `target_encoding`, such as
+  `source_encoding: "Windows-1252"`, which copies a file that Excel saved on Windows as UTF-8. When only one
+  is set, the other is UTF-8, and when neither is set the file is still copied byte for byte. Previously a
+  copy could only convert the text with an `encode` entry in `source_streams` or `target_streams`, which
+  stopped the streams being taken from the file name, so a `.gz` file was no longer decompressed.
 - Input and output categories have an `encoding`, such as `input_category format: :csv, encoding:
   "Windows-1252"`, the encoding of the text in their files. An uploaded file is converted from it to UTF-8,
   and a downloaded file is converted to it from UTF-8, such as `"ISO-8859-1"` or `"IBM037"` for a fixed

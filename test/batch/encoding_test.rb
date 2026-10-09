@@ -482,6 +482,38 @@ module Batch
             end
           end
         end
+
+        # Returns the bytes of the target file, after copying the supplied data with the supplied job arguments.
+        def copy(data, extension: ".csv", **args)
+          with_file(".csv", data) do |source|
+            IOStreams.temp_file("encoding_test", extension) do |target|
+              RocketJob::Jobs::CopyFileJob.new(source_url: source.to_s, target_url: target.to_s, **args).perform_now
+              # Decompressed by the streams in the target's name, such as .gz.
+              IOStreams.path(target.to_s).encoding("BINARY").read
+            end
+          end
+        end
+
+        it "converts the text from the source encoding to UTF-8" do
+          assert_equal "José,Zürich\n".b, copy("Jos\xE9,Z\xFCrich\n".b, source_encoding: "Windows-1252")
+        end
+
+        it "converts UTF-8 text to the target encoding" do
+          assert_equal "Jos\xE9,Z\xFCrich\n".b, copy("José,Zürich\n", target_encoding: "ISO-8859-1")
+        end
+
+        it "converts the text through the target's streams" do
+          data = copy("Jos\xE9\n".b, extension: ".csv.gz", source_encoding: "Windows-1252", target_streams: {gz: {}})
+
+          assert_equal "José\n".b, data
+        end
+
+        it "must be one encoding that Ruby knows" do
+          job = RocketJob::Jobs::CopyFileJob.new(source_url: "a.csv", target_url: "b.csv", target_encoding: "Latin-9999")
+
+          refute_predicate job, :valid?
+          assert_includes job.errors[:target_encoding].first, "Latin-9999"
+        end
       end
     end
   end

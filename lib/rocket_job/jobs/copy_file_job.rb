@@ -40,6 +40,20 @@ module RocketJob
       field :source_streams, type: Hash, default: -> { {none: nil} }, user_editable: true
       field :target_streams, type: Hash, default: -> { {none: nil} }, user_editable: true
 
+      # The encoding of the text in the source and in the target, such as "Windows-1252", to convert the text of the
+      # file from one to the other. When only one is set, the other is UTF-8. When neither is set, which is the
+      # default, the file is copied byte for byte.
+      #
+      # Example: Copy a file that Excel saved in Windows-1252 to a partner who requires UTF-8:
+      #   RocketJob::Jobs::CopyFileJob.create!(
+      #     source_url:      "/exports/prices.csv",
+      #     source_encoding: "Windows-1252",
+      #     target_url:      "sftp://sftp.example.org/uploads/prices.csv"
+      #   )
+      field :source_encoding, type: String, user_editable: true
+      field :target_encoding, type: String, user_editable: true
+      validates_with EncodingValidator, attributes: %i[source_encoding target_encoding]
+
       # Data to upload, instead of supplying `:input_file_name` above.
       # Note: Data must be less than 15MB after compression.
       if defined?(SymmetricEncryption)
@@ -69,12 +83,14 @@ module RocketJob
       def source_path
         source = IOStreams.path(source_url, **decode_args(source_args))
         apply_streams(source, source_streams)
+        source.encoding(text_encoding(source_encoding)) if converts_text?
         source
       end
 
       def target_path
         target = IOStreams.path(target_url, **decode_args(target_args))
         apply_streams(target, target_streams)
+        target.encoding(text_encoding(target_encoding)) if converts_text?
         target
       end
 
@@ -93,6 +109,17 @@ module RocketJob
       end
 
       private
+
+      # Whether the copy converts the text of the file, see #source_encoding, rather than copying its bytes.
+      def converts_text?
+        source_encoding.present? || target_encoding.present?
+      end
+
+      # Returns [String] the encoding of the encode stream that reads or writes text in the supplied encoding,
+      # or UTF-8, as the UTF-8 that is copied between them.
+      def text_encoding(encoding)
+        encoding.present? ? "#{encoding}:UTF-8" : "UTF-8"
+      end
 
       def source_path_is_valid
         validate_path(:source)

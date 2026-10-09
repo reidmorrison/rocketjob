@@ -3720,6 +3720,18 @@ starts with `encrypted_` is decrypted before use, and any whose key starts with 
 looked up via [Secret Config](https://config.reidmorrison.com); the connection password is also stored
 encrypted.
 
+A file is copied byte for byte, unless `source_encoding` or `target_encoding` is set, which converts
+its text from the encoding of the source to that of the target. When only one is set, the other is
+UTF-8. For example, to send a file that Excel saved in Windows-1252 to a partner who requires UTF-8:
+
+~~~ruby
+RocketJob::Jobs::CopyFileJob.create!(
+  source_url:      "/exports/prices.csv",
+  source_encoding: "Windows-1252",
+  target_url:      "sftp://sftp.example.org/uploads/prices.csv"
+)
+~~~
+
 Instead of a `source_url`, raw data can be supplied directly with `source_data` (limited to about
 15 MB after compression):
 

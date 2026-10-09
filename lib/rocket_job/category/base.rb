@@ -48,7 +48,7 @@ module RocketJob
         #
         # Default: nil, which reads and writes UTF-8, or the format's own encoding, such as ASCII for fixed width.
         field :encoding, type: String
-        validate :encoding_is_known
+        validates_with EncodingValidator, attributes: [:encoding]
       end
 
       class_methods do
@@ -107,15 +107,6 @@ module RocketJob
         return if encoding.blank? || path.setting(:encode)&.key?(:encoding)
 
         path.encoding("#{encoding}:UTF-8")
-      end
-
-      def encoding_is_known
-        return if encoding.blank?
-        return errors.add(:encoding, "must name one encoding, such as Windows-1252, not a conversion") if encoding.include?(":")
-
-        Encoding.find(encoding)
-      rescue ArgumentError
-        errors.add(:encoding, "#{encoding.inspect} is not an encoding that Ruby knows, such as Windows-1252")
       end
     end
   end
