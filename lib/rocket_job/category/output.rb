@@ -33,10 +33,22 @@ module RocketJob
         path
       end
 
+      # Returns [String] the encoding of the text in this category's output file: its #encoding, or the format's own
+      # when it has none, such as "US-ASCII" for fixed width, or nil for UTF-8.
+      #
+      # The slices of a binary serializer, such as `:bz2`, are written in it, since they are downloaded as they are,
+      # where other slices are converted to it when they are downloaded, see #download_path.
+      def text_encoding
+        return encoding if encoding.present?
+
+        tabular.encoding&.split(":")&.first if tabular?
+      end
+
       def data_store(job)
         RocketJob::Sliced::Output.new(
           collection_name: build_collection_name(:output, job),
-          slice_class:     serializer_class
+          slice_class:     serializer_class,
+          text_encoding:   text_encoding
         )
       end
     end

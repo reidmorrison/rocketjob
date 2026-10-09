@@ -251,6 +251,67 @@ module Batch
         end
       end
 
+      describe "#download with a bz2 serializer" do
+        before do
+          job.output_category.serializer = :bz2
+        end
+
+        # Returns the text of the downloaded bzip2 file, as bytes.
+        def download_bz2
+          IOStreams.temp_file("encoding_test", ".txt.bz2") do |path|
+            job.download(path.to_s)
+            IOStreams.path(path.to_s).stream(:bz2).read.b
+          end
+        end
+
+        def fixed_width
+          job.output_category.format         = :fixed
+          job.output_category.format_options = {layout: [{size: 10, key: "name"}, {size: 5, key: "zip"}]}
+        end
+
+        it "rejects a fixed width character that is not ASCII when the slice is written" do
+          fixed_width
+
+          assert_raises(Encoding::UndefinedConversionError) { job.output << ["José      12345"] }
+        end
+
+        it "writes fixed width in the output category's encoding, one byte per character" do
+          fixed_width
+          job.output_category.encoding = "ISO-8859-1"
+          job.output << ["José      12345", "Jack      54321"]
+
+          assert_equal "Jos\xE9      12345\nJack      54321\n".b, download_bz2
+        end
+
+        it "writes the header line in the output category's encoding" do
+          job.output_category.format   = :csv
+          job.output_category.columns  = %w[name city]
+          job.output_category.encoding = "ISO-8859-1"
+          job.output << ["José,Zürich"]
+
+          assert_equal "name,city\nJos\xE9,Z\xFCrich\n".b, download_bz2
+        end
+
+        it "writes the header line of output written by the encrypted_bz2 serializer" do
+          job.output_category.serializer = :encrypted_bz2
+          job.output_category.format     = :csv
+          job.output_category.columns    = %w[name city]
+          job.output << ["Jack,Paris"]
+
+          assert_equal "name,city\nJack,Paris\n".b, download_bz2
+        end
+
+        it "rejects an encoding set on the download path, since the slices are written in the category's" do
+          job.output << ["Jack"]
+
+          IOStreams.temp_file("encoding_test", ".txt.bz2") do |path|
+            error = assert_raises(ArgumentError) { job.download(IOStreams.path(path.to_s).encoding("ISO-8859-1")) }
+
+            assert_includes error.message, "output category's `encoding`"
+          end
+        end
+      end
+
       describe "the category's encoding" do
         it "converts an uploaded file from the input category's encoding" do
           job.input_category.encoding = "Windows-1252"

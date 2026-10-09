@@ -45,6 +45,12 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   so a line with such a character was longer, in bytes, than its layout, which a program that counts
   bytes, such as one on a mainframe, reads into the wrong columns. Set the encoding of the download path,
   such as `IOStreams.path("file.txt").encoding("ISO-8859-1")`, or `encoding(replace: " ")`.
+- Output written by the `:bz2` and `:encrypted_bz2` serializers is written in the output category's
+  `encoding`, or the format's own, such as ASCII for fixed width, when each slice is written, since its
+  slices are downloaded as they are. So fixed width output with a value that is not ASCII now fails its
+  slice, where it was written as UTF-8, a line longer than its layout. Set the output category's
+  `encoding`, such as `"ISO-8859-1"`. An encoding set on the download path of such output raises
+  `ArgumentError`, where it changed the compressed data.
 
 ### Security
 
@@ -109,6 +115,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixes
 
+- Downloading output written by the `:encrypted_bz2` serializer with a header line, such as CSV output,
+  writes the header line. Previously it raised `NotImplementedError`.
 - Dirmon processes a file on an SFTP server whose name is not ASCII, such as `café.csv`. Net::SFTP lists
   each name as binary, so the name that a scan recorded in the `DirmonJob` was read back as UTF-8, and
   never matched the name that the next scan found. The file was logged as found on every scan, and never

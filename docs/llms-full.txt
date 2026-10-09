@@ -3061,7 +3061,11 @@ input_category  serializer: :encrypt
 output_category serializer: :encrypt
 ~~~
 
-Output categories also support `:bz2` and `:encrypted_bz2` serializers.
+Output categories also support `:bz2` and `:encrypted_bz2` serializers, which compress each slice into a
+BZip2 stream when it is written, so that `download` writes the slices to a `.bz2` file as they are. Since the
+text is converted before it is compressed, it is written in the output category's `encoding`, or the
+format's own, such as ASCII for fixed width, and a character that it does not have fails the slice when it
+is processed. An encoding cannot be set on the download path for these serializers.
 
 ### PGP encrypted output files
 

@@ -14,15 +14,25 @@ module RocketJob
         :bz2
       end
 
-      # Compress the supplied records with BZip2
-      def self.to_binary(records, record_delimiter = "\n")
+      # Compress the supplied records with BZip2, as text in the supplied encoding, since they are downloaded as they
+      # are. Raises Encoding::UndefinedConversionError for a character that the encoding does not have.
+      #
+      # Parameters
+      #   encoding: [String]
+      #     The encoding of the text in the output file, see RocketJob::Category::Output#text_encoding.
+      #     Default: nil, which writes UTF-8
+      def self.to_binary(records, record_delimiter = "\n", encoding: nil)
         return [] if records.blank?
 
         lines = Array(records).join(record_delimiter) + record_delimiter
+        lines = lines.encode(encoding) if encoding
         s     = StringIO.new
         IOStreams::Bzip2::Writer.stream(s) { |io| io.write(lines) }
         s.string
       end
+
+      # The encoding of the text of the records, which is not saved, see .to_binary.
+      attr_accessor :text_encoding
 
       private
 
@@ -35,7 +45,7 @@ module RocketJob
       # Returns [BSON::Binary] the records compressed using BZip2 into a string.
       def serialize_records
         # TODO: Make the line terminator configurable
-        BSON::Binary.new(self.class.to_binary(@records))
+        BSON::Binary.new(self.class.to_binary(@records, encoding: text_encoding))
       end
     end
   end

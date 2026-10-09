@@ -477,10 +477,20 @@ module RocketJob
         raise(ArgumentError, "Missing mandatory `stream` or `category.file_name`") unless stream || category.file_name
 
         if output_collection.slice_class.binary_format
-          binary_header_line = output_collection.slice_class.to_binary(header_line) if header_line
+          # The slices of a binary format already hold their text in the category's encoding, see
+          # Category::Output#text_encoding, so the header line is written in it too.
+          if header_line
+            binary_header_line = output_collection.slice_class.to_binary(header_line, encoding: output_collection.text_encoding)
+          end
 
           # Don't overwrite supplied stream options if any
           stream = stream.is_a?(IOStreams::Stream) ? stream.dup : IOStreams.new(category.file_name)
+          if stream.setting(:encode)
+            raise(ArgumentError,
+                  "Set the encoding of output written by the #{category.serializer.inspect} serializer as the output " \
+                  "category's `encoding`, not on the download path, since its slices are already written in it.")
+          end
+
           stream.remove_from_pipeline(output_collection.slice_class.binary_format)
           stream.writer(**args) do |io|
             # TODO: Binary formats should return the record count, instead of the slice count.
