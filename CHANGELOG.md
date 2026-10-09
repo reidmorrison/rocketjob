@@ -95,6 +95,12 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixes
 
+- A job, or a batch job's slice, whose exception message is not valid UTF-8 is failed and saved, with each
+  such byte shown as `\xHH`. Previously saving the failure raised `EncodingError`, which left the job, or
+  the slice, `running` with no exception recorded until its server restarted, so a batch job never
+  completed. Such a message comes, for example, from a `JSON::ParserError` for a response body that is not
+  UTF-8. A message that is UTF-8 held as binary keeps its characters, where previously each character that
+  is not ASCII was removed, so `José` was saved as `Jos`. The same applies to a Dirmon entry's exception.
 - A `CopyFileJob` fetches its `secret_config_` arguments from Secret Config even when Symmetric Encryption
   is not loaded. Previously they were passed to IOStreams under their stored names, which failed the job.
   A source or target whose streams are `nil` copies without any streams, instead of raising `NoMethodError`.

@@ -33,6 +33,34 @@ class RocketJobTest < Minitest::Test
       end
     end
 
+    describe ".valid_utf8" do
+      it "returns valid UTF-8 as is" do
+        assert_equal "José", RocketJob.valid_utf8("José")
+      end
+
+      it "shows each byte that is not valid UTF-8 as \\xHH" do
+        assert_equal "caf\\xE9.csv", RocketJob.valid_utf8("caf\xE9.csv")
+      end
+
+      it "reads a binary string as UTF-8" do
+        text = RocketJob.valid_utf8("José".b)
+
+        assert_equal "José", text
+        assert_equal Encoding::UTF_8, text.encoding
+        assert_equal "caf\\xE9", RocketJob.valid_utf8("caf\xE9".b)
+      end
+
+      it "converts a string in another encoding to UTF-8" do
+        assert_equal "café", RocketJob.valid_utf8("caf\xE9".dup.force_encoding(Encoding::ISO_8859_1))
+        # 0x81 has no character in Windows-1252.
+        assert_equal "a\\x81b", RocketJob.valid_utf8("a\x81b".dup.force_encoding(Encoding::Windows_1252))
+      end
+
+      it "returns an empty string for nil" do
+        assert_equal "", RocketJob.valid_utf8(nil)
+      end
+    end
+
     describe ".path_display_name" do
       it "returns a local path as is" do
         assert_equal "/var/sftp/in/file.csv", RocketJob.path_display_name("/var/sftp/in/file.csv")

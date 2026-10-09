@@ -39,6 +39,32 @@ module RocketJob
     INVALID_PATH_DISPLAY_NAME
   end
 
+  # Returns [String] the supplied text as valid UTF-8, which is the only text that MongoDB stores, so that it can be
+  # saved, displayed and logged.
+  #
+  # A binary string, such as the body of an HTTP response or a file name from SFTP, is read as UTF-8. A string in
+  # another encoding, such as Windows-1252, is converted to UTF-8. Each byte that is still not valid, such as the `é`
+  # of a Latin-1 name read as UTF-8, is shown as `\xHH`, so that `caf\xE9.csv` becomes "caf\\xE9.csv".
+  def self.valid_utf8(text)
+    text = text.to_s
+    case text.encoding
+    when Encoding::UTF_8
+      utf8 = text
+    when Encoding::BINARY
+      utf8 = text.dup.force_encoding(Encoding::UTF_8)
+    else
+      text = text.scrub { |bytes| escape_bytes(bytes) } unless text.valid_encoding?
+      return text.encode(Encoding::UTF_8, fallback: ->(char) { escape_bytes(char) })
+    end
+    utf8.valid_encoding? ? utf8 : utf8.scrub { |bytes| escape_bytes(bytes) }
+  end
+
+  # Returns [String] each of the supplied bytes as `\xHH`, as `String#inspect` shows a byte that is not valid.
+  def self.escape_bytes(bytes)
+    bytes.unpack("C*").map { |byte| format("\\x%02X", byte) }.join
+  end
+  private_class_method :escape_bytes
+
   # Returns a human readable duration from the supplied [Float] number of seconds
   def self.seconds_as_duration(seconds)
     return nil unless seconds
