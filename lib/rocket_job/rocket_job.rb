@@ -31,10 +31,13 @@ module RocketJob
   #
   # A path that is not valid is shown as INVALID_PATH_DISPLAY_NAME, as is one that needs a gem that is not installed
   # in this process.
+  #
+  # The name is valid UTF-8, see .valid_utf8, so that it can be saved and logged, even when the name of the file is
+  # not, such as a Latin-1 name, or a name that SFTP lists as binary.
   def self.path_display_name(path)
     return path if path.blank?
 
-    IOStreams.path(path).display_name
+    valid_utf8(IOStreams.path(path).display_name)
   rescue StandardError, LoadError
     INVALID_PATH_DISPLAY_NAME
   end

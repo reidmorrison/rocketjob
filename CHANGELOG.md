@@ -95,6 +95,18 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixes
 
+- Dirmon processes a file on an SFTP server whose name is not ASCII, such as `café.csv`. Net::SFTP lists
+  each name as binary, so the name that a scan recorded in the `DirmonJob` was read back as UTF-8, and
+  never matched the name that the next scan found. The file was logged as found on every scan, and never
+  processed.
+- Dirmon processes a file whose name is not valid UTF-8, such as `café.csv` written in Latin-1 by a
+  Windows program to a Linux file system, which IOStreams 3.0 lists. MongoDB only stores UTF-8, so the
+  file is archived under its name with each such byte replaced by U+FFFD, after the job id as before, and
+  the upload job's original file name and description show each such byte as `\xHH`. Dirmon also logs,
+  and records in the `DirmonJob`, each file name as valid UTF-8.
+- Dirmon skips a file whose directory is not writable by the current user, logging a warning, since the
+  file cannot be moved to the archive directory. The check never ran, since IOStreams paths do not
+  implement `writable?`, so such a file failed its Dirmon entry instead.
 - A job, or a batch job's slice, whose exception message is not valid UTF-8 is failed and saved, with each
   such byte shown as `\xHH`. Previously saving the failure raised `EncodingError`, which left the job, or
   the slice, `running` with no exception recorded until its server restarted, so a batch job never

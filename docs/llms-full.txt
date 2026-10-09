@@ -4122,6 +4122,15 @@ stored file to the job that processed it.
   sub-directory structure under the pattern is preserved.
 * If left unset it defaults to a directory named `archive`.
 
+The file must be in a directory that the Dirmon process can write to, since moving a file changes its
+directory. A file in a directory that cannot be written to is skipped, with a warning.
+
+A file's name can hold any characters, including a name that is not valid UTF-8, such as `café.csv` written
+in Latin-1 by a Windows program to a Linux file system. MongoDB only stores UTF-8, so such a file is archived
+under its name with each byte that is not valid UTF-8 replaced by `�` (U+FFFD), such as
+`<job id>_caf�.csv`. The upload job's original file name, and its description, show each such byte as
+`\xHH`, such as `caf\xE9.csv`.
+
 ## Security: restricting which paths may be read
 
 A `pattern` can point anywhere the process user can read, so Dirmon supports an allow-list of root

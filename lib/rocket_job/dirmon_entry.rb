@@ -198,13 +198,14 @@ module RocketJob
 
           # Security check?
           if whitelist_paths.size.positive? && whitelist_paths.none? { |whitepath| path.to_s.start_with?(whitepath) }
-            logger.warn "Skipping file: #{path.display_name} since it is not in any of the whitelisted paths: #{whitelist_paths.join(', ')}"
+            logger.warn "Skipping file: #{RocketJob.path_display_name(path)} since it is not in any of the whitelisted paths: #{whitelist_paths.join(', ')}"
             next
           end
 
-          # File must be writable so it can be removed after processing
-          if path.respond_to?(:writable?) && !path.writable?
-            logger.warn "Skipping file: #{file_name} since it is not writable by the current user. Must be able to delete/move the file after queueing the job"
+          # The file is moved to the archive directory when its job is queued, which requires
+          # write access to the directory that contains it.
+          if path.is_a?(IOStreams::Paths::File) && !::File.writable?(path.directory.to_s)
+            logger.warn "Skipping file: #{RocketJob.path_display_name(path)} since its directory is not writable by the current user. Must be able to delete/move the file after queueing the job"
             next
           end
           yield(path)
@@ -314,18 +315,23 @@ module RocketJob
 
     # Archives the file, then kicks off a file upload job to upload the archived file.
     #
+    # A file whose name is not valid UTF-8, such as a Latin-1 name, is archived under a name that is, see
+    # #archive_file_name, since the job holds the name of the archived file. The job's original file name shows
+    # each byte that is not valid UTF-8 as `\xHH`, see RocketJob.path_display_name.
+    #
     # Returns [RocketJob::Jobs::UploadFileJob] the job, or nil when the file was removed after it was found.
     def later(iopath)
       job_id       = BSON::ObjectId.new
-      archive_path = archive_iopath(iopath).join("#{job_id}_#{iopath.basename}")
+      archive_path = archive_iopath(iopath).join("#{job_id}_#{archive_file_name(iopath)}")
       return unless archive_file(iopath, archive_path)
 
-      job = RocketJob::Jobs::UploadFileJob.create!(
+      original_file_name = RocketJob.path_display_name(iopath)
+      job                = RocketJob::Jobs::UploadFileJob.create!(
         job_class_name:     job_class_name,
         properties:         properties,
-        description:        "#{name}: #{iopath.basename}",
+        description:        "#{name}: #{RocketJob.valid_utf8(iopath.basename)}",
         upload_file_name:   archive_path,
-        original_file_name: iopath.display_name,
+        original_file_name: original_file_name,
         job_id:             job_id
       )
 
@@ -333,8 +339,8 @@ module RocketJob
         message: "Created RocketJob::Jobs::UploadFileJob",
         payload: {
           dirmon_entry_name:  name,
-          upload_file_name:   archive_path.display_name,
-          original_file_name: iopath.display_name,
+          upload_file_name:   RocketJob.path_display_name(archive_path),
+          original_file_name: original_file_name,
           job_class_name:     job_class_name,
           job_id:             job_id.to_s,
           upload_job_id:      job.id.to_s
@@ -368,8 +374,24 @@ module RocketJob
     def existing_realpath(path)
       path.realpath
     rescue IOStreams::Errors::NotFound
-      logger.info("Skipping file: #{path.display_name} since it no longer exists")
+      logger.info("Skipping file: #{RocketJob.path_display_name(path)} since it no longer exists")
       nil
+    end
+
+    # Returns [String] the name to archive the file under: its own name, with each byte that is not valid UTF-8, such
+    # as the `é` of a Latin-1 name, replaced with U+FFFD, since MongoDB only stores UTF-8, and the job holds the name
+    # of the archived file. The job id that prefixes it keeps it unique. A binary name, as SFTP lists them, is read
+    # as UTF-8.
+    def archive_file_name(iopath)
+      name = iopath.basename
+      case name.encoding
+      when Encoding::UTF_8
+        name.scrub
+      when Encoding::BINARY
+        name.dup.force_encoding(Encoding::UTF_8).scrub
+      else
+        name.encode(Encoding::UTF_8, invalid: :replace, undef: :replace)
+      end
     end
 
     # Moves the file to the archive path.
@@ -384,7 +406,7 @@ module RocketJob
     rescue IOStreams::Errors::NotFound
       raise if iopath.exist?
 
-      logger.info("Skipping file: #{iopath.display_name} since it no longer exists")
+      logger.info("Skipping file: #{RocketJob.path_display_name(iopath)} since it no longer exists")
       false
     end
 

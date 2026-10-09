@@ -121,7 +121,7 @@ module RocketJob
 
         return if upload_file_name.exist?
 
-        errors.add(:upload_file_name, "Upload file: #{upload_file_name.display_name} does not exist.")
+        errors.add(:upload_file_name, "Upload file: #{RocketJob.path_display_name(upload_file_name)} does not exist.")
       rescue NotImplementedError
         nil
       end

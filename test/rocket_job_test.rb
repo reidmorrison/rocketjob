@@ -77,6 +77,13 @@ class RocketJobTest < Minitest::Test
         assert_equal "sftp://sftp.example.org/in/file.csv", RocketJob.path_display_name(path)
       end
 
+      it "returns valid UTF-8 for a name that SFTP lists as binary, or that is not valid UTF-8" do
+        directory = IOStreams.path("sftp://user:secret@sftp.example.org/in")
+
+        assert_equal "sftp://sftp.example.org/in/café.csv", RocketJob.path_display_name(directory.join("café.csv".b))
+        assert_equal "sftp://sftp.example.org/in/caf\\xE9.csv", RocketJob.path_display_name(directory.join("caf\xE9.csv".b))
+      end
+
       it "leaves out a path that is not valid, since its credentials cannot be found" do
         assert_equal RocketJob::INVALID_PATH_DISPLAY_NAME,
                      RocketJob.path_display_name("sftp://user:p@ss@sftp.example.org/in/file.csv")
