@@ -446,18 +446,12 @@ class DirmonEntryTest < Minitest::Test
           assert_equal ["Unknown Property: Attempted to set a value for :blah which is not allowed on the job DirmonEntryTest::TestJob"], dirmon_entry.errors[:properties], dirmon_entry.errors.messages.ai
         end
 
-        it "allows known category properties" do
+        it "rejects category properties for a job without categories" do
           dirmon_entry.properties = {output_categories: [{name: "main"}]}
 
-          assert_predicate dirmon_entry, :valid?, dirmon_entry.errors.messages.ai
-        end
-
-        it "rejects unknown category properties" do
-          dirmon_entry.properties = {output_categories: [{not_a_category_field: 1}]}
-
           refute_predicate dirmon_entry, :valid?
-          assert(dirmon_entry.errors[:properties].any? { |m| m.include?("not_a_category_field") },
-                 dirmon_entry.errors.messages.ai)
+          assert_equal ["Unknown Property: Attempted to set a value for :output_categories which is not allowed on the job DirmonEntryTest::TestJob"],
+                       dirmon_entry.errors[:properties]
         end
 
         describe "of a batch job" do
