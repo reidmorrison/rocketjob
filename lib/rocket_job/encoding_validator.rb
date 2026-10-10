@@ -51,6 +51,9 @@ module RocketJob
                "so name its byte order, such as #{encoding.name}LE"
       end
 
+      # Ruby has no converter from UTF-8 to itself, since its text needs no conversion.
+      return if encoding == Encoding::UTF_8
+
       Encoding::Converter.new(encoding, Encoding::UTF_8)
       Encoding::Converter.new(Encoding::UTF_8, encoding)
       nil

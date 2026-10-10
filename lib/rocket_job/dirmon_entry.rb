@@ -363,6 +363,10 @@ module RocketJob
     REPLICATED_ATTRIBUTES = %w[name pattern job_class_name properties archive_directory].freeze
     private_constant :REPLICATED_ATTRIBUTES
 
+    # The properties that hold the settings of the job's categories.
+    CATEGORY_PROPERTIES = %i[input_categories output_categories].freeze
+    private_constant :CATEGORY_PROPERTIES
+
     # An entry that is enabled again starts a new period in which its storage can be unavailable.
     def clear_unavailable_at
       self.unavailable_at = nil
@@ -435,9 +439,10 @@ module RocketJob
       # Mongoid 9 returns Hash field keys as Strings, earlier versions as Symbols.
       properties.each_pair do |raw_key, value|
         k = raw_key.to_sym
-        next if klass.public_method_defined?(:"#{k}=")
 
-        if %i[output_categories input_categories].include?(k)
+        # Checked before the job's setters, since a batch job has a setter for its categories, which would let a
+        # category property that does not exist through.
+        if CATEGORY_PROPERTIES.include?(k)
           category_class = k == :input_categories ? RocketJob::Category::Input : RocketJob::Category::Output
           value.each do |category|
             category.each_pair do |key, _value|
@@ -452,11 +457,37 @@ module RocketJob
           next
         end
 
+        next if klass.public_method_defined?(:"#{k}=")
+
         errors.add(
           :properties,
           "Unknown Property: Attempted to set a value for #{k.inspect} which is not allowed on the job #{job_class_name}"
         )
       end
+
+      job_categories_are_valid if errors[:properties].empty?
+    end
+
+    # Are the category properties valid, such as the encoding of a category's files? Otherwise every file that this
+    # entry finds would fail when its job is created, rather than when the entry is saved.
+    #
+    # The job is built from the properties, as for each file that is found, and each of its categories validates
+    # itself.
+    def job_categories_are_valid
+      return unless job_class.respond_to?(:defined_input_categories)
+      return unless properties.keys.any? { |key| CATEGORY_PROPERTIES.include?(key.to_sym) }
+
+      job = job_class.from_properties(properties.deep_stringify_keys)
+      {"Input" => job.input_categories, "Output" => job.output_categories}.each_pair do |direction, categories|
+        categories.reject(&:valid?).each do |category|
+          category.errors.full_messages.each do |message|
+            errors.add(:properties, "#{direction} category #{category.name}: #{message}")
+          end
+        end
+      end
+    rescue ArgumentError => e
+      # For example, a category that the job does not define.
+      errors.add(:properties, e.message)
     end
   end
 end

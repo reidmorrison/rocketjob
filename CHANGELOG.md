@@ -125,6 +125,15 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixes
 
+- A Dirmon entry for a batch job validates the values of its category properties when it is saved, such as
+  an `encoding` that is not valid, or a category that the job does not define, and names the category, such
+  as `Input category main: Encoding "UTF-16" writes a byte order mark ...`. Previously they were only
+  checked when a file was found, so every file failed. The names of its category properties are also
+  checked for a batch job now; previously only those of a job without categories were.
+- A category's `encoding`, and `CopyFileJob#source_encoding` and `#target_encoding`, can be `"UTF-8"`.
+  Previously it was rejected as an encoding that Ruby cannot convert to and from UTF-8, since Ruby has no
+  converter from UTF-8 to itself.
+
 - An upload of records, such as with a block, `upload_arel` or `upload_mongo_query`, that holds text that is
   binary or not valid UTF-8 raises an error that names the number of the first such record, such as
   `Cannot upload record 4, since MongoDB only stores UTF-8 text: ...`, or `record 4 after the header`
