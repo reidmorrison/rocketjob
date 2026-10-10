@@ -66,6 +66,15 @@ module Sliced
       end
 
       describe "#save" do
+        it "persists a slice without records" do
+          assert slice_with_records.save!
+          slice_with_records.records = []
+
+          assert slice_with_records.save!
+          assert found_slice = slices.find(slice_with_records.id)
+          assert_equal [], found_slice.to_a
+        end
+
         it "persists" do
           assert slice_with_records.save!
           assert found_slice = slices.find(slice_with_records.id)

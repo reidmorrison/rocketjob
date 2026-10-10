@@ -6,8 +6,12 @@ module RocketJob
       private
 
       def parse_records
+        # A slice without records is saved as an empty array, see #serialize_records
+        binary = attributes.delete("records")
+        return @records = [] unless binary.is_a?(BSON::Binary)
+
         # Convert BSON::Binary to a string
-        compressed_str   = attributes.delete("records").data
+        compressed_str   = binary.data
         decompressed_str = Zlib::Inflate.inflate(compressed_str)
         @records         = Hash.from_bson(BSON::ByteBuffer.new(decompressed_str))["r"]
       end

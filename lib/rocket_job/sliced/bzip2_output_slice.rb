@@ -49,8 +49,12 @@ module RocketJob
 
       # Reads back the records as the BZip2 compressed data, which is downloaded as it is.
       def parse_records
+        # A slice without records is saved as an empty array, see #serialize_records
+        binary = attributes.delete("records")
+        return @records = [] unless binary.is_a?(BSON::Binary)
+
         @compressed = true
-        @records    = [read_binary(attributes.delete("records").data)]
+        @records    = [read_binary(binary.data)]
       end
 
       # Returns [BSON::Binary] the records compressed using BZip2 into a string.

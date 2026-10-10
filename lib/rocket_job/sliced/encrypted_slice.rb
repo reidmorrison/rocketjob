@@ -6,8 +6,12 @@ module RocketJob
       private
 
       def parse_records
+        # A slice without records is saved as an empty array, see #serialize_records
+        binary = attributes.delete("records")
+        return @records = [] unless binary.is_a?(BSON::Binary)
+
         # Convert BSON::Binary to a string
-        encrypted_str = attributes.delete("records").data
+        encrypted_str = binary.data
 
         header = SymmetricEncryption::Header.new
         header.parse(encrypted_str)
