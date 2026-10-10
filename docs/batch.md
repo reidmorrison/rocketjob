@@ -369,7 +369,7 @@ The `output_category` class method accepts these options:
 | Option           | Default     | Description
 |:-----------------|:------------|:------------
 | `name`           | `:main`     | Name of the category. Register additional names for [multiple output files](#multiple-output-files).
-| `serializer`     | `:compress` | Slice serialization: `:none`, `:compress`, `:encrypt`, `:bz2`, or `:encrypted_bz2`.
+| `serializer`     | `:compress` | Slice serialization: `:none`, `:compress`, `:encrypt`, `:bz2`, or `:encrypted_bz2`. See [Fast bzip2 output files](#fast-bzip2-output-files).
 | `format`         | `nil`       | Render each result: `nil`, `:auto`, or a tabular format such as `:csv`. See [Writing tabular files](#writing-tabular-files).
 | `format_options` | `nil`       | Format-specific options.
 | `encoding`       | `nil`       | The encoding to write the file in, such as `"ISO-8859-1"`. `nil` writes UTF-8, or the format's own encoding, such as ASCII for `:fixed`. Name the byte order of UTF-16 or UTF-32, such as `"UTF-16LE"`.
@@ -623,11 +623,58 @@ input_category  serializer: :encrypt
 output_category serializer: :encrypt
 ~~~
 
-Output categories also support `:bz2` and `:encrypted_bz2` serializers, which compress each slice into a
-BZip2 stream when it is written, so that `download` writes the slices to a `.bz2` file as they are. Since the
-text is converted before it is compressed, it is written in the output category's `encoding`, or the
-format's own, such as ASCII for fixed width, and a character that it does not have fails the slice when it
-is processed. An encoding cannot be set on the download path for these serializers.
+### Fast bzip2 output files
+
+Compressing a large output file with bzip2 is slow, and `download` runs on a single thread, so
+compressing the whole file as it is written can take longer than processing the job did. The `:bz2`
+and `:encrypted_bz2` output serializers move that work to the workers instead:
+
+* Each worker bzip2-compresses its own slice when it saves the output, so compression runs in
+  parallel across every worker processing the job.
+* `download` does not decompress the slices and compress them again. It writes each slice's
+  compressed data directly to the output file. With `:encrypted_bz2` it only decrypts each slice
+  first; with `:bz2` it copies the slice as is.
+
+`:encrypted_bz2` also keeps the output encrypted at rest in MongoDB, like `:encrypt`, until it is
+downloaded. The downloaded file itself is bzip2 compressed, not encrypted.
+
+~~~ruby
+class ExportJob < RocketJob::Job
+  include RocketJob::Batch
+
+  self.destroy_on_complete = false
+
+  input_category  format: :csv
+  output_category format: :csv, columns: %w[name age], serializer: :encrypted_bz2
+
+  after_batch :download_file
+
+  def perform(row)
+    {"name" => "#{row['first_name']} #{row['last_name']}", "age" => row["age"]}
+  end
+
+  def download_file
+    download("export.csv.bz2")
+  end
+end
+~~~
+
+Things to know:
+
+* The output file name must end in `.bz2`. `download` uses the file name to recognize that the
+  file is bzip2 compressed, and writes the already compressed slices into it.
+* A header line, such as the CSV header row above, is compressed and written at the start of the file.
+* The text is written in the output category's `encoding`, or the format's own, such as ASCII for
+  fixed width, since it is converted before it is compressed. A character that the encoding does not
+  have fails the slice when it is processed. An encoding cannot be set on the download path.
+* The output file is a series of bzip2 streams, at least one per slice, which the bzip2 format allows. The
+  `bzip2` command line utility, and most tools built on libbzip2, read every stream. Some other
+  implementations stop after the first stream and return only the first slice, so check that the
+  system receiving the file reads multi-stream bzip2 files.
+* Records are separated with a newline (`"\n"`); the record delimiter cannot be changed.
+* The return value of `download` is the number of slices written, not the number of records.
+* Downloading with a block yields the header line, if any, as text, followed by each slice's
+  compressed data rather than the individual records.
 
 ### PGP encrypted output files
 
