@@ -38,6 +38,15 @@ module Batch
         job.cleanup!
       end
 
+      def read_bz2(file_name)
+        File.open(file_name.to_s, "rb") do |input_stream|
+          io = ::Bzip2::FFI::Reader.new(input_stream)
+          io.read
+        ensure
+          io.close
+        end
+      end
+
       describe "#download" do
         describe "file" do
           it "text" do
@@ -87,6 +96,26 @@ module Batch
                 end
 
               assert_equal delimited_rows, result
+            end
+          end
+
+          it "encrypted_bz2" do
+            IOStreams.temp_file("encrypted_bz2_test", ".bz2") do |file_name|
+              job.output_category.serializer = :encrypted_bz2
+              loaded_job.download(file_name.to_s)
+
+              assert_equal delimited_rows, read_bz2(file_name)
+            end
+          end
+
+          %i[bz2 encrypted_bz2].each do |serializer|
+            it "#{serializer} with a header line" do
+              IOStreams.temp_file("#{serializer}_header_test", ".bz2") do |file_name|
+                job.output_category.serializer = serializer
+                loaded_job.download(file_name.to_s, header_line: "header")
+
+                assert_equal "header\n#{delimited_rows}", read_bz2(file_name)
+              end
             end
           end
         end

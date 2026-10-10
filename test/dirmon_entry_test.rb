@@ -260,7 +260,7 @@ class DirmonEntryTest < Minitest::Test
       end
 
       it "leaves out a pattern that is not a valid path, since its credentials cannot be found" do
-        dirmon_entry.pattern = "sftp://user:p@ss@sftp.example.org/in/*.csv"
+        dirmon_entry.pattern = "sftp://user:secret@sftp.example.org:port/in/*.csv"
 
         assert_equal "(not a valid path)", dirmon_entry.pattern_display_name
       end
