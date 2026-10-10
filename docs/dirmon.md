@@ -112,6 +112,15 @@ built-in fields such as `priority`, `description`, and `run_at`, as well as the 
 rejected by validation, so a typo fails fast when the entry is saved rather than silently doing
 nothing.
 
+For example, when one partner sends files in Windows-1252, set the `encoding` of the input category
+for that partner's entry only, and the job converts its files to UTF-8:
+
+~~~ruby
+properties: {
+  input_categories: [{name: "main", encoding: "Windows-1252"}]
+}
+~~~
+
 > Fields that should also be editable from the Mission Control web UI must be declared with
 > `user_editable: true`, as shown above. Setting `properties` programmatically does not require it.
 
@@ -226,6 +235,15 @@ stored file to the job that processed it.
 * If it is a **relative** path, it is resolved relative to the directory the file was found in, and any
   sub-directory structure under the pattern is preserved.
 * If left unset it defaults to a directory named `archive`.
+
+The file must be in a directory that the Dirmon process can write to, since moving a file changes its
+directory. A file in a directory that cannot be written to is skipped, with a warning.
+
+A file's name can hold any characters, including a name that is not valid UTF-8, such as `café.csv` written
+in Latin-1 by a Windows program to a Linux file system. MongoDB only stores UTF-8, so such a file is archived
+under its name with each byte that is not valid UTF-8 replaced by `�` (U+FFFD), such as
+`<job id>_caf�.csv`. The upload job's original file name, and its description, show each such byte as
+`\xHH`, such as `caf\xE9.csv`.
 
 ## Security: restricting which paths may be read
 

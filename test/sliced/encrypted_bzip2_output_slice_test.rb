@@ -79,6 +79,53 @@ module Sliced
           assert_equal [compressed_dataset], found_slice.to_a
         end
       end
+
+      # Returns [String] the text of the supplied compressed records, which can hold more than one BZip2 stream.
+      def decompress(data)
+        IOStreams::Bzip2::Reader.stream(StringIO.new(data), &:read)
+      end
+
+      describe "#append_records" do
+        it "appends to the records of a new slice" do
+          slice << "hello"
+          slice.append_records(["world"])
+
+          assert_equal %w[hello world], slice.to_a
+        end
+
+        it "compresses the records appended to a slice that was read back after its compressed records" do
+          slice << "hello"
+          slice.save!
+          found_slice = slices.find(slice.id)
+          found_slice.append_records(%w[world again])
+          found_slice.save!
+
+          assert_equal "hello\nworld\nagain\n", decompress(slices.find(slice.id).records.first)
+        end
+
+        it "writes the records appended to a slice that was read back in its text encoding" do
+          slice.text_encoding = "ISO-8859-1"
+          slice << "José"
+          slice.save!
+          found_slice = slices.find(slice.id)
+
+          assert_equal "ISO-8859-1", found_slice.text_encoding
+
+          found_slice.append_records(["Zürich"])
+          found_slice.save!
+
+          assert_equal "Jos\xE9\nZ\xFCrich\n".b, decompress(slices.find(slice.id).records.first).b
+        end
+      end
+
+      it "keeps the compressed records of a slice that was read back when it is saved again" do
+        slice << "hello"
+        slice.save!
+        found_slice = slices.find(slice.id)
+        found_slice.start!
+
+        assert_equal "hello\n", decompress(slices.find(slice.id).records.first)
+      end
     end
   end
 end

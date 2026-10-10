@@ -24,6 +24,7 @@ module RocketJob
   autoload :Batch,                   "rocket_job/batch"
   autoload :CLI,                     "rocket_job/cli"
   autoload :DirmonEntry,             "rocket_job/dirmon_entry"
+  autoload :EncodingValidator,       "rocket_job/encoding_validator"
   autoload :Event,                   "rocket_job/event"
   autoload :Heartbeat,               "rocket_job/heartbeat"
   autoload :Job,                     "rocket_job/job"

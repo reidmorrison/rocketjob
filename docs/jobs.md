@@ -150,6 +150,17 @@ job.output_category.file_name = "data.json.gz"
 job.save!
 ~~~
 
+Convert a CSV file that Excel saved on Windows, in Windows-1252, to JSON, which is written in UTF-8.
+The `encoding` of the output category writes the output file in another encoding the same way:
+
+~~~ruby
+job = RocketJob::Jobs::ConversionJob.new
+job.input_category.file_name  = "legacy.csv"
+job.input_category.encoding   = "Windows-1252"
+job.output_category.file_name = "data.json"
+job.save!
+~~~
+
 ## Copy File Job
 
 `RocketJob::Jobs::CopyFileJob` copies a file from a source to a target, where each can be a local path,
@@ -182,6 +193,20 @@ underlying source and target. When the Symmetric Encryption gem is installed, an
 starts with `encrypted_` is decrypted before use, and any whose key starts with `secret_config_` is
 looked up via [Secret Config](https://config.reidmorrison.com); the connection password is also stored
 encrypted.
+
+A file is copied byte for byte, unless `source_encoding` or `target_encoding` is set, which converts
+its text from the encoding of the source to that of the target. When only one is set, the other is
+UTF-8. The text is read and written through the streams that the file names select, unless
+`source_streams` or `target_streams` is set, so a `.gz` source is decompressed before its text is
+converted. For example, to send a file that Excel saved in Windows-1252 to a partner who requires UTF-8:
+
+~~~ruby
+RocketJob::Jobs::CopyFileJob.create!(
+  source_url:      "/exports/prices.csv",
+  source_encoding: "Windows-1252",
+  target_url:      "sftp://sftp.example.org/uploads/prices.csv"
+)
+~~~
 
 Instead of a `source_url`, raw data can be supplied directly with `source_data` (limited to about
 15 MB after compression):

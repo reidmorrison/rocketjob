@@ -100,8 +100,7 @@ module RocketJob
         existing_slice = all.where(id: input_slice.id).first
         return insert(slice, input_slice) unless existing_slice
 
-        extra_records          = slice.is_a?(Slice) ? slice.records : slice
-        existing_slice.records = existing_slice.records + extra_records
+        existing_slice.append_records(slice.is_a?(Slice) ? slice.records : slice)
         existing_slice.save!
         existing_slice
       end

@@ -33,6 +33,51 @@ class RocketJobTest < Minitest::Test
       end
     end
 
+    describe ".valid_utf8" do
+      it "returns valid UTF-8 as is" do
+        assert_equal "José", RocketJob.valid_utf8("José")
+      end
+
+      it "shows each byte that is not valid UTF-8 as \\xHH" do
+        assert_equal "caf\\xE9.csv", RocketJob.valid_utf8("caf\xE9.csv")
+      end
+
+      it "reads a binary string as UTF-8" do
+        text = RocketJob.valid_utf8("José".b)
+
+        assert_equal "José", text
+        assert_equal Encoding::UTF_8, text.encoding
+        assert_equal "caf\\xE9", RocketJob.valid_utf8("caf\xE9".b)
+      end
+
+      it "converts a string in another encoding to UTF-8" do
+        assert_equal "café", RocketJob.valid_utf8("caf\xE9".dup.force_encoding(Encoding::ISO_8859_1))
+        # 0x81 has no character in Windows-1252.
+        assert_equal "a\\x81b", RocketJob.valid_utf8("a\x81b".dup.force_encoding(Encoding::Windows_1252))
+      end
+
+      it "returns an empty string for nil" do
+        assert_equal "", RocketJob.valid_utf8(nil)
+      end
+
+      it "shows each byte that is not valid in an encoding that ASCII is not part of" do
+        # "a" followed by the first byte of a character, in UTF-16LE.
+        text = "a\x00\xD8".b.force_encoding(Encoding::UTF_16LE)
+
+        assert_equal "a\\xD8", RocketJob.valid_utf8(text)
+      end
+
+      it "reads a string in an encoding that Ruby cannot convert as UTF-8" do
+        assert_equal "caf\\xE9", RocketJob.valid_utf8("caf\xE9".b.force_encoding(Encoding::UTF_7))
+      end
+
+      it "replaces each byte that is not valid with the supplied replacement" do
+        assert_equal "caf�.csv", RocketJob.valid_utf8("caf\xE9.csv", replacement: "�")
+        assert_equal "caf�.csv", RocketJob.valid_utf8("caf\xE9.csv".b, replacement: "�")
+        assert_equal "a�b", RocketJob.valid_utf8("a\x81b".b.force_encoding(Encoding::Windows_1252), replacement: "�")
+      end
+    end
+
     describe ".path_display_name" do
       it "returns a local path as is" do
         assert_equal "/var/sftp/in/file.csv", RocketJob.path_display_name("/var/sftp/in/file.csv")
@@ -47,6 +92,13 @@ class RocketJobTest < Minitest::Test
         path = IOStreams.path("sftp://user:secret@sftp.example.org/in/file.csv")
 
         assert_equal "sftp://sftp.example.org/in/file.csv", RocketJob.path_display_name(path)
+      end
+
+      it "returns valid UTF-8 for a name that SFTP lists as binary, or that is not valid UTF-8" do
+        directory = IOStreams.path("sftp://user:secret@sftp.example.org/in")
+
+        assert_equal "sftp://sftp.example.org/in/café.csv", RocketJob.path_display_name(directory.join("café.csv".b))
+        assert_equal "sftp://sftp.example.org/in/caf\\xE9.csv", RocketJob.path_display_name(directory.join("caf\xE9.csv".b))
       end
 
       it "leaves out a path that is not valid, since its credentials cannot be found" do

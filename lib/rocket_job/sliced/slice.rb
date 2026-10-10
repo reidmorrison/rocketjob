@@ -96,6 +96,9 @@ module RocketJob
 
       # Returns whether this is a specialized binary slice for creating binary data from each slice
       # that is downloaded without conversion into output files.
+      #
+      # Since its text is not converted when it is downloaded, a binary slice writes it in the encoding of the output
+      # file, which it holds as its `text_encoding`, see RocketJob::Sliced::Output#new.
       def self.binary_format
       end
 
@@ -118,6 +121,11 @@ module RocketJob
       end
 
       def_instance_delegators :records, :each, :<<, :size, :concat, :at
+
+      # Appends the supplied records after the records already in this slice, see Slices#append.
+      def append_records(records)
+        self.records = self.records + records
+      end
       def_instance_delegators :records, *(Enumerable.instance_methods - Module.methods)
 
       # Returns [Integer] the record number of the record currently being processed relative to the entire file.

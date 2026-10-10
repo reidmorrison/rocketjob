@@ -151,11 +151,12 @@ module RocketJob
       #   so that if a job is retried during an upload failure, data is not duplicated.
       # * Files are read as UTF-8 text, since MongoDB only stores UTF-8 strings. A UTF-8 byte order mark at
       #   the start of the file is removed. Data that is not valid UTF-8 raises
-      #   Encoding::UndefinedConversionError and nothing is uploaded, unless the file's encoding is set with
-      #   `encoding(...)`, or `replace:` is supplied to remove invalid characters.
+      #   Encoding::UndefinedConversionError and nothing is uploaded, unless the file's encoding is set, either
+      #   as the input category's `encoding`, or on the path with `encoding(...)`, which takes its place, or
+      #   `replace:` is supplied to remove invalid characters.
       #   Tabular formats, such as CSV, remove non-printable and invalid characters by default.
       # * Fixed width files are read as ASCII, and raise for any other character unless the file's encoding is
-      #   set, such as `encoding('ISO-8859-1:UTF-8')`. Non-printable characters are replaced with spaces.
+      #   set, such as the category's `encoding: "ISO-8859-1"`. Non-printable characters are replaced with spaces.
       # * When zip format, the Zip file/stream must contain only one file, the first file found will be
       #   loaded into the job
       # * If an io stream is supplied, it is read until it returns nil.
@@ -431,7 +432,7 @@ module RocketJob
       #   job.download(path)
       #
       # Example: Supply custom options. Set the file name within the zip file.
-      #   path = IOStreams.path('myfile.csv.zip').option(:zip, zip_file_name: 'myfile.csv')
+      #   path = IOStreams.path('myfile.csv.zip').option(:zip, entry_file_name: 'myfile.csv')
       #   job.download(path)
       #
       # Example: Download into a tempfile, or stream, using the original file name to determine the streams to apply:
@@ -475,12 +476,20 @@ module RocketJob
 
         raise(ArgumentError, "Missing mandatory `stream` or `category.file_name`") unless stream || category.file_name
 
-        if output_collection.slice_class.binary_format
-          binary_header_line = output_collection.slice_class.to_binary(header_line) if header_line
+        if output_collection.binary_format
+          # The slices of a binary format already hold their text in the category's encoding, see
+          # Category::Output#text_encoding, so the header line is written in it too.
+          binary_header_line = output_collection.binary_header(header_line) if header_line
 
           # Don't overwrite supplied stream options if any
           stream = stream.is_a?(IOStreams::Stream) ? stream.dup : IOStreams.new(category.file_name)
-          stream.remove_from_pipeline(output_collection.slice_class.binary_format)
+          if stream.setting(:encode)
+            raise(ArgumentError,
+                  "Set the encoding of output written by the #{category.serializer.inspect} serializer as the output " \
+                  "category's `encoding`, not on the download path, since its slices are already written in it.")
+          end
+
+          stream.remove_from_pipeline(output_collection.binary_format)
           stream.writer(**args) do |io|
             # TODO: Binary formats should return the record count, instead of the slice count.
             output_collection.download(header_line: binary_header_line) { |record| io.write(record) }

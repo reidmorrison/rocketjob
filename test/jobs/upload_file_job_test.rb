@@ -194,6 +194,26 @@ module Jobs
           assert_equal %w[first_name last_name], created_job.output_category.columns
         end
 
+        it "uploads the file in the encoding that its properties set on the input category, as a Dirmon entry can" do
+          IOStreams.temp_file("upload_file_job_test", ".csv") do |path|
+            ::File.binwrite(path.to_s, "name,city\nJos\xE9,Z\xFCrich\n".b)
+            upload_job = RocketJob::Jobs::UploadFileJob.new(
+              job_class_name:   UploadFileJobTest::BatchTestJob.name,
+              upload_file_name: path.to_s,
+              properties:       {"input_categories" => [{"format" => "csv", "encoding" => "Windows-1252"}]}
+            )
+
+            assert_predicate upload_job, :valid?, -> { upload_job.errors.full_messages }
+            upload_job.perform_now
+          end
+
+          assert created_job = UploadFileJobTest::BatchTestJob.first
+          assert_equal "Windows-1252", created_job.input_category.encoding
+          assert_equal ["José,Zürich"], created_job.input.collect(&:to_a).flatten
+        ensure
+          created_job&.cleanup!
+        end
+
         it "assigns the supplied job_id to the downstream job" do
           id         = BSON::ObjectId.new
           job.job_id = id
