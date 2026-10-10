@@ -29,6 +29,19 @@ module Batch
       end
     end
 
+    # Fails each record with a message that is not valid UTF-8.
+    class InvalidMessageJob < RocketJob::Job
+      include RocketJob::Batch
+
+      self.destroy_on_complete = false
+
+      input_category slice_size: 10
+
+      def perform(record)
+        raise(ArgumentError, "Lookup failed for #{record}: caf\xE9")
+      end
+    end
+
     class CategoryJob < RocketJob::Job
       include RocketJob::Batch
 
@@ -286,6 +299,17 @@ module Batch
             assert_equal slice_record_count, slice.first, slice
             slice_record_count += job.input_category.slice_size
           end
+        end
+
+        it "fails the job when a slice fails with a message that is not valid UTF-8" do
+          job = InvalidMessageJob.new
+          job.upload { |records| records << "r1" }
+          job.start
+          job.rocket_job_work(RocketJob::Worker.new, false)
+
+          assert_predicate job, :failed?, job.state
+          assert_equal :failed, job.input.first.state
+          assert_equal "Lookup failed for r1: caf\\xE9", job.input.first.exception.message
         end
 
         it "fails job on exception" do

@@ -40,6 +40,24 @@ module RocketJob
       field :source_streams, type: Hash, default: -> { {none: nil} }, user_editable: true
       field :target_streams, type: Hash, default: -> { {none: nil} }, user_editable: true
 
+      # The encoding of the text in the source and in the target, such as "Windows-1252", to convert the text of the
+      # file from one to the other. When only one is set, the other is UTF-8. When neither is set, which is the
+      # default, the file is copied byte for byte.
+      #
+      # The text is read and written through the streams of the source and target, such as decompressing a `.gz`
+      # source, which are taken from their file names unless `source_streams` or `target_streams` is set. The
+      # `none` stream, which those default to, is left out, since it copies the bytes as they are.
+      #
+      # Example: Copy a file that Excel saved in Windows-1252 to a partner who requires UTF-8:
+      #   RocketJob::Jobs::CopyFileJob.create!(
+      #     source_url:      "/exports/prices.csv",
+      #     source_encoding: "Windows-1252",
+      #     target_url:      "sftp://sftp.example.org/uploads/prices.csv"
+      #   )
+      field :source_encoding, type: String, user_editable: true
+      field :target_encoding, type: String, user_editable: true
+      validates_with EncodingValidator, attributes: %i[source_encoding target_encoding]
+
       # Data to upload, instead of supplying `:input_file_name` above.
       # Note: Data must be less than 15MB after compression.
       if defined?(SymmetricEncryption)
@@ -68,13 +86,15 @@ module RocketJob
 
       def source_path
         source = IOStreams.path(source_url, **decode_args(source_args))
-        apply_streams(source, source_streams)
+        apply_streams(source, copy_streams(source_streams))
+        source.encoding(text_encoding(source_encoding)) if converts_text?
         source
       end
 
       def target_path
         target = IOStreams.path(target_url, **decode_args(target_args))
-        apply_streams(target, target_streams)
+        apply_streams(target, copy_streams(target_streams))
+        target.encoding(text_encoding(target_encoding)) if converts_text?
         target
       end
 
@@ -93,6 +113,26 @@ module RocketJob
       end
 
       private
+
+      # Whether the copy converts the text of the file, see #source_encoding, rather than copying its bytes.
+      def converts_text?
+        source_encoding.present? || target_encoding.present?
+      end
+
+      # Returns [Hash] the supplied streams of the source or target, without the `none` stream when the copy converts
+      # the text, see #source_encoding, so that the streams are then taken from the file name, such as `.gz`, and
+      # the text is converted after they read it, rather than the bytes that they would read.
+      def copy_streams(streams)
+        return streams unless converts_text?
+
+        streams.to_h.reject { |stream, _args| stream.to_s == "none" }
+      end
+
+      # Returns [String] the encoding of the encode stream that reads or writes text in the supplied encoding,
+      # or UTF-8, as the UTF-8 that is copied between them.
+      def text_encoding(encoding)
+        encoding.present? ? "#{encoding}:UTF-8" : "UTF-8"
+      end
 
       def source_path_is_valid
         validate_path(:source)

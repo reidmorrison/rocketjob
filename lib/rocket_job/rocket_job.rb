@@ -31,13 +31,55 @@ module RocketJob
   #
   # A path that is not valid is shown as INVALID_PATH_DISPLAY_NAME, as is one that needs a gem that is not installed
   # in this process.
+  #
+  # The name is valid UTF-8, see .valid_utf8, so that it can be saved and logged, even when the name of the file is
+  # not, such as a Latin-1 name, or a name that SFTP lists as binary.
   def self.path_display_name(path)
     return path if path.blank?
 
-    IOStreams.path(path).display_name
+    valid_utf8(IOStreams.path(path).display_name)
   rescue StandardError, LoadError
     INVALID_PATH_DISPLAY_NAME
   end
+
+  # Returns [String] the supplied text as valid UTF-8, which is the only text that MongoDB stores, so that it can be
+  # saved, displayed and logged.
+  #
+  # A binary string, such as the body of an HTTP response or a file name from SFTP, is read as UTF-8. A string in
+  # another encoding, such as Windows-1252, is converted to UTF-8. Each byte that is still not valid, such as the `é`
+  # of a Latin-1 name read as UTF-8, is shown as `\xHH`, so that `caf\xE9.csv` becomes "caf\\xE9.csv". A string in
+  # an encoding that Ruby cannot convert, such as UTF-7, is read as UTF-8 too.
+  #
+  # Parameters
+  #   replacement: [String]
+  #     Replaces each byte, or sequence of bytes, that is not valid, instead of showing it as `\xHH`, such as
+  #     "�", the Unicode replacement character, for a file name, in which a `\` is a directory separator on
+  #     Windows.
+  #     Default: nil
+  def self.valid_utf8(text, replacement: nil)
+    text    = text.to_s
+    replace = replacement ? ->(_bytes) { replacement } : ->(bytes) { escape_bytes(bytes) }
+    case text.encoding
+    when Encoding::UTF_8
+      utf8 = text
+    when Encoding::BINARY
+      utf8 = text.dup.force_encoding(Encoding::UTF_8)
+    else
+      # The replacement is converted to the text's encoding, since ASCII is not part of every encoding, such as
+      # UTF-16LE.
+      text = text.scrub { |bytes| replace.call(bytes).encode(text.encoding) } unless text.valid_encoding?
+      return text.encode(Encoding::UTF_8, fallback: replace)
+    end
+    utf8.valid_encoding? ? utf8 : utf8.scrub(&replace)
+  rescue EncodingError
+    valid_utf8(text.b, replacement: replacement)
+  end
+
+  # Returns [String] each of the supplied bytes as `\xHH`, as `String#inspect` shows a byte that is not valid.
+  def self.escape_bytes(bytes)
+    bytes.unpack("C*").map { |byte| format("\\x%02X", byte) }.join
+  end
+  private_class_method :escape_bytes
 
   # Returns a human readable duration from the supplied [Float] number of seconds
   def self.seconds_as_duration(seconds)

@@ -38,6 +38,15 @@ module Plugins
         end
       end
 
+      # Fails with a message that is not valid UTF-8, such as that of a JSON::ParserError for a Windows-1252 body.
+      class InvalidMessageJob < RocketJob::Job
+        self.destroy_on_complete = false
+
+        def perform
+          raise(ArgumentError, "Unknown customer: Jos\xE9")
+        end
+      end
+
       class ValidationJob < RocketJob::Job
         field :name, type: String
         validates_presence_of :name
@@ -154,6 +163,17 @@ module Plugins
 
             assert_predicate @job, :failed?, @job.state
             assert_equal "Job failed", @job.exception.message
+          end
+
+          it "fails the job and persists it when the message is not valid UTF-8" do
+            @job = InvalidMessageJob.create!
+            @job.start!
+
+            refute @job.rocket_job_work(RocketJob::Worker.new)
+            @job.reload
+
+            assert_predicate @job, :failed?, @job.state
+            assert_equal "Unknown customer: Jos\\xE9", @job.exception.message
           end
 
           it "completes a persisted job" do

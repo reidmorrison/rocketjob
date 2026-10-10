@@ -558,6 +558,23 @@ class DirmonEntryTest < Minitest::Test
 
           assert_empty files
         end
+
+        it "skips a file whose directory is not writable, since it cannot be moved to the archive" do
+          skip "Root can move any file" if Process.uid.zero?
+
+          Dir.mktmpdir do |dir|
+            File.write(File.join(dir, "file.txt"), "Hello World")
+            File.chmod(0o555, dir)
+            dirmon_entry.pattern           = "#{dir}/*"
+            dirmon_entry.archive_directory = nil
+            files                          = []
+            dirmon_entry.each { |file_name| files << file_name }
+
+            assert_empty files
+          ensure
+            File.chmod(0o755, dir)
+          end
+        end
       end
 
       describe "#later" do
@@ -609,6 +626,50 @@ class DirmonEntryTest < Minitest::Test
         it "skips a file that was removed after it was found" do
           assert_nil dirmon_entry.later(IOStreams.path("test/files/removed.txt"))
           assert_equal 0, RocketJob::Jobs::UploadFileJob.count
+        end
+
+        describe "a file whose name is not ASCII" do
+          # Returns the path of a file with the supplied name, which is moved to the archive like a real file.
+          def file_named(name)
+            path = IOStreams.path("/tmp/dirmon_in").join(name)
+            path.define_singleton_method(:move_to) do |target|
+              target.write("data")
+              target
+            end
+            path
+          end
+
+          it "archives a file whose name is not valid UTF-8 under a name that can be saved" do
+            job = dirmon_entry.later(file_named("caf\xE9.csv".b))
+
+            assert_equal "#{job.job_id}_caf�.csv", job.upload_file_name.basename
+            assert_equal "data", job.upload_file_name.read
+            assert_equal "/tmp/dirmon_in/caf\\xE9.csv", job.original_file_name
+            assert_equal "Test: caf\\xE9.csv", job.description
+            assert_predicate job.reload, :queued?
+          end
+
+          it "archives a file whose name SFTP lists as binary under its own name" do
+            job = dirmon_entry.later(file_named("café.csv".b))
+
+            assert_equal "#{job.job_id}_café.csv", job.upload_file_name.basename
+            assert_equal "/tmp/dirmon_in/café.csv", job.original_file_name
+            assert_equal "Test: café.csv", job.description
+          end
+
+          it "names the file by its path when it has no display name, so that each file has a name of its own" do
+            path = file_named("caf\xE9.csv.gz".b)
+            path.define_singleton_method(:display_name) { raise(ArgumentError, "invalid byte sequence in UTF-8") }
+
+            assert_equal "/tmp/dirmon_in/caf\\xE9.csv.gz", dirmon_entry.file_display_name(path)
+            assert_equal "/tmp/dirmon_in/caf\\xE9.csv.gz", dirmon_entry.later(path).original_file_name
+          end
+
+          it "replaces each byte of a UTF-8 name that is not valid" do
+            name = Struct.new(:basename).new("caf\xE9.csv")
+
+            assert_equal "caf�.csv", dirmon_entry.send(:archive_file_name, name)
+          end
         end
 
         it "skips a file that was removed from S3, SFTP or HTTP after it was found" do

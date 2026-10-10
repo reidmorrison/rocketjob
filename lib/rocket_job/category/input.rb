@@ -87,6 +87,22 @@ module RocketJob
       field :header_cleanser, type: ::Mongoid::StringifiedSymbol, default: :default
       validates :header_cleanser, inclusion: %i[default none]
 
+      # What `#upload` does with each character of a file that is not valid in the file's encoding, see #encoding:
+      #   :remove
+      #     Removes it.
+      #   :replace
+      #     Replaces it with U+FFFD, the Unicode replacement character, so that it can be seen in the record.
+      #   :raise
+      #     Raises IOStreams::Errors::InvalidEncoding, which names the byte offset and line of the first one, and
+      #     uploads nothing.
+      #   nil
+      #     The format's own: tabular formats, such as CSV, remove it, while fixed width files and lines raise.
+      #
+      # A `replace:` set on the path supplied to `#upload` is used instead.
+      # Default: nil
+      field :invalid_characters, type: ::Mongoid::StringifiedSymbol
+      validates_inclusion_of :invalid_characters, in: [nil, :remove, :replace, :raise]
+
       validates_inclusion_of :serializer, in: %i[none compress encrypt]
 
       # Treats the current columns as a header row read from the file: cleanses their names when
@@ -149,20 +165,19 @@ module RocketJob
           @tabular = nil
         end
 
+        # Read the file in this category's encoding, unless the caller set one on the path, see #encoding.
+        apply_encoding(path)
+
         # Read tabular input in its format, so that IOStreams reads it in the format's encoding, such as ASCII for
         # fixed width, and splits its lines where the format expects. An encoding set on the supplied path is kept,
         # since only the caller knows how the file was written.
         if tabular?
           path.format(format)
-          if format == :fixed
-            # Replace non-printable characters, such as NUL padding, so that the columns stay in place. A character
-            # that is not valid in the file's encoding still raises, unless the caller supplied `replace:`.
-            path.encoding(cleaner: FIXED_WIDTH_CLEANER)
-          else
-            # Remove non-printable characters, and characters that are not valid in the file's encoding.
-            path.encoding(cleaner: :printable, replace: "")
-          end
+          # Replace the non-printable characters of a fixed width file, such as NUL padding, so that the columns stay
+          # in place, and remove those of any other tabular format.
+          path.encoding(cleaner: format == :fixed ? FIXED_WIDTH_CLEANER : :printable)
         end
+        apply_invalid_characters(path)
         path
       end
 
@@ -195,6 +210,20 @@ module RocketJob
       end
 
       private
+
+      # The text that replaces each character that is not valid in the file's encoding, see #invalid_characters.
+      INVALID_CHARACTER_REPLACEMENTS = {remove: "", replace: "�"}.freeze
+      private_constant :INVALID_CHARACTER_REPLACEMENTS
+
+      # Sets what the path does with each character that is not valid in the file's encoding, see
+      # #invalid_characters, unless the caller set `replace:` on the path.
+      def apply_invalid_characters(path)
+        return if path.setting(:encode)&.key?(:replace)
+
+        handling    = invalid_characters || (tabular? && format != :fixed ? :remove : :raise)
+        replacement = INVALID_CHARACTER_REPLACEMENTS[handling]
+        path.encoding(replace: replacement) if replacement
+      end
 
       def cleanse_header?
         header_cleanser == :default

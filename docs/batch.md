@@ -144,23 +144,45 @@ Useful `upload` keyword options:
 
 Files are read as UTF-8 text, since MongoDB only stores UTF-8 strings, and a UTF-8 byte order mark
 at the start of the file (as Excel writes) is removed. A file that is not valid UTF-8 raises
-`Encoding::UndefinedConversionError` and nothing is uploaded. For a file in another encoding, set it
-on the path, converting its records to UTF-8:
+`Encoding::UndefinedConversionError` and nothing is uploaded. For files in another encoding, set the
+`encoding` of the input category, which converts their records to UTF-8:
+
+~~~ruby
+class LegacyImportJob < RocketJob::Job
+  include RocketJob::Batch
+
+  # The files that this job receives are saved by Excel on Windows.
+  input_category format: :csv, encoding: "Windows-1252"
+end
+~~~
+
+The category's encoding is saved with the job, so it also applies when a worker uploads the file, such
+as a job started by [Dirmon](dirmon.html), or a `ConversionJob`. To read one file in another encoding,
+set the encoding on the path instead, which takes the place of the category's:
 
 ~~~ruby
 job.upload(IOStreams.path("legacy.csv").encoding("Windows-1252:UTF-8"))
 ~~~
 
 Tabular formats, such as CSV, remove non-printable characters and characters that are not valid in
-the file's encoding. Binary files cannot be uploaded as records.
+the file's encoding. A file in another encoding then loses those characters without any error, so when
+its records must be complete, set the input category's `invalid_characters` to `:raise`, which fails the
+upload with `IOStreams::Errors::InvalidEncoding`, naming the line of the first one, or to `:replace`,
+which replaces each with `�` (U+FFFD) so that it can be seen in the record. Binary files cannot be
+uploaded as records.
+
+~~~ruby
+input_category format: :csv, invalid_characters: :raise
+~~~
 
 Fixed width files are read as ASCII, as most are written by programs whose sizes count bytes, such as
 those on a mainframe. A file with any other character raises `IOStreams::Errors::InvalidEncoding` and
-nothing is uploaded, until its encoding is set on the path: for example `encoding("ISO-8859-1:UTF-8")`,
-`encoding("IBM037:UTF-8")` for EBCDIC, `encoding("UTF-8")` when its sizes count UTF-8 characters, or
-`encoding(replace: " ")` to replace such characters with spaces. Non-printable characters, such as NUL
-padding, are replaced with spaces so that the columns stay in place. Fixed width output is downloaded
-as ASCII too, unless the encoding of the download path is set.
+nothing is uploaded, until its encoding is set: for example the input category's `encoding:
+"ISO-8859-1"`, or `"IBM037"` for EBCDIC, or on the path, such as `encoding("UTF-8")` when its sizes count
+UTF-8 characters, or `encoding(replace: " ")` to replace such characters with spaces. Non-printable
+characters, such as NUL padding, are replaced with spaces so that the columns stay in place. Fixed width
+output is downloaded as ASCII too, unless the output category's `encoding`, or the encoding of the
+download path, is set.
 
 A Zip stream must contain only one file; the first file found is loaded. CSV and other tabular
 parsing is deliberately left to the workers (see [Reading tabular files](#reading-tabular-files)),
@@ -234,6 +256,11 @@ job.upload do |writer|
 end
 ~~~
 
+Text in a record must be UTF-8, since MongoDB only stores UTF-8. A string in another encoding, such as
+ISO-8859-1 from a database connection, is converted, but a binary string, or one that is not valid
+UTF-8, raises an `EncodingError` that names the number of the first such record, and nothing is
+uploaded. Convert such text first, such as `text.encode("UTF-8", "Windows-1252")`.
+
 ## Input categories
 
 The `input_category` class method configures how uploaded data is sliced and parsed. With no
@@ -260,6 +287,8 @@ Input category options:
 | `serializer`       | `:compress` | Slice serialization: `:none`, `:compress`, or `:encrypt`. See [Compression and encryption](#compression-and-encryption).
 | `format`           | `nil`       | Parse each record before `perform`: `nil` (raw line), `:auto`, or a tabular format such as `:csv`. See [Reading tabular files](#reading-tabular-files).
 | `format_options`   | `nil`       | Format-specific options, for example a `:layout` for `:fixed`.
+| `encoding`         | `nil`       | The encoding of the files, such as `"Windows-1252"`, which is converted to UTF-8. `nil` reads UTF-8, or the format's own encoding, such as ASCII for `:fixed`. Name the byte order of UTF-16 or UTF-32, such as `"UTF-16LE"`. See [Files](#files).
+| `invalid_characters` | `nil`     | What to do with a character that is not valid in the file's encoding: `:remove`, `:replace` with U+FFFD, or `:raise`. `nil` removes them from tabular formats, such as CSV, and raises for `:fixed` and lines.
 | `columns`          | `nil`       | Header columns, when the file has no header row.
 | `mode`             | `:line`     | How a file is uploaded: `:line`, `:array`, or `:hash`.
 | `allowed_columns`  | `nil`       | Restrict tabular input to these columns. See [Validating columns](#validating-columns).
@@ -343,6 +372,7 @@ The `output_category` class method accepts these options:
 | `serializer`     | `:compress` | Slice serialization: `:none`, `:compress`, `:encrypt`, `:bz2`, or `:encrypted_bz2`.
 | `format`         | `nil`       | Render each result: `nil`, `:auto`, or a tabular format such as `:csv`. See [Writing tabular files](#writing-tabular-files).
 | `format_options` | `nil`       | Format-specific options.
+| `encoding`       | `nil`       | The encoding to write the file in, such as `"ISO-8859-1"`. `nil` writes UTF-8, or the format's own encoding, such as ASCII for `:fixed`. Name the byte order of UTF-16 or UTF-32, such as `"UTF-16LE"`.
 | `columns`        | `nil`       | Columns to include when rendering tabular output.
 | `nils`           | `false`     | When `true`, store `nil` results too; when `false`, skip them.
 
@@ -593,7 +623,11 @@ input_category  serializer: :encrypt
 output_category serializer: :encrypt
 ~~~
 
-Output categories also support `:bz2` and `:encrypted_bz2` serializers.
+Output categories also support `:bz2` and `:encrypted_bz2` serializers, which compress each slice into a
+BZip2 stream when it is written, so that `download` writes the slices to a `.bz2` file as they are. Since the
+text is converted before it is compressed, it is written in the output category's `encoding`, or the
+format's own, such as ASCII for fixed width, and a character that it does not have fails the slice when it
+is processed. An encoding cannot be set on the download path for these serializers.
 
 ### PGP encrypted output files
 

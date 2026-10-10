@@ -188,6 +188,47 @@ module Jobs
           refute(events.any? { |event| "#{event.message}#{event.payload}".include?("secret") })
         end
 
+        it "starts a job for a file whose name SFTP lists as binary, once the next run reads its size back" do
+          path       = IOStreams.path("sftp://sftp.example.org/abc").join("café.csv".b)
+          file_names = {}
+          path.stub(:size, 5) do
+            dirmon_entry.stub(:each, ->(&block) { block.call(path) }) do
+              dirmon_job.send(:check_entry, dirmon_entry, file_names)
+            end
+          end
+
+          assert_equal({"#{dirmon_entry.id}:sftp://sftp_example_org/abc/café_csv" => 5}, file_names)
+
+          # The next run reads the names that this run found back from MongoDB, as UTF-8.
+          dirmon_job.previous_file_names = file_names
+          dirmon_job.save!
+          next_run = RocketJob::Jobs::DirmonJob.find(dirmon_job.id)
+          started  = []
+          path.stub(:size, 5) do
+            dirmon_entry.stub(:each, ->(&block) { block.call(path) }) do
+              dirmon_entry.stub(:later, ->(file) { started << file }) do
+                next_run.send(:check_entry, dirmon_entry, {})
+              end
+            end
+          end
+
+          assert_equal [path], started
+        end
+
+        it "tracks a file whose name is not valid UTF-8 under a key that can be saved" do
+          path       = IOStreams.path(directory, "abc").join("caf\xE9.csv".b)
+          file_names = {}
+          path.stub(:size, 5) do
+            dirmon_entry.stub(:each, ->(&block) { block.call(path) }) do
+              dirmon_job.send(:check_entry, dirmon_entry, file_names)
+            end
+          end
+
+          assert_equal({"#{dirmon_entry.id}:/tmp/directory/abc/caf\\xE9_csv" => 5}, file_names)
+          dirmon_job.previous_file_names = file_names
+          dirmon_job.save!
+        end
+
         it "fails the entry on any other failure" do
           path   = IOStreams.path(directory, "abc", "locked")
           denied = IOStreams::Errors::PermissionDenied.tag(Errno::EACCES.new(path.to_s), path.display_name)
