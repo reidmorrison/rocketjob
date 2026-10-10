@@ -109,6 +109,9 @@ database does not report one. See the upgrade guide.
 - An input category with `format: :auto` uploads the first record of a JSON or fixed width file. Previously it was
   dropped, as though it were a header row, since the upload checked for a header row before it took the format from
   the file name, so `record_count` was one short.
+- On Mongoid 8, a change to a category of a batch job read from the database is saved. Previously reading the job
+  marked its whole `input_categories` as changed, so MongoDB rejected the save as a conflict, such as
+  "Updating the path 'input_categories.0.schema' would create a conflict at 'input_categories'".
 - A `CopyFileJob` fetches its `secret_config_` arguments from Secret Config even when Symmetric Encryption
   is not loaded. Previously they were passed to IOStreams under their stored names, which failed the job.
 
