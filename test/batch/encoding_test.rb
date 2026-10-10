@@ -448,6 +448,34 @@ module Batch
           assert_predicate category, :valid?
         end
 
+        it "can be UTF-8, the text that the records hold" do
+          category = job.input_category
+
+          %w[UTF-8 utf-8 CP65001].each do |name|
+            category.encoding = name
+
+            assert_predicate category, :valid?, category.errors.messages
+          end
+        end
+
+        it "uploads and downloads UTF-8 text when it is UTF-8" do
+          job.input_category.encoding  = "UTF-8"
+          job.output_category.encoding = "UTF-8"
+
+          with_file(".txt", utf8_text) do |path|
+            assert_equal utf8_lines.size, job.upload(path.to_s)
+          end
+
+          assert_equal utf8_lines, input_records
+
+          job.output << utf8_lines
+          IOStreams.temp_file("encoding_test", ".txt") do |path|
+            job.download(path.to_s)
+
+            assert_equal utf8_text.b, ::File.binread(path.to_s)
+          end
+        end
+
         it "must be the encoding of the text in a file" do
           category = job.output_category
 

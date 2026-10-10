@@ -152,6 +152,37 @@ module Jobs
           refute_predicate job, :valid?
           assert(job.errors.messages[:properties].any? { |m| m.include?("does_not_exist") })
         end
+
+        describe "of a batch job" do
+          before do
+            job.job_class_name = UploadFileJobTest::BatchTestJob.name
+          end
+
+          it "allows valid category properties" do
+            job.properties = {"input_categories" => [{"name" => "main", "encoding" => "Windows-1252"}]}
+
+            assert_predicate job, :valid?, job.errors.messages
+          end
+
+          it "rejects unknown category properties" do
+            job.properties = {"input_categories" => [{"name" => "main", "not_a_category_field" => 1}]}
+
+            refute_predicate job, :valid?
+            assert_equal ["Unknown Property in input_categories: Attempted to set a value for " \
+                          "not_a_category_field.input_categories which is not allowed on the job " \
+                          "Jobs::UploadFileJobTest::BatchTestJob"],
+                         job.errors.messages[:properties]
+          end
+
+          it "rejects a category value that is not valid" do
+            job.properties = {"output_categories" => [{"name" => "main", "encoding" => "UTF-16"}]}
+
+            refute_predicate job, :valid?
+            assert_equal ["Output category main: Encoding \"UTF-16\" writes a byte order mark in front of each " \
+                          "piece of text, so name its byte order, such as UTF-16LE"],
+                         job.errors.messages[:properties]
+          end
+        end
       end
 
       describe "#perform" do

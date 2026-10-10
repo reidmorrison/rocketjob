@@ -203,6 +203,20 @@ module RocketJob
             new(properties)
           end
 
+          # Returns [Array<String>] why the supplied properties cannot build this job, see `from_properties`, such as a
+          # property that this job does not have. Empty when they can. Overridden by batch to also check its
+          # categories.
+          #
+          # For example, the properties that a Dirmon entry or an UploadFileJob holds for this job class.
+          def property_errors(properties)
+            # Mongoid 9 returns Hash field keys as Strings, earlier versions as Symbols.
+            properties.keys.filter_map do |key|
+              next if public_method_defined?(:"#{key}=")
+
+              "Unknown Property: Attempted to set a value for #{key.to_sym.inspect} which is not allowed on the job #{name}"
+            end
+          end
+
           # Returns [Hash] the supplied attributes or properties of this job class to show to people, with the value
           # of each field that holds a path or url shown by its display name, without any credentials,
           # see `path_fields`. Overridden by batch to also show the paths in its categories.

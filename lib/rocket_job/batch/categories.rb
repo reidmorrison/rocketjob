@@ -8,6 +8,12 @@ module RocketJob
       # The v5 `tabular_input_mode` values, and the input category `mode` that replaced each one.
       V5_INPUT_MODES = {"row" => :array, "record" => :hash}.freeze
 
+      # The properties that hold the settings of the job's categories, and the class of each one's categories.
+      CATEGORY_PROPERTIES = {
+        input_categories:  RocketJob::Category::Input,
+        output_categories: RocketJob::Category::Output
+      }.freeze
+
       included do
         after_initialize :rocketjob_categories_assign, if: :new_record?
         after_initialize :rocketjob_categories_migrate, unless: :new_record?
@@ -65,6 +71,30 @@ module RocketJob
           job
         end
 
+        # Returns [Array<String>] why the supplied properties cannot build this job, see
+        # RocketJob::Plugins::Job::Model.property_errors, also checking the properties of its categories: each must
+        # be one that a category has, and when they all are, each category validates its values, such as its
+        # encoding, naming the category in each error.
+        def property_errors(properties)
+          category_properties = properties.select { |key, _| CATEGORY_PROPERTIES.key?(key.to_sym) }
+          errors              = super(properties.except(*category_properties.keys))
+
+          category_properties.each_pair do |key, categories|
+            category_class = CATEGORY_PROPERTIES[key.to_sym]
+            categories.each do |category|
+              category.each_key do |name|
+                next if category_class.public_method_defined?(:"#{name}=")
+
+                errors << "Unknown Property in #{key}: Attempted to set a value for #{name}.#{key} which is not " \
+                          "allowed on the job #{self.name}"
+              end
+            end
+          end
+          return errors unless errors.empty? && category_properties.present?
+
+          category_value_errors(properties)
+        end
+
         # Returns [Hash] the supplied attributes or properties of this job class to show to people, see
         # RocketJob::Plugins::Job::Model.display_properties, with each of its input and output categories also
         # showing its file name without any credentials.
@@ -87,6 +117,19 @@ module RocketJob
           index = categories.find_index { |cat| cat.name == category.name }
           index ? categories[index] = category : categories << category
           category
+        end
+
+        # Returns [Array<String>] the errors of each category of the job that the supplied properties build, such as
+        # "Input category main: Encoding ...", or why it cannot be built, such as a category that it does not define.
+        def category_value_errors(properties)
+          job = from_properties(properties.deep_stringify_keys)
+          {"Input" => job.input_categories, "Output" => job.output_categories}.flat_map do |direction, categories|
+            categories.reject(&:valid?).flat_map do |category|
+              category.errors.full_messages.map { |message| "#{direction} category #{category.name}: #{message}" }
+            end
+          end
+        rescue ArgumentError => e
+          [e.message]
         end
       end
 
