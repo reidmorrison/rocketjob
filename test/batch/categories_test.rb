@@ -156,6 +156,14 @@ module Batch
           assert_equal :main, job.input_category.name
         end
 
+        it "saves a change to a category of a job that was read from the database" do
+          job = CategoriesJob.find(CategoriesJob.create!.id)
+          job.input_category.slice_size = 50
+          job.save!
+
+          assert_equal 50, CategoriesJob.find(job.id).input_category.slice_size
+        end
+
         it "migrates a compressed v5 job" do
           job = from_legacy(
             "input_categories" => [:main],

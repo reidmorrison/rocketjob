@@ -229,7 +229,7 @@ module RocketJob
 
       # Migrate existing v5 batch jobs to v6
       def rocketjob_categories_migrate
-        return unless attribute_present?(:input_categories) && self[:input_categories]&.first.is_a?(Symbol)
+        return unless attributes["input_categories"]&.first.is_a?(Symbol)
 
         serializer = :none
         if attribute_present?(:compress)
