@@ -125,11 +125,13 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixes
 
-- A Dirmon entry for a batch job validates the values of its category properties when it is saved, such as
-  an `encoding` that is not valid, or a category that the job does not define, and names the category, such
-  as `Input category main: Encoding "UTF-16" writes a byte order mark ...`. Previously they were only
-  checked when a file was found, so every file failed. The names of its category properties are also
-  checked for a batch job now; previously only those of a job without categories were.
+- A Dirmon entry, and an `UploadFileJob`, for a batch job validate the values of its category properties
+  when they are saved, such as an `encoding` that is not valid, or a category that the job does not
+  define, and name the category, such as `Input category main: Encoding "UTF-16" writes a byte order
+  mark ...`. Previously they were only checked when the job was created, so every file that a Dirmon
+  entry found failed. The names of the category properties are also checked for a batch job now, where
+  previously only those of a job without categories were, and a job without categories rejects category
+  properties, which it could not be built from. The job class decides, see `.property_errors`.
 - A category's `encoding`, and `CopyFileJob#source_encoding` and `#target_encoding`, can be `"UTF-8"`.
   Previously it was rejected as an encoding that Ruby cannot convert to and from UTF-8, since Ruby has no
   converter from UTF-8 to itself.

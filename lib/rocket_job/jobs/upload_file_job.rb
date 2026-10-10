@@ -126,35 +126,12 @@ module RocketJob
         nil
       end
 
+      # Can the properties build the job? The job class decides, see RocketJob::Plugins::Job::Model.property_errors.
       def job_has_properties
         klass = job_class
-        return unless klass
+        return unless klass.respond_to?(:property_errors)
 
-        # Mongoid 9 returns Hash field keys as Strings, earlier versions as Symbols.
-        properties.each_pair do |raw_key, value|
-          k = raw_key.to_sym
-          next if klass.public_method_defined?(:"#{k}=")
-
-          if %i[output_categories input_categories].include?(k)
-            category_class = k == :input_categories ? RocketJob::Category::Input : RocketJob::Category::Output
-            value.each do |category|
-              category.each_pair do |key, _value|
-                next if category_class.public_method_defined?(:"#{key}=")
-
-                errors.add(
-                  :properties,
-                  "Unknown Property in #{k}: Attempted to set a value for #{key}.#{k} which is not allowed on the job #{job_class_name}"
-                )
-              end
-            end
-            next
-          end
-
-          errors.add(
-            :properties,
-            "Unknown Property: Attempted to set a value for #{k.inspect} which is not allowed on the job #{job_class_name}"
-          )
-        end
+        klass.property_errors(properties).each { |message| errors.add(:properties, message) }
       end
     end
   end
