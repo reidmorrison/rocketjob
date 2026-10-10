@@ -72,7 +72,7 @@ module Jobs
         end
 
         it "rejects a url that is not valid, without including it in the message" do
-          job = RocketJob::Jobs::CopyFileJob.new(source_url: "/tmp/source.csv", target_url: "sftp://jack:p@ss@sftp.example.org/a.csv")
+          job = RocketJob::Jobs::CopyFileJob.new(source_url: "/tmp/source.csv", target_url: "sftp://jack:secret@sftp.example.org:port/a.csv")
 
           refute_predicate job, :valid?
           assert_equal ["is not a valid url"], job.errors[:target_url]
