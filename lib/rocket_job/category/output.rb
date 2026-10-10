@@ -48,7 +48,8 @@ module RocketJob
         RocketJob::Sliced::Output.new(
           collection_name: build_collection_name(:output, job),
           slice_class:     serializer_class,
-          text_encoding:   text_encoding
+          # Asked for each slice, so that a change to the encoding or format of this category still applies.
+          text_encoding:   -> { text_encoding }
         )
       end
     end

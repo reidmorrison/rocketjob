@@ -67,9 +67,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 - `CopyFileJob` converts the text of a file from its `source_encoding` to its `target_encoding`, such as
   `source_encoding: "Windows-1252"`, which copies a file that Excel saved on Windows as UTF-8. When only one
-  is set, the other is UTF-8, and when neither is set the file is still copied byte for byte. Previously a
-  copy could only convert the text with an `encode` entry in `source_streams` or `target_streams`, which
-  stopped the streams being taken from the file name, so a `.gz` file was no longer decompressed.
+  is set, the other is UTF-8, and when neither is set the file is still copied byte for byte. The text is
+  converted between the streams taken from the file names, so a `.gz` file is decompressed first, and
+  compressed again. Previously a copy could only convert the text with an `encode` entry in
+  `source_streams` or `target_streams`, which stopped the streams being taken from the file name, so a
+  `.gz` file was no longer decompressed.
 - Input and output categories have an `encoding`, such as `input_category format: :csv, encoding:
   "Windows-1252"`, the encoding of the text in their files. An uploaded file is converted from it to UTF-8,
   and a downloaded file is converted to it from UTF-8, such as `"ISO-8859-1"` or `"IBM037"` for a fixed
@@ -77,7 +79,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   category's file, as a `ConversionJob` does, and a Dirmon entry can set it for its files in its
   `properties`, such as `input_categories: [{name: "main", encoding: "Windows-1252"}]`. Previously the
   encoding could only be set on a path supplied to `upload` or `download`, which still takes its place,
-  so the characters of such a file uploaded by file name were removed, or raised.
+  so the characters of such a file uploaded by file name were removed, or raised. The `encoding` must name
+  one encoding of text that Ruby converts to and from UTF-8, so `"locale"`, `"BINARY"` and `"UTF-7"` are
+  not valid, nor are `"UTF-16"` and `"UTF-32"`, which write a byte order mark in front of each slice:
+  name their byte order instead, such as `"UTF-16LE"`. The same applies to a `CopyFileJob`'s encodings.
 - An input category's `invalid_characters` sets what an upload does with each character that is not
   valid in the file's encoding: `:remove` it, `:replace` it with U+FFFD, or `:raise`
   `IOStreams::Errors::InvalidEncoding`, which names the line of the first one, and upload nothing. By
@@ -122,8 +127,13 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 - An upload of records, such as with a block, `upload_arel` or `upload_mongo_query`, that holds text that is
   binary or not valid UTF-8 raises an error that names the number of the first such record, such as
-  `Cannot upload record 4, since MongoDB only stores UTF-8 text: ...`. Previously the error from BSON did not
-  say which record it was. Nothing is uploaded, as before.
+  `Cannot upload record 4, since MongoDB only stores UTF-8 text: ...`, or `record 4 after the header`
+  when the upload started with a header row, since the record is then on the next line of the file.
+  Previously the error from BSON did not say which record it was. Nothing is uploaded, as before.
+- A worker that resumes a slice whose output is written by the `:bz2` or `:encrypted_bz2` serializer, such
+  as after its server restarted, appends the records that it writes as another BZip2 stream. Previously
+  the compressed records already in the output slice were compressed again with the new ones, so the
+  slice could not be read when the output was downloaded.
 - Downloading output written by the `:encrypted_bz2` serializer with a header line, such as CSV output,
   writes the header line. Previously it raised `NotImplementedError`.
 - Dirmon processes a file on an SFTP server whose name is not ASCII, such as `café.csv`. Net::SFTP lists
@@ -142,8 +152,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   such byte shown as `\xHH`. Previously saving the failure raised `EncodingError`, which left the job, or
   the slice, `running` with no exception recorded until its server restarted, so a batch job never
   completed. Such a message comes, for example, from a `JSON::ParserError` for a response body that is not
-  UTF-8. A message that is UTF-8 held as binary keeps its characters, where previously each character that
-  is not ASCII was removed, so `José` was saved as `Jos`. The same applies to a Dirmon entry's exception.
+  UTF-8. The same holds for a message in an encoding that ASCII is not part of, such as UTF-16LE, with a
+  byte that is not valid in it. A message that is UTF-8 held as binary keeps its characters, where previously each character that is not ASCII was removed, so
+  `José` was saved as `Jos`. The same applies to a Dirmon entry's exception.
 - A `CopyFileJob` fetches its `secret_config_` arguments from Secret Config even when Symmetric Encryption
   is not loaded. Previously they were passed to IOStreams under their stored names, which failed the job.
   A source or target whose streams are `nil` copies without any streams, instead of raising `NoMethodError`.

@@ -47,19 +47,32 @@ module RocketJob
   #
   # A binary string, such as the body of an HTTP response or a file name from SFTP, is read as UTF-8. A string in
   # another encoding, such as Windows-1252, is converted to UTF-8. Each byte that is still not valid, such as the `é`
-  # of a Latin-1 name read as UTF-8, is shown as `\xHH`, so that `caf\xE9.csv` becomes "caf\\xE9.csv".
-  def self.valid_utf8(text)
-    text = text.to_s
+  # of a Latin-1 name read as UTF-8, is shown as `\xHH`, so that `caf\xE9.csv` becomes "caf\\xE9.csv". A string in
+  # an encoding that Ruby cannot convert, such as UTF-7, is read as UTF-8 too.
+  #
+  # Parameters
+  #   replacement: [String]
+  #     Replaces each byte, or sequence of bytes, that is not valid, instead of showing it as `\xHH`, such as
+  #     "�", the Unicode replacement character, for a file name, in which a `\` is a directory separator on
+  #     Windows.
+  #     Default: nil
+  def self.valid_utf8(text, replacement: nil)
+    text    = text.to_s
+    replace = replacement ? ->(_bytes) { replacement } : ->(bytes) { escape_bytes(bytes) }
     case text.encoding
     when Encoding::UTF_8
       utf8 = text
     when Encoding::BINARY
       utf8 = text.dup.force_encoding(Encoding::UTF_8)
     else
-      text = text.scrub { |bytes| escape_bytes(bytes) } unless text.valid_encoding?
-      return text.encode(Encoding::UTF_8, fallback: ->(char) { escape_bytes(char) })
+      # The replacement is converted to the text's encoding, since ASCII is not part of every encoding, such as
+      # UTF-16LE.
+      text = text.scrub { |bytes| replace.call(bytes).encode(text.encoding) } unless text.valid_encoding?
+      return text.encode(Encoding::UTF_8, fallback: replace)
     end
-    utf8.valid_encoding? ? utf8 : utf8.scrub { |bytes| escape_bytes(bytes) }
+    utf8.valid_encoding? ? utf8 : utf8.scrub(&replace)
+  rescue EncodingError
+    valid_utf8(text.b, replacement: replacement)
   end
 
   # Returns [String] each of the supplied bytes as `\xHH`, as `String#inspect` shows a byte that is not valid.

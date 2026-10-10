@@ -105,6 +105,15 @@ module Batch
           end
         end
 
+        it "says that a record is numbered after the header" do
+          job.input_category.format = :csv
+          records                   = ["name", "Jack", "Jos\xE9"]
+
+          error = assert_raises(EncodingError) { job.upload { |io| records.each { |record| io << record } } }
+
+          assert_includes error.message, "Cannot upload record 2 after the header,"
+        end
+
         it "names a binary record within a hash" do
           error = assert_raises(EncodingError) do
             job.upload { |io| io << {"name" => "Jack"} << {"name" => "José".b} }
@@ -321,6 +330,28 @@ module Batch
           assert_equal "name,city\nJack,Paris\n".b, download_bz2
         end
 
+        it "writes the output category's encoding when it changes after the output collection is created" do
+          job.output_category.format  = :csv
+          job.output_category.columns = %w[name city]
+          job.output.count
+          job.output_category.encoding = "ISO-8859-1"
+          job.output << ["José,Zürich"]
+
+          assert_equal "name,city\nJos\xE9,Z\xFCrich\n".b, download_bz2
+        end
+
+        it "writes the records of a slice that a worker resumes in the output category's encoding" do
+          job.output_category.encoding = "ISO-8859-1"
+          input_slice                  = job.input.new(records: %w[José Zürich])
+          job.output.insert(["José"], input_slice)
+
+          # A new instance of the job, as a worker that resumes the slice loads.
+          resumed = job.class.new(job.attributes.except("_id").merge(id: job.id))
+          resumed.output.append(["Zürich"], input_slice)
+
+          assert_equal "Jos\xE9\nZ\xFCrich\n".b, download_bz2
+        end
+
         it "rejects an encoding set on the download path, since the slices are written in the category's" do
           job.output << ["Jack"]
 
@@ -413,6 +444,28 @@ module Batch
           refute_predicate category, :valid?
 
           category.encoding = "IBM037"
+
+          assert_predicate category, :valid?
+        end
+
+        it "must be the encoding of the text in a file" do
+          category = job.output_category
+
+          {
+            "locale"   => "default encoding of the process",
+            "external" => "default encoding of the process",
+            "BINARY"   => "is bytes",
+            "UTF-16"   => "UTF-16LE",
+            "UTF-32"   => "UTF-32LE",
+            "UTF-7"    => "cannot convert"
+          }.each_pair do |name, message|
+            category.encoding = name
+
+            refute_predicate category, :valid?, name
+            assert_includes category.errors[:encoding].first, message
+          end
+
+          category.encoding = "UTF-16LE"
 
           assert_predicate category, :valid?
         end
@@ -526,6 +579,33 @@ module Batch
           data = copy("Jos\xE9\n".b, extension: ".csv.gz", source_encoding: "Windows-1252", target_streams: {gz: {}})
 
           assert_equal "José\n".b, data
+        end
+
+        it "decompresses and compresses a .gz file by its name while converting its text" do
+          IOStreams.temp_file("encoding_test", ".csv.gz") do |source|
+            IOStreams.path(source.to_s).encoding("BINARY").write("Jos\xE9,Z\xFCrich\n".b)
+
+            IOStreams.temp_file("encoding_test", ".csv.gz") do |target|
+              RocketJob::Jobs::CopyFileJob.new(
+                source_url: source.to_s, source_encoding: "Windows-1252", target_url: target.to_s
+              ).perform_now
+
+              assert_equal "José,Zürich\n".b, IOStreams.path(target.to_s).encoding("BINARY").read
+            end
+          end
+        end
+
+        it "copies a .gz file byte for byte when it does not convert its text" do
+          IOStreams.temp_file("encoding_test", ".csv.gz") do |source|
+            IOStreams.path(source.to_s).write("José\n")
+            data = ::File.binread(source.to_s)
+
+            IOStreams.temp_file("encoding_test", ".csv.gz") do |target|
+              RocketJob::Jobs::CopyFileJob.new(source_url: source.to_s, target_url: target.to_s).perform_now
+
+              assert_equal data, ::File.binread(target.to_s)
+            end
+          end
         end
 
         it "must be one encoding that Ruby knows" do

@@ -80,9 +80,9 @@ module RocketJob
           # The display name leaves out any credentials, and also the user name, which can select another
           # home directory on the same SFTP server, so the key includes the entry.
           # It is valid UTF-8, so that the key can be saved, and is the same when it is read back on the next run,
-          # whichever bytes the file name holds, see RocketJob.path_display_name.
+          # whichever bytes the file name holds, see DirmonEntry#file_display_name.
           # BSON Keys cannot contain periods
-          key           = "#{dirmon_entry.id}:#{RocketJob.path_display_name(path)}".tr(".", "_")
+          key           = "#{dirmon_entry.id}:#{dirmon_entry.file_display_name(path)}".tr(".", "_")
           previous_size = previous_file_names[key]
           # Check every few minutes for a file size change before trying to process the file.
           size            = check_file(dirmon_entry, path, previous_size)

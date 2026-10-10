@@ -196,7 +196,9 @@ encrypted.
 
 A file is copied byte for byte, unless `source_encoding` or `target_encoding` is set, which converts
 its text from the encoding of the source to that of the target. When only one is set, the other is
-UTF-8. For example, to send a file that Excel saved in Windows-1252 to a partner who requires UTF-8:
+UTF-8. The text is read and written through the streams that the file names select, unless
+`source_streams` or `target_streams` is set, so a `.gz` source is decompressed before its text is
+converted. For example, to send a file that Excel saved in Windows-1252 to a partner who requires UTF-8:
 
 ~~~ruby
 RocketJob::Jobs::CopyFileJob.create!(

@@ -44,6 +44,7 @@ module RocketJob
           if @on_first
             @on_first.call(line)
             @on_first = nil
+            @header   = true
             return self
           end
           @slice << line
@@ -84,11 +85,17 @@ module RocketJob
         # Saves the supplied slices with the block. When a record holds text that MongoDB cannot store, since it is
         # binary or not valid UTF-8, raises BSON's error with the number of the first such record, which its message
         # does not include.
+        #
+        # Records are numbered as the job numbers them, see Slice#current_record_number, which does not count the
+        # header, so the message says so when there was one, since the record is then on the next line of a file.
         def save_slices(slices)
           yield
         rescue EncodingError => e
           number = first_unstorable_record_number(slices)
-          raise(number ? e.exception("Cannot upload record #{number}, since MongoDB only stores UTF-8 text: #{e.message}") : e)
+          raise(e) unless number
+
+          record = @header ? "record #{number} after the header" : "record #{number}"
+          raise(e.exception("Cannot upload #{record}, since MongoDB only stores UTF-8 text: #{e.message}"))
         end
 
         # Returns [Integer] the number of the first record in the supplied slices that BSON cannot store, or nil.

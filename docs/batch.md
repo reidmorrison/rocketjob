@@ -287,7 +287,7 @@ Input category options:
 | `serializer`       | `:compress` | Slice serialization: `:none`, `:compress`, or `:encrypt`. See [Compression and encryption](#compression-and-encryption).
 | `format`           | `nil`       | Parse each record before `perform`: `nil` (raw line), `:auto`, or a tabular format such as `:csv`. See [Reading tabular files](#reading-tabular-files).
 | `format_options`   | `nil`       | Format-specific options, for example a `:layout` for `:fixed`.
-| `encoding`         | `nil`       | The encoding of the files, such as `"Windows-1252"`, which is converted to UTF-8. `nil` reads UTF-8, or the format's own encoding, such as ASCII for `:fixed`. See [Files](#files).
+| `encoding`         | `nil`       | The encoding of the files, such as `"Windows-1252"`, which is converted to UTF-8. `nil` reads UTF-8, or the format's own encoding, such as ASCII for `:fixed`. Name the byte order of UTF-16 or UTF-32, such as `"UTF-16LE"`. See [Files](#files).
 | `invalid_characters` | `nil`     | What to do with a character that is not valid in the file's encoding: `:remove`, `:replace` with U+FFFD, or `:raise`. `nil` removes them from tabular formats, such as CSV, and raises for `:fixed` and lines.
 | `columns`          | `nil`       | Header columns, when the file has no header row.
 | `mode`             | `:line`     | How a file is uploaded: `:line`, `:array`, or `:hash`.
@@ -372,7 +372,7 @@ The `output_category` class method accepts these options:
 | `serializer`     | `:compress` | Slice serialization: `:none`, `:compress`, `:encrypt`, `:bz2`, or `:encrypted_bz2`.
 | `format`         | `nil`       | Render each result: `nil`, `:auto`, or a tabular format such as `:csv`. See [Writing tabular files](#writing-tabular-files).
 | `format_options` | `nil`       | Format-specific options.
-| `encoding`       | `nil`       | The encoding to write the file in, such as `"ISO-8859-1"`. `nil` writes UTF-8, or the format's own encoding, such as ASCII for `:fixed`.
+| `encoding`       | `nil`       | The encoding to write the file in, such as `"ISO-8859-1"`. `nil` writes UTF-8, or the format's own encoding, such as ASCII for `:fixed`. Name the byte order of UTF-16 or UTF-32, such as `"UTF-16LE"`.
 | `columns`        | `nil`       | Columns to include when rendering tabular output.
 | `nils`           | `false`     | When `true`, store `nil` results too; when `false`, skip them.
 

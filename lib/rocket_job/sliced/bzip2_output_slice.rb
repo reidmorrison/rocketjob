@@ -31,21 +31,49 @@ module RocketJob
         s.string
       end
 
-      # The encoding of the text of the records, which is not saved, see .to_binary.
-      attr_accessor :text_encoding
+      # The encoding of the text of the records, see .to_binary. It is saved with the slice, so that records that
+      # are appended after the slice is read back, see #append_records, are written in it too.
+      # Default: nil, which writes UTF-8
+      field :text_encoding, type: String
+
+      # Appends the supplied records. Once this slice has been read back its records are compressed, so the supplied
+      # records are compressed after them, as another BZip2 stream, see the notes above.
+      def append_records(records)
+        return super unless @compressed
+        return if records.blank?
+
+        @records = [compressed_records + self.class.to_binary(records, encoding: text_encoding)]
+      end
 
       private
 
-      # Returns [Hash] the BZip2 compressed binary data in binary form when reading back from Mongo.
+      # Reads back the records as the BZip2 compressed data, which is downloaded as it is.
       def parse_records
-        # Convert BSON::Binary to a string
-        @records = [attributes.delete("records").data]
+        @compressed = true
+        @records    = [read_binary(attributes.delete("records").data)]
       end
 
       # Returns [BSON::Binary] the records compressed using BZip2 into a string.
       def serialize_records
+        return [] if records.empty?
+
+        BSON::Binary.new(write_binary(compressed_records))
+      end
+
+      # Returns [String] the records compressed with BZip2: as they were read back, or compressed now.
+      def compressed_records
         # TODO: Make the line terminator configurable
-        BSON::Binary.new(self.class.to_binary(@records, encoding: text_encoding))
+        @compressed ? records.join : self.class.to_binary(records, encoding: text_encoding)
+      end
+
+      # Returns [String] the compressed records held in the supplied saved data, see #write_binary.
+      def read_binary(data)
+        data
+      end
+
+      # Returns [String] the data to save that holds the supplied compressed records.
+      def write_binary(compressed)
+        compressed
       end
     end
   end

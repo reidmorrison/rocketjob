@@ -317,7 +317,7 @@ module RocketJob
     #
     # A file whose name is not valid UTF-8, such as a Latin-1 name, is archived under a name that is, see
     # #archive_file_name, since the job holds the name of the archived file. The job's original file name shows
-    # each byte that is not valid UTF-8 as `\xHH`, see RocketJob.path_display_name.
+    # each byte that is not valid UTF-8 as `\xHH`, see #file_display_name.
     #
     # Returns [RocketJob::Jobs::UploadFileJob] the job, or nil when the file was removed after it was found.
     def later(iopath)
@@ -325,7 +325,7 @@ module RocketJob
       archive_path = archive_iopath(iopath).join("#{job_id}_#{archive_file_name(iopath)}")
       return unless archive_file(iopath, archive_path)
 
-      original_file_name = RocketJob.path_display_name(iopath)
+      original_file_name = file_display_name(iopath)
       job                = RocketJob::Jobs::UploadFileJob.create!(
         job_class_name:     job_class_name,
         properties:         properties,
@@ -347,6 +347,14 @@ module RocketJob
         }
       )
       job
+    end
+
+    # Returns [String] the name of a file that this entry found, to save and log: its display name, see
+    # RocketJob.path_display_name, or, when the path cannot build one, its path without its host or any
+    # credentials, so that each file still has a name of its own, which ends with its extensions, such as `.csv.gz`.
+    def file_display_name(iopath)
+      name = RocketJob.path_display_name(iopath)
+      name == RocketJob::INVALID_PATH_DISPLAY_NAME ? RocketJob.valid_utf8(iopath.path) : name
     end
 
     private
@@ -380,18 +388,10 @@ module RocketJob
 
     # Returns [String] the name to archive the file under: its own name, with each byte that is not valid UTF-8, such
     # as the `é` of a Latin-1 name, replaced with U+FFFD, since MongoDB only stores UTF-8, and the job holds the name
-    # of the archived file. The job id that prefixes it keeps it unique. A binary name, as SFTP lists them, is read
-    # as UTF-8.
+    # of the archived file, see RocketJob.valid_utf8. Not shown as `\xHH`, since a `\` separates the directories of a
+    # path on Windows. The job id that prefixes it keeps it unique.
     def archive_file_name(iopath)
-      name = iopath.basename
-      case name.encoding
-      when Encoding::UTF_8
-        name.scrub
-      when Encoding::BINARY
-        name.dup.force_encoding(Encoding::UTF_8).scrub
-      else
-        name.encode(Encoding::UTF_8, invalid: :replace, undef: :replace)
-      end
+      RocketJob.valid_utf8(iopath.basename, replacement: "\uFFFD")
     end
 
     # Moves the file to the archive path.

@@ -657,6 +657,14 @@ class DirmonEntryTest < Minitest::Test
             assert_equal "Test: café.csv", job.description
           end
 
+          it "names the file by its path when it has no display name, so that each file has a name of its own" do
+            path = file_named("caf\xE9.csv.gz".b)
+            path.define_singleton_method(:display_name) { raise(ArgumentError, "invalid byte sequence in UTF-8") }
+
+            assert_equal "/tmp/dirmon_in/caf\\xE9.csv.gz", dirmon_entry.file_display_name(path)
+            assert_equal "/tmp/dirmon_in/caf\\xE9.csv.gz", dirmon_entry.later(path).original_file_name
+          end
+
           it "replaces each byte of a UTF-8 name that is not valid" do
             name = Struct.new(:basename).new("caf\xE9.csv")
 

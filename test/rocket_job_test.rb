@@ -59,6 +59,23 @@ class RocketJobTest < Minitest::Test
       it "returns an empty string for nil" do
         assert_equal "", RocketJob.valid_utf8(nil)
       end
+
+      it "shows each byte that is not valid in an encoding that ASCII is not part of" do
+        # "a" followed by the first byte of a character, in UTF-16LE.
+        text = "a\x00\xD8".b.force_encoding(Encoding::UTF_16LE)
+
+        assert_equal "a\\xD8", RocketJob.valid_utf8(text)
+      end
+
+      it "reads a string in an encoding that Ruby cannot convert as UTF-8" do
+        assert_equal "caf\\xE9", RocketJob.valid_utf8("caf\xE9".b.force_encoding(Encoding::UTF_7))
+      end
+
+      it "replaces each byte that is not valid with the supplied replacement" do
+        assert_equal "caf�.csv", RocketJob.valid_utf8("caf\xE9.csv", replacement: "�")
+        assert_equal "caf�.csv", RocketJob.valid_utf8("caf\xE9.csv".b, replacement: "�")
+        assert_equal "a�b", RocketJob.valid_utf8("a\x81b".b.force_encoding(Encoding::Windows_1252), replacement: "�")
+      end
     end
 
     describe ".path_display_name" do

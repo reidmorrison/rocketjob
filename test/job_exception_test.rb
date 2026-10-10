@@ -20,6 +20,14 @@ class JobExceptionTest < Minitest::Test
         assert_equal "Unknown customer: Jos\\xE9", job_exception.message
       end
 
+      it "saves a message in an encoding that ASCII is not part of, such as UTF-16LE" do
+        # Ends with the first byte of a character.
+        message       = ("Jack".encode(Encoding::UTF_16LE).b + "\xD8".b).force_encoding(Encoding::UTF_16LE)
+        job_exception = RocketJob::JobException.from_exception(ArgumentError.new(message))
+
+        assert_equal "Jack\\xD8", job_exception.message
+      end
+
       it "keeps the characters of a binary message that is valid UTF-8" do
         job_exception = RocketJob::JobException.from_exception(ArgumentError.new("José not found".b))
 
