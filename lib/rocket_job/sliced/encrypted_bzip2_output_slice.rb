@@ -14,6 +14,12 @@ module RocketJob
         :bz2
       end
 
+      # Compress the supplied records with BZip2.
+      # Not encrypted, since this is the binary form written to output files once each slice is decrypted.
+      def self.to_binary(records, record_delimiter = "\n")
+        BZip2OutputSlice.to_binary(records, record_delimiter)
+      end
+
       private
 
       # Returns [Hash] the BZip2 compressed binary data in binary form when reading back from Mongo.
@@ -35,13 +41,11 @@ module RocketJob
         return [] if @records.nil? || @records.empty?
 
         # TODO: Make the line terminator configurable
-        lines = records.to_a.join("\n") + "\n"
-        s     = StringIO.new
-        IOStreams::Bzip2::Writer.stream(s) { |io| io.write(lines) }
+        compressed = self.class.to_binary(records.to_a)
 
         # Encrypt to binary without applying an encoding such as Base64
         # Use a random_iv with each encryption for better security
-        data = SymmetricEncryption.cipher.binary_encrypt(s.string, random_iv: true, compress: false)
+        data = SymmetricEncryption.cipher.binary_encrypt(compressed, random_iv: true, compress: false)
         BSON::Binary.new(data)
       end
     end

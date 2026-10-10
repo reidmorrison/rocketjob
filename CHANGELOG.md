@@ -95,6 +95,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixes
 
+- `download` of an output category with the `:encrypted_bz2` serializer writes a header line, such as
+  the header row of a CSV file. Previously it raised `NotImplementedError` whenever there was a header line.
 - A `CopyFileJob` fetches its `secret_config_` arguments from Secret Config even when Symmetric Encryption
   is not loaded. Previously they were passed to IOStreams under their stored names, which failed the job.
   A source or target whose streams are `nil` copies without any streams, instead of raising `NoMethodError`.
