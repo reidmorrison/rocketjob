@@ -51,6 +51,41 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   slice, where it was written as UTF-8, a line longer than its layout. Set the output category's
   `encoding`, such as `"ISO-8859-1"`. An encoding set on the download path of such output raises
   `ArgumentError`, where it changed the compressed data.
+- A fixed width `:integer` or `:float` column that holds text that is not a number, such as `N/A`, fails
+  its record with `IOStreams::Errors::InvalidValue`, as IOStreams 3.0 reads it. Previously it was read as
+  `0`, or as the number that its leading digits make. Writing a fraction to an `:integer` column also
+  raises, where it was truncated.
+- `upload` raises `ArgumentError` when it is given `format:`, `format_options:`, `schema:` or
+  `default_format:`, since IOStreams 3.0 reads them only from the path. Set them on the input category,
+  or on the path that is uploaded, instead.
+- A `Time` that a job returns to a tabular output category is written in ISO 8601, such as
+  `2026-10-13T09:30:00Z`, where it was `2026-10-13 09:30:00 UTC`, and a `BigDecimal` is written as
+  `12.5`, as IOStreams 3.0 writes them.
+- A Dirmon entry, and an `UploadFileJob`, check the category properties that they hold for a batch job when
+  they are saved, so an entry, or an `UploadFileJob`, that was saved before can now fail validation and
+  must be corrected before it can be saved again:
+  - Each value is validated, such as an `encoding` that is not valid, or an `invalid_characters` that is
+    not one of its values. Previously the values were only checked when the job was created, so every file
+    that a Dirmon entry found failed.
+  - The names of the category properties are checked for a batch job. Previously only those of a job
+    without categories were checked.
+  - A category that the job does not define, such as an output category of a job without any, is rejected.
+  - `input_categories` and `output_categories` must each be a list of the properties of each category.
+  - A job without categories rejects `input_categories` and `output_categories`, since it cannot be built
+    from them. Previously their names were checked as though it had categories.
+
+  Each error names the category, such as `Input category main: Encoding "UTF-16" writes a byte order
+  mark ...`, or `Input category main: Unknown property: blah`, which replaces the message
+  `Unknown Property in input_categories: Attempted to set a value for blah.input_categories ...`.
+  The job class decides, see `.property_errors`, and asks each category, see
+  `RocketJob::Category::Base#property_errors`, without building the job.
+- `.from_properties` of a batch job merges category properties whose keys are Symbols onto the categories
+  that the job defines, as it did for String keys. Previously they replaced the job's categories.
+- A category's `format_options` is replaced by its `schema`, see below. A category no longer has a
+  `format_options` field or reader. `format_options=` is deprecated: it sets the schema of the supplied
+  fixed width layout, so a Dirmon entry or an `UploadFileJob` whose properties hold `format_options`
+  still builds its job. A job saved before v8 has the `format_options` of each category translated into
+  its schema when it is read, and saved that way the next time it is saved. See the upgrade guide.
 
 ### Security
 
@@ -65,6 +100,13 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### New features
 
+- A category's `schema` is a Frictionless Table Schema, as a Hash, or the path or url of a JSON file,
+  that IOStreams 3.0 uses to read each value of its records as its type, such as an `Integer`, a
+  `BigDecimal` or a `Date`, and to write each value in the text form of its type, for every tabular
+  format. It also gives the position of each field of a fixed width file, and `"header" => false`
+  describes a file without a header row. It is set on the path that is uploaded, and validated when the
+  category is saved, without reading a file that holds it. In the `:array` and `:hash` upload modes a
+  `date` is stored in the slices as a `Time` at midnight UTC, since MongoDB has no date type.
 - `CopyFileJob` converts the text of a file from its `source_encoding` to its `target_encoding`, such as
   `source_encoding: "Windows-1252"`, which copies a file that Excel saved on Windows as UTF-8. When only one
   is set, the other is UTF-8, and when neither is set the file is still copied byte for byte. The text is
@@ -125,6 +167,12 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixes
 
+- An upload in the `:array` or `:hash` mode of a tabular input category reads with IOStreams 3.0. The
+  category sets its format, and the layout of a fixed width file, on the path that it reads, since
+  IOStreams no longer accepts them for each read.
+- A category's `encoding`, and `CopyFileJob#source_encoding` and `#target_encoding`, can be `"UTF-8"`.
+  Previously it was rejected as an encoding that Ruby cannot convert to and from UTF-8, since Ruby has no
+  converter from UTF-8 to itself.
 - An upload of records, such as with a block, `upload_arel` or `upload_mongo_query`, that holds text that is
   binary or not valid UTF-8 raises an error that names the number of the first such record, such as
   `Cannot upload record 4, since MongoDB only stores UTF-8 text: ...`, or `record 4 after the header`

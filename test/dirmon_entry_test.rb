@@ -446,18 +446,69 @@ class DirmonEntryTest < Minitest::Test
           assert_equal ["Unknown Property: Attempted to set a value for :blah which is not allowed on the job DirmonEntryTest::TestJob"], dirmon_entry.errors[:properties], dirmon_entry.errors.messages.ai
         end
 
-        it "allows known category properties" do
+        it "rejects category properties for a job without categories" do
           dirmon_entry.properties = {output_categories: [{name: "main"}]}
 
-          assert_predicate dirmon_entry, :valid?, dirmon_entry.errors.messages.ai
+          refute_predicate dirmon_entry, :valid?
+          assert_equal ["Unknown Property: Attempted to set a value for :output_categories which is not allowed on the job DirmonEntryTest::TestJob"],
+                       dirmon_entry.errors[:properties]
         end
 
-        it "rejects unknown category properties" do
-          dirmon_entry.properties = {output_categories: [{not_a_category_field: 1}]}
+        describe "of a batch job" do
+          before do
+            dirmon_entry.job_class_name = "DirmonEntryTest::BatchTestJob"
+          end
 
-          refute_predicate dirmon_entry, :valid?
-          assert(dirmon_entry.errors[:properties].any? { |m| m.include?("not_a_category_field") },
-                 dirmon_entry.errors.messages.ai)
+          it "rejects unknown category properties" do
+            dirmon_entry.properties = {input_categories: [{name: "main", not_a_category_field: 1}]}
+
+            refute_predicate dirmon_entry, :valid?
+            assert(dirmon_entry.errors[:properties].any? { |m| m.include?("not_a_category_field") },
+                   dirmon_entry.errors.messages.ai)
+          end
+
+          it "allows valid category values" do
+            dirmon_entry.properties = {
+              input_categories:  [{name: "main", encoding: "Windows-1252", invalid_characters: "raise"}],
+              output_categories: [{"name" => "main", "encoding" => "ISO-8859-1"}]
+            }
+
+            assert_predicate dirmon_entry, :valid?, dirmon_entry.errors.messages.ai
+          end
+
+          it "rejects an input category encoding that is not valid" do
+            dirmon_entry.properties = {input_categories: [{name: "main", encoding: "UTF-16"}]}
+
+            refute_predicate dirmon_entry, :valid?
+            assert_equal(
+              ["Input category main: Encoding \"UTF-16\" writes a byte order mark in front of each piece of text, " \
+               "so name its byte order, such as UTF-16LE"],
+              dirmon_entry.errors[:properties]
+            )
+          end
+
+          it "rejects an output category encoding that is not valid" do
+            dirmon_entry.properties = {output_categories: [{"name" => "main", "encoding" => "Nope"}]}
+
+            refute_predicate dirmon_entry, :valid?
+            assert_equal(["Output category main: Encoding \"Nope\" is not an encoding that Ruby knows, such as Windows-1252"],
+                         dirmon_entry.errors[:properties])
+          end
+
+          it "rejects invalid_characters that are not valid" do
+            dirmon_entry.properties = {input_categories: [{name: "main", invalid_characters: "ignore"}]}
+
+            refute_predicate dirmon_entry, :valid?
+            assert_equal(["Input category main: Invalid characters is not included in the list"],
+                         dirmon_entry.errors[:properties])
+          end
+
+          it "rejects a category that the job does not define" do
+            dirmon_entry.properties = {output_categories: [{name: "other"}]}
+
+            refute_predicate dirmon_entry, :valid?
+            assert(dirmon_entry.errors[:properties].any? { |m| m.include?("other") }, dirmon_entry.errors.messages.ai)
+          end
         end
       end
     end

@@ -4,6 +4,11 @@ module Batch
   # Text must reach MongoDB as UTF-8, since BSON strings are UTF-8, and come back out byte for byte.
   # Binary files are only copied, never stored as records.
   class EncodingTest < Minitest::Test
+    # A fixed width file of a name in 10 characters, followed by a zip code in 5.
+    NAME_ZIP_SCHEMA = {
+      "fields" => [{"name" => "name", "type" => "string", "width" => 10}, {"name" => "zip", "type" => "string", "width" => 5}]
+    }.freeze
+
     class EncodingJob < RocketJob::Job
       include RocketJob::Batch
 
@@ -259,7 +264,7 @@ module Batch
       describe "#download fixed width" do
         before do
           job.output_category.format         = :fixed
-          job.output_category.format_options = {layout: [{size: 10, key: "name"}, {size: 5, key: "zip"}]}
+          job.output_category.schema         = NAME_ZIP_SCHEMA
           job.output << ["José      12345", "Jack      54321"]
         end
 
@@ -295,7 +300,7 @@ module Batch
 
         def fixed_width
           job.output_category.format         = :fixed
-          job.output_category.format_options = {layout: [{size: 10, key: "name"}, {size: 5, key: "zip"}]}
+          job.output_category.schema         = NAME_ZIP_SCHEMA
         end
 
         it "rejects a fixed width character that is not ASCII when the slice is written" do
@@ -420,7 +425,7 @@ module Batch
 
         it "writes fixed width in the output category's encoding, one byte per character" do
           job.output_category.format         = :fixed
-          job.output_category.format_options = {layout: [{size: 10, key: "name"}, {size: 5, key: "zip"}]}
+          job.output_category.schema         = NAME_ZIP_SCHEMA
           job.output_category.encoding       = "ISO-8859-1"
           job.output << ["José      12345"]
 
@@ -446,6 +451,34 @@ module Batch
           category.encoding = "IBM037"
 
           assert_predicate category, :valid?
+        end
+
+        it "can be UTF-8, the text that the records hold" do
+          category = job.input_category
+
+          %w[UTF-8 utf-8 CP65001].each do |name|
+            category.encoding = name
+
+            assert_predicate category, :valid?, category.errors.messages
+          end
+        end
+
+        it "uploads and downloads UTF-8 text when it is UTF-8" do
+          job.input_category.encoding  = "UTF-8"
+          job.output_category.encoding = "UTF-8"
+
+          with_file(".txt", utf8_text) do |path|
+            assert_equal utf8_lines.size, job.upload(path.to_s)
+          end
+
+          assert_equal utf8_lines, input_records
+
+          job.output << utf8_lines
+          IOStreams.temp_file("encoding_test", ".txt") do |path|
+            job.download(path.to_s)
+
+            assert_equal utf8_text.b, ::File.binread(path.to_s)
+          end
         end
 
         it "must be the encoding of the text in a file" do

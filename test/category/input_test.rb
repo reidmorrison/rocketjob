@@ -21,15 +21,14 @@ module Batch
 
       describe "#tabular" do
         it "returns tabular for the current settings" do
-          layout   = [
-            {size: 1, key: :action},
-            {size: 9, key: :date},
-            {size: :remainder}
-          ]
+          schema = {
+            "fields" => [{"name" => "action", "width" => 1}, {"name" => "date", "type" => "date", "width" => 10}],
+            "width"  => "remainder"
+          }
           category = RocketJob::Category::Input.new(
             columns:          %w[abc def],
             format:           :fixed,
-            format_options:   {layout: layout},
+            schema:           schema,
             allowed_columns:  %w[name address zip_code],
             required_columns: %w[name address],
             skip_unknown:     false
@@ -38,15 +37,8 @@ module Batch
           assert tabular = category.tabular
           assert_equal %w[abc def], tabular.header.columns
           assert_kind_of IOStreams::Tabular::Parser::Fixed, tabular.parser, tabular.parser.class.name
-          actual = tabular.parser.layout.columns.collect do |col|
-            h       = {
-              size: col.size == -1 ? :remainder : col.size
-            }
-            h[:key] = col.key if col.key
-            h
-          end
-
-          assert_equal layout, actual
+          # The schema splits each line into its fields.
+          assert_equal({"action" => "A", "date" => "2026-10-13"}, tabular.parser.parse("A2026-10-13rest"))
           assert_equal %w[name address zip_code], tabular.header.allowed_columns
           assert_equal %w[name address], tabular.header.required_columns
           refute tabular.header.skip_unknown

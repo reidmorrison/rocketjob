@@ -10,6 +10,16 @@ module Batch
       end
     end
 
+    class OutputCategoriesJob < RocketJob::Job
+      include RocketJob::Batch
+
+      output_category format: :csv
+
+      def perform(record)
+        record
+      end
+    end
+
     describe RocketJob::Batch::Categories do
       before do
         CategoriesJob.destroy_all
@@ -146,6 +156,86 @@ module Batch
 
           assert_equal "with categories", job.description
           assert_equal 42, job.input_category(:main).slice_size
+        end
+
+        it "merges category properties whose keys are Symbols onto the defaults" do
+          job = OutputCategoriesJob.from_properties(
+            description:       "with symbols",
+            output_categories: [{name: :main, nils: true}]
+          )
+
+          assert_equal "with symbols", job.description
+          assert job.output_category(:main).nils
+          assert_equal :csv, job.output_category(:main).format
+        end
+      end
+
+      describe ".property_errors" do
+        it "is empty for valid category properties" do
+          assert_empty OutputCategoriesJob.property_errors(
+            "description"      => "valid",
+            "input_categories" => [{"name" => "main", "encoding" => "Windows-1252"}],
+            :output_categories => [{name: "main", encoding: "ISO-8859-1"}]
+          )
+        end
+
+        it "names the category in each error" do
+          errors = OutputCategoriesJob.property_errors(
+            "input_categories"  => [{"slice_size" => nil, "blah" => 1}],
+            "output_categories" => [{"name" => "main", "encoding" => "Nope"}]
+          )
+
+          assert_equal ["Input category main: Unknown property: blah",
+                        "Output category main: Encoding \"Nope\" is not an encoding that Ruby knows, such as Windows-1252"],
+                       errors
+        end
+
+        it "rejects a category that the job does not define" do
+          assert_equal ["Output category main: Not defined by the job Batch::CategoriesTest::CategoriesJob, which defines: none"],
+                       CategoriesJob.property_errors("output_categories" => [{"name" => "main"}])
+          assert_equal ["Output category other: Not defined by the job Batch::CategoriesTest::OutputCategoriesJob, " \
+                        "which defines: main"],
+                       OutputCategoriesJob.property_errors("output_categories" => [{"name" => "other"}])
+        end
+
+        it "rejects categories that are not a list of properties" do
+          [nil, "main", {"0" => {"name" => "main"}}, [%w[name main]]].each do |categories|
+            assert_equal ["input_categories must be a list of the properties of each category, such as " \
+                          "[{\"name\" => \"main\", \"encoding\" => \"Windows-1252\"}]"],
+                         CategoriesJob.property_errors("input_categories" => categories),
+                         categories.inspect
+          end
+        end
+
+        it "does not build the job" do
+          CategoriesJob.stub(:new, ->(*) { raise "built the job" }) do
+            assert_empty CategoriesJob.property_errors("input_categories" => [{"slice_size" => 10}])
+          end
+        end
+      end
+
+      describe "a job saved before v8" do
+        it "replaces the format_options of its categories with their schema when it is saved" do
+          job = CategoriesJob.create!
+          layout = {"layout" => [{"size" => 10, "key" => "name"}, {"size" => 5, "key" => "zip"}]}
+          CategoriesJob.collection.update_one(
+            {_id: job.id},
+            {"$set" => {"input_categories.0.format" => "fixed", "input_categories.0.format_options" => layout}}
+          )
+
+          job = CategoriesJob.find(job.id)
+          schema = {
+            "fields" => [{"name" => "name", "type" => "string", "width" => 10, "truncate" => true},
+                         {"name" => "zip", "type" => "string", "width" => 5, "truncate" => true}]
+          }
+
+          assert_equal schema, job.input_category.schema
+
+          job.save!
+          category = CategoriesJob.collection.find(_id: job.id).first["input_categories"].first
+
+          assert_equal schema, category["schema"]
+          refute category.key?("format_options")
         end
       end
 

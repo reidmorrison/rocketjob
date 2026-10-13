@@ -35,31 +35,169 @@ module Batch
         end
       end
 
+      describe ".name_in" do
+        it "is the name in the properties, or main" do
+          assert_equal :other, RocketJob::Category::Input.name_in("name" => "other")
+          assert_equal :other, RocketJob::Category::Input.name_in(name: :other)
+          assert_equal :main, RocketJob::Category::Input.name_in("slice_size" => 10)
+        end
+      end
+
+      describe "#merge_properties" do
+        it "sets each property" do
+          category = RocketJob::Category::Input.new
+
+          assert_same category, category.merge_properties("slice_size" => 10, :encoding => "Windows-1252")
+          assert_equal 10, category.slice_size
+          assert_equal "Windows-1252", category.encoding
+        end
+      end
+
+      describe "#property_errors" do
+        let(:category) { RocketJob::Category::Input.new }
+
+        it "is empty when the properties are valid" do
+          assert_empty category.property_errors("slice_size" => 10, :encoding => "Windows-1252")
+        end
+
+        it "names each property that a category does not have" do
+          assert_equal ["Unknown property: blah", "Unknown property: nope"],
+                       category.property_errors("blah" => 1, :nope => 2, "slice_size" => 10)
+        end
+
+        it "returns the errors of a value that is not valid" do
+          assert_equal ["Slice size can't be blank"], category.property_errors("slice_size" => nil)
+        end
+
+        it "names a property whose value cannot be set, without the value" do
+          RocketJob::Category::Input.stub_any_instance(:columns=, ->(_) { raise TypeError, "secret" }) do
+            assert_equal ["Columns is not valid"], category.property_errors("columns" => "secret")
+          end
+        end
+
+        it "does not change the category" do
+          category.property_errors("slice_size" => 10)
+
+          assert_equal 100, category.slice_size
+        end
+      end
+
+      describe "#schema" do
+        let(:schema) { {"fields" => [{"name" => "name", "type" => "string", "width" => 10}]} }
+
+        it "can be a schema" do
+          assert_predicate RocketJob::Category::Input.new(schema: schema), :valid?
+        end
+
+        it "can be the path or url of a JSON file, which is not read" do
+          assert_predicate RocketJob::Category::Input.new(schema: "/does/not/exist/schema.json"), :valid?
+          assert_predicate RocketJob::Category::Output.new(schema: "s3://bucket/schema.json"), :valid?
+        end
+
+        it "rejects a schema that is not valid" do
+          category = RocketJob::Category::Input.new(schema: {"fields" => [{"name" => "name", "type" => "time"}]})
+
+          refute_predicate category, :valid?
+          assert_match(/\ASchema is not valid: /, category.errors.full_messages.first)
+        end
+
+        it "rejects a value that is neither a schema nor a path" do
+          category = RocketJob::Category::Input.new(schema: 12)
+
+          refute_predicate category, :valid?
+          assert_equal ["Schema must be a Hash, or the path or url of a JSON file"], category.errors.full_messages
+        end
+
+        it "rejects a url that is not valid, without showing it" do
+          category = RocketJob::Category::Input.new(schema: "sftp://user:secret@sftp.example.org:port/schema.json")
+
+          refute_predicate category, :valid?
+          assert_equal ["Schema is not a valid path or url"], category.errors.full_messages
+        end
+
+        it "is shown without the credentials of its url" do
+          properties = RocketJob::Category::Input.display_properties("schema" => "sftp://user:secret@host/schema.json")
+
+          assert_equal({"schema" => "sftp://host/schema.json"}, properties)
+          assert_equal({"schema" => schema}, RocketJob::Category::Input.display_properties("schema" => schema))
+        end
+      end
+
+      describe "#format_options=" do
+        it "sets the schema of a fixed width layout" do
+          category = RocketJob::Category::Input.new(format: :fixed)
+          category.format_options = {layout: [{size: 10, key: :name}, {size: 5}, {size: 5, key: "zip", type: :integer}]}
+
+          assert_equal(
+            {
+              "fields" => [
+                {"name" => "name", "type" => "string", "width" => 10, "truncate" => true},
+                {"name" => "zip", "type" => "integer", "width" => 5, "start" => 16}
+              ]
+            },
+            category.schema
+          )
+        end
+
+        it "does nothing when blank" do
+          category = RocketJob::Category::Input.new(format_options: {})
+
+          assert_nil category.schema
+        end
+
+        it "raises when the layout is not valid" do
+          assert_raises(IOStreams::Errors::InvalidLayout) do
+            RocketJob::Category::Input.new(format_options: {layout: [{key: "name"}]})
+          end
+        end
+
+        it "is a property of a category for a Dirmon entry or an UploadFileJob" do
+          category = RocketJob::Category::Input.new(format: :fixed)
+
+          assert_empty category.property_errors("format_options" => {"layout" => [{"size" => 10, "key" => "name"}]})
+          assert_equal ["Format options is not valid"], category.property_errors("format_options" => {"layout" => [{}]})
+        end
+      end
+
+      describe "saved before v8" do
+        def from_db(category)
+          RocketJob::Category::Input.instantiate(category)
+        end
+
+        it "translates format_options into its schema" do
+          category = from_db("_id" => BSON::ObjectId.new, "format" => "fixed",
+                             "format_options" => {"layout" => [{"size" => 10, "key" => "name"}]})
+
+          assert_equal({"fields" => [{"name" => "name", "type" => "string", "width" => 10, "truncate" => true}]},
+                       category.schema)
+          refute category.attributes.key?("format_options")
+        end
+
+        it "keeps format_options that cannot be translated" do
+          category = from_db("_id" => BSON::ObjectId.new, "format_options" => {"layout" => [{"key" => "name"}]})
+
+          assert_nil category.schema
+          assert_equal({"layout" => [{"key" => "name"}]}, category.attributes["format_options"])
+        end
+      end
+
       describe "tabular" do
         it "returns tabular for the current settings" do
-          layout   = [
-            {size: 1, key: :action},
-            {size: 9, key: :date},
-            {size: :remainder}
-          ]
+          schema = {
+            "fields" => [{"name" => "action", "width" => 1}, {"name" => "date", "type" => "date", "width" => 10}],
+            "width"  => "remainder"
+          }
           category = RocketJob::Category::Input.new(
-            columns:        %w[abc def],
-            format:         :fixed,
-            format_options: {layout: layout}
+            columns: %w[abc def],
+            format:  :fixed,
+            schema:  schema
           )
 
           assert tabular = category.tabular
           assert_equal %w[abc def], tabular.header.columns
           assert_kind_of IOStreams::Tabular::Parser::Fixed, tabular.parser, tabular.parser.class.name
-          actual = tabular.parser.layout.columns.collect do |col|
-            h       = {
-              size: col.size == -1 ? :remainder : col.size
-            }
-            h[:key] = col.key if col.key
-            h
-          end
-
-          assert_equal layout, actual
+          # The schema splits each line into its fields.
+          assert_equal({"action" => "A", "date" => "2026-10-13"}, tabular.parser.parse("A2026-10-13rest"))
         end
 
         it "uses the file_name when format is not set" do

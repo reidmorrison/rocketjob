@@ -286,7 +286,7 @@ Input category options:
 | `slice_size`       | `100`       | Number of records per slice.
 | `serializer`       | `:compress` | Slice serialization: `:none`, `:compress`, or `:encrypt`. See [Compression and encryption](#compression-and-encryption).
 | `format`           | `nil`       | Parse each record before `perform`: `nil` (raw line), `:auto`, or a tabular format such as `:csv`. See [Reading tabular files](#reading-tabular-files).
-| `format_options`   | `nil`       | Format-specific options, for example a `:layout` for `:fixed`.
+| `schema`           | `nil`       | The fields of each record and their types, which also give the position of each field of a `:fixed` file. See [Typed values with a schema](#typed-values-with-a-schema).
 | `encoding`         | `nil`       | The encoding of the files, such as `"Windows-1252"`, which is converted to UTF-8. `nil` reads UTF-8, or the format's own encoding, such as ASCII for `:fixed`. Name the byte order of UTF-16 or UTF-32, such as `"UTF-16LE"`. See [Files](#files).
 | `invalid_characters` | `nil`     | What to do with a character that is not valid in the file's encoding: `:remove`, `:replace` with U+FFFD, or `:raise`. `nil` removes them from tabular formats, such as CSV, and raises for `:fixed` and lines.
 | `columns`          | `nil`       | Header columns, when the file has no header row.
@@ -371,7 +371,7 @@ The `output_category` class method accepts these options:
 | `name`           | `:main`     | Name of the category. Register additional names for [multiple output files](#multiple-output-files).
 | `serializer`     | `:compress` | Slice serialization: `:none`, `:compress`, `:encrypt`, `:bz2`, or `:encrypted_bz2`. See [Fast bzip2 output files](#fast-bzip2-output-files).
 | `format`         | `nil`       | Render each result: `nil`, `:auto`, or a tabular format such as `:csv`. See [Writing tabular files](#writing-tabular-files).
-| `format_options` | `nil`       | Format-specific options.
+| `schema`         | `nil`       | The fields of each result and their types, which also give the position of each field of a `:fixed` file. See [Typed values with a schema](#typed-values-with-a-schema).
 | `encoding`       | `nil`       | The encoding to write the file in, such as `"ISO-8859-1"`. `nil` writes UTF-8, or the format's own encoding, such as ASCII for `:fixed`. Name the byte order of UTF-16 or UTF-32, such as `"UTF-16LE"`.
 | `columns`        | `nil`       | Columns to include when rendering tabular output.
 | `nils`           | `false`     | When `true`, store `nil` results too; when `false`, skip them.
@@ -475,6 +475,61 @@ TabularJob.new.tap { |j| j.upload("really_big.csv") }.save!
 TabularJob.new.tap { |j| j.upload("really_big.xlsx") }.save!
 TabularJob.new.tap { |j| j.upload("really_big.json") }.save!
 ~~~
+
+### Typed values with a schema
+
+Set `schema` on a category to read each value as its type, instead of as text. A schema is a
+[Frictionless Table Schema](https://datapackage.org/standard/table-schema/) that lists each field and
+its type, such as `integer`, `number` (a `BigDecimal`), `date`, `datetime` or `boolean`. IOStreams
+reads and writes it, see [Schema](https://iostreams.reidmorrison.com/formats.html#schema).
+
+~~~ruby
+class PeopleJob < RocketJob::Job
+  include RocketJob::Batch
+
+  input_category format: :csv,
+                 schema: {
+                   "fields" => [
+                     {"name" => "name", "type" => "string"},
+                     {"name" => "age", "type" => "integer"},
+                     {"name" => "balance", "type" => "number"},
+                     {"name" => "joined", "type" => "date"}
+                   ]
+                 }
+
+  def perform(record)
+    # record is a Hash of typed values, for example:
+    # { "name" => "Jack", "age" => 21, "balance" => BigDecimal("12.5"), "joined" => Date.new(2026, 10, 13) }
+  end
+end
+~~~
+
+A value that is not of its type, such as `N/A` in an `integer` field, fails its record with
+`IOStreams::Errors::InvalidValue`.
+
+The schema also describes the file:
+
+* **Fixed width files** need a schema, since it gives the `width` of each field:
+
+  ~~~ruby
+  input_category format: :fixed,
+                 schema: {
+                   "fields" => [
+                     {"name" => "name", "type" => "string", "width" => 10},
+                     {"name" => "zip", "type" => "integer", "width" => 5}
+                   ]
+                 }
+  ~~~
+
+* **A file without a header row** is described with `"header" => false`: its columns are the fields,
+  in order. Setting `columns` still works too.
+* **A schema kept in a file** is set as the path or url of its JSON, such as
+  `schema: "s3://bucket/schemas/people.json"`. It is read when the category is first used, so the file
+  must be available to every server that runs the job.
+
+In the `:array` and `:hash` upload modes the typed values are stored in the slices, and MongoDB has
+no date type, so a `date` reaches `perform` as a `Time` at midnight UTC. In the default `:line` mode
+the workers read each value, so `perform` receives a `Date`.
 
 ### Validating columns
 
