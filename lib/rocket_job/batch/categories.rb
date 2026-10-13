@@ -59,10 +59,12 @@ module RocketJob
 
         # Builds this job instance from the supplied properties hash that may contain input and output categories.
         # Keeps the defaults and merges in settings without replacing existing categories.
+        # The keys can be Strings or Symbols, since Mongoid 9 returns Hash field keys as Strings, earlier versions as
+        # Symbols.
         def from_properties(properties)
+          properties = properties.stringify_keys
           return super unless properties.key?("input_categories") || properties.key?("output_categories")
 
-          properties        = properties.dup
           input_categories  = properties.delete("input_categories")
           output_categories = properties.delete("output_categories")
           job               = super
@@ -72,27 +74,28 @@ module RocketJob
         end
 
         # Returns [Array<String>] why the supplied properties cannot build this job, see
-        # RocketJob::Plugins::Job::Model.property_errors, also checking the properties of its categories: each must
-        # be one that a category has, and when they all are, each category validates its values, such as its
-        # encoding, naming the category in each error.
+        # RocketJob::Plugins::Job::Model.property_errors, also asking each category of the job whether its properties
+        # can be merged into it, see `from_properties`, naming the category in each error, such as
+        # "Input category main: Encoding ...". The job is not built.
         def property_errors(properties)
           category_properties = properties.select { |key, _| CATEGORY_PROPERTIES.key?(key.to_sym) }
           errors              = super(properties.except(*category_properties.keys))
 
           category_properties.each_pair do |key, categories|
-            category_class = CATEGORY_PROPERTIES[key.to_sym]
-            categories.each do |category|
-              category.each_key do |name|
-                next if category_class.public_method_defined?(:"#{name}=")
-
-                errors << "Unknown Property in #{key}: Attempted to set a value for #{name}.#{key} which is not " \
-                          "allowed on the job #{self.name}"
-              end
-            end
+            errors.concat(rocketjob_category_property_errors(key.to_sym, categories))
           end
-          return errors unless errors.empty? && category_properties.present?
+          errors
+        end
 
-          category_value_errors(properties)
+        # Returns [Array<RocketJob::Category::Input|RocketJob::Category::Output>] new copies of the categories that a
+        # new job of this class starts with, for the supplied property, `:input_categories` or `:output_categories`.
+        # The input categories are `main` when the class does not define any.
+        def rocketjob_new_categories(key)
+          if key == :input_categories
+            defined_input_categories ? defined_input_categories.deep_dup : [RocketJob::Category::Input.new]
+          else
+            defined_output_categories ? defined_output_categories.deep_dup : []
+          end
         end
 
         # Returns [Hash] the supplied attributes or properties of this job class to show to people, see
@@ -100,11 +103,7 @@ module RocketJob
         # showing its file name without any credentials.
         def display_properties(properties)
           super.to_h do |key, value|
-            category_class =
-              case key.to_s
-              when "input_categories" then RocketJob::Category::Input
-              when "output_categories" then RocketJob::Category::Output
-              end
+            category_class = CATEGORY_PROPERTIES[key.to_sym]
             next [key, value] unless category_class && value.is_a?(Array)
 
             [key, value.map { |category| category.is_a?(Hash) ? category_class.display_properties(category) : category }]
@@ -119,17 +118,27 @@ module RocketJob
           category
         end
 
-        # Returns [Array<String>] the errors of each category of the job that the supplied properties build, such as
-        # "Input category main: Encoding ...", or why it cannot be built, such as a category that it does not define.
-        def category_value_errors(properties)
-          job = from_properties(properties.deep_stringify_keys)
-          {"Input" => job.input_categories, "Output" => job.output_categories}.flat_map do |direction, categories|
-            categories.reject(&:valid?).flat_map do |category|
-              category.errors.full_messages.map { |message| "#{direction} category #{category.name}: #{message}" }
-            end
+        # Returns [Array<String>] why the supplied list of the properties of each category cannot be merged into the
+        # categories that a new job starts with, see `from_properties`, such as a category that it does not define.
+        def rocketjob_category_property_errors(key, categories)
+          unless categories.is_a?(Array) && categories.all?(Hash)
+            return ["#{key} must be a list of the properties of each category, such as " \
+                    "[{\"name\" => \"main\", \"encoding\" => \"Windows-1252\"}]"]
           end
-        rescue ArgumentError => e
-          [e.message]
+
+          category_class = CATEGORY_PROPERTIES[key]
+          direction      = category_class.name.demodulize
+          defaults       = rocketjob_new_categories(key)
+          categories.flat_map do |properties|
+            name     = category_class.name_in(properties)
+            category = defaults.find { |default| default.name == name }
+            unless category
+              next ["#{direction} category #{name}: Not defined by the job #{self.name}, which defines: " \
+                    "#{defaults.empty? ? 'none' : defaults.collect(&:name).join(', ')}"]
+            end
+
+            category.property_errors(properties).map { |message| "#{direction} category #{name}: #{message}" }
+          end
         end
       end
 
@@ -186,9 +195,7 @@ module RocketJob
         return if categories.blank?
 
         categories.each do |properties|
-          category_name = (properties["name"] || properties[:name] || :main).to_sym
-          category      = input_category(category_name)
-          properties.each { |key, value| category.public_send(:"#{key}=", value) }
+          input_category(RocketJob::Category::Input.name_in(properties)).merge_properties(properties)
         end
       end
 
@@ -196,29 +203,18 @@ module RocketJob
         return if categories.blank?
 
         categories.each do |properties|
-          category_name = (properties["name"] || properties[:name] || :main).to_sym
-          category      = output_category(category_name)
-          properties.each { |key, value| category.public_send(:"#{key}=", value) }
+          output_category(RocketJob::Category::Output.name_in(properties)).merge_properties(properties)
         end
       end
 
       private
 
       def rocketjob_categories_assign
-        # Input categories defaults to :main if none was set in the class
-        if input_categories.empty?
-          self.input_categories =
-            if self.class.defined_input_categories
-              self.class.defined_input_categories.deep_dup
-            else
-              [RocketJob::Category::Input.new]
-            end
-        end
+        self.input_categories = self.class.rocketjob_new_categories(:input_categories) if input_categories.empty?
+        return unless output_categories.empty?
 
-        return if !output_categories.empty? || !self.class.defined_output_categories
-
-        # Input categories defaults to nil if none was set in the class
-        self.output_categories = self.class.defined_output_categories.deep_dup
+        categories             = self.class.rocketjob_new_categories(:output_categories)
+        self.output_categories = categories unless categories.empty?
       end
 
       # Render the output from the perform.

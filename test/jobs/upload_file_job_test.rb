@@ -168,10 +168,7 @@ module Jobs
             job.properties = {"input_categories" => [{"name" => "main", "not_a_category_field" => 1}]}
 
             refute_predicate job, :valid?
-            assert_equal ["Unknown Property in input_categories: Attempted to set a value for " \
-                          "not_a_category_field.input_categories which is not allowed on the job " \
-                          "Jobs::UploadFileJobTest::BatchTestJob"],
-                         job.errors.messages[:properties]
+            assert_equal ["Input category main: Unknown property: not_a_category_field"], job.errors.messages[:properties]
           end
 
           it "rejects a category value that is not valid" do

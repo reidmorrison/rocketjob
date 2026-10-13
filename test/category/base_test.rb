@@ -35,6 +35,53 @@ module Batch
         end
       end
 
+      describe ".name_in" do
+        it "is the name in the properties, or main" do
+          assert_equal :other, RocketJob::Category::Input.name_in("name" => "other")
+          assert_equal :other, RocketJob::Category::Input.name_in(name: :other)
+          assert_equal :main, RocketJob::Category::Input.name_in("slice_size" => 10)
+        end
+      end
+
+      describe "#merge_properties" do
+        it "sets each property" do
+          category = RocketJob::Category::Input.new
+
+          assert_same category, category.merge_properties("slice_size" => 10, :encoding => "Windows-1252")
+          assert_equal 10, category.slice_size
+          assert_equal "Windows-1252", category.encoding
+        end
+      end
+
+      describe "#property_errors" do
+        let(:category) { RocketJob::Category::Input.new }
+
+        it "is empty when the properties are valid" do
+          assert_empty category.property_errors("slice_size" => 10, :encoding => "Windows-1252")
+        end
+
+        it "names each property that a category does not have" do
+          assert_equal ["Unknown property: blah", "Unknown property: nope"],
+                       category.property_errors("blah" => 1, :nope => 2, "slice_size" => 10)
+        end
+
+        it "returns the errors of a value that is not valid" do
+          assert_equal ["Slice size can't be blank"], category.property_errors("slice_size" => nil)
+        end
+
+        it "names a property whose value cannot be set, without the value" do
+          RocketJob::Category::Input.stub_any_instance(:columns=, ->(_) { raise TypeError, "secret" }) do
+            assert_equal ["Columns is not valid"], category.property_errors("columns" => "secret")
+          end
+        end
+
+        it "does not change the category" do
+          category.property_errors("slice_size" => 10)
+
+          assert_equal 100, category.slice_size
+        end
+      end
+
       describe "tabular" do
         it "returns tabular for the current settings" do
           layout   = [

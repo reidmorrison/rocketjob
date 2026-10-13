@@ -61,6 +61,26 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - A `Time` that a job returns to a tabular output category is written in ISO 8601, such as
   `2026-10-13T09:30:00Z`, where it was `2026-10-13 09:30:00 UTC`, and a `BigDecimal` is written as
   `12.5`, as IOStreams 3.0 writes them.
+- A Dirmon entry, and an `UploadFileJob`, check the category properties that they hold for a batch job when
+  they are saved, so an entry, or an `UploadFileJob`, that was saved before can now fail validation and
+  must be corrected before it can be saved again:
+  - Each value is validated, such as an `encoding` that is not valid, or an `invalid_characters` that is
+    not one of its values. Previously the values were only checked when the job was created, so every file
+    that a Dirmon entry found failed.
+  - The names of the category properties are checked for a batch job. Previously only those of a job
+    without categories were checked.
+  - A category that the job does not define, such as an output category of a job without any, is rejected.
+  - `input_categories` and `output_categories` must each be a list of the properties of each category.
+  - A job without categories rejects `input_categories` and `output_categories`, since it cannot be built
+    from them. Previously their names were checked as though it had categories.
+
+  Each error names the category, such as `Input category main: Encoding "UTF-16" writes a byte order
+  mark ...`, or `Input category main: Unknown property: blah`, which replaces the message
+  `Unknown Property in input_categories: Attempted to set a value for blah.input_categories ...`.
+  The job class decides, see `.property_errors`, and asks each category, see
+  `RocketJob::Category::Base#property_errors`, without building the job.
+- `.from_properties` of a batch job merges category properties whose keys are Symbols onto the categories
+  that the job defines, as it did for String keys. Previously they replaced the job's categories.
 
 ### Security
 
@@ -138,17 +158,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - An upload in the `:array` or `:hash` mode of a tabular input category reads with IOStreams 3.0. The
   category sets its format, and the layout of a fixed width file, on the path that it reads, since
   IOStreams no longer accepts them for each read.
-- A Dirmon entry, and an `UploadFileJob`, for a batch job validate the values of its category properties
-  when they are saved, such as an `encoding` that is not valid, or a category that the job does not
-  define, and name the category, such as `Input category main: Encoding "UTF-16" writes a byte order
-  mark ...`. Previously they were only checked when the job was created, so every file that a Dirmon
-  entry found failed. The names of the category properties are also checked for a batch job now, where
-  previously only those of a job without categories were, and a job without categories rejects category
-  properties, which it could not be built from. The job class decides, see `.property_errors`.
 - A category's `encoding`, and `CopyFileJob#source_encoding` and `#target_encoding`, can be `"UTF-8"`.
   Previously it was rejected as an encoding that Ruby cannot convert to and from UTF-8, since Ruby has no
   converter from UTF-8 to itself.
-
 - An upload of records, such as with a block, `upload_arel` or `upload_mongo_query`, that holds text that is
   binary or not valid UTF-8 raises an error that names the number of the first such record, such as
   `Cannot upload record 4, since MongoDB only stores UTF-8 text: ...`, or `record 4 after the header`

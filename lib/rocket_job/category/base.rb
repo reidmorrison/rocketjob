@@ -59,6 +59,39 @@ module RocketJob
             [key, key.to_s == "file_name" ? RocketJob.path_display_name(value) : value]
           end
         end
+
+        # Returns [Symbol] the name of the category that the supplied properties are for, see #merge_properties,
+        # which is `:main` when they do not name one.
+        def name_in(properties)
+          (properties["name"] || properties[:name] || :main).to_s.to_sym
+        end
+      end
+
+      # Sets the supplied properties on this category, such as `{"encoding" => "Windows-1252"}`, as a Dirmon entry or
+      # an UploadFileJob holds them for a job. Raises NoMethodError for a property that a category does not have.
+      def merge_properties(properties)
+        properties.each_pair { |key, value| public_send(:"#{key}=", value) }
+        self
+      end
+
+      # Returns [Array<String>] why the supplied properties cannot be merged into this category, see
+      # #merge_properties, such as a property that a category does not have, or a value that is not valid, such as
+      # its encoding. Empty when they can. This category is not changed.
+      def property_errors(properties)
+        unknown = properties.keys.reject { |key| self.class.public_method_defined?(:"#{key}=") }
+        return unknown.map { |key| "Unknown property: #{key}" } unless unknown.empty?
+
+        category = deep_dup
+        errors   = properties.filter_map do |key, value|
+          category.public_send(:"#{key}=", value)
+          nil
+        rescue StandardError
+          # The value is not included in the message, since it can be a secret, such as a url with credentials.
+          "#{key.to_s.humanize} is not valid"
+        end
+        return errors unless errors.empty?
+
+        category.valid? ? [] : category.errors.full_messages
       end
 
       # Return which slice serializer class to use that matches the current options.
