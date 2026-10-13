@@ -51,6 +51,16 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   slice, where it was written as UTF-8, a line longer than its layout. Set the output category's
   `encoding`, such as `"ISO-8859-1"`. An encoding set on the download path of such output raises
   `ArgumentError`, where it changed the compressed data.
+- A fixed width `:integer` or `:float` column that holds text that is not a number, such as `N/A`, fails
+  its record with `IOStreams::Errors::InvalidValue`, as IOStreams 3.0 reads it. Previously it was read as
+  `0`, or as the number that its leading digits make. Writing a fraction to an `:integer` column also
+  raises, where it was truncated.
+- `upload` raises `ArgumentError` when it is given `format:`, `format_options:`, `schema:` or
+  `default_format:`, since IOStreams 3.0 reads them only from the path. Set them on the input category,
+  or on the path that is uploaded, instead.
+- A `Time` that a job returns to a tabular output category is written in ISO 8601, such as
+  `2026-10-13T09:30:00Z`, where it was `2026-10-13 09:30:00 UTC`, and a `BigDecimal` is written as
+  `12.5`, as IOStreams 3.0 writes them.
 
 ### Security
 
@@ -125,6 +135,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixes
 
+- An upload in the `:array` or `:hash` mode of a tabular input category reads with IOStreams 3.0. The
+  category sets its format, and the layout of a fixed width file, on the path that it reads, since
+  IOStreams no longer accepts them for each read.
 - An upload of records, such as with a block, `upload_arel` or `upload_mongo_query`, that holds text that is
   binary or not valid UTF-8 raises an error that names the number of the first such record, such as
   `Cannot upload record 4, since MongoDB only stores UTF-8 text: ...`, or `record 4 after the header`

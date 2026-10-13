@@ -38,15 +38,8 @@ module Batch
           assert tabular = category.tabular
           assert_equal %w[abc def], tabular.header.columns
           assert_kind_of IOStreams::Tabular::Parser::Fixed, tabular.parser, tabular.parser.class.name
-          actual = tabular.parser.layout.columns.collect do |col|
-            h       = {
-              size: col.size == -1 ? :remainder : col.size
-            }
-            h[:key] = col.key if col.key
-            h
-          end
-
-          assert_equal layout, actual
+          # The layout splits each line into its columns.
+          assert_equal({action: "A", date: "2026-10-1"}, tabular.parser.parse("A2026-10-1rest"))
           assert_equal %w[name address zip_code], tabular.header.allowed_columns
           assert_equal %w[name address], tabular.header.required_columns
           refute tabular.header.skip_unknown

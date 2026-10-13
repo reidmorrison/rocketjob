@@ -176,6 +176,28 @@ module Batch
 
           assert_equal [{"name" => "Jos", "zip" => "12345"}], output_records
         end
+
+        it "uploads hashes in :hash mode, with the layout set on the path" do
+          job.input_category.mode = :hash
+          upload(".txt", "Jack      54321\nJill      12345\n")
+
+          assert_equal [{"name" => "Jack", "zip" => "54321"}, {"name" => "Jill", "zip" => "12345"}], input_records
+        end
+
+        it "uploads a hash for each line in :array mode, with the layout set on the path" do
+          job.input_category.mode = :array
+          upload(".txt", "Jack      54321\nJill      12345\n")
+
+          # A fixed width line has no header row to name an array's columns, so IOStreams reads a hash.
+          assert_equal [{"name" => "Jack", "zip" => "54321"}, {"name" => "Jill", "zip" => "12345"}], input_records
+        end
+
+        it "fails a record whose integer column is not a number" do
+          job.input_category.format_options = {layout: [{size: 10, key: "name"}, {size: 5, key: "zip", type: "integer"}]}
+          upload(".txt", "Jack        N/A\n")
+
+          assert_raises(IOStreams::Errors::InvalidValue) { output_records }
+        end
       end
 
       describe "column restrictions" do

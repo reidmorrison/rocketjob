@@ -173,6 +173,8 @@ module RocketJob
         # since only the caller knows how the file was written.
         if tabular?
           path.format(format)
+          # The layout of a fixed width file, so that the :array and :hash modes read its columns, see #each_record.
+          path.format_options(format_options.to_h.deep_symbolize_keys) if format_options.present?
           # Replace the non-printable characters of a fixed width file, such as NUL padding, so that the columns stay
           # in place, and remove those of any other tabular format.
           path.encoding(cleaner: format == :fixed ? FIXED_WIDTH_CLEANER : :printable)
@@ -251,7 +253,8 @@ module RocketJob
       def read_options(mode)
         return {} if mode == :line || !tabular?
 
-        options = {format: tabular.format, format_options: format_options&.to_h&.deep_symbolize_keys, columns: columns}
+        # The format and its options are set on the path, see #upload_path.
+        options = {columns: columns}
         if mode == :hash
           options.merge!(
             allowed_columns:  allowed_columns,
