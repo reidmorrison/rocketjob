@@ -81,6 +81,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   `RocketJob::Category::Base#property_errors`, without building the job.
 - `.from_properties` of a batch job merges category properties whose keys are Symbols onto the categories
   that the job defines, as it did for String keys. Previously they replaced the job's categories.
+- A category's `format_options` is replaced by its `schema`, see below. A category no longer has a
+  `format_options` field or reader. `format_options=` is deprecated: it sets the schema of the supplied
+  fixed width layout, so a Dirmon entry or an `UploadFileJob` whose properties hold `format_options`
+  still builds its job. A job saved before v8 has the `format_options` of each category translated into
+  its schema when it is read, and saved that way the next time it is saved. See the upgrade guide.
 
 ### Security
 
@@ -95,6 +100,13 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### New features
 
+- A category's `schema` is a Frictionless Table Schema, as a Hash, or the path or url of a JSON file,
+  that IOStreams 3.0 uses to read each value of its records as its type, such as an `Integer`, a
+  `BigDecimal` or a `Date`, and to write each value in the text form of its type, for every tabular
+  format. It also gives the position of each field of a fixed width file, and `"header" => false`
+  describes a file without a header row. It is set on the path that is uploaded, and validated when the
+  category is saved, without reading a file that holds it. In the `:array` and `:hash` upload modes a
+  `date` is stored in the slices as a `Time` at midnight UTC, since MongoDB has no date type.
 - `CopyFileJob` converts the text of a file from its `source_encoding` to its `target_encoding`, such as
   `source_encoding: "Windows-1252"`, which copies a file that Excel saved on Windows as UTF-8. When only one
   is set, the other is UTF-8, and when neither is set the file is still copied byte for byte. The text is

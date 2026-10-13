@@ -30,8 +30,22 @@ module RocketJob
         field :format, type: ::Mongoid::StringifiedSymbol
         validates_inclusion_of :format, in: [nil, :auto] + IOStreams::Tabular.registered_formats
 
-        # Any specialized format specific options. For example, `:fixed` format requires a `:layout`.
-        field :format_options, type: Hash
+        # The fields of the records in this category and the type of each one, as a Frictionless Table Schema, see
+        # https://datapackage.org/standard/table-schema/, so that records are read as typed values, such as an Integer,
+        # a BigDecimal or a Date, and written in the text form of each type, for every tabular format. It also gives
+        # the position of each field of a fixed width file, with its `width`, and `"header": false` describes a file
+        # without a header row. See `IOStreams::Schema`.
+        #
+        # A Hash, or the path or url of a JSON file that holds the schema, which is read when the category is first
+        # used to read or write records.
+        #
+        # Example, for a fixed width file:
+        #   {"fields" => [{"name" => "name", "type" => "string", "width" => 10},
+        #                 {"name" => "zip", "type" => "integer", "width" => 5}]}
+        #
+        # Default: nil, which reads and writes each value as text.
+        field :schema
+        validate :schema_valid
 
         # When `:format` is not supplied the file name can be used to infer the required format.
         # Optional.
@@ -49,14 +63,18 @@ module RocketJob
         # Default: nil, which reads and writes UTF-8, or the format's own encoding, such as ASCII for fixed width.
         field :encoding, type: String
         validates_with EncodingValidator, attributes: [:encoding]
+
+        after_initialize :rocketjob_format_options_migrate, unless: :new_record?
       end
 
       class_methods do
-        # Returns [Hash] the supplied attributes or properties of a category to show to people, with its file name
-        # shown by its display name, without any credentials, see RocketJob.path_display_name.
+        # Returns [Hash] the supplied attributes or properties of a category to show to people, with its file name,
+        # and the path or url of its schema, shown by its display name, without any credentials, see
+        # RocketJob.path_display_name.
         def display_properties(properties)
           properties.to_h do |key, value|
-            [key, key.to_s == "file_name" ? RocketJob.path_display_name(value) : value]
+            path = key.to_s == "file_name" || (key.to_s == "schema" && value.is_a?(String))
+            [key, path ? RocketJob.path_display_name(value) : value]
           end
         end
 
@@ -112,12 +130,25 @@ module RocketJob
         end
       end
 
+      # Deprecated: use #schema, which gives the width of each field of a fixed width file.
+      #
+      # Sets the schema to that of the supplied fixed width layout, `layout:` and `truncate:`, as IOStreams translates
+      # it, so that the format options that a Dirmon entry or an UploadFileJob holds still build the job.
+      # Raises IOStreams::Errors::InvalidLayout when the layout is not valid.
+      def format_options=(format_options)
+        return if format_options.blank?
+
+        schema = IOStreams.stream(StringIO.new).format_options(format_options.to_h.deep_symbolize_keys).schema
+        # Stored with String keys and names, since MongoDB does not store Symbols.
+        self.schema = JSON.parse(JSON.generate(schema))
+      end
+
       def tabular
         @tabular ||= IOStreams::Tabular.new(
-          columns:        columns,
-          format:         format == :auto ? nil : format,
-          format_options: format_options&.to_h&.deep_symbolize_keys,
-          file_name:      file_name
+          columns:   columns,
+          format:    format == :auto ? nil : format,
+          schema:    tabular_schema,
+          file_name: file_name
         )
       end
 
@@ -133,6 +164,49 @@ module RocketJob
       end
 
       private
+
+      # Returns [IOStreams::Schema] this category's schema, see #schema, reading its file when it is a path or url, or
+      # nil when it has none.
+      def tabular_schema
+        IOStreams::Schema::Source.new(schema).schema if schema.present?
+      end
+
+      # Checks the schema without reading a file that holds it, since its store may not be available yet.
+      def schema_valid
+        case schema
+        when nil
+          nil
+        when Hash
+          IOStreams::Schema.new(schema)
+        when String
+          schema_path_valid
+        else
+          errors.add(:schema, "must be a Hash, or the path or url of a JSON file")
+        end
+      rescue ArgumentError => e
+        errors.add(:schema, "is not valid: #{e.message}")
+      end
+
+      def schema_path_valid
+        IOStreams.path(schema)
+      rescue LoadError
+        # A gem that the path needs is not installed in this process, so the path is checked when the job runs.
+        nil
+      rescue StandardError
+        # The path is not included in the message, since a url can include credentials.
+        errors.add(:schema, "is not a valid path or url")
+      end
+
+      # Translates the `format_options` of a category saved before v8 into its schema, see #format_options=.
+      def rocketjob_format_options_migrate
+        return unless attributes.key?("format_options")
+
+        # Kept when it cannot be translated, so that it is not lost when the job is saved.
+        self.format_options = attributes["format_options"]
+        remove_attribute(:format_options)
+      rescue StandardError => e
+        logger.warn("Could not translate the format_options of category #{name} into a schema", e)
+      end
 
       # Sets this category's encoding on the supplied path, see #encoding, converting its text to and from the UTF-8
       # of the records, unless the caller already set an encoding on the path.

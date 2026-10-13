@@ -129,8 +129,10 @@ module Batch
 
       describe "fixed width" do
         before do
-          job.input_category.format         = :fixed
-          job.input_category.format_options = {layout: [{size: 10, key: "name"}, {size: 5, key: "zip"}]}
+          job.input_category.format = :fixed
+          job.input_category.schema = {
+            "fields" => [{"name" => "name", "type" => "string", "width" => 10}, {"name" => "zip", "width" => 5}]
+          }
         end
 
         it "reads ASCII" do
@@ -193,10 +195,67 @@ module Batch
         end
 
         it "fails a record whose integer column is not a number" do
-          job.input_category.format_options = {layout: [{size: 10, key: "name"}, {size: 5, key: "zip", type: "integer"}]}
+          job.input_category.schema["fields"].last["type"] = "integer"
           upload(".txt", "Jack        N/A\n")
 
           assert_raises(IOStreams::Errors::InvalidValue) { output_records }
+        end
+
+        it "reads the fixed width layout supplied as the deprecated format_options" do
+          job.input_category.schema         = nil
+          job.input_category.format_options = {layout: [{size: 10, key: "name"}, {size: 5, key: "zip"}]}
+          upload(".txt", "Jack      54321\n")
+
+          assert_equal [{"name" => "Jack", "zip" => "54321"}], output_records
+        end
+      end
+
+      describe "schema" do
+        let(:schema) do
+          {
+            "fields" => [
+              {"name" => "name", "type" => "string"},
+              {"name" => "age", "type" => "integer"},
+              {"name" => "balance", "type" => "number"},
+              {"name" => "joined", "type" => "date"}
+            ]
+          }
+        end
+        let(:typed) { {"name" => "Jack", "age" => 21, "balance" => BigDecimal("12.5"), "joined" => Date.new(2026, 10, 13)} }
+        let(:people) { "name,age,balance,joined\nJack,21,12.50,2026-10-13\n" }
+
+        before do
+          job.input_category.schema = schema
+        end
+
+        it "passes typed values to perform" do
+          upload(".csv", people)
+
+          assert_equal [typed], output_records
+        end
+
+        it "uploads typed values in :hash mode, with a date as a time, since MongoDB has no date" do
+          job.input_category.mode = :hash
+          upload(".csv", people)
+
+          assert_equal [typed.merge("joined" => Time.utc(2026, 10, 13))], input_records
+        end
+
+        it "reads a file without a header row" do
+          job.input_category.schema = schema.merge("header" => false)
+          upload(".csv", "Jack,21,12.50,2026-10-13\n")
+
+          assert_equal [typed], output_records
+        end
+
+        it "reads the schema from a file" do
+          IOStreams.temp_file("tabular_input_test", ".json") do |path|
+            path.write(JSON.generate(schema))
+            job.input_category.schema = path.to_s
+            upload(".csv", people)
+          end
+
+          assert_equal [typed], output_records
         end
       end
 

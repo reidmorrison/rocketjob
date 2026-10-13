@@ -62,7 +62,7 @@ State transitions (queued → running → completed/failed/aborted/paused) are d
 
 ### Batch jobs
 
-Including `RocketJob::Batch` ([lib/rocket_job/batch.rb](lib/rocket_job/batch.rb)) turns a job into a parallel one: input is split into *slices* processed concurrently by many workers. Slices are stored in a **separate Mongo collection/client** (`rocketjob_slices`, distinct from the `rocketjob` client) — see `lib/rocket_job/sliced/`. Input/output are organized by **categories** (`RocketJob::Category::Input`/`Output`, configured via `input_category`/`output_category`), each with its own serializer (plain, compressed, encrypted, bzip2), file format, and collection. `lib/rocket_job/batch/io.rb` handles `upload`/`download`.
+Including `RocketJob::Batch` ([lib/rocket_job/batch.rb](lib/rocket_job/batch.rb)) turns a job into a parallel one: input is split into *slices* processed concurrently by many workers. Slices are stored in a **separate Mongo collection/client** (`rocketjob_slices`, distinct from the `rocketjob` client) — see `lib/rocket_job/sliced/`. Input/output are organized by **categories** (`RocketJob::Category::Input`/`Output`, configured via `input_category`/`output_category`), each with its own serializer (plain, compressed, encrypted, bzip2), file format, `schema` (an IOStreams/Frictionless Table Schema: a Hash, or the path or url of a JSON file; it replaced `format_options` in v8, whose deprecated writer and an `after_initialize` migration in `Category::Base` translate old fixed width layouts), and collection. `lib/rocket_job/batch/io.rb` handles `upload`/`download`.
 
 ### Runtime: Supervisor → WorkerPool → Workers
 

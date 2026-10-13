@@ -4,6 +4,11 @@ module Batch
   # Text must reach MongoDB as UTF-8, since BSON strings are UTF-8, and come back out byte for byte.
   # Binary files are only copied, never stored as records.
   class EncodingTest < Minitest::Test
+    # A fixed width file of a name in 10 characters, followed by a zip code in 5.
+    NAME_ZIP_SCHEMA = {
+      "fields" => [{"name" => "name", "type" => "string", "width" => 10}, {"name" => "zip", "type" => "string", "width" => 5}]
+    }.freeze
+
     class EncodingJob < RocketJob::Job
       include RocketJob::Batch
 
@@ -259,7 +264,7 @@ module Batch
       describe "#download fixed width" do
         before do
           job.output_category.format         = :fixed
-          job.output_category.format_options = {layout: [{size: 10, key: "name"}, {size: 5, key: "zip"}]}
+          job.output_category.schema         = NAME_ZIP_SCHEMA
           job.output << ["José      12345", "Jack      54321"]
         end
 
@@ -295,7 +300,7 @@ module Batch
 
         def fixed_width
           job.output_category.format         = :fixed
-          job.output_category.format_options = {layout: [{size: 10, key: "name"}, {size: 5, key: "zip"}]}
+          job.output_category.schema         = NAME_ZIP_SCHEMA
         end
 
         it "rejects a fixed width character that is not ASCII when the slice is written" do
@@ -420,7 +425,7 @@ module Batch
 
         it "writes fixed width in the output category's encoding, one byte per character" do
           job.output_category.format         = :fixed
-          job.output_category.format_options = {layout: [{size: 10, key: "name"}, {size: 5, key: "zip"}]}
+          job.output_category.schema         = NAME_ZIP_SCHEMA
           job.output_category.encoding       = "ISO-8859-1"
           job.output << ["José      12345"]
 

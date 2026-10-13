@@ -131,7 +131,7 @@ module RocketJob
         @tabular ||= IOStreams::Tabular.new(
           columns:          columns,
           format:           format == :auto ? nil : format,
-          format_options:   format_options&.to_h&.deep_symbolize_keys,
+          schema:           tabular_schema,
           file_name:        file_name,
           allowed_columns:  allowed_columns,
           required_columns: required_columns,
@@ -173,8 +173,9 @@ module RocketJob
         # since only the caller knows how the file was written.
         if tabular?
           path.format(format)
-          # The layout of a fixed width file, so that the :array and :hash modes read its columns, see #each_record.
-          path.format_options(format_options.to_h.deep_symbolize_keys) if format_options.present?
+          # The fields of the records, and the position of each field of a fixed width file, so that the :array and
+          # :hash modes read typed values in their columns, see #each_record. A schema set on the supplied path is kept.
+          path.schema(schema) if schema.present? && path.schema.nil?
           # Replace the non-printable characters of a fixed width file, such as NUL padding, so that the columns stay
           # in place, and remove those of any other tabular format.
           path.encoding(cleaner: format == :fixed ? FIXED_WIDTH_CLEANER : :printable)

@@ -214,6 +214,31 @@ module Batch
         end
       end
 
+      describe "a job saved before v8" do
+        it "replaces the format_options of its categories with their schema when it is saved" do
+          job = CategoriesJob.create!
+          layout = {"layout" => [{"size" => 10, "key" => "name"}, {"size" => 5, "key" => "zip"}]}
+          CategoriesJob.collection.update_one(
+            {_id: job.id},
+            {"$set" => {"input_categories.0.format" => "fixed", "input_categories.0.format_options" => layout}}
+          )
+
+          job = CategoriesJob.find(job.id)
+          schema = {
+            "fields" => [{"name" => "name", "type" => "string", "width" => 10, "truncate" => true},
+                         {"name" => "zip", "type" => "string", "width" => 5, "truncate" => true}]
+          }
+
+          assert_equal schema, job.input_category.schema
+
+          job.save!
+          category = CategoriesJob.collection.find(_id: job.id).first["input_categories"].first
+
+          assert_equal schema, category["schema"]
+          refute category.key?("format_options")
+        end
+      end
+
       describe "#rocketjob_categories_migrate" do
         it "leaves modern documents untouched" do
           job = from_legacy("input_categories" => [{"name" => "main", "serializer" => "none"}])

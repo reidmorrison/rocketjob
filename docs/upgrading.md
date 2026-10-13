@@ -3,7 +3,7 @@ layout: default
 title: Upgrading Rocket Job
 description: >-
   The upgrade steps that need code or data changes when moving between major
-  versions, for v6 and v3.
+  versions, for v8, v6 and v3.
 ---
 
 **Contents**
@@ -14,6 +14,37 @@ description: >-
 Release notes for every version are published in the
 [GitHub Releases](https://github.com/reidmorrison/rocketjob/releases). This page collects the
 upgrade steps that need code or data changes when moving between major versions.
+
+## Upgrading to v8
+
+### format_options is replaced by schema
+
+A category's `format_options` is replaced by its `schema`, which IOStreams uses for every tabular
+format, see [Typed values with a schema](batch.html#typed-values-with-a-schema). A fixed width
+layout becomes a schema with the `width` of each field:
+
+~~~ruby
+# Before
+input_category format:         :fixed,
+               format_options: {layout: [{size: 10, key: "name"}, {size: 5, key: "zip", type: :integer}]}
+
+# After
+input_category format: :fixed,
+               schema: {
+                 "fields" => [
+                   {"name" => "name", "type" => "string", "width" => 10, "truncate" => true},
+                   {"name" => "zip", "type" => "integer", "width" => 5}
+                 ]
+               }
+~~~
+
+Existing jobs and settings keep working:
+
+* A job saved before v8 has the `format_options` of each category translated into its schema when it
+  is read, and saved that way the next time the job is saved.
+* `format_options=` still sets a category's schema from a layout, so a Dirmon entry or an
+  `UploadFileJob` whose properties hold `format_options` still builds its job. It is deprecated, and
+  will be removed. A category no longer has a `format_options` reader.
 
 ## Upgrading to v6
 
