@@ -201,8 +201,18 @@ module RocketJob
         self.description = "Copying file"
       end
 
+      # Applies the supplied streams to the path, in order. The `none` stream, which `source_streams` and
+      # `target_streams` default to, removes the streams before it, so that on its own the file is read or written as
+      # it is stored, see `IOStreams::Stream#raw`.
       def apply_streams(path, streams, decode: true)
-        streams.to_h.each_pair do |stream, args|
+        streams = streams.to_h.to_a
+        none    = streams.rindex { |stream, _args| stream.to_s == "none" }
+        if none
+          streams = streams.drop(none + 1)
+          return path.raw if streams.empty?
+        end
+
+        streams.each do |stream, args|
           path.stream(stream.to_sym, **decode_args(args, decode: decode))
         end
       end

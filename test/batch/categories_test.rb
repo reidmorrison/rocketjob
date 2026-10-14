@@ -225,8 +225,10 @@ module Batch
 
           job = CategoriesJob.find(job.id)
           schema = {
-            "fields" => [{"name" => "name", "type" => "string", "width" => 10, "truncate" => true},
-                         {"name" => "zip", "type" => "string", "width" => 5, "truncate" => true}]
+            "fields"      => [{"name" => "name", "type" => "string", "width" => 10, "truncate" => true},
+                              {"name" => "zip", "type" => "string", "width" => 5, "truncate" => true}],
+            # Writing skips the keys of a record that the layout does not have, as a layout did.
+            "fieldsMatch" => "subset"
           }
 
           assert_equal schema, job.input_category.schema

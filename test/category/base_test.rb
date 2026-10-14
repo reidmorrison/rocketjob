@@ -130,10 +130,12 @@ module Batch
 
           assert_equal(
             {
-              "fields" => [
+              "fields"      => [
                 {"name" => "name", "type" => "string", "width" => 10, "truncate" => true},
                 {"name" => "zip", "type" => "integer", "width" => 5, "start" => 16}
-              ]
+              ],
+              # Writing skips the keys of a record that the layout does not have, as a layout did.
+              "fieldsMatch" => "subset"
             },
             category.schema
           )
@@ -168,8 +170,10 @@ module Batch
           category = from_db("_id" => BSON::ObjectId.new, "format" => "fixed",
                              "format_options" => {"layout" => [{"size" => 10, "key" => "name"}]})
 
-          assert_equal({"fields" => [{"name" => "name", "type" => "string", "width" => 10, "truncate" => true}]},
-                       category.schema)
+          assert_equal(
+            {"fields" => [{"name" => "name", "type" => "string", "width" => 10, "truncate" => true}], "fieldsMatch" => "subset"},
+            category.schema
+          )
           refute category.attributes.key?("format_options")
         end
 
@@ -187,17 +191,27 @@ module Batch
             "fields" => [{"name" => "action", "width" => 1}, {"name" => "date", "type" => "date", "width" => 10}],
             "width"  => "remainder"
           }
-          category = RocketJob::Category::Input.new(
-            columns: %w[abc def],
-            format:  :fixed,
-            schema:  schema
-          )
+          category = RocketJob::Category::Input.new(format: :fixed, schema: schema)
 
           assert tabular = category.tabular
-          assert_equal %w[abc def], tabular.header.columns
           assert_kind_of IOStreams::Tabular::Parser::Fixed, tabular.parser, tabular.parser.class.name
           # The schema splits each line into its fields.
           assert_equal({"action" => "A", "date" => "2026-10-13"}, tabular.parser.parse("A2026-10-13rest"))
+        end
+
+        it "names the columns with the deprecated columns, without a schema" do
+          category = RocketJob::Category::Output.new(format: :csv, columns: %w[abc def])
+
+          assert_equal %w[abc def], category.tabular.header.columns
+          assert_equal "1,2", category.tabular.render({"def" => 2, "abc" => 1, "other" => 3})
+        end
+
+        it "writes the fields of the schema, in order" do
+          schema   = {"fieldsMatch" => "subset", "fields" => [{"name" => "abc"}, {"name" => "def", "type" => "integer"}]}
+          category = RocketJob::Category::Output.new(format: :csv, schema: schema)
+
+          assert_equal "abc,def", category.render_header
+          assert_equal "1,2", category.tabular.render({"def" => 2, "abc" => 1, "other" => 3})
         end
 
         it "uses the file_name when format is not set" do

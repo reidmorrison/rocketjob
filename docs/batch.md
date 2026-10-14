@@ -286,15 +286,15 @@ Input category options:
 | `slice_size`       | `100`       | Number of records per slice.
 | `serializer`       | `:compress` | Slice serialization: `:none`, `:compress`, or `:encrypt`. See [Compression and encryption](#compression-and-encryption).
 | `format`           | `nil`       | Parse each record before `perform`: `nil` (raw line), `:auto`, or a tabular format such as `:csv`. See [Reading tabular files](#reading-tabular-files).
-| `schema`           | `nil`       | The fields of each record and their types, which also give the position of each field of a `:fixed` file. See [Typed values with a schema](#typed-values-with-a-schema).
+| `schema`           | `nil`       | The fields of each record and their types, and which columns a file can and must have. Also gives the position of each field of a `:fixed` file. See [Typed values with a schema](#typed-values-with-a-schema) and [Validating columns](#validating-columns).
 | `encoding`         | `nil`       | The encoding of the files, such as `"Windows-1252"`, which is converted to UTF-8. `nil` reads UTF-8, or the format's own encoding, such as ASCII for `:fixed`. Name the byte order of UTF-16 or UTF-32, such as `"UTF-16LE"`. See [Files](#files).
 | `invalid_characters` | `nil`     | What to do with a character that is not valid in the file's encoding: `:remove`, `:replace` with U+FFFD, or `:raise`. `nil` removes them from tabular formats, such as CSV, and raises for `:fixed` and lines.
-| `columns`          | `nil`       | Header columns, when the file has no header row.
 | `mode`             | `:line`     | How a file is uploaded: `:line`, `:array`, or `:hash`.
-| `allowed_columns`  | `nil`       | Restrict tabular input to these columns. See [Validating columns](#validating-columns).
-| `required_columns` | `nil`       | Tabular columns that must be present, or an exception is raised.
-| `skip_unknown`     | `false`     | When `allowed_columns` is set, skip unknown columns instead of raising.
-| `header_cleanser`  | `:default`  | Cleanse tabular header column names (`:default`) or leave them as-is (`:none`).
+| `columns`          | `nil`       | Set by `upload`: the header row read from the file, as it is in the file, so that the workers read each line by it.
+
+The options `allowed_columns`, `required_columns`, `skip_unknown` and `header_cleanser`, and setting
+`columns` for a file without a header row, are deprecated, since a `schema` replaces them, see
+[Deprecated column options](#deprecated-column-options).
 
 The `mode` option controls how a file is read during upload:
 
@@ -371,10 +371,12 @@ The `output_category` class method accepts these options:
 | `name`           | `:main`     | Name of the category. Register additional names for [multiple output files](#multiple-output-files).
 | `serializer`     | `:compress` | Slice serialization: `:none`, `:compress`, `:encrypt`, `:bz2`, or `:encrypted_bz2`. See [Fast bzip2 output files](#fast-bzip2-output-files).
 | `format`         | `nil`       | Render each result: `nil`, `:auto`, or a tabular format such as `:csv`. See [Writing tabular files](#writing-tabular-files).
-| `schema`         | `nil`       | The fields of each result and their types, which also give the position of each field of a `:fixed` file. See [Typed values with a schema](#typed-values-with-a-schema).
+| `schema`         | `nil`       | The fields that are written, in order, and their types. Also gives the position of each field of a `:fixed` file. See [Typed values with a schema](#typed-values-with-a-schema) and [Writing tabular files](#writing-tabular-files).
 | `encoding`       | `nil`       | The encoding to write the file in, such as `"ISO-8859-1"`. `nil` writes UTF-8, or the format's own encoding, such as ASCII for `:fixed`. Name the byte order of UTF-16 or UTF-32, such as `"UTF-16LE"`.
-| `columns`        | `nil`       | Columns to include when rendering tabular output.
 | `nils`           | `false`     | When `true`, store `nil` results too; when `false`, skip them.
+
+The `columns` option, which listed the columns to write, is deprecated, since a `schema` replaces it,
+see [Filtering output columns](#filtering-output-columns).
 
 ### Multiple output files
 
@@ -522,7 +524,7 @@ The schema also describes the file:
   ~~~
 
 * **A file without a header row** is described with `"header" => false`: its columns are the fields,
-  in order. Setting `columns` still works too.
+  in order.
 * **A schema kept in a file** is set as the path or url of its JSON, such as
   `schema: "s3://bucket/schemas/people.json"`. It is read when the category is first used, so the file
   must be available to every server that runs the job.
@@ -533,26 +535,65 @@ the workers read each value, so `perform` receives a `Date`.
 
 ### Validating columns
 
-Set `allowed_columns` and `required_columns` on a tabular `input_category` to restrict the columns
-it accepts. An unknown column raises `IOStreams::Errors::InvalidHeader`, unless `skip_unknown` is
-true, in which case it is left out of every record. A missing required column always raises.
+The schema also says which columns a file can have and must have, so that a file with unexpected
+columns is rejected before any worker runs. Each column of the header row is matched to a field by its
+name, or one of its `aliases`, whatever its case, spaces and punctuation, so `First Name`, `first_name`
+and `FIRST.NAME` are the same column. The keys of each record are the names of the fields, however
+the file names its columns.
+
+`fieldsMatch` says which columns a file can have:
+
+| `fieldsMatch` | The columns of the file
+|:--------------|:-----------------------
+| `"exact"`     | Are the fields, in the same order. The default.
+| `"equal"`     | Are the fields, in any order.
+| `"subset"`    | Include every field. Other columns are skipped.
+| `"superset"`  | Are all fields, but a field can be missing.
+| `"partial"`   | Include at least one field. Other columns are skipped.
+
+A field with `"constraints" => {"required" => true}` must be one of the columns, whatever the
+`fieldsMatch`, and must have a value in every record:
 
 ~~~ruby
-input_category format:           :csv,
-               allowed_columns:  %w[login last_login name state],
-               required_columns: %w[login],
-               skip_unknown:     true
+input_category format: :csv,
+               schema: {
+                 "fieldsMatch" => "partial",
+                 "fields"      => [
+                   {"name" => "login", "constraints" => {"required" => true}},
+                   {"name" => "last_login", "type" => "datetime"},
+                   {"name" => "name"},
+                   {"name" => "state", "aliases" => ["Province", "Region"]}
+                 ]
+               }
 ~~~
 
-The restrictions apply to every input:
+Columns that do not match the schema raise `IOStreams::Errors::InvalidHeader`:
 
-* A header row is checked during upload, so a malformed file is rejected before any worker runs.
-  Column names are compared after cleansing, or as they are with `header_cleanser: :none`.
-* Columns supplied with `columns`, in place of a header row, are checked during upload.
-* A format without a header row, such as JSON, supplies the keys of each record, so they are
-  checked as each record is processed, and are cleansed like a header row. With `format: :auto`
-  the allow list therefore still applies when a `.csv` file is renamed to `.json`.
+* A header row is checked during upload, so a malformed file is rejected, and nothing is uploaded,
+  before any worker runs.
+* A format without a header row, such as JSON, supplies the keys of each record, so they are matched
+  and checked as each record is processed. With `format: :auto` the schema therefore still applies
+  when a `.csv` file is renamed to `.json`.
+* A column that could be either of two fields, or two columns that are the same field, such as `id`
+  and `ID`, also raise, rather than one value silently replacing the other.
 
+#### Deprecated column options
+
+Before v8 the columns of an input category were described with the options below. They are
+deprecated: they still work without a schema, and `allowed_columns`, `required_columns`,
+`skip_unknown` and `header_cleanser` cannot be set with one. The schema property that replaces each
+one:
+
+| Option                                      | With a schema
+|:--------------------------------------------|:-------------
+| `columns`, for a file without a header row  | The fields are the columns, in order, with `"header" => false`.
+| `allowed_columns`                           | `"fieldsMatch" => "equal"`, or `"superset"` when a field can be missing.
+| `allowed_columns` with `skip_unknown: true` | `"fieldsMatch" => "subset"`, or `"partial"` when a field can be missing.
+| `required_columns`                          | `"constraints" => {"required" => true}` on each field, or a `fieldsMatch` that needs every field.
+| `header_cleanser`                           | Not needed: the keys of each record are the names of the fields, which the columns are matched to.
+
+Without a schema, the restrictions are compared to the column names after they are cleansed, or as
+they are with `header_cleanser: :none`, and the keys of each record are the cleansed column names.
 Set `IOStreams.enforce_column_restrictions = false` to apply them only to a cleansed header row, as
 earlier versions did. IOStreams then logs a warning when applying them would change the input.
 
@@ -566,8 +607,9 @@ automatically:
 class ExportUsersJob < RocketJob::Job
   include RocketJob::Batch
 
-  # Only these columns are written, in this order
-  output_category format: :csv, columns: ["login", "last_login"]
+  # These fields are written, in this order
+  output_category format: :csv,
+                  schema: {"fields" => [{"name" => "login"}, {"name" => "last_login", "type" => "datetime"}]}
 
   def perform(id)
     u = User.find(id)
@@ -588,36 +630,51 @@ Sample `output.csv`:
 
 ~~~csv
 login,last_login
-jbloggs,2019-02-11 05:43:20
-kadams,2019-01-12 01:20:20
+jbloggs,2019-02-11T05:43:20Z
+kadams,2019-01-12T01:20:20Z
 ~~~
+
+The header row is the names of the fields. The keys of each hash are matched to the fields the same
+way as the columns of an input file, so a hash keyed `"Login"`, or by the Symbol `:login`, writes the
+`login` field too.
 
 ### Filtering output columns
 
-Rocket Job only writes the columns listed in `columns`, so `perform` can return a full attribute
-hash and let the category select which columns to export. The same job can then export different
-columns on different runs:
+By default a key that is not a field of the schema raises `IOStreams::Errors::InvalidHeader`, so a
+misspelled key is not silently left out. With `"fieldsMatch" => "subset"` the other keys are skipped
+instead, so `perform` can return a full attribute hash and let the category select which fields to
+export. The same job can then export different fields on different runs:
 
 ~~~ruby
 class ExportUsersJob < RocketJob::Job
   include RocketJob::Batch
 
-  output_category format: :csv, columns: ["login", "last_login"]
+  output_category format: :csv,
+                  schema: {
+                    "fieldsMatch" => "subset",
+                    "fields"      => [{"name" => "login"}, {"name" => "last_login", "type" => "datetime"}]
+                  }
 
   def perform(login)
-    # Return all attributes; only the configured columns are written
+    # Return all attributes; only the fields of the schema are written
     User.find_by(login: login).attributes
   end
 end
 ~~~
 
-Override the columns per instance to widen or narrow the export:
+Override the schema per instance to widen or narrow the export:
 
 ~~~ruby
 job = ExportUsersJob.new
-job.output_category.columns = ["login", "last_login", "name", "state"]
+job.output_category.schema = {
+  "fieldsMatch" => "subset",
+  "fields"      => [{"name" => "login"}, {"name" => "last_login"}, {"name" => "name"}, {"name" => "state"}]
+}
 job.save!
 ~~~
+
+An output category's `columns`, which listed the columns to write before v8, are deprecated. They
+still work without a schema, and cannot be set with one.
 
 ### Single output file via after_batch
 
@@ -700,7 +757,9 @@ class ExportJob < RocketJob::Job
   self.destroy_on_complete = false
 
   input_category  format: :csv
-  output_category format: :csv, columns: %w[name age], serializer: :encrypted_bz2
+  output_category format:     :csv,
+                  schema:     {"fields" => [{"name" => "name"}, {"name" => "age", "type" => "integer"}]},
+                  serializer: :encrypted_bz2
 
   after_batch :download_file
 
