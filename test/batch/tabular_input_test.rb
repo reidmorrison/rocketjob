@@ -234,6 +234,34 @@ module Batch
           assert_equal [typed], output_records
         end
 
+        it "matches the header row to the fields whatever its case and punctuation, and keeps it as it is" do
+          upload(".csv", "Name,AGE,Balance,Joined\nJack,21,12.50,2026-10-13\n")
+
+          assert_equal %w[Name AGE Balance Joined], job.input_category.columns
+          assert_equal [typed], output_records
+        end
+
+        it "rejects a column that the schema does not list, and uploads nothing" do
+          assert_raises(IOStreams::Errors::InvalidHeader) { upload(".csv", "name,age,balance,joined,extra\n") }
+          assert_equal 0, job.input.count
+        end
+
+        it "skips the columns that a subset schema does not list" do
+          job.input_category.schema = schema.merge("fieldsMatch" => "subset")
+          upload(".csv", "extra,joined,balance,age,name\nx,2026-10-13,12.50,21,Jack\n")
+
+          assert_equal [typed], output_records
+        end
+
+        it "uploads typed values in :array mode" do
+          job.input_category.mode = :array
+          upload(".csv", "Name,AGE,Balance,Joined\nJack,21,12.50,2026-10-13\n")
+
+          # IOStreams reads the header row as the names of the fields.
+          assert_equal %w[name age balance joined], job.input_category.columns
+          assert_equal [typed], output_records
+        end
+
         it "uploads typed values in :hash mode, with a date as a time, since MongoDB has no date" do
           job.input_category.mode = :hash
           upload(".csv", people)

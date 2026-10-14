@@ -19,16 +19,64 @@ module Batch
         end
       end
 
+      describe "validation" do
+        let(:schema) { {"fields" => [{"name" => "name"}]} }
+
+        it "accepts the header row read from a file with a schema" do
+          category = RocketJob::Category::Input.new(format: :csv, schema: schema, columns: %w[Name])
+
+          assert_predicate category, :valid?
+        end
+
+        it "rejects the deprecated fields that a schema replaces" do
+          category = RocketJob::Category::Input.new(
+            format:           :csv,
+            schema:           schema,
+            allowed_columns:  %w[name],
+            required_columns: %w[name],
+            skip_unknown:     true,
+            header_cleanser:  :none
+          )
+
+          refute_predicate category, :valid?
+          assert_equal ["replaces allowed_columns, required_columns, skip_unknown, and header_cleanser, which cannot be set with it"],
+                       category.errors[:schema]
+        end
+
+        it "rejects output columns with a schema" do
+          category = RocketJob::Category::Output.new(format: :csv, schema: schema, columns: %w[name])
+
+          refute_predicate category, :valid?
+          assert_equal ["replaces columns, which cannot be set with it"], category.errors[:schema]
+        end
+      end
+
       describe "#tabular" do
         it "returns tabular for the current settings" do
           schema = {
             "fields" => [{"name" => "action", "width" => 1}, {"name" => "date", "type" => "date", "width" => 10}],
             "width"  => "remainder"
           }
+          category = RocketJob::Category::Input.new(format: :fixed, schema: schema)
+
+          assert tabular = category.tabular
+          assert_kind_of IOStreams::Tabular::Parser::Fixed, tabular.parser, tabular.parser.class.name
+          # The schema splits each line into its fields.
+          assert_equal({"action" => "A", "date" => "2026-10-13"}, tabular.parser.parse("A2026-10-13rest"))
+        end
+
+        it "matches the header row read from the file to the fields of the schema" do
+          schema   = {"fieldsMatch" => "subset", "fields" => [{"name" => "first_name"}, {"name" => "age", "type" => "integer"}]}
+          category = RocketJob::Category::Input.new(format: :csv, schema: schema, columns: ["Age", "Zip", "First Name"])
+
+          refute_predicate category.tabular, :header?
+          assert_equal({"first_name" => "Jack", "age" => 21}, category.parse_record("21,12345,Jack"))
+        end
+
+        it "applies the deprecated column restrictions, without a schema" do
           category = RocketJob::Category::Input.new(
             columns:          %w[abc def],
-            format:           :fixed,
-            schema:           schema,
+            format:           :csv,
             allowed_columns:  %w[name address zip_code],
             required_columns: %w[name address],
             skip_unknown:     false
@@ -36,9 +84,6 @@ module Batch
 
           assert tabular = category.tabular
           assert_equal %w[abc def], tabular.header.columns
-          assert_kind_of IOStreams::Tabular::Parser::Fixed, tabular.parser, tabular.parser.class.name
-          # The schema splits each line into its fields.
-          assert_equal({"action" => "A", "date" => "2026-10-13"}, tabular.parser.parse("A2026-10-13rest"))
           assert_equal %w[name address zip_code], tabular.header.allowed_columns
           assert_equal %w[name address], tabular.header.required_columns
           refute tabular.header.skip_unknown

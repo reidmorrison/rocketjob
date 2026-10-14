@@ -31,12 +31,18 @@ input_category format:         :fixed,
 # After
 input_category format: :fixed,
                schema: {
-                 "fields" => [
+                 "fieldsMatch" => "subset",
+                 "fields"      => [
                    {"name" => "name", "type" => "string", "width" => 10, "truncate" => true},
                    {"name" => "zip", "type" => "integer", "width" => 5}
                  ]
                }
 ~~~
+
+The schema that IOStreams translates from a layout has `"fieldsMatch" => "subset"`, so that writing
+skips the keys of a record that the layout does not list, as a layout did. Leave it out to raise
+`IOStreams::Errors::InvalidHeader` for such a key instead, so that a misspelled key is not silently
+left out.
 
 Existing jobs and settings keep working:
 
@@ -45,6 +51,52 @@ Existing jobs and settings keep working:
 * `format_options=` still sets a category's schema from a layout, so a Dirmon entry or an
   `UploadFileJob` whose properties hold `format_options` still builds its job. It is deprecated, and
   will be removed. A category no longer has a `format_options` reader.
+
+### Column options are replaced by schema
+
+The schema also describes the columns of a file, so the options that described them are deprecated,
+as IOStreams 3.0 deprecates the options that they set: an input category's `allowed_columns`,
+`required_columns`, `skip_unknown` and `header_cleanser`, and the `columns` of a file without a header
+row, or of the output to write. See [Validating columns](batch.html#validating-columns) and
+[Filtering output columns](batch.html#filtering-output-columns).
+
+~~~ruby
+# Before (deprecated)
+input_category  format:           :csv,
+                allowed_columns:  %w[login last_login name state],
+                required_columns: %w[login],
+                skip_unknown:     true
+output_category format: :csv, columns: %w[login last_login]
+
+# After
+input_category  format: :csv,
+                schema: {
+                  "fieldsMatch" => "partial",
+                  "fields"      => [
+                    {"name" => "login", "constraints" => {"required" => true}},
+                    {"name" => "last_login"},
+                    {"name" => "name"},
+                    {"name" => "state"}
+                  ]
+                }
+output_category format: :csv,
+                schema: {"fieldsMatch" => "subset", "fields" => [{"name" => "login"}, {"name" => "last_login"}]}
+~~~
+
+With a schema, the keys of each record are the names of its fields, and the columns of the header row
+are matched to them whatever their case, spaces and punctuation, rather than cleansed. So a field
+named `last_login` reads the column `Last Login`, and a field named `Last Login` keeps that key.
+`fieldsMatch` defaults to `"exact"`: the columns must be the fields, in order, and a column that is not
+a field raises `IOStreams::Errors::InvalidHeader`. Use `"subset"` or `"partial"` to skip the other
+columns, as `skip_unknown: true` did.
+
+Existing jobs and settings keep working:
+
+* The deprecated options still work without a schema, as they did in v7, and will be removed.
+* They cannot be set with a schema, and a category that sets both is not valid, since IOStreams would
+  reject them rather than apply one and ignore the other. An input category's `columns` can still be
+  set with a schema: `upload` sets them to the header row read from the file, as it is in the file,
+  which the workers match to the fields.
 
 ## Upgrading to v6
 

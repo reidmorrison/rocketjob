@@ -641,6 +641,22 @@ module Batch
           end
         end
 
+        it "applies the streams after the none stream" do
+          IOStreams.temp_file("encoding_test", ".csv.gz") do |compressed|
+            IOStreams.path(compressed.to_s).write("José\n")
+
+            with_file(".bin", ::File.binread(compressed.to_s)) do |source|
+              IOStreams.temp_file("encoding_test", ".csv") do |target|
+                RocketJob::Jobs::CopyFileJob.new(
+                  source_url: source.to_s, source_streams: {none: nil, gz: {}}, target_url: target.to_s
+                ).perform_now
+
+                assert_equal "José\n".b, ::File.binread(target.to_s)
+              end
+            end
+          end
+        end
+
         it "must be one encoding that Ruby knows" do
           job = RocketJob::Jobs::CopyFileJob.new(source_url: "a.csv", target_url: "b.csv", target_encoding: "Latin-9999")
 

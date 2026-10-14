@@ -15,6 +15,9 @@ module RocketJob
         # The header columns when the file does not include a header row.
         # Note:
         # - All column names must be strings so that it can be serialized into MongoDB.
+        # - Deprecated, use `schema`, whose fields are the columns, with `"header": false` for a file without a
+        #   header row. It cannot be set with a schema, except on an input category, where it holds the header row
+        #   read from the uploaded file, see RocketJob::Category::Input.
         field :columns, type: Array
 
         # On an input collection `format` specifies the format of the input data so that it can be
@@ -43,9 +46,13 @@ module RocketJob
         #   {"fields" => [{"name" => "name", "type" => "string", "width" => 10},
         #                 {"name" => "zip", "type" => "integer", "width" => 5}]}
         #
+        # Replaces `columns`, and on an input category `allowed_columns`, `required_columns`, `skip_unknown` and
+        # `header_cleanser`, which are deprecated, and cannot be set with it.
+        #
         # Default: nil, which reads and writes each value as text.
         field :schema
         validate :schema_valid
+        validate :schema_replaces_fields
 
         # When `:format` is not supplied the file name can be used to infer the required format.
         # Optional.
@@ -143,13 +150,10 @@ module RocketJob
         self.schema = JSON.parse(JSON.generate(schema))
       end
 
+      # Returns [IOStreams::Tabular] that reads or writes the records of this category in its format, by its schema,
+      # see #schema.
       def tabular
-        @tabular ||= IOStreams::Tabular.new(
-          columns:   columns,
-          format:    format == :auto ? nil : format,
-          schema:    tabular_schema,
-          file_name: file_name
-        )
+        @tabular ||= build_tabular
       end
 
       # Returns [true|false] whether this category has the attributes defined for tabular to work.
@@ -165,10 +169,37 @@ module RocketJob
 
       private
 
+      def build_tabular
+        IOStreams::Tabular.new(format: format == :auto ? nil : format, file_name: file_name, **tabular_columns)
+      end
+
+      # Returns [Hash] the options of IOStreams::Tabular that describe the columns of this category's files: its
+      # schema, see #schema, otherwise the deprecated fields that it replaces, when they are set.
+      def tabular_columns
+        return {schema: tabular_schema} if schema.present?
+
+        {columns: columns.presence}.compact
+      end
+
       # Returns [IOStreams::Schema] this category's schema, see #schema, reading its file when it is a path or url, or
       # nil when it has none.
       def tabular_schema
         IOStreams::Schema::Source.new(schema).schema if schema.present?
+      end
+
+      # Returns [Array<Symbol>] the deprecated fields of this category that are set, which its schema replaces, see
+      # #schema.
+      def fields_replaced_by_schema
+        []
+      end
+
+      # The deprecated fields that the schema replaces cannot be set with it, since IOStreams rejects them with a
+      # schema, rather than apply one and ignore the other.
+      def schema_replaces_fields
+        return if schema.blank?
+
+        replaced = fields_replaced_by_schema
+        errors.add(:schema, "replaces #{replaced.to_sentence}, which cannot be set with it") unless replaced.empty?
       end
 
       # Checks the schema without reading a file that holds it, since its store may not be available yet.

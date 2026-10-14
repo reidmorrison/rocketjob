@@ -52,6 +52,13 @@ module RocketJob
           text_encoding:   -> { text_encoding }
         )
       end
+
+      private
+
+      # The header row of output with a schema is the names of its fields, in order, see #schema.
+      def fields_replaced_by_schema
+        columns.present? ? super << :columns : super
+      end
     end
   end
 end

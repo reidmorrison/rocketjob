@@ -107,6 +107,15 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   describes a file without a header row. It is set on the path that is uploaded, and validated when the
   category is saved, without reading a file that holds it. In the `:array` and `:hash` upload modes a
   `date` is stored in the slices as a `Time` at midnight UTC, since MongoDB has no date type.
+
+  The schema also describes the columns of a file. Each column of the header row, or key of a JSON
+  record, is matched to a field by its name or one of its `aliases`, whatever its case, spaces and
+  punctuation, and the keys of each record are the names of the fields. Its `fieldsMatch` says which
+  columns a file can have, and `"constraints" => {"required" => true}` which fields it must have. An
+  uploaded header row that does not match raises `IOStreams::Errors::InvalidHeader`, and nothing is
+  uploaded. An input category's `columns` hold the header row as it is in the file, which the workers
+  match to the fields. An output category writes the names of the fields as its header row, and the
+  fields of each result, in order.
 - `CopyFileJob` converts the text of a file from its `source_encoding` to its `target_encoding`, such as
   `source_encoding: "Windows-1252"`, which copies a file that Excel saved on Windows as UTF-8. When only one
   is set, the other is UTF-8, and when neither is set the file is still copied byte for byte. The text is
@@ -164,6 +173,13 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   its job class and properties, overridden by the supplied attributes. Only its name, pattern, job class,
   properties and archive directory are copied. Since the name and pattern must each be unique, the new
   entry is not valid until both are changed.
+
+### Deprecated
+
+- An input category's `allowed_columns`, `required_columns`, `skip_unknown` and `header_cleanser`, and the
+  `columns` of a file without a header row, or of an output category, since IOStreams 3.0 deprecates the
+  options that they set, and the schema replaces them. They still work without a schema, and cannot be set
+  with one, so a category that sets both is not valid. See the upgrade guide.
 
 ### Fixes
 
