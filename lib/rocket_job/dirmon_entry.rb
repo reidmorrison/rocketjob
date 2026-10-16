@@ -264,12 +264,16 @@ module RocketJob
     # A url cannot hold some pattern characters, such as the braces of `sftp://host/in/*.{csv,txt}`. Such a pattern
     # is shown as the display name of the directory that is scanned, followed by the pattern within it,
     # the same way that IOStreams.each_child splits it.
+    #
+    # Unless the pattern within the directory has a `?`, which cannot be told apart from the query of a url, such as
+    # `sftp://host/in/*.csv?password=secret`, which could hold a secret, since a url once held ssh options there.
+    # IOStreams rejects a url with a query, so such a pattern is not shown.
     def pattern_display_name
       display_name = RocketJob.path_display_name(pattern)
       return display_name unless display_name == RocketJob::INVALID_PATH_DISPLAY_NAME
 
       matcher = IOStreams::Paths::Matcher.new(pattern)
-      return display_name if matcher.directory.empty?
+      return display_name if matcher.directory.empty? || matcher.pattern.include?("?")
 
       directory = RocketJob.path_display_name(matcher.directory)
       directory == RocketJob::INVALID_PATH_DISPLAY_NAME ? directory : "#{directory}/#{matcher.pattern}"
