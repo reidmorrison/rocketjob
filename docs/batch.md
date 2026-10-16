@@ -587,15 +587,19 @@ one:
 | Option                                      | With a schema
 |:--------------------------------------------|:-------------
 | `columns`, for a file without a header row  | The fields are the columns, in order, with `"header" => false`.
-| `allowed_columns`                           | `"fieldsMatch" => "equal"`, or `"superset"` when a field can be missing.
-| `allowed_columns` with `skip_unknown: true` | `"fieldsMatch" => "subset"`, or `"partial"` when a field can be missing.
-| `required_columns`                          | `"constraints" => {"required" => true}` on each field, or a `fieldsMatch` that needs every field.
+| `allowed_columns`                           | `"fieldsMatch" => "superset"`, which accepts a file without some of the fields, as `allowed_columns` does, or `"equal"` when `required_columns` lists every allowed column.
+| `allowed_columns` with `skip_unknown: true` | `"fieldsMatch" => "partial"`, which accepts a file without some of the fields, as `allowed_columns` does, or `"subset"` when `required_columns` lists every allowed column.
+| `required_columns`                          | `"constraints" => {"required" => true}` with `"allowBlank" => true` on each field, which needs the column but not a value, as `required_columns` did. Without `allowBlank`, a blank value raises too.
 | `header_cleanser`                           | Not needed: the keys of each record are the names of the fields, which the columns are matched to.
 
 Without a schema, the restrictions are compared to the column names after they are cleansed, or as
 they are with `header_cleanser: :none`, and the keys of each record are the cleansed column names.
-Set `IOStreams.enforce_column_restrictions = false` to apply them only to a cleansed header row, as
-earlier versions did. IOStreams then logs a warning when applying them would change the input.
+So to keep the keys that a job reads, name each field as the column was cleansed, which is how
+`allowed_columns` and `required_columns` already name them, such as `last_login` for the column
+`Last Login`: the schema matches the column to that field.
+
+`IOStreams.enforce_column_restrictions = false` applies them only to a cleansed header row, as
+earlier versions did. IOStreams 3.0 deprecates it, since it only applies to these options.
 
 ## Writing tabular files
 
