@@ -21,7 +21,7 @@ module Sliced
 
       let :compressed_dataset do
         lines = dataset.to_a.join("\n") + "\n"
-        s     = StringIO.new
+        s     = StringIO.new("".b)
         IOStreams::Bzip2::Writer.stream(s) { |io| io.write(lines) }
         s.string
       end

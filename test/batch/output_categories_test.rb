@@ -145,7 +145,7 @@ module Batch
 
           # Verify that the output slice is compressed using BZip2
           str = lines.join("\n") + "\n"
-          s   = StringIO.new
+          s   = StringIO.new("".b)
           IOStreams::Bzip2::Writer.stream(s) { |io| io.write(str) }
 
           assert_equal s.string, @job.output(:main).first.to_a.first
