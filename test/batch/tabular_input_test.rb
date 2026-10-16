@@ -68,6 +68,17 @@ module Batch
           ], output_records
         end
 
+        it "reads the keys of the first record of a JSON file as the header row of its arrays in :array mode" do
+          job.input_category.format = :json
+          job.input_category.mode   = :array
+
+          assert_equal 2, upload(".json", %({"name":"Jack","age":21}\n{"age":22,"name":"Jill"}\n))
+
+          assert_equal %w[name age], job.input_category.columns
+          assert_equal [["Jack", 21], ["Jill", 22]], input_records
+          assert_equal [{"name" => "Jack", "age" => 21}, {"name" => "Jill", "age" => 22}], output_records
+        end
+
         it "uploads hashes in :hash mode" do
           job.input_category.mode = :hash
 
@@ -139,6 +150,14 @@ module Batch
           upload(".txt", "Jack      54321\n")
 
           assert_equal [{"name" => "Jack", "zip" => "54321"}], output_records
+        end
+
+        it "uploads the values of each line in :array mode, which the workers read by the schema" do
+          job.input_category.mode = :array
+          upload(".txt", "Jack      54321\nJill      12345\n")
+
+          assert_equal [%w[Jack 54321], %w[Jill 12345]], input_records
+          assert_equal [{"name" => "Jack", "zip" => "54321"}, {"name" => "Jill", "zip" => "12345"}], output_records
         end
 
         it "replaces non-printable characters with spaces, so that the columns stay in place" do
