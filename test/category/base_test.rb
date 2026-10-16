@@ -195,8 +195,8 @@ module Batch
 
           assert tabular = category.tabular
           assert_kind_of IOStreams::Tabular::Parser::Fixed, tabular.parser, tabular.parser.class.name
-          # The schema splits each line into its fields.
-          assert_equal({"action" => "A", "date" => "2026-10-13"}, tabular.parser.parse("A2026-10-13rest"))
+          # The schema reads each line into the values of its fields, by their types.
+          assert_equal({"action" => "A", "date" => Date.new(2026, 10, 13)}, tabular.record_parse("A2026-10-13rest"))
         end
 
         it "names the columns with the deprecated columns, without a schema" do
