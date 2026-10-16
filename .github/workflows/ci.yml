@@ -36,7 +36,7 @@ jobs:
       matrix:
         include:
           - mongoid: "8.1"
-            ruby: "3.2"
+            ruby: "3.3"
 
           # Measure coverage on this entry only.
           - mongoid: "9.0"
