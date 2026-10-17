@@ -197,6 +197,14 @@ module RocketJob
 
       private
 
+      # Keeps the input and output categories of this job, with their settings, such as `slice_size`, when it restarts,
+      # see RocketJob::Plugins::Job::Persistence#create_restart!.
+      def rocket_job_restart_copy_to(job)
+        super
+        job.input_categories  = input_categories
+        job.output_categories = output_categories
+      end
+
       # Returns [RocketJob::Category::Input|RocketJob::Category::Output] the category with the supplied name, or nil.
       def rocketjob_category_named(categories, category_name)
         category_name = category_name.to_sym

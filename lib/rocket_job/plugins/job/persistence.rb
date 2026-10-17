@@ -12,9 +12,9 @@ module RocketJob
           store_in collection: "rocket_job.jobs"
         end
 
-        # Create a new instance of this job, copying across only the `copy_on_restart` attributes.
-        # Copy across input and output categories to new scheduled job so that all of the
-        # settings are remembered between instance. Example: slice_size
+        # Create a new instance of this job, copying across only the `copy_on_restart` attributes, and what the plugins
+        # of this job keep, such as the input and output categories of a batch job, with their settings, such as
+        # `slice_size`, see #rocket_job_restart_copy_to.
         def create_restart!(**overrides)
           if expired?
             logger.info("Job has expired. Not creating a new instance.")
@@ -26,10 +26,8 @@ module RocketJob
           end
           job_attrs.merge!(overrides)
 
-          job                   = self.class.new(job_attrs)
-          job.input_categories  = input_categories if respond_to?(:input_categories)
-          job.output_categories = output_categories if respond_to?(:output_categories)
-
+          job = self.class.new(job_attrs)
+          rocket_job_restart_copy_to(job)
           job.save_with_retry!
 
           logger.info("Created a new job instance: #{job.id}")
@@ -62,6 +60,13 @@ module RocketJob
             count += 1
           end
           save!
+        end
+
+        private
+
+        # Copies to the supplied new instance of this job, see #create_restart!, what a plugin keeps when the job
+        # restarts, besides the `copy_on_restart` fields. A plugin that keeps more overrides it, and calls super.
+        def rocket_job_restart_copy_to(_job)
         end
       end
     end

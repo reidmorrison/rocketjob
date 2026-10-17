@@ -12,6 +12,17 @@ module Plugins
         end
       end
 
+      class PersistBatchJob < RocketJob::Job
+        include RocketJob::Batch
+
+        input_category slice_size: 10
+        output_category format: :csv
+
+        def perform(record)
+          record
+        end
+      end
+
       describe RocketJob::Plugins::Job::Persistence do
         before do
           RocketJob::Job.destroy_all
@@ -131,6 +142,21 @@ module Plugins
 
             assert_equal 11, @job2.priority
             assert_equal "Restarted", @job2.description
+          end
+
+          it "keeps the categories of a batch job, with their settings" do
+            job = PersistBatchJob.new
+            job.input_category.slice_size = 25
+            job.output_category.format    = :json
+            job.save!
+            job.create_restart!
+
+            restarted = RocketJob::Job.where(:id.ne => job.id).first
+
+            assert_equal 25, restarted.input_category.slice_size
+            assert_equal :json, restarted.output_category.format
+          ensure
+            RocketJob::Job.destroy_all
           end
 
           it "does not create a new instance when the job has expired" do
