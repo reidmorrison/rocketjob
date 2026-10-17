@@ -96,7 +96,7 @@ module RocketJob
         end
       end
 
-      class_methods do
+      module ClassMethods
         # Returns [Hash] the supplied attributes or properties of a category to show to people, with its file name,
         # and the path or url of its schema, shown by its display name, without any credentials, see
         # RocketJob.path_display_name.
@@ -112,11 +112,39 @@ module RocketJob
         def name_in(properties)
           (properties["name"] || properties[:name] || :main).to_s.to_sym
         end
+
+        # Returns [Array<String>] the names of the deprecated options in the supplied properties of a category, with
+        # String keys, that its schema replaces, see #schema: its `columns`. Overridden by the input category.
+        def deprecated_column_options(properties)
+          properties["columns"].present? ? ["columns"] : []
+        end
+
+        # Reports a deprecation warning, see RocketJob::Deprecation, for the deprecated options in the supplied
+        # properties of a category, such as those that a job class defines it with, or that a Dirmon entry holds.
+        def warn_deprecated_options(properties)
+          properties = properties.to_h.stringify_keys
+          names      = deprecated_column_options(properties)
+          unless names.empty?
+            options = names.collect { |name| "#{name}:" }.join(", ")
+            RocketJob::Deprecation.warn(
+              "#{options} #{names.size == 1 ? 'is' : 'are'} deprecated, describe the columns of the file with schema: " \
+              "instead, see #{RocketJob::Deprecation::UPGRADE_GUIDE}"
+            )
+          end
+          return if properties["format_options"].blank?
+
+          RocketJob::Deprecation.warn(
+            "format_options: is deprecated, use schema: instead, which gives the width of each field of a fixed width " \
+            "file, see #{RocketJob::Deprecation::UPGRADE_GUIDE}"
+          )
+        end
       end
 
       # Sets the supplied properties on this category, such as `{"encoding" => "Windows-1252"}`, as a Dirmon entry or
       # an UploadFileJob holds them for a job. Raises NoMethodError for a property that a category does not have.
+      # Reports a deprecation warning for a deprecated option, see .warn_deprecated_options.
       def merge_properties(properties)
+        self.class.warn_deprecated_options(attributes.slice("schema").merge(properties.to_h.stringify_keys))
         properties.each_pair { |key, value| public_send(:"#{key}=", value) }
         self
       end

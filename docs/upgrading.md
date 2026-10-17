@@ -51,6 +51,9 @@ Existing jobs and settings keep working:
 * `format_options=` still sets a category's schema from a layout, so a Dirmon entry or an
   `UploadFileJob` whose properties hold `format_options` still builds its job. It is deprecated, and
   will be removed. A category no longer has a `format_options` reader.
+* A job class that defines a category with `format_options`, and a Dirmon entry or an `UploadFileJob`
+  that builds a job from properties that hold it, report a deprecation warning, see
+  [Finding the deprecated options](#finding-the-deprecated-options).
 
 ### Column options are replaced by schema
 
@@ -100,6 +103,23 @@ Existing jobs and settings keep working:
   reject them rather than apply one and ignore the other. An input category's `columns` can still be
   set with a schema: `upload` sets them to the header row read from the file, as it is in the file,
   which the workers match to the fields.
+* A job class that defines a category with one of them, and a Dirmon entry or an `UploadFileJob` that
+  builds a job from properties that hold one, report a deprecation warning, see
+  [Finding the deprecated options](#finding-the-deprecated-options).
+
+### Finding the deprecated options
+
+Rocket Job reports a Ruby deprecation warning for each deprecated category option that it is given,
+naming the line of the job class that defines the category, for example:
+
+~~~
+app/jobs/import_job.rb:5: warning: Rocket Job: allowed_columns:, skip_unknown: are deprecated, describe the columns of the file with schema: instead, see https://rocketjob.reidmorrison.com/upgrading.html
+~~~
+
+The warnings are only reported while Ruby's deprecation warnings are on, which they are in tests run
+by Minitest, or with `ruby -W:deprecated` or `RUBYOPT=-W:deprecated`, so production stays quiet. A job
+that was saved with a deprecated option, and is read back, does not report one. IOStreams reports its
+own deprecation warnings for the options that it reads, which name a line of Rocket Job instead.
 
 ## Upgrading to v6
 

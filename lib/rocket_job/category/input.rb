@@ -125,6 +125,19 @@ module RocketJob
         end
       end
 
+      # Returns [Array<String>] the names of the deprecated options in the supplied properties of an input category,
+      # with String keys, see Category::Base.deprecated_column_options: `allowed_columns`, `required_columns`,
+      # `skip_unknown` when true, `header_cleanser` when :none, and `columns` without a schema, since with one they
+      # hold the header row read from the file.
+      def self.deprecated_column_options(properties)
+        names = []
+        names << "columns" if properties["columns"].present? && properties["schema"].blank?
+        names.concat(%w[allowed_columns required_columns].select { |name| properties[name].present? })
+        names << "skip_unknown" if [true, "true"].include?(properties["skip_unknown"])
+        names << "header_cleanser" if properties["header_cleanser"].to_s == "none"
+        names
+      end
+
       # Treats the current columns as a header row read from the file: matches them to the fields of the schema, see
       # #schema, otherwise cleanses their names when `header_cleanser` is :default, and applies `allowed_columns`,
       # `required_columns` and `skip_unknown`.

@@ -39,6 +39,7 @@ module RocketJob
         # A subclass that defines a category does not change the categories of its parent class.
         # @see RocketJob::Category::Input
         def input_category(**args)
+          RocketJob::Category::Input.warn_deprecated_options(args)
           category                      = RocketJob::Category::Input.new(**args)
           self.defined_input_categories = rocketjob_categories_with(defined_input_categories, category)
           category
@@ -48,6 +49,7 @@ module RocketJob
         # A subclass that defines a category does not change the categories of its parent class.
         # @see RocketJob::Category::Output
         def output_category(**args)
+          RocketJob::Category::Output.warn_deprecated_options(args)
           category                       = RocketJob::Category::Output.new(**args)
           self.defined_output_categories = rocketjob_categories_with(defined_output_categories, category)
           category
