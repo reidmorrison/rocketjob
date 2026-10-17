@@ -220,7 +220,13 @@ module RocketJob
       private
 
       def build_tabular
-        IOStreams::Tabular.new(format: format == :auto ? nil : format, file_name: file_name, **tabular_columns)
+        IOStreams::Tabular.new(format: tabular_format, file_name: file_name, **tabular_columns)
+      end
+
+      # Returns [Symbol] the format to read and write this category's files in, or nil to take it from the file name,
+      # when its format is :auto.
+      def tabular_format
+        format == :auto ? nil : format
       end
 
       # Returns [Hash] the options of IOStreams::Tabular that describe the columns of this category's files: its

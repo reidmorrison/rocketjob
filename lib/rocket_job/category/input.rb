@@ -252,11 +252,29 @@ module RocketJob
       end
 
       # With a schema, also matches the columns of the header row read from the file, see #columns, to its fields, so
-      # that each line uploaded is parsed by them.
+      # that each line uploaded is parsed by them. Without one, the tabular reads the header row in the same way, see
+      # #header_row_tabular.
       def build_tabular
-        tabular = super
+        tabular = header_row_tabular || super
         tabular.read_header(columns) if schema.present? && columns.present? && tabular.header?
         tabular
+      end
+
+      # Returns [IOStreams::Tabular] that has read the header row that an upload read from a file without a schema, see
+      # #columns, as it reads a header row, rather than with the deprecated `columns:` option of IOStreams, so that a
+      # category that sets no deprecated option reports no deprecation warning when a worker parses its records.
+      #
+      # Returns nil when the category sets a deprecated option, or when reading the columns as a header row would not
+      # keep them as they are, such as columns that the application set without cleansing them, which the deprecated
+      # option then keeps.
+      def header_row_tabular
+        return unless schema.blank? && columns.present? && column_restrictions.empty? && cleanse_header?
+
+        tabular = IOStreams::Tabular.new(format: tabular_format, file_name: file_name)
+        return unless tabular.header?
+
+        tabular.read_header(columns)
+        tabular if tabular.header.columns == columns
       end
 
       # Returns [Hash] the deprecated options of IOStreams::Tabular for the columns of the file, see

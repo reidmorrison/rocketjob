@@ -191,6 +191,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixes
 
+- A worker that parses the records of a tabular input category without a schema, such as CSV, gives IOStreams the
+  header row that the upload read without its deprecated `columns:` option, so a category that sets no deprecated
+  option no longer reports `IOStreams: columns: is deprecated` while deprecation warnings are on, such as in tests.
 - A category accepts a `format` that the application registers with IOStreams after Rocket Job is loaded, see
   `IOStreams.tabular_formats`. Previously the formats were read when Rocket Job was loaded, so such a format failed
   validation.

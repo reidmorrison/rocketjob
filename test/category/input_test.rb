@@ -28,6 +28,27 @@ module Batch
       end
 
       describe "#tabular" do
+        def deprecation_warnings(&)
+          warnings = []
+          Warning.stub(:warn, ->(message, category: nil) { warnings << message if category == :deprecated }, &)
+          warnings
+        end
+
+        it "reads the header row that an upload stored without a deprecation warning" do
+          category = RocketJob::Category::Input.new(format: :csv, columns: %w[first_name zip_code])
+          record   = nil
+          warnings = deprecation_warnings { record = category.parse_record("Jack,12345") }
+
+          assert_equal({"first_name" => "Jack", "zip_code" => "12345"}, record)
+          assert_empty warnings
+        end
+
+        it "keeps columns that were set without cleansing them" do
+          category = RocketJob::Category::Input.new(format: :csv, columns: %w[Name Zip])
+
+          assert_equal({"Name" => "Jack", "Zip" => "12345"}, category.parse_record("Jack,12345"))
+        end
+
         it "is built again after a field that it is built from is set" do
           category = RocketJob::Category::Input.new(format: :csv)
           tabular  = category.tabular
