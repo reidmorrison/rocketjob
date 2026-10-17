@@ -54,7 +54,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   example `"Name"` becomes `"name"`, and a record with an unknown key, or without a required column,
   raises `IOStreams::Errors::InvalidHeader` when it is processed, unless `skip_unknown` is true.
   A job that accepted such data before will now fail it. Set
-  `IOStreams.enforce_column_restrictions = false` to keep the previous behavior.
+  `IOStreams.enforce_column_restrictions = false` to keep the previous behavior, which IOStreams 3.0 deprecates.
 - Fixed width uploads are read as ASCII, which IOStreams 3.0 uses for the fixed width format, so a file
   with any other character raises `IOStreams::Errors::InvalidEncoding` and nothing is uploaded.
   Previously each byte of a character that is not ASCII became a space. Set the file's encoding on the
@@ -79,9 +79,16 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - `upload` raises `ArgumentError` when it is given `format:`, `format_options:`, `schema:` or
   `default_format:`, since IOStreams 3.0 reads them only from the path. Set them on the input category,
   or on the path that is uploaded, instead.
-- A `Time` that a job returns to a tabular output category is written in ISO 8601, such as
-  `2026-10-13T09:30:00Z`, where it was `2026-10-13 09:30:00 UTC`, and a `BigDecimal` is written as
-  `12.5`, as IOStreams 3.0 writes them.
+- A `Time` that a job returns to a CSV output category is written in ISO 8601, such as `2026-10-13T09:30:00Z`,
+  where it was `2026-10-13 09:30:00 UTC`. A JSON output category writes all of its fraction of a second, such as
+  `2026-10-13T09:30:00.123456Z`, where it was `2026-10-13T09:30:00.123Z`, and none for a whole second, such as
+  `2026-10-13T09:30:00Z`, where it was `2026-10-13T09:30:00.000Z`, as IOStreams 3.0 writes them.
+- A header row is cleansed as IOStreams 3.0 cleanses it, which keeps the letters and digits that are not ASCII, and
+  treats whitespace that is not ASCII, such as a no-break space, as a space. So the column `Prénom` is `prénom`,
+  where it was `prnom`, and `First Name` with a no-break space is `first_name`, where it was `firstname`, which
+  changes the keys of the records that `#perform` receives. Rename any `allowed_columns`, `required_columns` or
+  `columns` written to match the previous names, such as `prnom`, since a column that they no longer name is
+  rejected, or skipped with `skip_unknown`.
 - A Dirmon entry, and an `UploadFileJob`, check the category properties that they hold for a batch job when
   they are saved, so an entry, or an `UploadFileJob`, that was saved before can now fail validation and
   must be corrected before it can be saved again:
@@ -230,6 +237,13 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixes
 
+- An input category with `format: :auto` uploads the first record of a JSON file. Previously it was dropped, as
+  though it were a header row, so `record_count` was one short.
+- A Hash that a job returns supplies the value of each column of an output category whose name only matches one of
+  its keys once both are cleansed, such as the key `"First Name"` for the column `first_name`, or a String key for
+  the Symbol key of a fixed width layout, as IOStreams 3.0 writes them. Previously such a field was written blank.
+  An Array returned to a fixed width output category without `columns` is written by the position of each field of
+  its layout, where it raised `IOStreams::Errors::InvalidHeader`.
 - A worker that parses the records of a tabular input category without a schema, such as CSV, gives IOStreams the
   header row that the upload read without its deprecated `columns:` option, so a category that sets no deprecated
   option no longer reports `IOStreams: columns: is deprecated` while deprecation warnings are on, such as in tests.

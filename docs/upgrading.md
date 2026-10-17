@@ -17,6 +17,10 @@ upgrade steps that need code or data changes when moving between major versions.
 
 ## Upgrading to v8
 
+Upgrade every server that runs workers at the same time, rather than running v7 and v8 workers
+together. A v7 worker reads the jobs that v8 saves with the options that v7 has, such as
+`format_options`, but ignores those that v8 adds, such as a category's `schema` or `encoding`.
+
 ### format_options is replaced by schema
 
 A category's `format_options` is replaced by its `schema`, which IOStreams uses for every tabular
@@ -109,7 +113,11 @@ columns, as `skip_unknown: true` did.
 
 Existing jobs and settings keep working:
 
-* The deprecated options still work without a schema, as they did in v7, and will be removed.
+* The deprecated options still work without a schema, as they did in v7, and will be removed. Two
+  changes in the [changelog](https://github.com/reidmorrison/rocketjob/blob/main/CHANGELOG.md) apply
+  to them too: `allowed_columns`, `required_columns` and `skip_unknown` now apply to every tabular
+  input, such as JSON records, and a header row is cleansed as IOStreams 3.0 cleanses it, which keeps
+  the letters that are not ASCII, so a column `Prénom` is `prénom` rather than `prnom`.
 * They cannot be set with a schema, and a category that sets both is not valid, since IOStreams would
   reject them rather than apply one and ignore the other. An input category's `columns` can still be
   set with a schema: `upload` sets them to the header row read from the file, as it is in the file,
