@@ -87,6 +87,24 @@ module Batch
 
           assert ThrottleJob.batch_throttle?(:throttle_running_workers_exceeded?), ThrottleJob.rocket_job_batch_throttles
         end
+
+        it "keeps the throttle of the parent class" do
+          child = Class.new(ThrottleGroupJob)
+          child.undefine_batch_throttle(:throttle_running_workers_exceeded?)
+
+          refute child.batch_throttle?(:throttle_running_workers_exceeded?)
+          assert ThrottleGroupJob.batch_throttle?(:throttle_running_workers_exceeded?)
+        end
+      end
+
+      describe ".define_batch_throttle" do
+        it "does not add the throttle to the parent class" do
+          child = Class.new(ThrottleGroupJob)
+          child.define_batch_throttle(:child_throttle_exceeded?)
+
+          assert child.batch_throttle?(:child_throttle_exceeded?)
+          refute ThrottleGroupJob.batch_throttle?(:child_throttle_exceeded?)
+        end
       end
 
       describe "#throttle_running_workers_exceeded?" do

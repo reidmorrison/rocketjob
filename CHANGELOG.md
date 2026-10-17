@@ -183,6 +183,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixes
 
+- `undefine_batch_throttle` in a subclass removes the throttle from that subclass only. Previously it also removed
+  it from the parent class, and from every other subclass of the parent, since they shared the list of throttles.
 - The jobs and slices of a server that died are requeued only when a worker on that server was processing them.
   Previously the server's name was matched as a prefix, so the server `host:12` also requeued the jobs and slices
   of `host:123`, which were still being processed, and `RocketJob::ActiveWorker.all("host:12")` listed its

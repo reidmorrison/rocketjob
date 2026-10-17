@@ -1,9 +1,29 @@
 module RocketJob
+  # The throttles of a job class, in the order that they are checked.
+  #
+  # A class shares its throttles with its subclasses until one of them defines or undefines a throttle, see #with and
+  # #without, which return a changed copy and never change the throttles that they are called on.
   class ThrottleDefinitions
     attr_accessor :throttles
 
     def initialize
       @throttles = []
+    end
+
+    # Returns [ThrottleDefinitions] a copy of these throttles with the supplied throttle added after them, see #add.
+    # These throttles are not changed, so that a subclass that adds a throttle does not add it to its parent class.
+    def with(method_name, filter, description = nil)
+      copy = dup
+      copy.add(method_name, filter, description)
+      copy
+    end
+
+    # Returns [ThrottleDefinitions] a copy of these throttles without the named throttle. These throttles are not
+    # changed, so that a subclass that removes a throttle does not remove it from its parent class.
+    def without(method_name)
+      copy = dup
+      copy.remove(method_name)
+      copy
     end
 
     def add(method_name, filter, description = nil)
@@ -15,9 +35,12 @@ module RocketJob
       @throttles += [ThrottleDefinition.new(method_name, filter, description)]
     end
 
-    # Undefine a previously defined throttle
+    # Undefine a previously defined throttle.
+    #
+    # Replaces the list of throttles rather than removing the throttle from it, since a copy made with `dup` shares
+    # the list.
     def remove(method_name)
-      throttles.delete_if { |throttle| throttle.method_name == method_name }
+      @throttles = throttles.reject { |throttle| throttle.method_name == method_name }
     end
 
     # Has a throttle been defined?
