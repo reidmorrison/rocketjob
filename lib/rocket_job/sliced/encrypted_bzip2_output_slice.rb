@@ -8,18 +8,14 @@ module RocketJob
     class EncryptedBZip2OutputSlice < ::RocketJob::Sliced::BZip2OutputSlice
       private
 
-      # Decrypts the supplied saved data.
-      def read_binary(encrypted_str)
-        header = SymmetricEncryption::Header.new
-        header.parse(encrypted_str)
-        # Use the header that is present to decrypt the data, since its version could be different
-        header.cipher.binary_decrypt(encrypted_str, header: header)
+      # Decrypts the supplied saved data, see Sliced::Encryption.
+      def read_binary(encrypted)
+        Encryption.decrypt(encrypted)
       end
 
-      # Encrypt to binary without applying an encoding such as Base64
-      # Use a random_iv with each encryption for better security
+      # Encrypts the compressed records, without compressing them again, see Sliced::Encryption.
       def write_binary(compressed)
-        SymmetricEncryption.cipher.binary_encrypt(compressed, random_iv: true, compress: false)
+        Encryption.encrypt(compressed, compress: false)
       end
     end
   end
