@@ -35,7 +35,13 @@ module RocketJob
 
       included do
         if defined?(ActiveRecord::Base)
-          respond_to?(:around_slice) ? around_slice(:rocket_job_transaction) : around_perform(:rocket_job_transaction)
+          around_perform(:rocket_job_transaction) unless include?(RocketJob::Batch)
+
+          # Wraps each slice of a batch job instead, whether this plugin is included before or after RocketJob::Batch.
+          rocket_job_batch_plugin do
+            skip_callback(:perform, :around, :rocket_job_transaction, raise: false)
+            around_slice(:rocket_job_transaction)
+          end
         end
       end
 

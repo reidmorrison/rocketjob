@@ -22,6 +22,10 @@ module RocketJob
           class_attribute :rocket_job_restart_attributes
           self.rocket_job_restart_attributes = []
 
+          # Blocks to run in this job class once it includes RocketJob::Batch, see .rocket_job_batch_plugin.
+          class_attribute :rocket_job_batch_plugins, instance_accessor: false
+          self.rocket_job_batch_plugins = []
+
           #
           # User definable attributes
           #
@@ -196,6 +200,20 @@ module RocketJob
             end
 
             super
+          end
+
+          # Runs the supplied block in this job class once it includes RocketJob::Batch: now when it already has,
+          # otherwise when it does, so that a plugin can act on the slices of a batch job, whichever of them the class
+          # includes first.
+          #
+          # Example:
+          #   included do
+          #     rocket_job_batch_plugin { define_batch_throttle :my_throttle_exceeded? }
+          #   end
+          def rocket_job_batch_plugin(&block)
+            return class_exec(&block) if include?(RocketJob::Batch)
+
+            self.rocket_job_batch_plugins += [block]
           end
 
           # Builds this job instance from the supplied properties hash.

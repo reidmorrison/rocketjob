@@ -7,6 +7,12 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Breaking changes
 
+- `RocketJob::Plugins::Transaction` wraps each slice of a batch job in a transaction, and
+  `RocketJob::Plugins::ThrottleDependentJobs` throttles its slices, whether the job includes them before or after
+  `RocketJob::Batch`, as documented. Previously a job that included `Transaction` first had a transaction around
+  each record instead, and one that included `ThrottleDependentJobs` first did not throttle its slices.
+- `RocketJob::Plugins::Singleton` does not save a job while another of its class is paused, as its documentation
+  and its error message say. Previously only a running or queued job prevented it.
 - Dirmon only skips the files in its archive directory: within a directory named as a relative `archive_directory`,
   such as `archive`, or within an absolute one. Previously it skipped every file whose path contained the name of the
   archive directory anywhere, such as `archived_orders.csv`, or the files in `/data/archive_2026`, so those files are
@@ -113,6 +119,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   and uploads what it returns, such as `job.upload(User.where(country_code: "US")) { |user| user.email }`, as the
   deprecated `upload_arel` and `upload_mongo_query` do. Previously it raised `ArgumentError` for a query with a
   block.
+- A job plugin runs its batch setup, such as defining a batch throttle or a slice callback, in a
+  `rocket_job_batch_plugin` block, which runs in the job class once it includes `RocketJob::Batch`, so the plugin
+  works whether a job includes it before or after `RocketJob::Batch`. `Transaction` and `ThrottleDependentJobs`
+  use it.
 - A category's `schema` is a Frictionless Table Schema, as a Hash, or the path or url of a JSON file,
   that IOStreams 3.0 uses to read each value of its records as its type, such as an `Integer`, a
   `BigDecimal` or a `Date`, and to write each value in the text form of its type, for every tabular

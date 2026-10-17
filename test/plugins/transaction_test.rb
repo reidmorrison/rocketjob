@@ -38,6 +38,32 @@ module Plugins
       end
     end
 
+    class TransactionBeforeBatchJob < RocketJob::Job
+      include RocketJob::Plugins::Transaction
+      include RocketJob::Batch
+
+      def perform(record)
+        record
+      end
+    end
+
+    class TransactionAfterBatchJob < RocketJob::Job
+      include RocketJob::Batch
+      include RocketJob::Plugins::Transaction
+
+      def perform(record)
+        record
+      end
+    end
+
+    class TransactionSubclassBatchJob < CommitTransactionJob
+      include RocketJob::Batch
+
+      def perform(record)
+        record
+      end
+    end
+
     describe RocketJob::Plugins::Job::Logger do
       before do
         User.delete_all
@@ -54,6 +80,17 @@ module Plugins
           assert(CommitTransactionJob.send(:get_callbacks, :perform).find { |c| c.filter == :rocket_job_transaction })
           assert(RollbackTransactionJob.send(:get_callbacks, :perform).find { |c| c.filter == :rocket_job_transaction })
           refute(RocketJob::Job.send(:get_callbacks, :perform).find { |c| c.filter == :rocket_job_transaction })
+        end
+
+        it "wraps each slice of a batch job, whether it is included before or after RocketJob::Batch" do
+          [TransactionBeforeBatchJob, TransactionAfterBatchJob, TransactionSubclassBatchJob].each do |klass|
+            assert(klass.send(:get_callbacks, :slice).find { |c| c.filter == :rocket_job_transaction }, klass.name)
+            refute(klass.send(:get_callbacks, :perform).find { |c| c.filter == :rocket_job_transaction }, klass.name)
+          end
+        end
+
+        it "keeps wrapping the perform of the class whose subclass is a batch job" do
+          assert(CommitTransactionJob.send(:get_callbacks, :perform).find { |c| c.filter == :rocket_job_transaction })
         end
       end
 

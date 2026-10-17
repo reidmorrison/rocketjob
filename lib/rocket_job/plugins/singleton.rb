@@ -10,10 +10,10 @@ module RocketJob
         validate :rocket_job_singleton_check
       end
 
-      # Returns [true|false] whether another instance of this job is already active
+      # Returns [true|false] whether another instance of this job is already active: running, queued, or paused.
       def rocket_job_singleton_active?
         self.class.with(read: {mode: :primary}) do |conn|
-          conn.where(:state.in => %i[running queued], :id.ne => id).exists?
+          conn.where(:state.in => %i[running queued paused], :id.ne => id).exists?
         end
       end
 

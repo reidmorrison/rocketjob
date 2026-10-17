@@ -1816,7 +1816,7 @@ option is available on `define_batch_throttle` for batch jobs.
 The `RocketJob::Plugins::Transaction` plugin wraps every `perform` call in an Active Record
 transaction. If `perform` raises an exception, any database changes are rolled back. For
 [batch jobs](batch.html), the transaction wraps each slice, so an entire slice either succeeds or is
-rolled back.
+rolled back, whether the job includes the plugin before or after `RocketJob::Batch`.
 
 ~~~ruby
 # Update a User and create an Audit entry as a single database transaction.
@@ -2251,6 +2251,27 @@ end
 
 ~~~ruby
 ReportJob.create!(email_recipients: ["ops@example.com"])
+~~~
+
+A plugin for batch jobs puts its batch setup, such as a batch throttle or a slice callback, in a
+`rocket_job_batch_plugin` block. The block runs in the job class once it includes `RocketJob::Batch`, so
+the plugin works whether a job includes it before or after `RocketJob::Batch`:
+
+~~~ruby
+module ReplicaDelayThrottle
+  extend ActiveSupport::Concern
+
+  included do
+    rocket_job_batch_plugin { define_batch_throttle :replica_delay_exceeded? }
+  end
+
+  private
+
+  # Do not process any slices while the replica is more than 5 minutes behind.
+  def replica_delay_exceeded?
+    ReplicaStatus.seconds_behind >= 300
+  end
+end
 ~~~
 
 Before writing a plugin, check whether a built-in one already covers the need. Rocket Job ships

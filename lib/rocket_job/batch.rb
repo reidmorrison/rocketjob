@@ -24,6 +24,11 @@ module RocketJob
     include ThrottleRunningWorkers
     include IO
 
+    included do
+      # The plugins that the job class included before this module, see .rocket_job_batch_plugin.
+      rocket_job_batch_plugins.each { |plugin| class_exec(&plugin) }
+    end
+
     autoload :LowerPriority, "rocket_job/batch/lower_priority"
     autoload :Performance, "rocket_job/batch/performance"
     autoload :Statistics, "rocket_job/batch/statistics"
