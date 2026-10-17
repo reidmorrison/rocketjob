@@ -279,15 +279,7 @@ module RocketJob
         unless _before_batch_callbacks.empty?
           self.sub_state = :before
           save! unless new_record? || destroyed?
-          logger.measure_info(
-            "before_batch",
-            metric:             "#{self.class.name}/before_batch",
-            log_exception:      :full,
-            on_exception_level: :error,
-            silence:            log_level
-          ) do
-            run_callbacks(:before_batch)
-          end
+          rocket_job_batch_measure(:before_batch) { run_callbacks(:before_batch) }
         end
         self.sub_state = :processing
         save! unless new_record? || destroyed?
@@ -299,21 +291,26 @@ module RocketJob
         unless _after_batch_callbacks.empty?
           self.sub_state = :after
           save! if save_before && !new_record? && !destroyed?
-          logger.measure_info(
-            "after_batch",
-            metric:             "#{self.class.name}/after_batch",
-            log_exception:      :full,
-            on_exception_level: :error,
-            silence:            log_level
-          ) do
-            run_callbacks(:after_batch)
-          end
+          rocket_job_batch_measure(:after_batch) { run_callbacks(:after_batch) }
         end
         if new_record? || destroyed?
           complete if may_complete?
         else
           may_complete? ? complete! : save!
         end
+      end
+
+      # Logs how long the supplied block of the named callbacks takes, and the exception that it raises, and
+      # forwards the duration as the metric of the callbacks.
+      def rocket_job_batch_measure(name, &)
+        logger.measure_info(
+          name.to_s,
+          metric:             "#{self.class.name}/#{name}",
+          log_exception:      :full,
+          on_exception_level: :error,
+          silence:            log_level,
+          &
+        )
       end
 
       # Run Batch before and after callbacks

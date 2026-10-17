@@ -51,10 +51,14 @@ module RocketJob
           count
         end
 
+        # Returns [Float] the number of seconds without a heartbeat after which a server is a zombie, see #zombie?.
+        def self.zombie_seconds(missed = 4)
+          Config.heartbeat_seconds * missed
+        end
+
         # Scope for all zombie servers
         def self.zombies(missed = 4)
-          dead_seconds        = Config.heartbeat_seconds * missed
-          last_heartbeat_time = Time.now - dead_seconds
+          last_heartbeat_time = Time.now - zombie_seconds(missed)
           where(
             :state.in => %i[stopping running paused],
             "$or"     => [
@@ -75,8 +79,7 @@ module RocketJob
         return false unless running? || stopping? || paused?
         return true if heartbeat.nil? || heartbeat.updated_at.nil?
 
-        dead_seconds = Config.heartbeat_seconds * missed
-        (Time.now - heartbeat.updated_at) >= dead_seconds
+        (Time.now - heartbeat.updated_at) >= self.class.zombie_seconds(missed)
       end
 
       # Updates the heartbeat and returns a refreshed server instance.

@@ -68,14 +68,7 @@ module RocketJob
         if job.respond_to?(:upload)
           # Return the database connection for this thread back to the connection pool
           # in case the upload takes a long time and the database connection expires.
-          if defined?(ActiveRecord::Base)
-            if ActiveRecord::Base.respond_to?(:connection_handler)
-              # Rails 7
-              ActiveRecord::Base.connection_handler.clear_active_connections!(:all)
-            else
-              ActiveRecord::Base.connection_pool.release_connection
-            end
-          end
+          RocketJob.release_active_record_connections
 
           if original_file_name
             job.upload(upload_file_name, file_name: original_file_name)

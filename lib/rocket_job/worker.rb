@@ -128,14 +128,7 @@ module RocketJob
 
     # Return the database connections for this thread back to the connection pool.
     def release_active_record_connections
-      return unless defined?(ActiveRecord::Base)
-
-      if ActiveRecord::Base.respond_to?(:connection_handler)
-        # Rails 7.2+
-        ActiveRecord::Base.connection_handler.clear_active_connections!(:all)
-      else
-        ActiveRecord::Base.clear_active_connections!
-      end
+      RocketJob.release_active_record_connections
     end
 
     # Resets the current job filter if the relevant time interval has passed

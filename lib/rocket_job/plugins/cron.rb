@@ -64,15 +64,17 @@ copy_on_restart: true
       private
 
       def rocket_job_cron_on_start
-        return unless cron_schedule && cron_after_start
-
-        current_cron_schedule = cron_schedule
-        update_attribute(:cron_schedule, nil)
-        create_restart!(cron_schedule: current_cron_schedule)
+        rocket_job_cron_reschedule if cron_after_start
       end
 
       def rocket_job_cron_end_state
-        return unless cron_schedule && !cron_after_start
+        rocket_job_cron_reschedule unless cron_after_start
+      end
+
+      # Schedules the next instance of this job with its cron schedule, which this instance no longer has, so that it
+      # does not schedule another.
+      def rocket_job_cron_reschedule
+        return unless cron_schedule
 
         current_cron_schedule = cron_schedule
         update_attribute(:cron_schedule, nil)
