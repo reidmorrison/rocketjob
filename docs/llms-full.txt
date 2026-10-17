@@ -4357,6 +4357,10 @@ stored file to the job that processed it.
   sub-directory structure under the pattern is preserved.
 * If left unset it defaults to a directory named `archive`.
 
+A pattern that matches the archive, such as `/data/in/**/*`, skips the files in it: those within a
+directory named as a relative `archive_directory`, wherever it is, or within an absolute one. A file or
+directory whose name only starts with the same characters, such as `archived_orders.csv`, is processed.
+
 The file must be in a directory that the Dirmon process can write to, since moving a file changes its
 directory. A file in a directory that cannot be written to is skipped, with a warning.
 
@@ -4370,7 +4374,8 @@ under its name with each byte that is not valid UTF-8 replaced by `�` (U+FFFD)
 
 A `pattern` can point anywhere the process user can read, so Dirmon supports an allow-list of root
 paths. When any paths are registered, every resolved file must live under one of them or it is skipped
-and a warning is logged.
+and a warning is logged. A file must be within the directory itself: `/var/sftp` does not admit
+`/var/sftp_old`.
 
 ~~~ruby
 # In an initializer, not via the web UI, so it cannot be tampered with.

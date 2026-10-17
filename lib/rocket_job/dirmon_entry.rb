@@ -165,16 +165,17 @@ module RocketJob
     # Yields [IOStreams::Path] for each file found that matches the current pattern.
     def each
       SemanticLogger.named_tagged(dirmon_entry: id.to_s) do
+        archives = absolute_archive_directories
         # Case insensitive filename matching
         IOStreams.each_child(pattern) do |path|
           path = existing_realpath(path)
           next unless path
 
-          # Skip archive directories
-          next if path.to_s.include?(archive_directory || self.class.default_archive_directory)
+          # Skip the files that were moved to the archive directory, which the pattern can match.
+          next if archived?(path, archives)
 
           # Security check?
-          if whitelist_paths.size.positive? && whitelist_paths.none? { |whitepath| path.to_s.start_with?(whitepath) }
+          if whitelist_paths.size.positive? && whitelist_paths.none? { |whitepath| within?(path, whitepath) }
             logger.warn "Skipping file: #{RocketJob.path_display_name(path)} since it is not in any of the whitelisted paths: #{whitelist_paths.join(', ')}"
             next
           end
@@ -351,6 +352,48 @@ module RocketJob
 
     class_attribute :whitelist_paths
     self.whitelist_paths = Concurrent::Array.new
+
+    # Returns [true|false] whether the supplied file, found by its real path, is in an archive directory, which a file
+    # is moved to when its job is queued, see #archive_iopath: within a directory named as a relative
+    # `archive_directory`, wherever it is, or within the supplied absolute ones, see #absolute_archive_directories. A
+    # file or directory whose name only starts with the same characters, such as `archived_orders.csv` or
+    # `archive_2026`, is not.
+    def archived?(path, archives)
+      return archives.any? { |archive| within?(path, archive) } if archives
+
+      "#{path.directory}/".include?("/#{archive_name}/")
+    end
+
+    # Returns [Array<String>] an absolute `archive_directory`, as it is set and by its real path, since the files that
+    # a scan finds are compared by their real paths, such as when it is reached through a symbolic link, or nil when it
+    # is relative.
+    def absolute_archive_directories
+      archive = IOStreams.path(archive_name)
+      return if archive.relative?
+
+      [archive.to_s, real_directory(archive)].compact.uniq
+    end
+
+    # Returns [String] the real path of the supplied directory, or nil when it does not exist yet, or its store has
+    # no real paths.
+    def real_directory(path)
+      path.realpath.to_s
+    rescue StandardError, NotImplementedError
+      nil
+    end
+
+    # Returns [String] the archive directory, without a leading `./` or a trailing `/`.
+    def archive_name
+      (archive_directory || self.class.default_archive_directory).delete_prefix("./").delete_suffix("/")
+    end
+
+    # Returns [true|false] whether the supplied path is the supplied directory, or is within it, rather than within a
+    # directory whose name only starts with the same characters, such as `/data/inbox` for `/data/in`.
+    def within?(path, directory)
+      name      = path.to_s
+      directory = directory.to_s.delete_suffix("/")
+      name == directory || name.start_with?("#{directory}/")
+    end
 
     # Returns [IOStreams::Path] the real path of the supplied file, or nil when it was removed after it was found,
     # whichever storage it is on.

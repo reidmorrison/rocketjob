@@ -622,6 +622,81 @@ class DirmonEntryTest < Minitest::Test
           assert_empty files
         end
 
+        it "skips a file in a directory whose name only starts with that of a whitelisted directory" do
+          Dir.mktmpdir do |dir|
+            FileUtils.mkdir_p(["#{dir}/in", "#{dir}/inbox"])
+            File.write("#{dir}/inbox/file.txt", "Hello World")
+            dirmon_entry.pattern = "#{dir}/inbox/*"
+            files                = []
+            dirmon_entry.stub(:whitelist_paths, [IOStreams.path("#{dir}/in").realpath.to_s]) do
+              dirmon_entry.each { |file_name| files << file_name }
+            end
+
+            assert_empty files
+          end
+        end
+
+        it "reads a file within a whitelisted directory given with a trailing slash" do
+          Dir.mktmpdir do |dir|
+            FileUtils.mkdir_p("#{dir}/in/2026")
+            File.write("#{dir}/in/2026/file.txt", "Hello World")
+            dirmon_entry.pattern = "#{dir}/in/**/*"
+            files                = []
+            dirmon_entry.stub(:whitelist_paths, ["#{IOStreams.path("#{dir}/in").realpath}/"]) do
+              dirmon_entry.each { |file_name| files << file_name.basename }
+            end
+
+            assert_equal ["file.txt"], files
+          end
+        end
+
+        it "skips the files in its archive directory, but not a file or directory whose name starts with its name" do
+          Dir.mktmpdir do |dir|
+            FileUtils.mkdir_p(["#{dir}/archive", "#{dir}/archive_2026"])
+            %w[archive/1_orders.csv archive_2026/orders.csv archived_orders.csv orders.csv].each do |name|
+              File.write("#{dir}/#{name}", "Hello World")
+            end
+            dirmon_entry.pattern           = "#{dir}/**/*"
+            dirmon_entry.archive_directory = "archive"
+            files                          = []
+            dirmon_entry.each { |file_name| files << file_name.to_s.delete_prefix("#{File.realpath(dir)}/") }
+
+            assert_equal %w[archive_2026/orders.csv archived_orders.csv orders.csv], files.sort
+          end
+        end
+
+        it "skips the files in an absolute archive directory, but not in a directory whose name starts with its name" do
+          Dir.mktmpdir do |dir|
+            dir = File.realpath(dir)
+            FileUtils.mkdir_p(["#{dir}/done", "#{dir}/done_2026"])
+            File.write("#{dir}/done/1_orders.csv", "Hello World")
+            File.write("#{dir}/done_2026/orders.csv", "Hello World")
+            dirmon_entry.pattern           = "#{dir}/**/*"
+            dirmon_entry.archive_directory = "#{dir}/done"
+            files                          = []
+            dirmon_entry.each { |file_name| files << file_name.to_s.delete_prefix("#{dir}/") }
+
+            assert_equal %w[done_2026/orders.csv], files
+          end
+        end
+
+        it "skips the files in an absolute archive directory that it reaches through a symbolic link" do
+          Dir.mktmpdir do |dir|
+            real = File.join(File.realpath(dir), "real")
+            link = File.join(File.realpath(dir), "link")
+            FileUtils.mkdir_p("#{real}/done")
+            File.write("#{real}/done/1_orders.csv", "Hello World")
+            File.write("#{real}/orders.csv", "Hello World")
+            File.symlink(real, link)
+            dirmon_entry.pattern           = "#{link}/**/*"
+            dirmon_entry.archive_directory = "#{link}/done"
+            files                          = []
+            dirmon_entry.each { |file_name| files << file_name.basename }
+
+            assert_equal %w[orders.csv], files
+          end
+        end
+
         it "skips a file whose directory is not writable, since it cannot be moved to the archive" do
           skip "Root can move any file" if Process.uid.zero?
 

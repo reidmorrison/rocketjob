@@ -7,6 +7,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Breaking changes
 
+- Dirmon only skips the files in its archive directory: within a directory named as a relative `archive_directory`,
+  such as `archive`, or within an absolute one. Previously it skipped every file whose path contained the name of the
+  archive directory anywhere, such as `archived_orders.csv`, or the files in `/data/archive_2026`, so those files are
+  processed after the upgrade. Move such files elsewhere first if they must not be processed.
 - Uploading a range of integers, such as `upload(200..421)` or the deprecated `upload_integer_range(200, 421)`,
   returns, and adds to `record_count`, the number of integers in it, 222, where it was the number of ranges, one
   per slice of `slice_size` integers, 3. So `percent_complete` follows the ranges as they are processed, where it
@@ -91,6 +95,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Security
 
+- A Dirmon whitelist path only admits the files within that directory. Previously it admitted any path that started
+  with the same characters, so the whitelisted `/data/in` also admitted the files of `/data/inbox` and
+  `/data/in_other`.
 - With `format: :auto`, renaming an upload from `.csv` to `.json` bypassed `allowed_columns` and
   `required_columns`. They now apply to JSON records too, see above.
 - Dirmon's log messages, the original file name that it records on each `UploadFileJob`, and its list
@@ -269,6 +276,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Dirmon skips a file whose directory is not writable by the current user, logging a warning, since the
   file cannot be moved to the archive directory. The check never ran, since IOStreams paths do not
   implement `writable?`, so such a file failed its Dirmon entry instead.
+- Dirmon skips the files in an absolute `archive_directory` that is reached through a symbolic link, such
+  as `/data/archive` when it links to `/mnt/storage`. A scan finds each file by its real path, which did
+  not contain the archive directory as it was set, so the archived files were processed again.
 - A job, or a batch job's slice, whose exception message is not valid UTF-8 is failed and saved, with each
   such byte shown as `\xHH`. Previously saving the failure raised `EncodingError`, which left the job, or
   the slice, `running` with no exception recorded until its server restarted, so a batch job never
