@@ -183,6 +183,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixes
 
+- A category accepts a `format` that the application registers with IOStreams after Rocket Job is loaded, see
+  `IOStreams.tabular_formats`. Previously the formats were read when Rocket Job was loaded, so such a format failed
+  validation.
 - The Active Job adapter works with `config.active_job.queue_adapter = :rocket_job`, for which Active Job creates an
   instance of the adapter. Previously the adapter only had class methods, so `perform_later` raised `NoMethodError`.
   It now extends `ActiveJob::QueueAdapters::AbstractAdapter` when Active Job defines it, and its class methods

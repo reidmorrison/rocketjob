@@ -123,6 +123,30 @@ module Batch
         end
       end
 
+      describe "#format" do
+        it "is one of the formats of IOStreams" do
+          assert_predicate RocketJob::Category::Input.new(format: :psv), :valid?
+          assert_predicate RocketJob::Category::Input.new(format: :auto), :valid?
+          refute_predicate RocketJob::Category::Input.new(format: :unknown), :valid?
+        end
+
+        it "accepts a format that is registered after Rocket Job is loaded" do
+          IOStreams::Tabular.register_format(:review_test, IOStreams::Tabular::Parser::Csv)
+
+          assert_predicate RocketJob::Category::Input.new(format: :review_test), :valid?
+          assert_includes RocketJob::Category::Base::FORMATS.to_a, :review_test
+        ensure
+          IOStreams::Tabular.deregister_format(:review_test)
+        end
+
+        it "lists the formats as the choices of the validation, as a form, such as Mission Control's, reads them" do
+          choices = RocketJob::Category::Input.validators_on(:format).first.options[:in]
+
+          assert_equal [nil, :auto], choices.first(2)
+          assert_includes choices.map(&:to_s), "csv"
+        end
+      end
+
       describe "#format_options=" do
         it "sets the schema of a fixed width layout" do
           category = RocketJob::Category::Input.new(format: :fixed)

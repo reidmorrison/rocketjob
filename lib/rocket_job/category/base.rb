@@ -6,6 +6,20 @@ module RocketJob
     module Base
       extend ActiveSupport::Concern
 
+      # The formats that a category accepts, see #format: `nil`, `:auto`, and the formats that IOStreams has when they
+      # are listed, see `IOStreams.tabular_formats`, so that a format that an application registers after Rocket Job is
+      # loaded is accepted. A list, such as of the choices in a form, enumerates them.
+      class Formats
+        include Enumerable
+
+        def each(&)
+          [nil, :auto].concat(IOStreams.tabular_formats).each(&)
+        end
+      end
+
+      # The formats that a category accepts, see Formats.
+      FORMATS = Formats.new.freeze
+
       included do
         field :name, type: ::Mongoid::StringifiedSymbol, default: :main
 
@@ -31,7 +45,7 @@ module RocketJob
         #
         # Default: `nil`
         field :format, type: ::Mongoid::StringifiedSymbol
-        validates_inclusion_of :format, in: [nil, :auto] + IOStreams::Tabular.registered_formats
+        validates_inclusion_of :format, in: FORMATS
 
         # The fields of the records in this category and the type of each one, as a Frictionless Table Schema, see
         # https://datapackage.org/standard/table-schema/, so that records are read as typed values, such as an Integer,
