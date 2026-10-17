@@ -227,6 +227,16 @@ module Batch
 
           assert_equal [{"name" => "Jack", "zip" => "54321"}], output_records
         end
+
+        it "passes the records of a layout with Symbol keys to perform with those keys, as before v8" do
+          job.input_category.schema         = nil
+          job.input_category.format_options = {layout: [{size: 10, key: :name}, {size: 5, key: :zip, type: :integer}]}
+          upload(".txt", "Jack      54321\n")
+          records = []
+          job.stub(:perform, ->(record) { records << record }) { job.perform_now }
+
+          assert_equal [{name: "Jack", zip: 54_321}], records
+        end
       end
 
       describe "schema" do

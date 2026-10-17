@@ -81,11 +81,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   `RocketJob::Category::Base#property_errors`, without building the job.
 - `.from_properties` of a batch job merges category properties whose keys are Symbols onto the categories
   that the job defines, as it did for String keys. Previously they replaced the job's categories.
-- A category's `format_options` is replaced by its `schema`, see below. A category no longer has a
-  `format_options` field or reader. `format_options=` is deprecated: it sets the schema of the supplied
-  fixed width layout, so a Dirmon entry or an `UploadFileJob` whose properties hold `format_options`
-  still builds its job. A job saved before v8 has the `format_options` of each category translated into
-  its schema when it is read, and saved that way the next time it is saved. See the upgrade guide.
 
 ### Security
 
@@ -180,6 +175,12 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Deprecated
 
+- A category's `format_options`, the layout of a fixed width file, since the `schema` replaces it, see below. It
+  still works as before: IOStreams reads it as it did, so the keys of each record are the keys of the layout, such
+  as Symbols, and the column options, such as `columns`, still apply to its records. A job saved with it is not
+  changed. It cannot be set with a schema, and a layout that is not valid raises
+  `IOStreams::Errors::InvalidLayout` when it is set. `IOStreams::Schema.from_layout` returns the schema of a layout.
+  See the upgrade guide.
 - An input category's `allowed_columns`, `required_columns`, `skip_unknown` and `header_cleanser`, and the
   `columns` of a file without a header row, or of an output category, since IOStreams 3.0 deprecates the
   options that they set, and the schema replaces them. They still work without a schema, and cannot be set

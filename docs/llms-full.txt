@@ -5695,7 +5695,7 @@ format, see [Typed values with a schema](batch.html#typed-values-with-a-schema).
 layout becomes a schema with the `width` of each field:
 
 ~~~ruby
-# Before
+# Before (deprecated)
 input_category format:         :fixed,
                format_options: {layout: [{size: 10, key: "name"}, {size: 5, key: "zip", type: :integer}]}
 
@@ -5710,18 +5710,29 @@ input_category format: :fixed,
                }
 ~~~
 
-The schema that IOStreams translates from a layout has `"fieldsMatch" => "subset"`, so that writing
-skips the keys of a record that the layout does not list, as a layout did. Leave it out to raise
-`IOStreams::Errors::InvalidHeader` for such a key instead, so that a misspelled key is not silently
-left out.
+`IOStreams::Schema.from_layout(layout: ...)` returns the schema of a layout, with
+`"fieldsMatch" => "subset"`, so that writing skips the keys of a record that the layout does not
+list, as a layout did. Leave it out to raise `IOStreams::Errors::InvalidHeader` for such a key
+instead, so that a misspelled key is not silently left out.
+
+Check these when moving a layout to a schema:
+
+* The keys of the records are the names of the fields, which are Strings, since MongoDB does not
+  store Symbols. A layout with Symbol keys, such as `key: :name`, gave records with Symbol keys, so
+  change `record[:name]` to `record["name"]` in `#perform`.
+* The column options, such as `columns`, cannot be set with a schema. An input category's `columns`
+  that narrowed the records of a layout to some of its keys become the fields of the schema. An
+  output category's `columns` that named the values of an Array result are not needed when they
+  are in the order of the fields, since an Array is written by the position of each field.
 
 Existing jobs and settings keep working:
 
-* A job saved before v8 has the `format_options` of each category translated into its schema when it
-  is read, and saved that way the next time the job is saved.
-* `format_options=` still sets a category's schema from a layout, so a Dirmon entry or an
-  `UploadFileJob` whose properties hold `format_options` still builds its job. It is deprecated, and
-  will be removed. A category no longer has a `format_options` reader.
+* `format_options` still works as it did before v8, since IOStreams reads a layout as it did,
+  including its Symbol keys, and the column options with it. It is deprecated, and will be removed.
+* A job saved before v8 is read with its `format_options`, which are not changed when it is saved
+  again, so its slices can still be processed by a v7 worker while servers are upgraded.
+* A layout cannot be set with a schema, and one that is not valid raises
+  `IOStreams::Errors::InvalidLayout` when it is set, rather than when a file is read.
 * A job class that defines a category with `format_options`, and a Dirmon entry or an `UploadFileJob`
   that builds a job from properties that hold it, report a deprecation warning, see
   [Finding the deprecated options](#finding-the-deprecated-options).

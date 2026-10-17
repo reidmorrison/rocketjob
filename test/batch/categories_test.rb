@@ -261,7 +261,7 @@ module Batch
       end
 
       describe "a job saved before v8" do
-        it "replaces the format_options of its categories with their schema when it is saved" do
+        it "keeps the format_options of its categories when it is saved, so that a v7 worker can still read it" do
           job = CategoriesJob.create!
           layout = {"layout" => [{"size" => 10, "key" => "name"}, {"size" => 5, "key" => "zip"}]}
           CategoriesJob.collection.update_one(
@@ -270,20 +270,16 @@ module Batch
           )
 
           job = CategoriesJob.find(job.id)
-          schema = {
-            "fields"      => [{"name" => "name", "type" => "string", "width" => 10, "truncate" => true},
-                              {"name" => "zip", "type" => "string", "width" => 5, "truncate" => true}],
-            # Writing skips the keys of a record that the layout does not have, as a layout did.
-            "fieldsMatch" => "subset"
-          }
 
-          assert_equal schema, job.input_category.schema
+          assert_equal layout, job.input_category.format_options
+          assert_nil job.input_category.schema
 
+          job.description = "Saved again"
           job.save!
           category = CategoriesJob.collection.find(_id: job.id).first["input_categories"].first
 
-          assert_equal schema, category["schema"]
-          refute category.key?("format_options")
+          assert_equal layout, category["format_options"]
+          refute category.key?("schema")
         end
       end
 
