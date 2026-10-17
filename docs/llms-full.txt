@@ -5830,6 +5830,20 @@ by Minitest, or with `ruby -W:deprecated` or `RUBYOPT=-W:deprecated`, so product
 that was saved with a deprecated option, and is read back, does not report one. IOStreams reports its
 own deprecation warnings for the options that it reads, which name a line of Rocket Job instead.
 
+### Removed
+
+These were deprecated or unused, and are removed in v8:
+
+* `RocketJob::Plugins::Restart`, deprecated in v6. Use `RocketJob::Plugins::Cron`, see
+  [Scheduled jobs](guide.html#scheduled-jobs).
+* `RocketJob::LookupCollection`, which was not used by Rocket Job, and whose `upload` always raised
+  `ArgumentError`.
+* `#work_first_slice` of a batch job, deprecated in v6. In a `before_batch` callback, read the records
+  of the first slice with `input.first` instead.
+* The translation of batch jobs saved by v5 into v6 categories, when they are read. A job saved by
+  v5, and never saved since by v6 or v7, cannot be read by v8: finish or destroy such jobs, or open
+  and save them with v7, before upgrading.
+
 ## Upgrading to v6
 
 - Support for Ruby v3 and Rails 6.

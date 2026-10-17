@@ -27,7 +27,6 @@ module RocketJob
   autoload :Heartbeat,               "rocket_job/heartbeat"
   autoload :Job,                     "rocket_job/job"
   autoload :JobException,            "rocket_job/job_exception"
-  autoload :LookupCollection,        "rocket_job/lookup_collection"
   autoload :Worker,                  "rocket_job/worker"
   autoload :Performance,             "rocket_job/performance"
   autoload :Server,                  "rocket_job/server"

@@ -69,9 +69,8 @@ module Batch
         CategoriesJob.destroy_all
       end
 
-      # Builds a job from a raw (v5 era) persisted document, triggering the
-      # after_initialize migration since the document is not a new record.
-      def from_legacy(doc)
+      # Builds a job from a persisted document, as it is read from the database.
+      def from_db(doc)
         doc = {"_id" => BSON::ObjectId.new}.merge(doc)
         Mongoid::Factory.from_db(CategoriesJob, doc)
       end
@@ -283,11 +282,12 @@ module Batch
         end
       end
 
-      describe "#rocketjob_categories_migrate" do
-        it "leaves modern documents untouched" do
-          job = from_legacy("input_categories" => [{"name" => "main", "serializer" => "none"}])
+      describe "a job read from the database" do
+        it "reads its categories" do
+          job = from_db("input_categories" => [{"name" => "main", "serializer" => "none"}])
 
           assert_equal :main, job.input_category.name
+          assert_equal :none, job.input_category.serializer
         end
 
         it "saves a change to a category of a job that was read from the database" do
@@ -296,89 +296,6 @@ module Batch
           job.save!
 
           assert_equal 50, CategoriesJob.find(job.id).input_category.slice_size
-        end
-
-        it "migrates a compressed v5 job" do
-          job = from_legacy(
-            "input_categories" => [:main],
-            "compress"         => true,
-            "slice_size"       => 50
-          )
-          category = job.input_category(:main)
-
-          assert_equal :compress, category.serializer
-          assert_equal 50, category.slice_size
-        end
-
-        it "migrates an encrypted v5 job" do
-          job      = from_legacy("input_categories" => [:main], "encrypt" => true)
-          category = job.input_category(:main)
-
-          assert_equal :encrypt, category.serializer
-        end
-
-        it "migrates tabular input attributes onto the main category" do
-          job = from_legacy(
-            "input_categories"     => [:main],
-            "tabular_input_format" => :csv,
-            "tabular_input_header" => %w[name value]
-          )
-          category = job.input_category(:main)
-
-          assert_equal :csv, category.format
-          assert_equal %w[name value], category.columns
-        end
-
-        it "migrates the v5 tabular input modes" do
-          {"line" => :line, "row" => :array, "record" => :hash}.each_pair do |v5_mode, mode|
-            job = from_legacy(
-              "input_categories"     => [:main],
-              "tabular_input_format" => :csv,
-              "tabular_input_mode"   => v5_mode
-            )
-
-            assert_equal mode, job.input_category.mode, v5_mode
-            assert_predicate job.input_category, :valid?
-          end
-        end
-
-        it "migrates a non-main input category without tabular settings" do
-          job = from_legacy(
-            "input_categories"     => %i[main other],
-            "tabular_input_format" => :csv
-          )
-
-          assert_equal :csv, job.input_category(:main).format
-          assert_nil job.input_category(:other).format
-        end
-
-        it "builds an output category when collect_output was set" do
-          job = from_legacy(
-            "input_categories"      => [:main],
-            "collect_output"        => true,
-            "tabular_output_format" => :csv,
-            "tabular_output_header" => %w[a b]
-          )
-          category = job.output_category(:main)
-
-          assert_equal :csv, category.format
-          assert_equal %w[a b], category.columns
-        end
-
-        it "does not build an output category when collect_output was false" do
-          job = from_legacy("input_categories" => [:main], "collect_output" => false)
-
-          assert_empty job.output_categories
-        end
-
-        it "migrates symbol output categories" do
-          job = from_legacy(
-            "input_categories"  => [:main],
-            "output_categories" => %i[main extra],
-            "collect_output"    => true
-          )
-
-          assert_equal %i[main extra], job.output_categories.collect(&:name)
         end
       end
     end

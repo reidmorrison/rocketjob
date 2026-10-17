@@ -5,9 +5,6 @@ module RocketJob
     module Categories
       extend ActiveSupport::Concern
 
-      # The v5 `tabular_input_mode` values, and the input category `mode` that replaced each one.
-      V5_INPUT_MODES = {"row" => :array, "record" => :hash}.freeze
-
       # The properties that hold the settings of the job's categories, and the class of each one's categories.
       CATEGORY_PROPERTIES = {
         input_categories:  RocketJob::Category::Input,
@@ -16,7 +13,6 @@ module RocketJob
 
       included do
         after_initialize :rocketjob_categories_assign, if: :new_record?
-        after_initialize :rocketjob_categories_migrate, unless: :new_record?
         before_perform :rocketjob_categories_input_render
         after_perform :rocketjob_categories_output_render
 
@@ -265,122 +261,6 @@ module RocketJob
         return nil if row.blank? && category.tabular?
 
         category.render(row)
-      end
-
-      # Migrate existing v5 batch jobs to v6
-      def rocketjob_categories_migrate
-        return unless attributes["input_categories"]&.first.is_a?(Symbol)
-
-        serializer = :none
-        if attribute_present?(:compress)
-          serializer = :compress if self[:compress]
-          remove_attribute(:compress)
-        end
-
-        if attribute_present?(:encrypt)
-          serializer = :encrypt if self[:encrypt]
-          remove_attribute(:encrypt)
-        end
-
-        slice_size = 100
-        if attribute_present?(:slice_size)
-          slice_size = self[:slice_size].to_i
-          remove_attribute(:slice_size)
-        end
-
-        main_input_format  = nil
-        main_input_mode    = :line
-        main_input_columns = nil
-        if attribute_present?(:tabular_input_format)
-          main_input_format = self[:tabular_input_format]
-          remove_attribute(:tabular_input_format)
-        end
-
-        if attribute_present?(:tabular_input_mode)
-          main_input_mode = V5_INPUT_MODES.fetch(self[:tabular_input_mode].to_s, self[:tabular_input_mode])
-          remove_attribute(:tabular_input_mode)
-        end
-
-        if attribute_present?(:tabular_input_header)
-          main_input_columns = self[:tabular_input_header]
-          remove_attribute(:tabular_input_header)
-        end
-
-        file_name = nil
-        if attribute_present?(:upload_file_name)
-          file_name = self[:upload_file_name]
-          remove_attribute(:upload_file_name)
-        end
-
-        existing                = self[:input_categories]
-        self[:input_categories] = []
-        self[:input_categories] = existing.collect do |category_name|
-          RocketJob::Category::Input.new(
-            name:       category_name,
-            file_name:  file_name,
-            serializer: serializer,
-            slice_size: slice_size,
-            format:     [:main, "main"].include?(category_name) ? main_input_format : nil,
-            columns:    [:main, "main"].include?(category_name) ? main_input_columns : nil,
-            mode:       [:main, "main"].include?(category_name) ? main_input_mode : nil
-          ).as_document
-        end
-
-        collect_output = false
-        if attribute_present?(:collect_output)
-          collect_output = self[:collect_output]
-          remove_attribute(:collect_output)
-        end
-
-        collect_nil_output = true
-        if attribute_present?(:collect_nil_output)
-          collect_nil_output = self[:collect_nil_output]
-          remove_attribute(:collect_nil_output)
-        end
-
-        main_output_format  = nil
-        main_output_columns = nil
-        main_output_options = nil
-        if attribute_present?(:tabular_output_format)
-          main_output_format = self[:tabular_output_format]
-          remove_attribute(:tabular_output_format)
-        end
-
-        if attribute_present?(:tabular_output_header)
-          main_output_columns = self[:tabular_output_header]
-          remove_attribute(:tabular_output_header)
-        end
-
-        if attribute_present?(:tabular_output_options)
-          main_output_options = self[:tabular_output_options]
-          remove_attribute(:tabular_output_options)
-        end
-
-        existing                 = self[:output_categories]
-        self[:output_categories] = []
-        return unless collect_output
-
-        if existing.blank?
-          self[:output_categories] = [
-            RocketJob::Category::Output.new(
-              nils:           collect_nil_output,
-              format:         main_output_format,
-              columns:        main_output_columns,
-              format_options: main_output_options
-            ).as_document
-          ]
-        elsif existing.first.is_a?(Symbol)
-          self[:output_categories] = existing.collect do |category_name|
-            RocketJob::Category::Output.new(
-              name:           category_name,
-              serializer:     serializer,
-              nils:           collect_nil_output,
-              format:         [:main, "main"].include?(category_name) ? main_output_format : nil,
-              columns:        [:main, "main"].include?(category_name) ? main_output_columns : nil,
-              format_options: [:main, "main"].include?(category_name) ? main_output_options : nil
-            ).as_document
-          end
-        end
       end
     end
   end

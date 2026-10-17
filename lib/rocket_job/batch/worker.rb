@@ -59,39 +59,6 @@ module RocketJob
         false
       end
 
-      # Prior to a job being made available for processing it can be processed one
-      # slice at a time.
-      #
-      # For example, to extract the header row which would be in the first slice.
-      #
-      # Returns [Integer] the number of records processed in the slice
-      #
-      # Note: The slice will be removed from processing when this method completes
-      #
-      # @deprecated Please open a ticket if you need this behavior.
-      def work_first_slice(&)
-        raise "#work_first_slice can only be called from within before_batch callbacks" unless sub_state == :before
-
-        # TODO: Make these settings configurable
-        count        = 0
-        wait_seconds = 5
-        while input.first.nil?
-          break if count > 10
-
-          logger.info "First slice has not arrived yet, sleeping for #{wait_seconds} seconds"
-          sleep wait_seconds
-          count += 1
-        end
-
-        slice = input.first
-        # No records processed
-        return 0 unless slice
-
-        # TODO: Persist that the first slice is being processed by this worker
-        slice.start
-        rocket_job_process_slice(slice, &)
-      end
-
       # Returns [Array<ActiveWorker>] All workers actively working on this job
       def rocket_job_active_workers(server_name = nil)
         servers = []

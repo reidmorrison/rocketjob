@@ -7,6 +7,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Breaking changes
 
+- Removed `RocketJob::Plugins::Restart`, deprecated in v6, use `RocketJob::Plugins::Cron`; `RocketJob::LookupCollection`,
+  which was unused, and whose `upload` always raised `ArgumentError`; and `#work_first_slice` of a batch job,
+  deprecated in v6. A batch job saved by v5, and never saved since, is no longer translated into v6 categories when
+  it is read. See the upgrade guide.
 - `RocketJob::Plugins::Transaction` wraps each slice of a batch job in a transaction, and
   `RocketJob::Plugins::ThrottleDependentJobs` throttles its slices, whether the job includes them before or after
   `RocketJob::Batch`, as documented. Previously a job that included `Transaction` first had a transaction around

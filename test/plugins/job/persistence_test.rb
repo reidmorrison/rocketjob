@@ -135,6 +135,22 @@ module Plugins
             assert_nil @job2.data
           end
 
+          it "does not copy what happened to the job that it restarts" do
+            @job.save!
+            @job.start!
+            @job.fail!(nil, "Oh no")
+            @job.create_restart!
+            @job2 = RocketJob::Job.where(:id.ne => @job.id).first
+
+            assert_predicate @job2, :queued?
+            assert_nil @job2.started_at
+            assert_nil @job2.completed_at
+            assert_equal 0, @job2.failure_count
+            assert_nil @job2.worker_name
+            assert_equal 0, @job2.percent_complete
+            assert_nil @job2.exception
+          end
+
           it "applies overrides to the new instance" do
             @job.save!
             @job.create_restart!(priority: 11, description: "Restarted")
@@ -148,6 +164,8 @@ module Plugins
             job = PersistBatchJob.new
             job.input_category.slice_size = 25
             job.output_category.format    = :json
+            job.output_category.nils      = true
+            job.output_category.file_name = "output.json.gz"
             job.save!
             job.create_restart!
 
@@ -155,6 +173,8 @@ module Plugins
 
             assert_equal 25, restarted.input_category.slice_size
             assert_equal :json, restarted.output_category.format
+            assert restarted.output_category.nils
+            assert_equal "output.json.gz", restarted.output_category.file_name.to_s
           ensure
             RocketJob::Job.destroy_all
           end
