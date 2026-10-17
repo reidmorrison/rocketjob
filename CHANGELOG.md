@@ -100,6 +100,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### New features
 
+- `upload` passes each model of an Active Record relation, or each document of a Mongoid query, to a supplied block,
+  and uploads what it returns, such as `job.upload(User.where(country_code: "US")) { |user| user.email }`, as the
+  deprecated `upload_arel` and `upload_mongo_query` do. Previously it raised `ArgumentError` for a query with a
+  block.
 - A category's `schema` is a Frictionless Table Schema, as a Hash, or the path or url of a JSON file,
   that IOStreams 3.0 uses to read each value of its records as its type, such as an `Integer`, a
   `BigDecimal` or a `Date`, and to write each value in the text form of its type, for every tabular

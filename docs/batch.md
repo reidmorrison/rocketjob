@@ -193,37 +193,37 @@ For the full list of supported file types and transformations, see
 
 ### Active Record queries
 
-`upload_arel` uploads the result of an Active Record query. By default it uploads only the `:id` of
+`upload` uploads the result of an Active Record query. By default it uploads only the `:id` of
 each row, adding it to the select list to reduce overhead:
 
 ~~~ruby
 # Upload the ids of all US users
-job.upload_arel(User.where(country_code: "US"))
+job.upload(User.where(country_code: "US"))
 ~~~
 
-Supply column names to upload more than the id:
+Supply column names to upload more than the id, as an Array per row:
 
 ~~~ruby
-job.upload_arel(User.where(country_code: "US"), :user_name, :zip_code)
+job.upload(User.where(country_code: "US"), columns: %i[user_name zip_code])
 ~~~
 
 Pass a block to transform each model into the record to upload:
 
 ~~~ruby
-job.upload_arel(User.where(country_code: "US")) { |user| user.email }
+job.upload(User.where(country_code: "US")) { |user| user.email }
 ~~~
 
 ### Mongoid queries
 
-`upload_mongo_query` uploads the result of a MongoDB query. It reads the collection directly, rather
+`upload` uploads the result of a MongoDB query too. It reads the collection directly, rather
 than building a Mongoid model per document, to avoid that overhead:
 
 ~~~ruby
 # Upload the ids of all users in Florida
-job.upload_mongo_query(User.where(state: "FL"))
+job.upload(User.where(state: "FL"))
 
-# Upload an additional field
-job.upload_mongo_query(User.where(state: "FL"), :zip_code)
+# Upload a field instead
+job.upload(User.where(state: "FL"), columns: [:zip_code])
 ~~~
 
 When a block is supplied it receives each document and returns the record to upload. The returned
@@ -232,19 +232,20 @@ value must serialize to BSON (`Hash`, `Array`, `String`, `Integer`, `Float`, `Sy
 
 ### Integer ranges
 
-`upload_integer_range` uploads a range of integers efficiently, which is ideal for driving work off a
-contiguous range of ids:
-
-~~~ruby
-job.upload_integer_range(1, 1_000_000)
-~~~
-
-`upload_integer_range_in_reverse_order` does the same but processes the highest ids first. A plain
-`Range` can also be passed straight to `upload`:
+A `Range` uploads a range of integers efficiently, which is ideal for driving work off a contiguous
+range of ids. Each slice holds one `[first_id, last_id]` range of `slice_size` ids, and a descending
+range processes the highest ids first:
 
 ~~~ruby
 job.upload(1..1_000_000)
+job.upload(1_000_000..1)
 ~~~
+
+Each range counts as one record in the job's `record_count`.
+
+`upload_arel`, `upload_mongo_query`, `upload_integer_range` and
+`upload_integer_range_in_reverse_order` still upload a query or a range, as they did before `upload`
+accepted them, and are deprecated.
 
 ### A block
 
@@ -624,7 +625,7 @@ end
 
 ~~~ruby
 job = ExportUsersJob.new
-job.upload_arel(User.where(locked: true))
+job.upload(User.where(locked: true))
 job.save!
 # ... once complete ...
 job.download("output.csv")
