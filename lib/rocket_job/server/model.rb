@@ -37,33 +37,6 @@ module RocketJob
         # Requeue any jobs being worked by this server when it is destroyed
         before_destroy :requeue_jobs
 
-        # Returns [Hash<String:Integer>] of the number of servers in each state.
-        # Note: If there are no servers in that particular state then the hash will not have a value for it.
-        #
-        # Example servers in every state:
-        #   RocketJob::Server.counts_by_state
-        #   # => {
-        #          :aborted => 1,
-        #          :completed => 37,
-        #          :failed => 1,
-        #          :paused => 3,
-        #          :queued => 4,
-        #          :running => 1,
-        #          :queued_now => 1,
-        #          :scheduled => 3
-        #        }
-        #
-        # Example no servers active:
-        #   RocketJob::Server.counts_by_state
-        #   # => {}
-        def self.counts_by_state
-          counts = {}
-          collection.aggregate([{"$group" => {_id: "$state", count: {"$sum" => 1}}}]).each do |result|
-            counts[result["_id"].to_sym] = result["count"]
-          end
-          counts
-        end
-
         # Destroy's all instances of zombie servers and requeues any jobs still "running"
         # on those servers.
         def self.destroy_zombies

@@ -162,29 +162,6 @@ module RocketJob
       path
     end
 
-    # Returns [Hash<String:Integer>] of the number of dirmon entries in each state.
-    # Note: If there are no workers in that particular state then the hash will not have a value for it.
-    #
-    # Example dirmon entries in every state:
-    #   RocketJob::DirmonEntry.counts_by_state
-    #   # => {
-    #          :pending => 1,
-    #          :enabled => 37,
-    #          :failed => 1,
-    #          :disabled => 3
-    #        }
-    #
-    # Example no dirmon entries:
-    #   RocketJob::Job.counts_by_state
-    #   # => {}
-    def self.counts_by_state
-      counts = {}
-      collection.aggregate([{"$group" => {_id: "$state", count: {"$sum" => 1}}}]).each do |result|
-        counts[result["_id"].to_sym] = result["count"]
-      end
-      counts
-    end
-
     # Yields [IOStreams::Path] for each file found that matches the current pattern.
     def each
       SemanticLogger.named_tagged(dirmon_entry: id.to_s) do

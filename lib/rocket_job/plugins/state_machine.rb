@@ -27,6 +27,20 @@ module RocketJob
     module StateMachine
       extend ActiveSupport::Concern
 
+      class_methods do
+        # Returns [Hash<Symbol:Integer>] the number of documents in each state. A state without any documents is left
+        # out.
+        #
+        # Example:
+        #   RocketJob::DirmonEntry.counts_by_state
+        #   # => {pending: 1, enabled: 37, failed: 1, disabled: 3}
+        def counts_by_state
+          collection.aggregate([{"$group" => {_id: "$state", count: {"$sum" => 1}}}]).to_h do |result|
+            [result["_id"].to_sym, result["count"]]
+          end
+        end
+      end
+
       included do
         include AASM
 

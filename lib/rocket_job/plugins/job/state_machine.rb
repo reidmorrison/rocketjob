@@ -7,6 +7,43 @@ module RocketJob
       module StateMachine
         extend ActiveSupport::Concern
 
+        class_methods do
+          # Returns [Hash<Symbol:Integer>] the number of jobs in each state, see RocketJob::Plugins::StateMachine,
+          # with the queued jobs also separated into:
+          #   :queued_now are jobs that are awaiting processing and can be processed now.
+          #   :scheduled are jobs scheduled to run in the future.
+          #
+          # Note: If there are no jobs in that particular state then the hash will not have a value for it
+          #
+          # Example jobs in every state:
+          #   RocketJob::Job.counts_by_state
+          #   # => {
+          #          :aborted => 1,
+          #          :completed => 37,
+          #          :failed => 1,
+          #          :paused => 3,
+          #          :queued => 4,
+          #          :running => 1,
+          #          :queued_now => 1,
+          #          :scheduled => 3
+          #        }
+          def counts_by_state
+            counts = super
+            # Calculate :queued_now and :scheduled if there are queued jobs
+            if (queued_count = counts[:queued])
+              scheduled_count = RocketJob::Job.scheduled.count
+              if scheduled_count.positive?
+                queued_now_count    = queued_count - scheduled_count
+                counts[:queued_now] = queued_now_count if queued_now_count.positive?
+                counts[:scheduled]  = scheduled_count
+              else
+                counts[:queued_now] = queued_count
+              end
+            end
+            counts
+          end
+        end
+
         included do
           # State Machine events and transitions
           #
