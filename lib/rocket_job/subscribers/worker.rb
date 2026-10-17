@@ -1,5 +1,7 @@
 module RocketJob
   module Subscribers
+    # Acts on the worker events published to this process, when they name its server, see
+    # RocketJob::Supervisor#server?, and one of its workers that is alive, see RocketJob::Supervisor#worker.
     class Worker
       include RocketJob::Subscriber
 
@@ -10,9 +12,7 @@ module RocketJob
       end
 
       def kill(server_id:, worker_id:, wait_timeout: 3)
-        return unless my_server?(server_id)
-
-        worker = locate_worker(worker_id)
+        worker = locate_worker(server_id, worker_id)
         return unless worker
 
         worker.shutdown!
@@ -23,9 +23,7 @@ module RocketJob
       end
 
       def stop(server_id:, worker_id:)
-        return unless my_server?(server_id)
-
-        worker = locate_worker(worker_id)
+        worker = locate_worker(server_id, worker_id)
         return unless worker
 
         worker.shutdown!
@@ -33,28 +31,21 @@ module RocketJob
       end
 
       def thread_dump(server_id:, worker_id:)
-        return unless my_server?(server_id)
-
-        worker = locate_worker(worker_id)
+        worker = locate_worker(server_id, worker_id)
         return unless worker
 
         logger.info "Thread dump Worker: #{worker_id}"
-        logger.backtrace(thread: worker.thread) if worker.thread && worker.alive?
+        logger.backtrace(thread: worker.thread) if worker.thread
       end
 
       private
 
-      def my_server?(server_id)
-        server_id == supervisor.server.id
-      end
+      # Returns the named worker of this server, or nil when the event is for another server, or it has no such
+      # worker that is alive.
+      def locate_worker(server_id, worker_id)
+        return unless server_id && supervisor.server?(server_id: server_id)
 
-      def locate_worker(worker_id)
-        return unless worker_id
-
-        worker = supervisor.worker_pool.find(worker_id)
-        return unless worker&.alive?
-
-        worker
+        supervisor.worker(worker_id)
       end
     end
   end

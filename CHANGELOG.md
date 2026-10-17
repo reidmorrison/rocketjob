@@ -183,6 +183,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixes
 
+- A worker event, such as `RocketJob::Subscribers::Worker.publish(:stop, server_id: id.to_s, worker_id: 1)`,
+  acts on the server whose id it names as a String too, as a server event does. Previously the id only matched
+  when it was published as a `BSON::ObjectId`.
 - A batch job class that defines an input or output category, such as `input_category name: :other`, no longer
   changes the categories of its parent class. Previously it added the category to, or replaced the category with
   the same name in, the parent class and its other subclasses too, which shared the list. So which categories a

@@ -46,6 +46,40 @@ class SupervisorTest < Minitest::Test
       end
     end
 
+    describe "#server?" do
+      it "is every server when the event names none" do
+        assert_predicate supervisor, :server?
+      end
+
+      it "is this server by its id, as an id or as a String" do
+        assert supervisor.server?(server_id: server.id)
+        assert supervisor.server?(server_id: server.id.to_s)
+        refute supervisor.server?(server_id: "000000000000000000000000")
+      end
+
+      it "is this server by its name" do
+        assert supervisor.server?(name: server.name)
+        refute supervisor.server?(name: "other:1")
+      end
+    end
+
+    describe "#worker" do
+      it "returns the living worker with the id" do
+        worker = Struct.new(:id, :alive?).new(3, true)
+        supervisor.worker_pool.workers << worker
+
+        assert_same worker, supervisor.worker(3)
+      end
+
+      it "returns nil for a worker that is not alive, or not found, or without an id" do
+        supervisor.worker_pool.workers << Struct.new(:id, :alive?).new(3, false)
+
+        assert_nil supervisor.worker(3)
+        assert_nil supervisor.worker(4)
+        assert_nil supervisor.worker(nil)
+      end
+    end
+
     describe "#stop!" do
       it "stops a running server" do
         server.started!
