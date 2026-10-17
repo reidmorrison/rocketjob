@@ -33,42 +33,6 @@ module RocketJob
         (@outputs ||= {})[category.name] ||= category.data_store(self)
       end
 
-      # Rapidly upload individual records in batches.
-      #
-      # Operates directly on a Mongo Collection to avoid the overhead of creating Mongoid objects
-      # for each and every row.
-      #
-      #   input_category(:my_lookup).find(id: 123).first
-      #
-      # Lookup collection.
-      #
-      # Upload side / secondary lookup tables that can be accessed during job processing.
-      #
-      # Example:
-      #   lookup_collection(:my_lookup).upload do |io|
-      #     io << {id: 123, data: "first record"}
-      #     io << {id: 124, data: "second record"}
-      #   end
-      #
-      # Parameters:
-      #   category [Symbol|RocketJob::Category::Input]
-      #     The category or the name of the category to access or download data from
-      #     Default: None ( Uses the single default output collection for this job )
-      #     Validates: This value must be one of those listed in #input_categories
-      # def lookup_collection(category = :main)
-      #   category = input_category(category) unless category.is_a?(Category::Input)
-      #
-      #   collection = (@lookup_collections ||= {})[category.name]
-      #
-      #   unless collection
-      #     collection_name = "rocket_job.inputs.#{id}"
-      #     collection_name << ".#{category.name}" unless category.name == :main
-      #
-      #     @lookup_collections[category.name] ||=
-      #       LookupCollection.new(Sliced::Slice.collection.database, collection_name)
-      #   end
-      # end
-
       # Upload the supplied file, io, IOStreams::Path, or IOStreams::Stream.
       #
       # Returns [Integer] the number of records uploaded.
@@ -163,124 +127,28 @@ module RocketJob
       # * Binary data cannot be uploaded as records, since they are stored as UTF-8 strings.
       # * CSV parsing is slow, so it is usually left for the workers to do.
       #
-      # Upload results from an Arel into RocketJob::SlicedJob.
+      # Upload the records of a query or a range of integers, which `upload_arel`, `upload_mongo_query`,
+      # `upload_integer_range` and `upload_integer_range_in_reverse_order` did before they were deprecated:
       #
-      # Params
-      #   column_names
-      #     When a block is not supplied, supply the names of the columns to be returned
-      #     and uploaded into the job
-      #     These columns are automatically added to the select list to reduce overhead
+      # Example: Upload the id of each user that an Active Record relation returns
+      #   job.upload(User.where(country_code: "US"))
       #
-      #   category [Symbol|RocketJob::Category::Input]
-      #     The category or the name of the category to upload to.
+      # Example: Upload the user_name and zip_code of each user, as an Array, see `columns:`
+      #   job.upload(User.where(country_code: "US"), columns: %i[user_name zip_code])
       #
-      # If a Block is supplied it is passed the model returned from the database and should
-      # return the work item to be uploaded into the job.
+      # Example: Upload the zip_code of each document that a Mongoid query returns
+      #   job.upload(User.where(state: "FL"), columns: [:zip_code])
       #
-      # Returns [Integer] the number of records uploaded
+      # Example: Upload the ids 200 to 421 as one `[first_id, last_id]` range per slice, of `slice_size` ids each,
+      #   starting with the last range when the range is descending, such as `421..200`
+      #   job.upload(200..421)
       #
-      # Example: Upload id's for all users
-      #   arel = User.all
-      #   job.upload_arel(arel)
-      #
-      # Example: Upload selected user id's
-      #   arel = User.where(country_code: 'US')
-      #   job.upload_arel(arel)
-      #
-      # Example: Upload user_name and zip_code
-      #   arel = User.where(country_code: 'US')
-      #   job.upload_arel(arel, columns: [:user_name, :zip_code])
-      #
-      # Notes:
-      # * Only call from one thread at a time against a single instance of this job.
-      # * The record_count for the job is set to the number of records returned by the arel.
-      # * If an exception is raised while uploading data, the input collection is cleared out
-      #   so that if a job is retried during an upload failure, data is not duplicated.
-
-      # Upload the result of a MongoDB query to the input collection for processing
-      # Useful when an entire MongoDB collection, or part thereof needs to be
-      # processed by a job.
-      #
-      # Returns [Integer] the number of records uploaded
-      #
-      # If a Block is supplied it is passed the document returned from the
-      # database and should return a record for processing
-      #
-      # If no Block is supplied then the record will be the :fields returned
-      # from MongoDB
-      #
-      # Note:
-      #   This method uses the collection and not the MongoMapper document to
-      #   avoid the overhead of constructing a Model with every document returned
-      #   by the query
-      #
-      # Note:
-      #   The Block must return types that can be serialized to BSON.
-      #   Valid Types: Hash | Array | String | Integer | Float | Symbol | Regexp | Time
-      #   Invalid: Date, etc.
-      #
-      # Example: Upload document ids
-      #   criteria = User.where(state: 'FL')
-      #   job.record_count = job.upload_mongo_query(criteria)
-      #
-      # Example: Upload only the specified column(s)
-      #   criteria = User.where(state: 'FL')
-      #   job.record_count = job.upload_mongo_query(criteria, columns: [:zip_code])
-      #
-      # Notes:
-      # * Only call from one thread at a time against a single instance of this job.
-      # * The record_count for the job is set to the number of records returned by the monqo query.
-      # * If an exception is raised while uploading data, the input collection is cleared out
-      #   so that if a job is retried during an upload failure, data is not duplicated.
-
-      # Upload sliced range of integer requests as arrays of start and end ids.
-      #
-      # Returns [Integer] the number of slices uploaded.
-      #
-      # Uploads one range per slice so that the response can return multiple records
-      # for each slice processed
-      #
-      # Example
-      #   job.input_category.slice_size = 100
-      #   job.upload_integer_range(200, 421)
-      #
-      #   # Equivalent to calling:
-      #   job.input.insert([200,299])
-      #   job.input.insert([300,399])
-      #   job.input.insert([400,421])
-      #
-      # Notes:
-      # * Only call from one thread at a time against a single instance of this job.
-      # * The record_count for the job is set to: last_id - start_id + 1.
-      # * If an exception is raised while uploading data, the input collection is cleared out
-      #   so that if a job is retried during an upload failure, data is not duplicated.
-
-      # Upload sliced range of integer requests as an arrays of start and end ids
-      # starting with the last range first
-      #
-      # Returns [Integer] the number of slices uploaded.
-      #
-      # Uploads one range per slice so that the response can return multiple records
-      # for each slice processed.
-      # Useful for when the highest order integer values should be processed before
-      # the lower integer value ranges. For example when processing every record
-      # in a database based on the id column
-      #
-      # Example
-      #   job.input_category.slice_size = 100
-      #   job.upload_integer_range_in_reverse_order(200, 421)
-      #
-      #   # Equivalent to calling:
-      #   job.input.insert([400,421])
-      #   job.input.insert([300,399])
-      #   job.input.insert([200,299])
-      #
-      # Notes:
-      # * Only call from one thread at a time against a single instance of this job.
-      # * The record_count for the job is set to: last_id - start_id + 1.
-      # * If an exception is raised while uploading data, the input collection is cleared out
-      #   so that if a job is retried during an upload failure, data is not duplicated.
-
+      # Notes for a query or a range:
+      # * `columns:` is only for a query: the columns, or fields, to upload. Default: the id.
+      # * The number that is returned and added to `record_count` is the number of records uploaded, which for a
+      #   range is the number of ranges, not the number of integers.
+      # * If an exception is raised while uploading, the input collection is cleared out, so that if the job is
+      #   retried, its data is not duplicated.
       def upload(object = nil, category: :main, file_name: nil, stream_mode: nil, on_first: nil, columns: nil,
                  slice_batch_size: nil, **args, &block)
         input_collection = input(category)
@@ -356,6 +224,10 @@ module RocketJob
       end
 
       # @deprecated
+      #
+      # Uploads the id of each model that the relation returns, or the values of the supplied column names as an
+      # Array, or what the block returns for each model. Returns [Integer] the number of records uploaded, which is
+      # added to `record_count`.
       def upload_arel(arel, *column_names, category: :main, &)
         count             = input(category).upload_arel(arel, columns: column_names, &)
         self.record_count = (record_count || 0) + count
@@ -363,20 +235,30 @@ module RocketJob
       end
 
       # @deprecated
+      #
+      # Uploads the id of each document that the query returns, or the values of the supplied field names as an
+      # Array, or what the block returns for each document, which must be a type that BSON can store. Returns
+      # [Integer] the number of records uploaded, which is added to `record_count`.
       def upload_mongo_query(criteria, *column_names, category: :main, &)
         count             = input(category).upload_mongo_query(criteria, columns: column_names, &)
         self.record_count = (record_count || 0) + count
         count
       end
 
-      # @deprecated
+      # @deprecated Use #upload with a Range, such as `upload(200..421)`.
+      #
+      # Uploads one `[first_id, last_id]` range of `slice_size` integers per slice, from start_id to last_id.
+      # Returns [Integer] the number of ranges uploaded, which is added to `record_count`.
       def upload_integer_range(start_id, last_id, category: :main, slice_batch_size: 1_000)
         count             = input(category).upload_integer_range(start_id, last_id, slice_batch_size: slice_batch_size)
         self.record_count = (record_count || 0) + count
         count
       end
 
-      # @deprecated
+      # @deprecated Use #upload with a descending Range, such as `upload(421..200)`.
+      #
+      # Uploads the ranges of #upload_integer_range, starting with the last range, so that the highest ids are
+      # processed first. Returns [Integer] the number of ranges uploaded, which is added to `record_count`.
       def upload_integer_range_in_reverse_order(start_id, last_id, category: :main, slice_batch_size: 1_000)
         count             = input(category).upload_integer_range_in_reverse_order(start_id, last_id,
                                                                                   slice_batch_size: slice_batch_size)

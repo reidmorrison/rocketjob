@@ -9,8 +9,8 @@ module RocketJob
     #     is called, then the priority will not be modified.
     #
     # class SampleJob < RocketJob::Job
-    #   include RocketJob::Plugins::Batch
-    #   include RocketJob::Plugins::Batch::LowerPriority
+    #   include RocketJob::Batch
+    #   include RocketJob::Batch::LowerPriority
     #
     #   before_batch :upload_data, :lower_priority
     #
@@ -33,7 +33,7 @@ module RocketJob
 
       included do
         unless public_method_defined?(:record_count=)
-          raise(ArgumentError, "LowerPriority can only be used in conjunction with RocketJob::Plugins::Batch")
+          raise(ArgumentError, "LowerPriority can only be used in conjunction with RocketJob::Batch")
         end
 
         # For each of this many records lower the priority by 1.

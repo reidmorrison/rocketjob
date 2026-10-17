@@ -219,10 +219,7 @@ module RocketJob
 
       # Render the output from the perform.
       def rocketjob_categories_output_render
-        return if @rocket_job_output.nil?
-
-        return unless output_categories
-        return if output_categories.empty?
+        return if @rocket_job_output.nil? || output_categories.empty?
 
         @rocket_job_output = rocketjob_categories_output_render_row(@rocket_job_output)
       end
@@ -238,7 +235,7 @@ module RocketJob
         return if row.nil?
 
         category = input_category
-        return row if category.nil? || !category.tabular?
+        return row unless category.tabular?
         return nil if row.blank?
 
         category.parse_record(row)
@@ -290,22 +287,19 @@ module RocketJob
         main_input_format  = nil
         main_input_mode    = :line
         main_input_columns = nil
-        # Only migrate tabular attributes if the job also removed the tabular plugin.
-        unless respond_to?(:tabular_input_render)
-          if attribute_present?(:tabular_input_format)
-            main_input_format = self[:tabular_input_format]
-            remove_attribute(:tabular_input_format)
-          end
+        if attribute_present?(:tabular_input_format)
+          main_input_format = self[:tabular_input_format]
+          remove_attribute(:tabular_input_format)
+        end
 
-          if attribute_present?(:tabular_input_mode)
-            main_input_mode = V5_INPUT_MODES.fetch(self[:tabular_input_mode].to_s, self[:tabular_input_mode])
-            remove_attribute(:tabular_input_mode)
-          end
+        if attribute_present?(:tabular_input_mode)
+          main_input_mode = V5_INPUT_MODES.fetch(self[:tabular_input_mode].to_s, self[:tabular_input_mode])
+          remove_attribute(:tabular_input_mode)
+        end
 
-          if attribute_present?(:tabular_input_header)
-            main_input_columns = self[:tabular_input_header]
-            remove_attribute(:tabular_input_header)
-          end
+        if attribute_present?(:tabular_input_header)
+          main_input_columns = self[:tabular_input_header]
+          remove_attribute(:tabular_input_header)
         end
 
         file_name = nil
@@ -343,23 +337,19 @@ module RocketJob
         main_output_format  = nil
         main_output_columns = nil
         main_output_options = nil
+        if attribute_present?(:tabular_output_format)
+          main_output_format = self[:tabular_output_format]
+          remove_attribute(:tabular_output_format)
+        end
 
-        # Only migrate tabular attributes if the job also removed the tabular plugin.
-        unless respond_to?(:tabular_output_render)
-          if attribute_present?(:tabular_output_format)
-            main_output_format = self[:tabular_output_format]
-            remove_attribute(:tabular_output_format)
-          end
+        if attribute_present?(:tabular_output_header)
+          main_output_columns = self[:tabular_output_header]
+          remove_attribute(:tabular_output_header)
+        end
 
-          if attribute_present?(:tabular_output_header)
-            main_output_columns = self[:tabular_output_header]
-            remove_attribute(:tabular_output_header)
-          end
-
-          if attribute_present?(:tabular_output_options)
-            main_output_options = self[:tabular_output_options]
-            remove_attribute(:tabular_output_options)
-          end
+        if attribute_present?(:tabular_output_options)
+          main_output_options = self[:tabular_output_options]
+          remove_attribute(:tabular_output_options)
         end
 
         existing                 = self[:output_categories]

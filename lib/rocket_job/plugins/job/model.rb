@@ -3,7 +3,8 @@ require "active_support/concern"
 module RocketJob
   module Plugins
     module Job
-      # Prevent more than one instance of this job class from running at a time
+      # The fields of every job, and the class-level declarations that the other plugins build on, such as `field`
+      # with its `user_editable`, `class_attribute`, `copy_on_restart` and `path` options.
       module Model
         extend ActiveSupport::Concern
 
@@ -37,9 +38,9 @@ module RocketJob
           # Example:
           #   A job with a priority of 40 will execute before a job with priority 50
           #
-          # In RocketJob Pro, if a SlicedJob is running and a higher priority job
-          # arrives, then the current job will complete the current slices and process
-          # the new higher priority job
+          # When a batch job is running and a higher priority job arrives, each of its workers moves to the higher
+          # priority job after the slice that it is processing once `RocketJob::Config.re_check_seconds` have passed
+          # since it started working on the batch job.
           field :priority, type: Integer, default: 50, class_attribute: true, user_editable: true, copy_on_restart: true
           validates_inclusion_of :priority, in: 1..100
 

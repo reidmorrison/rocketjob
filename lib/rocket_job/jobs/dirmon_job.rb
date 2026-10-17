@@ -3,34 +3,22 @@ module RocketJob
   module Jobs
     # Dirmon monitors folders for files matching the criteria specified in DirmonEntry
     #
-    # * The first time Dirmon runs it gathers the names of files in the monitored
-    #   folders.
-    # * On completion Dirmon kicks off a new Dirmon job passing it the list
-    #   of known files.
-    # * On each subsequent Dirmon run it checks the size of each file against the
-    #   previous list of known files, and only if the file size has not changed
-    #   the corresponding job is started for that file.
-    # * If the job implements #upload, that method is called
-    #   and then the file is deleted, or moved to the archive_directory if supplied
-
-    # * Otherwise, the file is moved to the supplied archive_directory (defaults to
-    #   `_archive` in the same folder as the file itself. The absolute path and
-    #   file name of the archived file is passed into the job as either
-    #   `upload_file_name` or `full_file_name`.
-
+    # * Each run finds the files that the pattern of each enabled DirmonEntry matches, and their sizes.
+    # * A file whose size has not changed since the previous run is processed. A file in a store that only shows
+    #   complete files, such as S3, is processed as soon as it is found.
+    # * To process a file it is moved to the entry's archive_directory, which is `archive` in the file's directory by
+    #   default, and an UploadFileJob is queued, which creates the entry's job and uploads the archived file into it
+    #   with its #upload, or sets its `upload_file_name` or `full_file_name` to the archived file.
+    # * When a run finishes, fails or is aborted, the next run is scheduled with the files found and their sizes.
+    #
     # Notes:
     # - Jobs that do not implement #upload _must_ have either `upload_file_name` or `full_file_name` as an attribute.
-    #
-    # With RocketJob Pro, the file is automatically uploaded into the job itself
-    # using the job's #upload method, after which the file is archived or deleted
-    # if no archive_directory was specified in the DirmonEntry.
     #
     # To start Dirmon for the first time
     #   RocketJob::Jobs::DirmonJob.create!
     #
-    # If another DirmonJob instance is already queued or running, then the create
-    # above will fail with:
-    #   Validation failed: State Another instance of this job is already queued or running
+    # If another DirmonJob instance with the same cron schedule is already queued, running, failed or paused, then the
+    # create above fails validation.
     #
     # Or to start DirmonJob and ignore errors if already running
     #   RocketJob::Jobs::DirmonJob.create

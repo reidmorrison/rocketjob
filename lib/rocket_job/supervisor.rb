@@ -7,7 +7,6 @@ module RocketJob
     include Supervisor::Shutdown
 
     attr_reader :server, :worker_pool
-    attr_accessor :worker_id
 
     # Start the Supervisor, using the supplied attributes to create a new Server instance.
     def self.run

@@ -15,9 +15,6 @@ require "rocket_job/extensions/mongoid/clients/options"
 require "rocket_job/extensions/mongoid/contextual/mongo"
 require "rocket_job/extensions/mongoid/factory"
 
-# Backport New StringifiedSymbol type in Mongoid v7.2
-require "rocket_job/extensions/mongoid/stringified_symbol" unless defined?(Mongoid::StringifiedSymbol)
-
 # @formatter:off
 module RocketJob
   autoload :ActiveWorker,            "rocket_job/active_worker"
@@ -50,14 +47,12 @@ module RocketJob
   module Plugins
     module Job
       autoload :Callbacks,           "rocket_job/plugins/job/callbacks"
-      autoload :Defaults,            "rocket_job/plugins/job/defaults"
       autoload :StateMachine,        "rocket_job/plugins/job/state_machine"
       autoload :Logger,              "rocket_job/plugins/job/logger"
       autoload :Model,               "rocket_job/plugins/job/model"
       autoload :Persistence,         "rocket_job/plugins/job/persistence"
       autoload :Throttle,            "rocket_job/plugins/job/throttle"
       autoload :ThrottleRunningJobs, "rocket_job/plugins/job/throttle_running_jobs"
-      autoload :Transaction,         "rocket_job/plugins/job/transaction"
       autoload :Worker,              "rocket_job/plugins/job/worker"
     end
     autoload :Cron,                  "rocket_job/plugins/cron"

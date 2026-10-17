@@ -31,16 +31,16 @@
 #   job.perform_now
 #   job.cleanup!
 #
-# By default output is not collected, call the method `#collect_output` to collect output.
+# By default output is not collected, call the method `#add_output_category` to collect output.
 #
 # Example:
-#   job = RocketJob::Jobs::OnDemandBatchJob(
+#   job = RocketJob::Jobs::OnDemandBatchJob.new(
 #     description:              'Fix data',
 #     code:                     code,
 #     throttle_running_workers: 5,
 #     priority:                 30
 #   )
-#   job.collect_output
+#   job.add_output_category
 #   job.save!
 #
 # Example: Move the upload operation into a before_batch.

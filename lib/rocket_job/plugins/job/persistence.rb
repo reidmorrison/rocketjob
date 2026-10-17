@@ -3,7 +3,7 @@ require "active_support/concern"
 module RocketJob
   module Plugins
     module Job
-      # Prevent more than one instance of this job class from running at a time
+      # Where jobs are stored, counting them by state, and saving a new instance of a job when it restarts.
       module Persistence
         extend ActiveSupport::Concern
 
