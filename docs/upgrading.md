@@ -73,7 +73,7 @@ input_category  format: :csv,
                 schema: {
                   "fieldsMatch" => "partial",
                   "fields"      => [
-                    {"name" => "login", "constraints" => {"required" => true}},
+                    {"name" => "login", "constraints" => {"required" => true}, "allowBlank" => true},
                     {"name" => "last_login"},
                     {"name" => "name"},
                     {"name" => "state"}
@@ -82,6 +82,9 @@ input_category  format: :csv,
 output_category format: :csv,
                 schema: {"fieldsMatch" => "subset", "fields" => [{"name" => "login"}, {"name" => "last_login"}]}
 ~~~
+
+`"allowBlank" => true` keeps a record whose `login` is blank, as `required_columns` did, which only
+checked that the file had the column. Leave it out to reject such a record too.
 
 With a schema, the keys of each record are the names of its fields, and the columns of the header row
 are matched to them whatever their case, spaces and punctuation, rather than cleansed. So a field
