@@ -16,10 +16,38 @@ module RocketJob
     class Shutdown < RuntimeError
     end
 
+    # Returns [String] the name of the worker with the supplied id on the named server, such as "host:1234:3", which
+    # jobs and slices hold as their `worker_name`. Read it with .on_server?, .on_server_pattern and .server_name_of.
+    def self.worker_name(server_name, id)
+      "#{server_name}:#{id}"
+    end
+
+    # Returns [true|false] whether the supplied worker name is the name of a worker on the named server, see
+    # .worker_name: the server's name followed by the worker's id, or the name of the server itself, such as "inline".
+    # A server whose name starts with the same characters is another server: the workers of "host:123" are not on
+    # "host:12", and those of "host:2" are not on "host".
+    def self.on_server?(worker_name, server_name)
+      return false if worker_name.blank? || server_name.blank?
+
+      worker_name.match?(on_server_pattern(server_name))
+    end
+
+    # Returns [Regexp] that matches the worker names that .on_server? accepts for the named server, to select them in
+    # a query, such as the slices that the workers of a server that died were processing.
+    def self.on_server_pattern(server_name)
+      /\A#{Regexp.escape(server_name)}(?::\d+)?\z/
+    end
+
+    # Returns [String] the name of the server of the supplied worker name, see .worker_name, such as "host:1234" for
+    # "host:1234:3", or the supplied name when it has no worker id.
+    def self.server_name_of(worker_name)
+      worker_name.to_s.sub(/:\d+\z/, "")
+    end
+
     def initialize(id: 0, server_name: "inline:0")
       @id             = id
       @server_name    = server_name
-      @name           = "#{server_name}:#{id}"
+      @name           = self.class.worker_name(server_name, id)
       @re_check_start = Time.now
       @current_filter = Config.filter || {}
     end

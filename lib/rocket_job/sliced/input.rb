@@ -109,9 +109,11 @@ module RocketJob
         )
       end
 
-      # Requeue all running slices for a server or worker that is no longer available
-      def requeue_running(worker_name)
-        running.where(worker_name: /\A#{worker_name}/).update_all(
+      # Requeue all running slices of the workers on a server that is no longer available, or of the named worker,
+      # see RocketJob::Worker.on_server?, or every running slice when no server is named.
+      def requeue_running(server_name)
+        slices = server_name ? running.where(worker_name: RocketJob::Worker.on_server_pattern(server_name)) : running
+        slices.update_all(
           "$unset" => {worker_name: nil, started_at: nil},
           "$set"   => {state: "queued"}
         )

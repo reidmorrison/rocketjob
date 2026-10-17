@@ -183,6 +183,14 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixes
 
+- The jobs and slices of a server that died are requeued only when a worker on that server was processing them.
+  Previously the server's name was matched as a prefix, so the server `host:12` also requeued the jobs and slices
+  of `host:123`, which were still being processed, and `RocketJob::ActiveWorker.all("host:12")` listed its
+  workers. Likewise the server `host` no longer requeues those of `host:2`. For a batch job that is processing its
+  slices, `RocketJob::ActiveWorker.all("host:12")` lists the workers processing them on that server, where it listed
+  those of every server, or none, depending on which worker started the job. The name of a server is also read back
+  correctly from the names of its workers when it has no colon, such as `RocketJob::Config.server_name = "worker1"`,
+  so `HousekeepingJob` no longer requeues the jobs that the workers of such a running server are processing.
 - An upload in the `:array` or `:hash` mode of a tabular input category reads with IOStreams 3.0. The
   category sets its format, and the layout of a fixed width file, on the path that it reads, since
   IOStreams no longer accepts them for each read.

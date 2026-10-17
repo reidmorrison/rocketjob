@@ -150,6 +150,67 @@ class WorkerTest < Minitest::Test
       RocketJob::Job.destroy_all
     end
 
+    describe ".worker_name" do
+      it "names a worker by its server and id" do
+        assert_equal "host:1234:3", RocketJob::Worker.worker_name("host:1234", 3)
+      end
+    end
+
+    describe ".on_server?" do
+      it "matches a worker on the server" do
+        assert RocketJob::Worker.on_server?("host:12:3", "host:12")
+      end
+
+      it "matches the name of the server itself" do
+        assert RocketJob::Worker.on_server?("inline", "inline")
+      end
+
+      it "does not match a worker on a server whose name starts with the same characters" do
+        refute RocketJob::Worker.on_server?("host:123:3", "host:12")
+      end
+
+      it "does not match a worker on a server whose name starts with the server's name and a colon" do
+        refute RocketJob::Worker.on_server?("host:2:1", "host")
+        assert RocketJob::Worker.on_server?("host:1", "host")
+      end
+
+      it "does not match without a worker name or a server name" do
+        refute RocketJob::Worker.on_server?(nil, "host:12")
+        refute RocketJob::Worker.on_server?("host:12:3", nil)
+        refute RocketJob::Worker.on_server?("", "")
+      end
+    end
+
+    describe ".on_server_pattern" do
+      it "matches the worker names that .on_server? accepts" do
+        pattern = RocketJob::Worker.on_server_pattern("host:12")
+
+        assert_match pattern, "host:12:3"
+        assert_match pattern, "host:12"
+        refute_match pattern, "host:123:3"
+        refute_match pattern, "other:host:12:3"
+        refute_match pattern, "host:12:3:4"
+      end
+
+      it "matches the characters of the server name literally" do
+        refute_match RocketJob::Worker.on_server_pattern("a.b:12"), "axb:12:3"
+      end
+    end
+
+    describe ".server_name_of" do
+      it "returns the server name without the worker id" do
+        assert_equal "host:1234", RocketJob::Worker.server_name_of("host:1234:3")
+      end
+
+      it "returns a server name without a colon" do
+        assert_equal "worker1", RocketJob::Worker.server_name_of("worker1:3")
+      end
+
+      it "returns a name without a worker id" do
+        assert_equal "inline", RocketJob::Worker.server_name_of("inline")
+      end
+    end
+
     describe "inline worker defaults" do
       it "exposes the supplied id and server name" do
         w = RocketJob::Worker.new(id: 5, server_name: "server:1")

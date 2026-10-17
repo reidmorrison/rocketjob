@@ -102,7 +102,7 @@ module RocketJob
           end
         when :processing
           query = input.running
-          query = query.where(worker_name: /\A#{server_name}/) if server_name
+          query = query.where(worker_name: RocketJob::Worker.on_server_pattern(server_name)) if server_name
           query.each do |slice|
             servers << ActiveWorker.new(slice.worker_name, slice.started_at, self)
           end

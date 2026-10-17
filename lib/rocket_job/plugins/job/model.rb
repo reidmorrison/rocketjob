@@ -344,11 +344,9 @@ module RocketJob
           h
         end
 
-        # Returns [true|false] whether the worker runs on a particular server.
+        # Returns [true|false] whether the worker of this job runs on the named server, see RocketJob::Worker.on_server?.
         def worker_on_server?(server_name)
-          return false unless worker_name.present? && server_name.present?
-
-          worker_name.start_with?(server_name)
+          RocketJob::Worker.on_server?(worker_name, server_name)
         end
       end
     end

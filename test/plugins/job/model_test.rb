@@ -170,10 +170,16 @@ module Plugins
           end
 
           it "matches the server name prefix of the worker name" do
-            job = SimpleJob.new(worker_name: "server:1:thread:2")
+            job = SimpleJob.new(worker_name: "server:1:2")
 
             assert job.worker_on_server?("server:1")
             refute job.worker_on_server?("other")
+          end
+
+          it "does not match a server whose name starts with the same characters" do
+            job = SimpleJob.new(worker_name: "server:12:3")
+
+            refute job.worker_on_server?("server:1")
           end
         end
 

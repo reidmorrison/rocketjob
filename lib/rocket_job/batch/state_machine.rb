@@ -87,9 +87,9 @@ module RocketJob
         self.worker_name = nil
       end
 
-      def rocket_job_requeue_sub_state_processing(worker_name)
+      def rocket_job_requeue_sub_state_processing(server_name)
         self.worker_name = nil
-        input.requeue_running(worker_name)
+        input.requeue_running(server_name)
       end
 
       # Also retry failed slices when the job itself is re-tried
