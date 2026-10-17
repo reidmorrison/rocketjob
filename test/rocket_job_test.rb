@@ -85,6 +85,11 @@ class RocketJobTest < Minitest::Test
 
       it "leaves out the credentials of a url" do
         assert_equal "sftp://sftp.example.org/in/file.csv",
+                     RocketJob.path_display_name("sftp://user:secret@sftp.example.org/in/file.csv")
+      end
+
+      it "does not show a url with a query, which IOStreams rejects, since it could hold a secret" do
+        assert_equal RocketJob::INVALID_PATH_DISPLAY_NAME,
                      RocketJob.path_display_name("sftp://user:secret@sftp.example.org/in/file.csv?password=other")
       end
 

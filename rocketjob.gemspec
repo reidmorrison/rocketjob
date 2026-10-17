@@ -17,7 +17,7 @@ Gem::Specification.new do |s|
   s.executables           = %w[rocketjob rocketjob_perf rocketjob_batch_perf]
   s.files                 = Dir["lib/**/*", "bin/*", "LICENSE.txt", "README.md"]
   s.license               = "Apache-2.0"
-  s.required_ruby_version = ">= 3.2.0"
+  s.required_ruby_version = ">= 3.3.0"
   s.add_dependency "aasm", ">= 5.1"
   s.add_dependency "concurrent-ruby", ">= 1.1"
   s.add_dependency "fugit", ">= 1.4"

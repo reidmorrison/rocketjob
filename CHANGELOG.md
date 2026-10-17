@@ -7,7 +7,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Breaking changes
 
-- Require IOStreams 3.0.
+- Require IOStreams 3.0, and so Ruby 3.3 or later, which IOStreams 3.0 requires (was Ruby 3.2).
 - Uploaded files are read as UTF-8 text, and a UTF-8 byte order mark at the start of a file is removed.
   Previously the lines were binary strings, so uploading any file with a non-ASCII character, without
   setting `option(:encode, encoding: "UTF-8")` on the path, raised `Encoding::UndefinedConversionError`

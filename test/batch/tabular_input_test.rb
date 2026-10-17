@@ -186,12 +186,12 @@ module Batch
           assert_equal [{"name" => "Jack", "zip" => "54321"}, {"name" => "Jill", "zip" => "12345"}], input_records
         end
 
-        it "uploads a hash for each line in :array mode, with the layout set on the path" do
+        it "uploads the values of each line in :array mode, with the layout set on the path" do
           job.input_category.mode = :array
           upload(".txt", "Jack      54321\nJill      12345\n")
 
-          # A fixed width line has no header row to name an array's columns, so IOStreams reads a hash.
-          assert_equal [{"name" => "Jack", "zip" => "54321"}, {"name" => "Jill", "zip" => "12345"}], input_records
+          # IOStreams reads each line of a fixed width file as an Array of the values of its fields, in order.
+          assert_equal [%w[Jack 54321], %w[Jill 12345]], input_records
         end
 
         it "fails a record whose integer column is not a number" do

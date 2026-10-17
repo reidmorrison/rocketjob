@@ -141,7 +141,7 @@ module RocketJob
                 "The tabular header columns _must_ be set before attempting to parse data that requires it.")
         end
 
-        schema.present? ? tabular.record_parse(record) : tabular.read_record(record, rename: cleanse_header?)
+        schema.present? ? tabular.record_parse(record) : tabular.read_record(record)
       end
 
       def data_store(job)
@@ -243,9 +243,15 @@ module RocketJob
       end
 
       # Returns [Hash] the deprecated options of IOStreams::Tabular for the columns of the file, see
-      # Category::Base#tabular_columns, with the column restrictions, when they are set.
+      # Category::Base#tabular_columns, with the column restrictions, when they are set, and `cleanse_header: false`
+      # when `header_cleanser` is :none, so that the tabular reads the header row, the supplied columns, and the keys
+      # of each record without cleansing them.
       def tabular_columns
-        schema.present? ? super : super.merge(column_restrictions)
+        return super if schema.present?
+
+        options = super.merge(column_restrictions)
+        options[:cleanse_header] = false unless cleanse_header?
+        options
       end
 
       # Returns [Hash] the column restrictions, which are deprecated, when they are set.
@@ -273,8 +279,8 @@ module RocketJob
       end
 
       # Reads the header row. With a schema IOStreams matches its columns to the fields, and they are kept as they are
-      # in the file, see #columns. Otherwise it is cleansed, and the column restrictions are applied to it, see
-      # `IOStreams::Tabular#read_header`.
+      # in the file, see #columns. Otherwise it is cleansed, unless `header_cleanser` is :none, and the column
+      # restrictions are applied to it, see #tabular_columns and `IOStreams::Tabular#read_header`.
       def read_header(row)
         if schema.present?
           return if row.blank?
@@ -283,14 +289,15 @@ module RocketJob
           tabular.read_header(columns)
           self.columns = columns
         else
-          cleanse_header? ? tabular.read_header(row) : tabular.read_header(row, cleanse: false)
+          tabular.read_header(row)
           header_read
         end
       end
 
-      # Applies the column restrictions to the supplied columns, see `IOStreams::Tabular#restrict_columns`.
+      # Applies the column restrictions to the supplied columns, see `IOStreams::Tabular#restrict_columns`, which
+      # cleanses them as the tabular does, see #tabular_columns.
       def restrict_columns!
-        tabular.restrict_columns(rename: cleanse_header?)
+        tabular.restrict_columns
         header_read
       end
 
