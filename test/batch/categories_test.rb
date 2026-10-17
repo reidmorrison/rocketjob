@@ -20,6 +20,23 @@ module Batch
       end
     end
 
+    class ParentCategoriesJob < RocketJob::Job
+      include RocketJob::Batch
+
+      input_category slice_size: 10
+      output_category format: :csv
+
+      def perform(record)
+        record
+      end
+    end
+
+    class ChildCategoriesJob < ParentCategoriesJob
+      input_category name: :other
+      input_category slice_size: 5
+      output_category name: :errors
+    end
+
     describe RocketJob::Batch::Categories do
       before do
         CategoriesJob.destroy_all
@@ -57,6 +74,35 @@ module Batch
       def from_legacy(doc)
         doc = {"_id" => BSON::ObjectId.new}.merge(doc)
         Mongoid::Factory.from_db(CategoriesJob, doc)
+      end
+
+      describe ".input_category" do
+        it "does not change the input categories of the parent class" do
+          parent = ParentCategoriesJob.defined_input_categories.collect { |c| [c.name, c.slice_size] }
+          child  = ChildCategoriesJob.defined_input_categories.collect { |c| [c.name, c.slice_size] }
+
+          assert_equal [[:main, 10]], parent
+          assert_equal [[:main, 5], [:other, 100]], child
+        end
+
+        it "builds jobs of the parent class with its own input categories" do
+          assert_equal [:main], ParentCategoriesJob.new.input_categories.collect(&:name)
+          assert_equal %i[main other], ChildCategoriesJob.new.input_categories.collect(&:name)
+        end
+
+        it "returns the category" do
+          klass = Class.new(CategoriesJob)
+
+          assert_kind_of RocketJob::Category::Input, klass.input_category(name: :first)
+          assert_kind_of RocketJob::Category::Input, klass.input_category(name: :second)
+        end
+      end
+
+      describe ".output_category" do
+        it "does not change the output categories of the parent class" do
+          assert_equal [:main], ParentCategoriesJob.defined_output_categories.collect(&:name)
+          assert_equal %i[main errors], ChildCategoriesJob.defined_output_categories.collect(&:name)
+        end
       end
 
       describe "#input_category?" do

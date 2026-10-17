@@ -35,26 +35,22 @@ module RocketJob
       end
 
       module ClassMethods
-        # Define a new input category
+        # Define a new input category, or replace the input category with the same name.
+        # A subclass that defines a category does not change the categories of its parent class.
         # @see RocketJob::Category::Input
         def input_category(**args)
-          category = RocketJob::Category::Input.new(**args)
-          if defined_input_categories.nil?
-            self.defined_input_categories = [category]
-          else
-            rocketjob_categories_set(category, defined_input_categories)
-          end
+          category                      = RocketJob::Category::Input.new(**args)
+          self.defined_input_categories = rocketjob_categories_with(defined_input_categories, category)
+          category
         end
 
-        # Define a new output category
+        # Define a new output category, or replace the output category with the same name.
+        # A subclass that defines a category does not change the categories of its parent class.
         # @see RocketJob::Category::Output
         def output_category(**args)
-          category = RocketJob::Category::Output.new(**args)
-          if defined_output_categories.nil?
-            self.defined_output_categories = [category]
-          else
-            rocketjob_categories_set(category, defined_output_categories)
-          end
+          category                       = RocketJob::Category::Output.new(**args)
+          self.defined_output_categories = rocketjob_categories_with(defined_output_categories, category)
+          category
         end
 
         # Builds this job instance from the supplied properties hash that may contain input and output categories.
@@ -112,10 +108,14 @@ module RocketJob
 
         private
 
-        def rocketjob_categories_set(category, categories)
-          index = categories.find_index { |cat| cat.name == category.name }
+        # Returns [Array] a copy of the supplied categories, which can be nil, with the supplied category in place of
+        # the one with the same name, or after them. The supplied categories are not changed, since a class shares
+        # them with its subclasses.
+        def rocketjob_categories_with(categories, category)
+          categories = categories ? categories.dup : []
+          index      = categories.find_index { |cat| cat.name == category.name }
           index ? categories[index] = category : categories << category
-          category
+          categories
         end
 
         # Returns [Array<String>] why the supplied list of the properties of each category cannot be merged into the
@@ -149,14 +149,11 @@ module RocketJob
         # Initialize categories when this method is called before initialization is complete
         rocketjob_categories_assign if input_categories.empty?
 
-        category_name = category_name.to_sym
-        # find does not work against this association
-        input_categories.each { |category| return category if category.name == category_name }
-
-        raise(
-          ArgumentError,
-          "Unknown Input Category: #{category_name.inspect}. Registered categories: #{input_categories.collect(&:name).join(',')}"
-        )
+        rocketjob_category_named(input_categories, category_name) ||
+          raise(
+            ArgumentError,
+            "Unknown Input Category: #{category_name.to_sym.inspect}. Registered categories: #{input_categories.collect(&:name).join(',')}"
+          )
       end
 
       def output_category(category_name = :main)
@@ -166,29 +163,20 @@ module RocketJob
         # Initialize categories when this method is called before initialization is complete
         rocketjob_categories_assign if output_categories.empty? && self.class.defined_output_categories
 
-        category_name = category_name.to_sym
-        # .find does not work against this association
-        output_categories.each { |category| return category if category.name == category_name }
-
-        raise(
-          ArgumentError,
-          "Unknown Output Category: #{category_name.inspect}. Registered categories: #{output_categories.collect(&:name).join(',')}"
-        )
+        rocketjob_category_named(output_categories, category_name) ||
+          raise(
+            ArgumentError,
+            "Unknown Output Category: #{category_name.to_sym.inspect}. Registered categories: #{output_categories.collect(&:name).join(',')}"
+          )
       end
 
       # Returns [true|false] whether the named category has already been defined
       def input_category?(category_name)
-        category_name = category_name.to_sym
-        # .find does not work against this association
-        input_categories.each { |catg| return true if catg.name == category_name }
-        false
+        !rocketjob_category_named(input_categories, category_name).nil?
       end
 
       def output_category?(category_name)
-        category_name = category_name.to_sym
-        # .find does not work against this association
-        output_categories.each { |catg| return true if catg.name == category_name }
-        false
+        !rocketjob_category_named(output_categories, category_name).nil?
       end
 
       def merge_input_categories(categories)
@@ -208,6 +196,14 @@ module RocketJob
       end
 
       private
+
+      # Returns [RocketJob::Category::Input|RocketJob::Category::Output] the category with the supplied name, or nil.
+      def rocketjob_category_named(categories, category_name)
+        category_name = category_name.to_sym
+        # .find does not work against this association
+        categories.each { |category| return category if category.name == category_name }
+        nil
+      end
 
       def rocketjob_categories_assign
         self.input_categories = self.class.rocketjob_new_categories(:input_categories) if input_categories.empty?
@@ -245,8 +241,7 @@ module RocketJob
         return if row.nil?
 
         if row.is_a?(Batch::Result)
-          category  = output_category(row.category)
-          row.value = category.tabular.render(row.value) if category.tabular?
+          row.value = output_category(row.category).render(row.value)
           return row
         end
 
@@ -257,10 +252,9 @@ module RocketJob
         end
 
         category = output_category
-        return row unless category.tabular?
-        return nil if row.blank?
+        return nil if row.blank? && category.tabular?
 
-        category.tabular.render(row)
+        category.render(row)
       end
 
       # Migrate existing v5 batch jobs to v6

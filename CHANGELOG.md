@@ -183,6 +183,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixes
 
+- A batch job class that defines an input or output category, such as `input_category name: :other`, no longer
+  changes the categories of its parent class. Previously it added the category to, or replaced the category with
+  the same name in, the parent class and its other subclasses too, which shared the list. So which categories a
+  job of the parent class had, and their settings, such as `slice_size`, depended on which of its subclasses had
+  been loaded.
 - An exception raised while a batch job's slice is already failed is recorded on the slice. Previously it was lost,
   and the slice kept the exception of its first failure.
 - `undefine_batch_throttle` in a subclass removes the throttle from that subclass only. Previously it also removed

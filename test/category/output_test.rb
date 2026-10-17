@@ -3,6 +3,20 @@ require_relative "../test_helper"
 module Batch
   class CategoryTest < Minitest::Test
     describe RocketJob::Category::Output do
+      describe "#render" do
+        it "renders a record in the format of the category" do
+          category = RocketJob::Category::Output.new(format: :csv, columns: %w[name zip_code])
+
+          assert_equal "Jack,12345", category.render("name" => "Jack", "zip_code" => "12345")
+        end
+
+        it "returns the record as it is without a format" do
+          record = {"name" => "Jack"}
+
+          assert_same record, RocketJob::Category::Output.new.render(record)
+        end
+      end
+
       describe "#render_header" do
         it "renders the header when tabular" do
           category = RocketJob::Category::Output.new(format: :csv, columns: %w[name address zip_code])
