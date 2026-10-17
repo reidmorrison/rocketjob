@@ -198,7 +198,7 @@ module RocketJob
       end
 
       # Returns the lambda to call with the first record uploaded, that reads the header row, when the upload
-      # starts with one, otherwise the supplied `on_first`.
+      # starts with one, see #header_first?, otherwise the supplied `on_first`.
       #
       # When the columns were supplied they take the place of a header row, so the column restrictions are
       # applied to them now. With a schema they were matched to its fields when the tabular was built, see
@@ -206,7 +206,7 @@ module RocketJob
       def extract_header_callback(on_first, mode: self.mode)
         return on_first unless tabular? && mode != :hash
 
-        unless tabular.header?
+        unless header_first?(mode)
           restrict_columns! if schema.blank?
           return on_first
         end
@@ -276,6 +276,14 @@ module RocketJob
 
       def cleanse_header?
         header_cleanser == :default
+      end
+
+      # Returns [true|false] whether the first record uploaded in the supplied mode is a header row: the header row of a
+      # file with one, such as CSV, or in :array mode, the header row that IOStreams yields before the rows of a file
+      # without one, which names their columns: the keys of the first record of JSON without a schema, or the names of
+      # the fields of a schema, such as of fixed width, see `IOStreams::Tabular#rows_header?`.
+      def header_first?(mode)
+        mode == :array ? tabular.rows_header? : tabular.header?
       end
 
       # Reads the header row. With a schema IOStreams matches its columns to the fields, and they are kept as they are
