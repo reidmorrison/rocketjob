@@ -17,6 +17,20 @@ module Batch
         end
       end
 
+      describe "#tabular" do
+        it "is built again after a field that it is built from is set" do
+          category = RocketJob::Category::Output.new(format: :csv, columns: %w[a b])
+
+          assert_equal "a,b", category.render_header
+          category.columns = %w[c d]
+
+          assert_equal "c,d", category.render_header
+          category.format = :psv
+
+          assert_equal "c|d", category.render_header
+        end
+      end
+
       describe "#render_header" do
         it "renders the header when tabular" do
           category = RocketJob::Category::Output.new(format: :csv, columns: %w[name address zip_code])

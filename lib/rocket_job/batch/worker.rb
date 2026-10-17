@@ -354,7 +354,7 @@ module RocketJob
           rocket_job_batch_run_before_callbacks
           # Check for 0 record jobs
           rocket_job_batch_complete?(worker.name) if running?
-        when sub_state == :after
+        when :after
           rocket_job_batch_run_after_callbacks
         end
       end

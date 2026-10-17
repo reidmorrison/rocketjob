@@ -17,6 +17,24 @@ module Batch
 
           assert_equal ["Name", "Address One", "zip code"], category.columns
         end
+
+        it "keeps the tabular that read the header" do
+          category = RocketJob::Category::Input.new(format: :csv, columns: ["Name", "Address One", "zip code"])
+          tabular  = category.tabular
+          category.cleanse_header!
+
+          assert_same tabular, category.tabular
+        end
+      end
+
+      describe "#tabular" do
+        it "is built again after a field that it is built from is set" do
+          category = RocketJob::Category::Input.new(format: :csv)
+          tabular  = category.tabular
+          category.header_cleanser = :none
+
+          refute_same tabular, category.tabular
+        end
       end
 
       describe "validation" do

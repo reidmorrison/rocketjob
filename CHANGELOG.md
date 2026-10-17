@@ -183,6 +183,17 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixes
 
+- `cron_singleton = false` allows another job with the same `cron_schedule` to be queued, as documented, and as the
+  v6 upgrade guide prescribes to keep the behavior before v6. Previously the setting was ignored, so the second job
+  failed validation.
+- The `--name` option of the `rocketjob` command sets the name of the server. Previously it raised `NoMethodError`.
+- The `--pidfile` option of the `rocketjob` command writes the id of the process. Previously the file was empty
+  unless a gem that the application loaded had required Ruby's `English` library.
+- A category reads and writes its records with a field that is set after it was first used, such as an output
+  category's `columns` or `format`. Previously it kept using the values that it had when it first read or wrote a
+  record, so for example the header row of a download did not change.
+- A batch job in the `after` sub-state that a worker works on, such as one processed with `#perform_now`, runs its
+  `after_batch` callbacks and completes. Previously the worker skipped them, so the job stayed running.
 - A worker event, such as `RocketJob::Subscribers::Worker.publish(:stop, server_id: id.to_s, worker_id: 1)`,
   acts on the server whose id it names as a String too, as a server event does. Previously the id only matched
   when it was published as a `BSON::ObjectId`.

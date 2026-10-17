@@ -86,9 +86,10 @@ copy_on_restart: true
         end
       end
 
-      # Prevent creation of a new job when another is running with the same cron schedule.
+      # Prevent creation of a new job when another is running with the same cron schedule, unless `cron_singleton` is
+      # false.
       def rocket_job_cron_singleton_check
-        return if cron_schedule.nil? || completed? || aborted? || !rocket_job_cron_duplicate?
+        return if cron_schedule.nil? || !cron_singleton || completed? || aborted? || !rocket_job_cron_duplicate?
 
         errors.add(:state,
                    "Another instance of #{self.class.name} is already queued, running, failed, or paused with the same cron schedule: #{cron_schedule}")

@@ -72,6 +72,14 @@ module RocketJob
         validates_with EncodingValidator, attributes: [:encoding]
 
         after_initialize :rocketjob_format_options_migrate, unless: :new_record?
+
+        # Setting a field that the tabular is built from builds it again when it is next used, see #tabular.
+        %i[format file_name schema columns].each do |name|
+          define_method(:"#{name}=") do |value|
+            @tabular = nil
+            super(value)
+          end
+        end
       end
 
       class_methods do
@@ -151,7 +159,7 @@ module RocketJob
       end
 
       # Returns [IOStreams::Tabular] that reads or writes the records of this category in its format, by its schema,
-      # see #schema.
+      # see #schema. It is built again after one of the fields that it is built from is set, such as #columns.
       def tabular
         @tabular ||= build_tabular
       end

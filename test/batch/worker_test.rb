@@ -202,6 +202,26 @@ module Batch
       end
     end
 
+    class AfterBatchJob < RocketJob::Job
+      include RocketJob::Batch
+
+      self.destroy_on_complete = false
+
+      field :after_batch_ran, type: Mongoid::Boolean, default: false
+
+      after_batch :record_after_batch
+
+      def perform(record)
+        record
+      end
+
+      private
+
+      def record_after_batch
+        self.after_batch_ran = true
+      end
+    end
+
     describe RocketJob::Batch::Worker do
       before do
         RocketJob::Job.destroy_all
@@ -694,6 +714,16 @@ module Batch
           assert "Invalid RocketJob Output Category: bad", exception.message
           assert exception.worker_name
           assert exception.backtrace
+        end
+      end
+
+      describe "#rocket_job_batch_callbacks" do
+        it "runs the after_batch callbacks of a job in the after sub-state, and completes it" do
+          job = AfterBatchJob.create!(state: :running, sub_state: :after, record_count: 0, started_at: Time.now)
+          job.send(:rocket_job_batch_callbacks, RocketJob::Worker.new)
+
+          assert job.after_batch_ran
+          assert_predicate job, :completed?
         end
       end
 

@@ -117,6 +117,14 @@ module RocketJob
 
       validates_inclusion_of :serializer, in: %i[none compress encrypt]
 
+      # Setting a field that the tabular is built from builds it again when it is next used, see #tabular.
+      %i[allowed_columns required_columns skip_unknown header_cleanser].each do |name|
+        define_method(:"#{name}=") do |value|
+          @tabular = nil
+          super(value)
+        end
+      end
+
       # Treats the current columns as a header row read from the file: matches them to the fields of the schema, see
       # #schema, otherwise cleanses their names when `header_cleanser` is :default, and applies `allowed_columns`,
       # `required_columns` and `skip_unknown`.
@@ -163,12 +171,8 @@ module RocketJob
         path.file_name = original_file_name if original_file_name
         self.file_name = path.file_name
 
-        # Auto detect the format based on the upload file name if present.
-        if format == :auto
-          self.format = path.format || :csv
-          # Rebuild tabular with new values.
-          @tabular = nil
-        end
+        # Auto detect the format based on the upload file name if present, which builds the tabular again.
+        self.format = path.format || :csv if format == :auto
 
         # Read the file in this category's encoding, unless the caller set one on the path, see #encoding.
         apply_encoding(path)
@@ -295,7 +299,8 @@ module RocketJob
 
           columns = tabular.parser.parse(row)
           tabular.read_header(columns)
-          self.columns = columns
+          # Kept without building the tabular again, which has read them.
+          self[:columns] = columns
         else
           tabular.read_header(row)
           header_read
@@ -310,8 +315,9 @@ module RocketJob
       end
 
       def header_read
-        self.columns = tabular.header.columns
-        rejected     = columns&.select { |column| column.start_with?(IOStreams::Tabular::Header::IGNORE_PREFIX) }
+        # Kept without building the tabular again, which has read them.
+        self[:columns] = tabular.header.columns
+        rejected = columns&.select { |column| column.start_with?(IOStreams::Tabular::Header::IGNORE_PREFIX) }
         logger.warn("Stripped out invalid columns from custom header", rejected) if rejected.present?
       end
 
