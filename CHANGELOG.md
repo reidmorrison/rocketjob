@@ -7,6 +7,13 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Breaking changes
 
+- Uploading a range of integers, such as `upload(200..421)` or the deprecated `upload_integer_range(200, 421)`,
+  returns, and adds to `record_count`, the number of integers in it, 222, where it was the number of ranges, one
+  per slice of `slice_size` integers, 3. So `percent_complete` follows the ranges as they are processed, where it
+  stayed 0 until the job completed. Each slice still holds one `[first_id, last_id]` record. What reads
+  `record_count` counts the integers too: `RocketJob::Batch::LowerPriority` lowers the priority of such a job by
+  one for each `lower_priority_count` integers, rather than ranges, and the `records_per_hour` of its `status` is
+  the integers processed per hour.
 - Require IOStreams 3.0, and so Ruby 3.3 or later, which IOStreams 3.0 requires (was Ruby 3.2).
 - Uploaded files are read as UTF-8 text, and a UTF-8 byte order mark at the start of a file is removed.
   Previously the lines were binary strings, so uploading any file with a non-ASCII character, without

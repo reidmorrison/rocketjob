@@ -241,7 +241,8 @@ job.upload(1..1_000_000)
 job.upload(1_000_000..1)
 ~~~
 
-Each range counts as one record in the job's `record_count`.
+Each integer counts as one record in the job's `record_count`, so `percent_complete` follows the ranges
+as they are processed.
 
 `upload_arel`, `upload_mongo_query`, `upload_integer_range` and
 `upload_integer_range_in_reverse_order` still upload a query or a range, as they did before `upload`

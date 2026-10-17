@@ -207,22 +207,34 @@ module Batch
           it "handle single range" do
             count = job.upload(1..10)
 
-            assert_equal 1, count, job.input.first.inspect
+            assert_equal 10, count, job.input.first.inspect
+            assert_equal 10, job.record_count
             assert_equal [[[1, 10]]], job.input.collect(&:to_a)
           end
 
           it "handle longer range" do
             count = job.upload(1..11)
 
-            assert_equal 2, count, job.input.collect(&:to_a).inspect
+            assert_equal 11, count, job.input.collect(&:to_a).inspect
             assert_equal [[[1, 10]], [[11, 11]]], job.input.collect(&:to_a)
           end
 
           it "handle even longer range" do
             count = job.upload(0..44)
 
-            assert_equal 5, count, job.input.collect(&:to_a).inspect
+            assert_equal 45, count, job.input.collect(&:to_a).inspect
             assert_equal [[[0, 9]], [[10, 19]], [[20, 29]], [[30, 39]], [[40, 44]]], job.input.collect(&:to_a)
+          end
+
+          it "reports the percent complete as its ranges are processed" do
+            job.upload(1..40)
+            job.start
+            job.sub_state = :processing
+
+            assert_equal 0, job.percent_complete
+            job.input.first.destroy
+
+            assert_equal 25, job.percent_complete
           end
         end
 
@@ -242,7 +254,7 @@ module Batch
           it "handle single range" do
             count = job.upload(10..1)
 
-            assert_equal 1, count, job.input.first.inspect
+            assert_equal 10, count, job.input.first.inspect
             assert_equal [[[1, 10]]], job.input.collect(&:to_a)
             assert_equal [1], job.input.collect(&:first_record_number)
           end
@@ -250,7 +262,7 @@ module Batch
           it "handle longer range" do
             count = job.upload(11..1)
 
-            assert_equal 2, count, job.input.collect(&:to_a).inspect
+            assert_equal 11, count, job.input.collect(&:to_a).inspect
             assert_equal [[[2, 11]], [[1, 1]]], job.input.collect(&:to_a)
             assert_equal [1, 2], job.input.collect(&:first_record_number)
           end
@@ -258,7 +270,7 @@ module Batch
           it "handle even longer range" do
             count = job.upload(44..0)
 
-            assert_equal 5, count, job.input.collect(&:to_a).inspect
+            assert_equal 45, count, job.input.collect(&:to_a).inspect
             assert_equal [[[35, 44]], [[25, 34]], [[15, 24]], [[5, 14]], [[0, 4]]], job.input.collect(&:to_a)
             assert_equal [1, 2, 3, 4, 5], job.input.collect(&:first_record_number)
           end
@@ -266,7 +278,7 @@ module Batch
           it "handle partial range" do
             count = job.upload(44..5)
 
-            assert_equal 4, count, job.input.collect(&:to_a).inspect
+            assert_equal 40, count, job.input.collect(&:to_a).inspect
             assert_equal [[[35, 44]], [[25, 34]], [[15, 24]], [[5, 14]]], job.input.collect(&:to_a)
             assert_equal [1, 2, 3, 4], job.input.collect(&:first_record_number)
           end
@@ -310,16 +322,22 @@ module Batch
         it "#upload_integer_range" do
           count = job.upload_integer_range(1, 10)
 
-          assert_equal 1, count
-          assert_equal 1, job.record_count
+          assert_equal 10, count
+          assert_equal 10, job.record_count
           assert_equal [[[1, 10]]], job.input.collect(&:to_a)
+        end
+
+        it "#upload_integer_range uploads nothing when the last id is less than the first" do
+          assert_equal 0, job.upload_integer_range(10, 5)
+          assert_equal 0, job.record_count
+          assert_equal 0, job.input.count
         end
 
         it "#upload_integer_range_in_reverse_order" do
           count = job.upload_integer_range_in_reverse_order(1, 11)
 
-          assert_equal 2, count
-          assert_equal 2, job.record_count
+          assert_equal 11, count
+          assert_equal 11, job.record_count
           assert_equal [[[2, 11]], [[1, 1]]], job.input.collect(&:to_a)
         end
       end

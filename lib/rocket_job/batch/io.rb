@@ -146,7 +146,7 @@ module RocketJob
       # Notes for a query or a range:
       # * `columns:` is only for a query: the columns, or fields, to upload. Default: the id.
       # * The number that is returned and added to `record_count` is the number of records uploaded, which for a
-      #   range is the number of ranges, not the number of integers.
+      #   range is the number of integers in it, although each slice holds one `[first_id, last_id]` record.
       # * If an exception is raised while uploading, the input collection is cleared out, so that if the job is
       #   retried, its data is not duplicated.
       def upload(object = nil, category: :main, file_name: nil, stream_mode: nil, on_first: nil, columns: nil,
@@ -181,6 +181,8 @@ module RocketJob
             else
               input_collection.upload_integer_range_in_reverse_order(last, first, slice_batch_size: slice_batch_size || 1_000)
             end
+            # Each record is a range of `slice_size` integers, so the integers are counted, see #percent_complete.
+            (last - first).abs + 1
           when Mongoid::Criteria
             rocketjob_check_upload_options("a Mongoid::Criteria", file_name, stream_mode, on_first, args)
             input_collection.upload_mongo_query(object, columns: columns, slice_batch_size: slice_batch_size, &block)
@@ -228,18 +230,21 @@ module RocketJob
       # @deprecated Use #upload with a Range, such as `upload(200..421)`.
       #
       # Uploads one `[first_id, last_id]` range of `slice_size` integers per slice, from start_id to last_id.
-      # Returns [Integer] the number of ranges uploaded, which is added to `record_count`.
+      # Returns [Integer] the number of integers uploaded, which is added to `record_count`.
       def upload_integer_range(start_id, last_id, category: :main, slice_batch_size: 1_000)
-        rocketjob_add_record_count(input(category).upload_integer_range(start_id, last_id, slice_batch_size: slice_batch_size))
+        input(category).upload_integer_range(start_id, last_id, slice_batch_size: slice_batch_size)
+        # Nothing is uploaded when last_id is less than start_id.
+        rocketjob_add_record_count([last_id - start_id + 1, 0].max)
       end
 
       # @deprecated Use #upload with a descending Range, such as `upload(421..200)`.
       #
       # Uploads the ranges of #upload_integer_range, starting with the last range, so that the highest ids are
-      # processed first. Returns [Integer] the number of ranges uploaded, which is added to `record_count`.
+      # processed first. Returns [Integer] the number of integers uploaded, which is added to `record_count`.
       def upload_integer_range_in_reverse_order(start_id, last_id, category: :main, slice_batch_size: 1_000)
-        count = input(category).upload_integer_range_in_reverse_order(start_id, last_id, slice_batch_size: slice_batch_size)
-        rocketjob_add_record_count(count)
+        input(category).upload_integer_range_in_reverse_order(start_id, last_id, slice_batch_size: slice_batch_size)
+        # Nothing is uploaded when last_id is less than start_id.
+        rocketjob_add_record_count([last_id - start_id + 1, 0].max)
       end
 
       # Upload the supplied slice for processing by workers
