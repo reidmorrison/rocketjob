@@ -52,25 +52,38 @@ module ActiveJob
     #   - Queued before the are processed.
     #   - Failed if the fail to process.
     #   - Scheduled if they are to be processed in the future.
-    #   - Completed jobs will not appear in completed since the Active Job adapter
-    #     uses the default Rocket Job `destroy_on_completion` of `false`.
-    class RocketJobAdapter
+    #   - Completed jobs will not appear in completed since they are destroyed when they complete, as Rocket Job's
+    #     `destroy_on_complete` defaults to `true`.
+    # - Active Job creates an instance of the adapter. The class methods `.enqueue` and `.enqueue_at` are kept for code
+    #   that called them on the class.
+    class RocketJobAdapter < (defined?(ActiveJob::QueueAdapters::AbstractAdapter) ? AbstractAdapter : Object)
       def self.enqueue(active_job)
-        job                        = RocketJob::Jobs::ActiveJob.create!(active_job_params(active_job))
-        active_job.provider_job_id = job.id.to_s if active_job.respond_to?(:provider_job_id=)
-        job
+        new.enqueue(active_job)
       end
 
       def self.enqueue_at(active_job, timestamp)
+        new.enqueue_at(active_job, timestamp)
+      end
+
+      def enqueue(active_job)
+        create_job(active_job, active_job_params(active_job))
+      end
+
+      def enqueue_at(active_job, timestamp)
         params          = active_job_params(active_job)
         params[:run_at] = Time.at(timestamp).utc
+        create_job(active_job, params)
+      end
 
+      private
+
+      def create_job(active_job, params)
         job                        = RocketJob::Jobs::ActiveJob.create!(params)
         active_job.provider_job_id = job.id.to_s if active_job.respond_to?(:provider_job_id=)
         job
       end
 
-      def self.active_job_params(active_job)
+      def active_job_params(active_job)
         params = {
           description:      active_job.class.name,
           data:             active_job.serialize,
@@ -81,8 +94,6 @@ module ActiveJob
         params[:priority] = active_job.priority if active_job.respond_to?(:priority) && active_job.priority
         params
       end
-
-      private_class_method :active_job_params
     end
   end
 end

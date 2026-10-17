@@ -183,6 +183,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixes
 
+- The Active Job adapter works with `config.active_job.queue_adapter = :rocket_job`, for which Active Job creates an
+  instance of the adapter. Previously the adapter only had class methods, so `perform_later` raised `NoMethodError`.
+  It now extends `ActiveJob::QueueAdapters::AbstractAdapter` when Active Job defines it, and its class methods
+  still work.
 - `cron_singleton = false` allows another job with the same `cron_schedule` to be queued, as documented, and as the
   v6 upgrade guide prescribes to keep the behavior before v6. Previously the setting was ignored, so the second job
   failed validation.
