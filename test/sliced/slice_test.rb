@@ -136,6 +136,34 @@ module Sliced
         end
       end
 
+      describe "#fail_on_exception!" do
+        it "fails the slice with the exception" do
+          slice.start
+          slice.worker_name = "me"
+          slice.fail_on_exception! { raise(ArgumentError, "first") }
+
+          assert_predicate slice, :failed?
+          assert_equal "first", slice.exception.message
+          assert_equal "me", slice.exception.worker_name
+        end
+
+        it "records the exception of a slice that has already failed" do
+          slice.start
+          slice.fail(RuntimeError.new("first"))
+          slice.worker_name = "me"
+          slice.fail_on_exception! { raise(ArgumentError, "second") }
+
+          assert_equal "ArgumentError", slice.exception.class_name
+          assert_equal "second", slice.exception.message
+          assert_equal "me", slice.exception.worker_name
+        end
+
+        it "re-raises the exception when asked" do
+          slice.start
+          assert_raises(ArgumentError) { slice.fail_on_exception!(true) { raise(ArgumentError, "first") } }
+        end
+      end
+
       describe "#save" do
         it "persists" do
           slice << "1"

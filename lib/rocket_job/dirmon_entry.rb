@@ -215,17 +215,11 @@ module RocketJob
 
     # Set exception information for this DirmonEntry and fail it
     def set_exception(worker_name, exc_or_message)
-      if exc_or_message.is_a?(Exception)
-        self.exception        = JobException.from_exception(exc_or_message)
-        exception.worker_name = worker_name
-      else
-        build_exception(
-          class_name:  "RocketJob::DirmonEntryException",
-          message:     exc_or_message,
-          backtrace:   [],
-          worker_name: worker_name
-        )
-      end
+      self.exception = JobException.from_failure(
+        exc_or_message,
+        worker_name: worker_name,
+        class_name:  "RocketJob::DirmonEntryException"
+      )
     end
 
     # Records that the storage of this entry could not be reached, such as an SFTP server that is restarting,

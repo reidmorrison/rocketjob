@@ -183,6 +183,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixes
 
+- An exception raised while a batch job's slice is already failed is recorded on the slice. Previously it was lost,
+  and the slice kept the exception of its first failure.
 - `undefine_batch_throttle` in a subclass removes the throttle from that subclass only. Previously it also removed
   it from the parent class, and from every other subclass of the parent, since they shared the list of throttles.
 - The jobs and slices of a server that died are requeued only when a worker on that server was processing them.

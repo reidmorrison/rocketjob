@@ -135,10 +135,7 @@ module RocketJob
 
       # Before Fail save the exception to this slice.
       def set_exception(exc = nil)
-        if exc
-          self.exception        = JobException.from_exception(exc)
-          exception.worker_name = worker_name
-        end
+        self.exception     = JobException.from_failure(exc, worker_name: worker_name) if exc
         self.failure_count = failure_count.to_i + 1
         self.worker_name   = nil
       end
@@ -167,8 +164,7 @@ module RocketJob
       rescue Exception => e
         SemanticLogger.named_tagged(slice: id.to_s) do
           if failed? || !may_fail?
-            exception             = JobException.from_exception(e)
-            exception.worker_name = worker_name
+            self.exception = JobException.from_exception(e, worker_name: worker_name)
             save! unless new_record? || destroyed?
           elsif new_record? || destroyed?
             fail(e)

@@ -35,6 +35,41 @@ class JobExceptionTest < Minitest::Test
       end
     end
 
+    describe ".from_failure" do
+      it "builds from an exception" do
+        exception = RuntimeError.new("Job failed")
+        exception.set_backtrace(["job.rb:1"])
+        job_exception = RocketJob::JobException.from_failure(exception, worker_name: "server:1")
+
+        assert_equal "RuntimeError", job_exception.class_name
+        assert_equal "Job failed", job_exception.message
+        assert_equal ["job.rb:1"], job_exception.backtrace
+        assert_equal "server:1", job_exception.worker_name
+      end
+
+      it "builds from a message" do
+        job_exception = RocketJob::JobException.from_failure("3 slices failed to process", worker_name: "server:1")
+
+        assert_equal "RocketJob::JobException", job_exception.class_name
+        assert_equal "3 slices failed to process", job_exception.message
+        assert_equal [], job_exception.backtrace
+        assert_equal "server:1", job_exception.worker_name
+      end
+
+      it "records a message under the supplied class name" do
+        job_exception = RocketJob::JobException.from_failure("Disabled", class_name: "RocketJob::DirmonEntryException")
+
+        assert_equal "RocketJob::DirmonEntryException", job_exception.class_name
+      end
+
+      it "records a failure without a message" do
+        job_exception = RocketJob::JobException.from_failure(nil)
+
+        assert_equal "RocketJob::JobException", job_exception.class_name
+        assert_nil job_exception.message
+      end
+    end
+
     describe "#message=" do
       it "stores a message supplied as text as valid UTF-8" do
         job_exception = RocketJob::JobException.new(message: "caf\xE9.csv failed")

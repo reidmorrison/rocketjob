@@ -121,17 +121,7 @@ module RocketJob
         # Sets the exception child object for this job based on the
         # supplied Exception instance or message
         def rocket_job_set_exception(worker_name = nil, exc_or_message = nil)
-          if exc_or_message.is_a?(Exception)
-            self.exception        = JobException.from_exception(exc_or_message)
-            exception.worker_name = worker_name
-          else
-            build_exception(
-              class_name:  "RocketJob::JobException",
-              message:     exc_or_message,
-              backtrace:   [],
-              worker_name: worker_name
-            )
-          end
+          self.exception = JobException.from_failure(exc_or_message, worker_name: worker_name)
         end
 
         def rocket_job_set_started_at(worker_name = nil)
