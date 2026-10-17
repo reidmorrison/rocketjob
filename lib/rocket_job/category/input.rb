@@ -145,6 +145,16 @@ module RocketJob
         read_header(columns)
       end
 
+      # Returns the supplied record of a slice of this category as `#perform` receives it: parsed in this category's
+      # format, see #parse_record, or as it is when the category has no format. A blank record of a tabular format is
+      # nil.
+      def parse(record)
+        return record if record.nil? || !tabular?
+        return if record.blank?
+
+        parse_record(record)
+      end
+
       # Returns [Hash|Array|String] the record uploaded into this category, parsed for `#perform`.
       #
       # A Hash was parsed when it was uploaded, for example in :hash mode, by the schema when there is one, so it is

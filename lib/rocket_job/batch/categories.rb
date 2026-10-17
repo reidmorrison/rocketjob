@@ -13,8 +13,6 @@ module RocketJob
 
       included do
         after_initialize :rocketjob_categories_assign, if: :new_record?
-        before_perform :rocketjob_categories_input_render
-        after_perform :rocketjob_categories_output_render
 
         # List of categories that this job can load input data into
         embeds_many :input_categories, class_name: "RocketJob::Category::Input"
@@ -217,50 +215,6 @@ module RocketJob
 
         categories             = self.class.rocketjob_new_categories(:output_categories)
         self.output_categories = categories unless categories.empty?
-      end
-
-      # Render the output from the perform.
-      def rocketjob_categories_output_render
-        return if @rocket_job_output.nil? || output_categories.empty?
-
-        @rocket_job_output = rocketjob_categories_output_render_row(@rocket_job_output)
-      end
-
-      # Parse the input data before passing to the perform method
-      def rocketjob_categories_input_render
-        return if @rocket_job_input.nil?
-
-        @rocket_job_input = rocketjob_categories_input_render_row(@rocket_job_input)
-      end
-
-      def rocketjob_categories_input_render_row(row)
-        return if row.nil?
-
-        category = input_category
-        return row unless category.tabular?
-        return nil if row.blank?
-
-        category.parse_record(row)
-      end
-
-      def rocketjob_categories_output_render_row(row)
-        return if row.nil?
-
-        if row.is_a?(Batch::Result)
-          row.value = output_category(row.category).render(row.value)
-          return row
-        end
-
-        if row.is_a?(Batch::Results)
-          results = Batch::Results.new
-          row.each { |result| results << rocketjob_categories_output_render_row(result) }
-          return results
-        end
-
-        category = output_category
-        return nil if row.blank? && category.tabular?
-
-        category.render(row)
       end
     end
   end

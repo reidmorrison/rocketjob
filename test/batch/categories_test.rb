@@ -20,6 +20,22 @@ module Batch
       end
     end
 
+    class CallbackCategoriesJob < RocketJob::Job
+      include RocketJob::Batch
+
+      input_category format: :csv, columns: %w[name zip]
+      output_category format: :csv, columns: %w[name zip]
+
+      field :seen, type: Array, default: []
+
+      before_perform { seen << @rocket_job_input.class.name }
+      after_perform { seen << @rocket_job_output.class.name }
+
+      def perform(record)
+        record
+      end
+    end
+
     class ParentCategoriesJob < RocketJob::Job
       include RocketJob::Batch
 
@@ -73,6 +89,24 @@ module Batch
       def from_db(doc)
         doc = {"_id" => BSON::ObjectId.new}.merge(doc)
         Mongoid::Factory.from_db(CategoriesJob, doc)
+      end
+
+      describe "parsing and rendering records" do
+        it "parses and renders without perform callbacks of its own" do
+          assert_empty CategoriesJob._perform_callbacks.to_a
+          assert_empty OutputCategoriesJob._perform_callbacks.to_a
+        end
+
+        it "parses each record before the perform callbacks, and renders the result after them" do
+          job = CallbackCategoriesJob.new
+          job.upload_slice(["Jack,12345"])
+          job.perform_now
+
+          assert_equal %w[Hash Hash], job.seen
+          assert_equal ["Jack,12345"], job.output.first.to_a
+        ensure
+          job&.cleanup!
+        end
       end
 
       describe ".input_category" do

@@ -54,7 +54,8 @@ module RocketJob
 
         private
 
-        # Stores the categorized result from one result
+        # Stores the categorized result from one result, rendered by its output category, see
+        # RocketJob::Category::Output#render, unless it is nil, which is only kept when the category keeps nils.
         def extract_categorized_result(result)
           named_category = :main
           value          = result
@@ -62,7 +63,14 @@ module RocketJob
             named_category = result.category
             value          = result.value
           end
-          (categorized_records[named_category] ||= []) << value unless value.nil? && !job.output_category(named_category).nils
+          category = output_category(named_category)
+          value    = category.render(value) unless value.nil?
+          (categorized_records[named_category] ||= []) << value unless value.nil? && !category.nils
+        end
+
+        # Returns [RocketJob::Category::Output] the named output category of the job, looked up once per slice.
+        def output_category(name)
+          (@output_categories ||= {})[name] ||= job.output_category(name)
         end
       end
     end

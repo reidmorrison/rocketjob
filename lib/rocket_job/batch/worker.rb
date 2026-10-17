@@ -162,7 +162,9 @@ module RocketJob
             slice.records
           end
 
-        count = 0
+        count    = 0
+        category = input_category
+        # The writer renders each result in its output category, see Sliced::Writer::Output.
         RocketJob::Sliced::Writer::Output.collect(self, input_slice: slice, append: append) do |writer|
           records.each do |record|
             slice.processing_record_number += 1
@@ -170,7 +172,7 @@ module RocketJob
             # record and reuse it for both the log tag and `#perform`.
             record_number = slice.current_record_number
             SemanticLogger.named_tagged(record: record_number) do
-              writer << rocket_job_batch_perform(slice, record, record_number, &block)
+              writer << rocket_job_batch_perform(slice, category.parse(record), record_number, &block)
               count += 1
             end
           end
@@ -178,7 +180,8 @@ module RocketJob
         count
       end
 
-      # Perform a single record within the current slice.
+      # Perform a single record within the current slice, already parsed by its input category, see
+      # Category::Input#parse, returning the result of `#perform` as the callbacks leave it.
       def rocket_job_batch_perform(slice, record, record_number = slice.current_record_number)
         @rocket_job_record_number = record_number
 
