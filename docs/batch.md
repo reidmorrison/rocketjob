@@ -137,7 +137,7 @@ Useful `upload` keyword options:
 | Option         | Description
 |:---------------|:------------
 | `category`     | Which input category to load into. Default: `:main`.
-| `stream_mode`  | `:line` (default), `:array`, or `:hash`. See [input categories](#input-categories).
+| `stream_mode`  | `:line` (default), `:hash`, or the deprecated `:array`. See [input categories](#input-categories).
 | `file_name`    | Override the file name used to infer format and streams.
 | `delimiter`    | Record delimiter. Default: auto-detect line endings.
 | `on_first`     | A lambda called with the first line, for example to capture a header.
@@ -291,7 +291,7 @@ Input category options:
 | `schema`           | `nil`       | The fields of each record and their types, and which columns a file can and must have. Also gives the position of each field of a `:fixed` file. See [Typed values with a schema](#typed-values-with-a-schema) and [Validating columns](#validating-columns).
 | `encoding`         | `nil`       | The encoding of the files, such as `"Windows-1252"`, which is converted to UTF-8. `nil` reads UTF-8, or the format's own encoding, such as ASCII for `:fixed`. Name the byte order of UTF-16 or UTF-32, such as `"UTF-16LE"`. See [Files](#files).
 | `invalid_characters` | `nil`     | What to do with a character that is not valid in the file's encoding: `:remove`, `:replace` with U+FFFD, or `:raise`. `nil` removes them from tabular formats, such as CSV, and raises for `:fixed` and lines.
-| `mode`             | `:line`     | How a file is uploaded: `:line`, `:array`, or `:hash`.
+| `mode`             | `:line`     | How a file is uploaded: `:line`, `:hash`, or the deprecated `:array`.
 | `columns`          | `nil`       | Set by `upload`: the header row read from the file, as it is in the file, so that the workers read each line by it.
 
 The options `allowed_columns`, `required_columns`, `skip_unknown` and `header_cleanser`, and setting
@@ -302,9 +302,11 @@ The `mode` option controls how a file is read during upload:
 
 * `:line` (default) uploads a raw line (String) at a time. This is the most performant, since each
   worker parses its own lines.
-* `:array` parses each line into an Array before uploading. The whole file is parsed up front, so an
+* `:hash` parses each line into a Hash before uploading. The whole file is parsed up front, so an
   invalid file is detected before processing starts. Not recommended for very large files.
-* `:hash` parses each line into a Hash before uploading. Like `:array`, but slightly less efficient.
+* `:array` parses each line into an Array before uploading, and is deprecated: use `:line`, or
+  `:hash` to parse the whole file up front. Its rows only make sense with the header row that the
+  category keeps, while each Hash names its own columns.
 
 The `stream_mode` option of `upload` overrides `mode` for that upload.
 

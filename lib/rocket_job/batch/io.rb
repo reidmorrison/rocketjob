@@ -192,6 +192,7 @@ module RocketJob
           else
             raise(ArgumentError, "Unknown keyword argument :columns when uploading a file") if columns
 
+            rocketjob_warn_deprecated_upload_options(stream_mode, args)
             category = input_category(category)
             mode     = stream_mode || category.mode
 
@@ -376,6 +377,27 @@ module RocketJob
       # or documents a block can transform: a Mongoid::Criteria, or an ActiveRecord::Relation.
       def rocketjob_query?(object)
         object.is_a?(Mongoid::Criteria) || (defined?(ActiveRecord::Relation) && object.is_a?(ActiveRecord::Relation))
+      end
+
+      # The options that IOStreams reads a file with which describe its columns, and are deprecated, see
+      # RocketJob::Category::Input#schema.
+      DEPRECATED_UPLOAD_OPTIONS = %i[columns allowed_columns required_columns skip_unknown cleanse_header].freeze
+      private_constant :DEPRECATED_UPLOAD_OPTIONS
+
+      # Reports a deprecation warning, see RocketJob::Deprecation, at the line of the application that uploads a file
+      # with the :array `stream_mode`, or with options that describe the columns of the file, which the schema of the
+      # input category replaces.
+      def rocketjob_warn_deprecated_upload_options(stream_mode, args)
+        Category::Input.warn_array_mode(:stream_mode) if stream_mode.to_s == "array"
+
+        names = args.keys & DEPRECATED_UPLOAD_OPTIONS
+        return if names.empty?
+
+        RocketJob::Deprecation.warn(
+          "#{names.collect { |name| "#{name}:" }.join(', ')} #{names.size == 1 ? 'is' : 'are'} deprecated, describe " \
+          "the columns of the file with the schema: of the input category instead, see " \
+          "#{RocketJob::Deprecation::UPGRADE_GUIDE}"
+        )
       end
 
       # Raises ArgumentError when an option that only applies to a file is supplied to upload the supplied kind of

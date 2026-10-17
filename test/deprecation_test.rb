@@ -136,6 +136,58 @@ class DeprecationTest < Minitest::Test
       end
     end
 
+    describe "the :array upload mode" do
+      it "warns at the line of the job class that defines an input category with it" do
+        line     = __LINE__ + 1
+        warnings = deprecation_warnings { Class.new(DeprecatedCategoryJob) { input_category format: :csv, mode: :array } }
+
+        assert_equal 1, warnings.size
+        assert warnings.first.start_with?("#{__FILE__}:#{line}: warning: Rocket Job: mode: :array is deprecated"),
+               warnings.first
+      end
+
+      it "does not warn for the :line and :hash modes" do
+        warnings = deprecation_warnings do
+          Class.new(DeprecatedCategoryJob) do
+            input_category name: :lines, format: :csv
+            input_category format: :csv, mode: :hash
+          end
+        end
+
+        assert_empty warnings
+      end
+
+      it "warns at the line that uploads a file with it" do
+        job      = Class.new(DeprecatedCategoryJob) { input_category format: :csv }.new
+        line     = __LINE__ + 2
+        warnings = deprecation_warnings do
+          job.upload(StringIO.new("name\nJack\n"), file_name: "people.csv", stream_mode: :array)
+        end
+
+        assert(warnings.any? { |w| w.start_with?("#{__FILE__}:#{line}: warning: Rocket Job: stream_mode: :array") },
+               warnings.inspect)
+      ensure
+        job&.cleanup!
+      end
+    end
+
+    describe "upload options that describe the columns" do
+      it "warns at the line that uploads a file with them" do
+        job      = Class.new(DeprecatedCategoryJob) { input_category format: :csv }.new
+        line     = __LINE__ + 2
+        warnings = deprecation_warnings do
+          job.upload(StringIO.new("name\nJack\n"), file_name: "people.csv", stream_mode: :hash, allowed_columns: %w[name])
+        end
+        rocket_job = warnings.grep(/Rocket Job:/)
+
+        assert_equal 1, rocket_job.size, warnings.inspect
+        assert rocket_job.first.start_with?("#{__FILE__}:#{line}: warning: Rocket Job: allowed_columns: is deprecated"),
+               rocket_job.first
+      ensure
+        job&.cleanup!
+      end
+    end
+
     describe "properties with a deprecated option" do
       it "warns when they build a job" do
         warnings = deprecation_warnings do

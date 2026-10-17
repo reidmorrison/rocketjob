@@ -118,10 +118,31 @@ Existing jobs and settings keep working:
   builds a job from properties that hold one, report a deprecation warning, see
   [Finding the deprecated options](#finding-the-deprecated-options).
 
+### The :array upload mode is deprecated
+
+An input category's `mode: :array`, and the `stream_mode: :array` of `upload`, are deprecated. Each
+row that they upload is an Array, which only makes sense with the header row that the category
+keeps. Use the default `:line` mode, in which each worker parses its lines, or `:hash`, which parses
+the whole file when it is uploaded, so that a file with a problem is found before it is processed,
+and uploads each record as a Hash that names its columns:
+
+~~~ruby
+# Before (deprecated)
+input_category format: :csv, mode: :array
+
+# After
+input_category format: :csv, mode: :hash
+~~~
+
+`#perform` receives each record as a Hash in either mode, when the category has a format. Without a
+format, `#perform` received each row as an Array, so set the category's format, such as `:csv`, and
+change `#perform` to read the Hash.
+
 ### Finding the deprecated options
 
 Rocket Job reports a Ruby deprecation warning for each deprecated category option that it is given,
-naming the line of the job class that defines the category, for example:
+naming the line of the job class that defines the category, or of the call to `upload` that supplies
+one, such as `stream_mode: :array` or `allowed_columns:`, for example:
 
 ~~~
 app/jobs/import_job.rb:5: warning: Rocket Job: allowed_columns:, skip_unknown: are deprecated, describe the columns of the file with schema: instead, see https://rocketjob.reidmorrison.com/upgrading.html

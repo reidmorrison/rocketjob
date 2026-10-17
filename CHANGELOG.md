@@ -220,10 +220,13 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   `columns` of a file without a header row, or of an output category, since IOStreams 3.0 deprecates the
   options that they set, and the schema replaces them. They still work without a schema, and cannot be set
   with one, so a category that sets both is not valid. See the upgrade guide.
+- The `:array` upload mode, an input category's `mode: :array` and the `stream_mode: :array` of `upload`, since each
+  row that it uploads only makes sense with the header row that the category keeps. Use `:line`, or `:hash` to parse
+  the whole file when it is uploaded. See the upgrade guide.
 - Rocket Job reports a Ruby deprecation warning for each of these options, and for `format_options`, at the line
-  of the job class that defines a category with one, and when a Dirmon entry or an `UploadFileJob` builds a job
-  from properties that hold one. They are only reported while Ruby's deprecation warnings are on, such as in tests,
-  see `RocketJob::Deprecation`.
+  of the job class that defines a category with one, or of the call to `upload` that supplies one, and when a Dirmon
+  entry or an `UploadFileJob` builds a job from properties that hold one. They are only reported while Ruby's
+  deprecation warnings are on, such as in tests, see `RocketJob::Deprecation`.
 
 ### Fixes
 

@@ -63,6 +63,7 @@ module RocketJob
       #   This is the default behavior and is the most performant since it leaves the parsing of each line
       #   up to the workers themselves.
       # :array
+      #   Deprecated, use :line, or :hash to parse the whole file when it is uploaded.
       #   Parses each line from the file as an Array and uploads each array for processing by workers.
       #   Every line in the input file is parsed and converted into an array before uploading.
       #   This approach ensures that the entire files is valid before starting to process it.
@@ -123,6 +124,22 @@ module RocketJob
           @tabular = nil
           super(value)
         end
+      end
+
+      # Reports a deprecation warning, see RocketJob::Deprecation, for the deprecated options in the supplied
+      # properties of an input category, see Category::Base.warn_deprecated_options, and for its :array `mode`.
+      def self.warn_deprecated_options(properties)
+        super
+        warn_array_mode if properties.to_h.stringify_keys["mode"].to_s == "array"
+      end
+
+      # Reports a deprecation warning, see RocketJob::Deprecation, for the :array mode of an upload, see #mode, set as
+      # the supplied option, such as the `stream_mode:` of `upload`.
+      def self.warn_array_mode(option = :mode)
+        RocketJob::Deprecation.warn(
+          "#{option}: :array is deprecated, use :line, the default, which the workers parse, or :hash to parse the " \
+          "whole file when it is uploaded, see #{RocketJob::Deprecation::UPGRADE_GUIDE}"
+        )
       end
 
       # Returns [Array<String>] the names of the deprecated options in the supplied properties of an input category,
