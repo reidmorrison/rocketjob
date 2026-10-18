@@ -8,6 +8,10 @@ module RocketJob
 
       embedded_in :job, class_name: "RocketJob::Job", inverse_of: :input_categories
 
+      # The fields that an upload sets, see #upload_state.
+      UPLOAD_FIELDS = %w[file_name format columns header_uploaded].freeze
+      private_constant :UPLOAD_FIELDS
+
       # Replaces each non-printable character, other than line endings, with a space.
       FIXED_WIDTH_CLEANER = ->(data, _replace) { data.gsub(/[^[:print:]\r\n]/, " ") }
       private_constant :FIXED_WIDTH_CLEANER
@@ -302,15 +306,26 @@ module RocketJob
       end
 
       # Yields to upload a file into this category, see RocketJob::Batch::IO#upload. When the upload raises, its records
-      # are not kept, so the columns that the header row it read replaced are restored, see #header_uploaded, and the
-      # file can be uploaded again, such as when the job is retried.
+      # are not kept, so the fields that it set are restored, see #upload_state, such as the columns that the header
+      # row it read replaced, see #header_uploaded, and the file can be uploaded again, such as when the job is retried.
       def uploading
-        columns_before = columns
+        state = upload_state
         yield
       rescue Exception
-        self.columns         = columns_before
-        self.header_uploaded = false
+        restore_upload_state(state)
         raise
+      end
+
+      # Returns [Hash] the fields that an upload sets, see #restore_upload_state: the file name, the format that
+      # :auto is replaced with, and the columns of the header row that it reads, see #header_uploaded.
+      def upload_state
+        UPLOAD_FIELDS.to_h { |name| [name, attributes[name]] }
+      end
+
+      # Sets the fields that an upload sets to the supplied ones, see #upload_state, so that the category is as it was
+      # before the uploads since, whose records were removed.
+      def restore_upload_state(state)
+        UPLOAD_FIELDS.each { |name| public_send(:"#{name}=", state[name]) }
       end
 
       private

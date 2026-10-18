@@ -168,7 +168,9 @@ module RocketJob
           # Extract the header line during the upload when applicable.
           extract_header = category.extract_header_callback(on_first)
 
-          count = category.uploading { input_collection.upload(on_first: extract_header, &block) }
+          count = category.uploading do
+            input_collection.upload(on_first: extract_header, upload_id: rocketjob_upload_id, &block)
+          end
           return rocketjob_add_record_count(count)
         end
 
@@ -176,13 +178,15 @@ module RocketJob
           case object
           when Range
             rocketjob_check_upload_options("a Range", file_name, stream_mode, on_first, args)
-            rocketjob_upload_integer_range(input_collection, object, slice_batch_size || 1_000)
+            rocketjob_upload_integer_range(input_collection, object, slice_batch_size || 1_000, rocketjob_upload_id)
           when Mongoid::Criteria
             rocketjob_check_upload_options("a Mongoid::Criteria", file_name, stream_mode, on_first, args)
-            input_collection.upload_mongo_query(object, columns: columns, slice_batch_size: slice_batch_size, &block)
+            input_collection.upload_mongo_query(object, columns: columns, slice_batch_size: slice_batch_size,
+                                                        upload_id: rocketjob_upload_id, &block)
           when defined?(ActiveRecord::Relation) ? ActiveRecord::Relation : false
             rocketjob_check_upload_options("an ActiveRecord::Relation", file_name, stream_mode, on_first, args)
-            input_collection.upload_arel(object, columns: columns, slice_batch_size: slice_batch_size, &block)
+            input_collection.upload_arel(object, columns: columns, slice_batch_size: slice_batch_size,
+                                                 upload_id: rocketjob_upload_id, &block)
           else
             raise(ArgumentError, "Unknown keyword argument :columns when uploading a file") if columns
 
@@ -197,7 +201,8 @@ module RocketJob
             extract_header = category.extract_header_callback(on_first, mode: mode)
 
             category.uploading do
-              input_collection.upload(on_first: extract_header, slice_batch_size: slice_batch_size) do |io|
+              input_collection.upload(on_first: extract_header, slice_batch_size: slice_batch_size,
+                                      upload_id: rocketjob_upload_id) do |io|
                 category.each_record(path, mode: mode, **args) { |record| io << record }
               end
             end
@@ -324,6 +329,41 @@ module RocketJob
 
       private
 
+      # The upload id of the slices that the before_batch callbacks upload, see Sliced::Slice#upload_id.
+      BEFORE_BATCH_UPLOAD = "before_batch".freeze
+      private_constant :BEFORE_BATCH_UPLOAD
+
+      # Returns [Hash] the `record_count` and the upload state of each input category, see
+      # Category::Input#upload_state, which the before_batch callbacks start with, see #before_batch_state.
+      def rocketjob_before_batch_state
+        {
+          "record_count"     => record_count,
+          "input_categories" => input_categories.to_h { |category| [category.name.to_s, category.upload_state] }
+        }
+      end
+
+      # Removes the slices that the before_batch callbacks uploaded, and restores the `record_count` and the upload
+      # state of each input category that they started with, see #before_batch_state, so that they can run again
+      # without duplicating their input, such as when the job is retried.
+      def rocketjob_undo_before_batch
+        state = before_batch_state
+        return unless state
+
+        self.record_count = state["record_count"]
+        input_categories.each do |category|
+          input(category).delete_upload(BEFORE_BATCH_UPLOAD)
+          category_state = state.dig("input_categories", category.name.to_s)
+          category.restore_upload_state(category_state) if category_state
+        end
+        self.before_batch_state = nil
+      end
+
+      # Returns [String] the upload id of the slices of an upload while the before_batch callbacks run, so that they
+      # can be removed when the job is retried, see #rocketjob_undo_before_batch, otherwise nil.
+      def rocketjob_upload_id
+        BEFORE_BATCH_UPLOAD if before_batch_state
+      end
+
       # Returns [Integer] the supplied number of records uploaded, after adding it to `record_count`.
       def rocketjob_add_record_count(count)
         self.record_count = (record_count || 0) + count
@@ -359,7 +399,7 @@ module RocketJob
       #
       # Returns [Integer] the number of integers uploaded, rather than of records, since each record is a range of
       # `slice_size` integers, see #percent_complete.
-      def rocketjob_upload_integer_range(input_collection, range, slice_batch_size)
+      def rocketjob_upload_integer_range(input_collection, range, slice_batch_size, upload_id)
         first = range.begin
         last  = range.end
         unless first.is_a?(Integer) && last.is_a?(Integer)
@@ -369,9 +409,10 @@ module RocketJob
 
         last += first < last ? -1 : 1 if range.exclude_end?
         if first < last
-          input_collection.upload_integer_range(first, last, slice_batch_size: slice_batch_size)
+          input_collection.upload_integer_range(first, last, slice_batch_size: slice_batch_size, upload_id: upload_id)
         else
-          input_collection.upload_integer_range_in_reverse_order(last, first, slice_batch_size: slice_batch_size)
+          input_collection.upload_integer_range_in_reverse_order(last, first, slice_batch_size: slice_batch_size,
+                                                                              upload_id:        upload_id)
         end
         (last - first).abs + 1
       end

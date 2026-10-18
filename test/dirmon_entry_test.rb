@@ -679,6 +679,21 @@ class DirmonEntryTest < Minitest::Test
           end
         end
 
+        it "skips the files in a sub-directory of its archive directory" do
+          Dir.mktmpdir do |dir|
+            FileUtils.mkdir_p(["#{dir}/in/archive/2026", "#{dir}/in/east/archive/old"])
+            %w[in/orders.csv in/archive/2026/1_orders.csv in/east/archive/old/2_orders.csv in/east/orders.csv].each do |name|
+              File.write("#{dir}/#{name}", "Hello World")
+            end
+            dirmon_entry.pattern           = "#{dir}/in/**/*"
+            dirmon_entry.archive_directory = "archive"
+            files                          = []
+            dirmon_entry.each { |file_name| files << file_name.to_s.delete_prefix("#{File.realpath(dir)}/") }
+
+            assert_equal %w[in/east/orders.csv in/orders.csv], files.sort
+          end
+        end
+
         it "reads the files below a directory with the name of its archive directory further up" do
           Dir.mktmpdir do |dir|
             FileUtils.mkdir_p("#{dir}/archive/incoming/archive")

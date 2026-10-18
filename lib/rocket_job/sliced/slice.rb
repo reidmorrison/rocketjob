@@ -47,6 +47,10 @@ module RocketJob
       # This name of the worker that this job is being processed by, or was processed by
       field :worker_name, type: String
 
+      # The id of the upload that inserted this slice, when its uploader named one, so that the slices of that upload
+      # can be removed again, see RocketJob::Sliced::Input#delete_upload.
+      field :upload_id, type: String
+
       # The last exception for this slice if any
       embeds_one :exception, class_name: "RocketJob::JobException"
 

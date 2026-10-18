@@ -238,11 +238,12 @@ stored file to the job that processed it.
   sub-directory structure under the pattern is preserved.
 * If left unset it defaults to a directory named `archive`.
 
-A pattern that matches the archive, such as `/data/in/**/*`, skips the files in it: those directly in
-a directory named as a relative `archive_directory`, which is where each file is moved, or within an
-absolute one. A file below a directory that only has the same name further up, such as
-`/srv/archive/incoming/orders.csv`, and a file or directory whose name only starts with the same
-characters, such as `archived_orders.csv`, are processed.
+A pattern that matches the archive, such as `/data/in/**/*`, skips the files in it, and in every
+directory within it: those within a directory named as a relative `archive_directory` below the
+directory that the pattern starts in, such as `/data/in/archive/2026/orders.csv`, or within an
+absolute one. A directory with the same name above where the pattern starts, such as `archive` in
+`/srv/archive/incoming/*.csv`, does not skip its files, and nor does a file or directory whose name
+only starts with the same characters, such as `archived_orders.csv`.
 
 The file must be in a directory that the Dirmon process can write to, since moving a file changes its
 directory. A file in a directory that cannot be written to is skipped, with a warning.

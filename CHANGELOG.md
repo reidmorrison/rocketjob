@@ -17,6 +17,12 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   the `before_code` of an `OnDemandBatchJob`, whose documentation showed `upload_arel`. Also removed
   `upload_file_name` and `upload_file_name=` of a batch job, deprecated in v6, which read and set the `file_name` of
   its input category: use `input_category.file_name` instead. See the upgrade guide.
+- A batch job that is retried, or requeued, while in `before_batch` removes the slices that its `before_batch`
+  callbacks uploaded, and restores its `record_count`, and the file name, format, columns and header row of each input
+  category, as they were when the callbacks started, so that they upload the input again without duplicating it.
+  Previously the slices that they uploaded were kept, so a retry uploaded the input a second time. Slices uploaded
+  before the job started are kept. Each slice uploaded by `before_batch` records it in its new `upload_id`, and the
+  job keeps what it restores in its new `before_batch_state` while the callbacks run.
 - Uploading a second file with a header row into an input category that holds the header row of an earlier upload,
   in the `:line` or `:array` mode, raises `ArgumentError` and uploads nothing. Previously the second file's header
   row was stored as a record, and its lines were read with the first file's columns. A second file uploaded in the
@@ -30,12 +36,12 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   each record instead, and one that included `ThrottleDependentJobs` first did not throttle its slices.
 - `RocketJob::Plugins::Singleton` does not save a job while another of its class is paused, as its documentation
   and its error message say. Previously only a running or queued job prevented it.
-- Dirmon only skips the files in its archive directory: directly in a directory named as a relative
-  `archive_directory`, such as `archive`, which is where it moves each file, or within an absolute one. Previously it
-  skipped every file whose path contained the name of the archive directory anywhere, such as `archived_orders.csv`,
-  the files in `/data/archive_2026`, every file that a pattern such as `/srv/archive/incoming/*.csv` matched, or the
-  files in a sub-directory of an archive directory, so those files are processed after the upgrade. Move such files
-  elsewhere first if they must not be processed.
+- Dirmon only skips the files in its archive directory, and in the directories within it: within a directory named
+  as a relative `archive_directory`, such as `archive`, below the directory that the entry's pattern starts in, or
+  within an absolute one. Previously it skipped every file whose path contained the name of the archive directory
+  anywhere, such as `archived_orders.csv`, the files in `/data/archive_2026`, or every file that a pattern such as
+  `/srv/archive/incoming/*.csv` matched, so those files are processed after the upgrade. Move such files elsewhere
+  first if they must not be processed.
 - Uploading a range of integers, such as `upload(200..421)`, returns, and adds to `record_count`, the number of
   integers in it, 222, where it was the number of ranges, one per slice of `slice_size` integers, 3. So
   `percent_complete` follows the ranges as they are processed, where it stayed 0 until the job completed. Each slice

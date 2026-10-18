@@ -1112,6 +1112,12 @@ slice and batch level:
 final bookkeeping, as shown in the [single output file](#single-output-file-via-after_batch) and
 [lower priority](#lowering-priority-for-large-jobs) examples.
 
+A job that fails, or whose server dies, while its `before_batch` callbacks run, runs them again when
+it is retried or requeued. Before they run again, the job removes the slices that they uploaded, and
+puts back the `record_count` and the input categories as they were when the callbacks started,
+including the header row that an upload read. So uploading in `before_batch` does not duplicate the
+input, and slices uploaded before the job started are kept.
+
 ## Gathering statistics
 
 `RocketJob::Batch::Statistics` lets a job count things while it runs and have those counts aggregated
@@ -1244,10 +1250,11 @@ How batch jobs differ from simple jobs in this diagram:
 * **`fail`**: if any slice raises and only failed slices remain, the job as a whole becomes `failed`
   (see [Error handling](#error-handling)). Individual slices carry their own state and exceptions.
 * **`retry`** is sub-state aware: a job that failed during `before_batch` retries back to `queued`,
-  while one that failed during or after processing retries straight to `running` and reprocesses only
-  the failed slices, leaving already-completed records untouched.
+  without what `before_batch` uploaded (see [Batch callbacks](#batch-callbacks)), while one that
+  failed during or after processing retries straight to `running` and reprocesses only the failed
+  slices, leaving already-completed records untouched.
 * **`requeue`** (automatic when a worker's server dies) also depends on sub-state: work interrupted
-  during `before_batch` goes back to `queued`; work interrupted during processing or `after_batch` is
+  during `before_batch` goes back to `queued`, also without what it uploaded; work interrupted during processing or `after_batch` is
   requeued within `running` so the running slices are reclaimed by other workers.
 
 As with simple jobs, each transition is callable on the job and comes in two forms: `job.abort`

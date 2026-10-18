@@ -166,13 +166,14 @@ module RocketJob
     def each
       SemanticLogger.named_tagged(dirmon_entry: id.to_s) do
         archives = absolute_archive_directories
+        starts   = pattern_directories
         # Case insensitive filename matching
         IOStreams.each_child(pattern) do |path|
           path = existing_realpath(path)
           next unless path
 
           # Skip the files that were moved to the archive directory, which the pattern can match.
-          next if archived?(path, archives)
+          next if archived?(path, archives, starts)
 
           # Security check?
           if whitelist_paths.size.positive? && whitelist_paths.none? { |whitepath| within?(path, whitepath) }
@@ -363,15 +364,28 @@ module RocketJob
     self.whitelist_paths = Concurrent::Array.new
 
     # Returns [true|false] whether the supplied file, found by its real path, is in an archive directory, which a file
-    # is moved to when its job is queued, see #archive_iopath: directly in a directory named as a relative
-    # `archive_directory`, since a file is moved into the one in its own directory, or within the supplied absolute
-    # ones, see #absolute_archive_directories. A file below a directory that only has the same name further up, such
-    # as `/srv/archive/incoming/orders.csv`, is not, nor is a file or directory whose name only starts with the same
-    # characters, such as `archived_orders.csv` or `archive_2026`.
-    def archived?(path, archives)
+    # is moved to when its job is queued, see #archive_iopath, or in a directory within it: within the supplied
+    # absolute ones, see #absolute_archive_directories, otherwise within a directory named as the relative
+    # `archive_directory` below the directory that the pattern starts in, one of the supplied ones, see
+    # #pattern_directories. A directory above it with the same name, such as `archive` in the pattern
+    # `/srv/archive/incoming/*.csv`, does not make its files archived, nor does a file or directory whose name only
+    # starts with the same characters, such as `archived_orders.csv` or `archive_2026`.
+    def archived?(path, archives, starts)
       return archives.any? { |archive| within?(path, archive) } if archives
 
-      "/#{path.directory.to_s.delete_suffix('/')}".end_with?("/#{archive_name}")
+      directory = path.directory.to_s.delete_suffix("/")
+      start     = starts.find { |start_directory| within?(directory, start_directory) }
+      directory = directory.delete_prefix(start.delete_suffix("/")) if start
+      "#{directory}/".include?("/#{archive_name}/")
+    end
+
+    # Returns [Array<String>] the directory that the pattern starts in, before its first wildcard, as it is written
+    # and by its real path, see #absolute_archive_directories, since the files that a scan finds are compared by
+    # their real paths.
+    def pattern_directories
+      fixed     = pattern.to_s[/\A[^*?\[{]*/]
+      directory = fixed.end_with?("/") ? fixed.delete_suffix("/") : File.dirname(fixed)
+      [directory, real_directory(IOStreams.path(directory))].compact.uniq
     end
 
     # Returns [Array<String>] an absolute `archive_directory`, as it is set and by its real path, since the files that

@@ -275,13 +275,18 @@ module RocketJob
 
       # Run the before_batch callbacks
       # Saves the current state before and after running callbacks if callbacks present
+      #
+      # Keeps what the job holds when they start, see #before_batch_state, while they run, so that a retry of the job
+      # can remove what they uploaded before they run again.
       def rocket_job_batch_run_before_callbacks
         unless _before_batch_callbacks.empty?
-          self.sub_state = :before
+          self.sub_state          = :before
+          self.before_batch_state = rocketjob_before_batch_state
           save! unless new_record? || destroyed?
           rocket_job_batch_measure(:before_batch) { run_callbacks(:before_batch) }
         end
-        self.sub_state = :processing
+        self.sub_state          = :processing
+        self.before_batch_state = nil
         save! unless new_record? || destroyed?
       end
 
