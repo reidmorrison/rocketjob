@@ -265,6 +265,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixes
 
+- An upload of a tabular file that starts with blank lines, such as a CSV file, skips them and reads the header row
+  after them, as IOStreams does. Previously the first blank line was taken as the header row, so the header row was
+  uploaded as a record, and with a schema every slice then failed, since the header row had not been read. The
+  `on_first` lambda is called with the header row.
 - An input category with `format: :auto` uploads the first record of a JSON file. Previously it was dropped, as
   though it were a header row, so `record_count` was one short.
 - A Hash that a job returns supplies the value of each column of an output category whose name only matches one of

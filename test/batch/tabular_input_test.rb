@@ -229,6 +229,55 @@ module Batch
         end
       end
 
+      describe "blank lines before the header row" do
+        let(:csv) { "\n  \nName,Age\nJack,21\n" }
+
+        it "skips them, and reads the header row after them" do
+          assert_equal 1, upload(".csv", csv)
+
+          assert_equal %w[name age], job.input_category.columns
+          assert_equal [{"name" => "Jack", "age" => "21"}], output_records
+        end
+
+        it "skips them in :array mode" do
+          job.input_category.mode = :array
+
+          assert_equal 1, upload(".csv", csv)
+
+          assert_equal %w[name age], job.input_category.columns
+          assert_equal [{"name" => "Jack", "age" => "21"}], output_records
+        end
+
+        it "skips them with a schema" do
+          job.input_category.schema = {"fields" => [{"name" => "name"}, {"name" => "age", "type" => "integer"}]}
+
+          assert_equal 1, upload(".csv", csv)
+
+          assert_equal %w[Name Age], job.input_category.columns
+          assert_equal [{"name" => "Jack", "age" => 21}], output_records
+        end
+
+        it "skips them when they are written to a block" do
+          count =
+            job.upload do |records|
+              records << ""
+              records << "Name,Age"
+              records << "Jack,21"
+            end
+
+          assert_equal 1, count
+          assert_equal %w[name age], job.input_category.columns
+          assert_equal [{"name" => "Jack", "age" => "21"}], output_records
+        end
+
+        it "calls on_first with the header row" do
+          header = nil
+          upload(".csv", csv, on_first: ->(row) { header = row })
+
+          assert_equal "Name,Age", header
+        end
+      end
+
       describe "fixed width" do
         before do
           job.input_category.format = :fixed

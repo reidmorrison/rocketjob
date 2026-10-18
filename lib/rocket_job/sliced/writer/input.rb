@@ -9,8 +9,9 @@ module RocketJob
         #
         # Parameters
         #   on_first: [Proc]
-        #     Block to call on the first line only, instead of storing in the slice.
-        #     Useful for extracting the header row
+        #     Called with each line before the first that is stored, instead of storing it, until it returns true.
+        #     Useful for extracting the header row, after any blank lines before it, see
+        #     Category::Input#extract_header_callback.
         #     Default: nil
         #
         #   slice_size: [Integer]
@@ -47,9 +48,10 @@ module RocketJob
 
         def <<(line)
           if @on_first
-            @on_first.call(line)
-            @on_first = nil
-            @header   = true
+            if @on_first.call(line)
+              @on_first = nil
+              @header   = true
+            end
             return self
           end
           @slice << line
