@@ -130,6 +130,35 @@ module Batch
         end
       end
 
+      describe "a second file" do
+        it "is not uploaded into a category that holds the header row of the first, which its lines are read by" do
+          upload(".csv", csv)
+          error = assert_raises(ArgumentError) { upload(".csv", "Name,City\nJoe,Boston\n") }
+
+          assert_includes error.message, "already holds the header row of an uploaded file"
+          assert_equal 2, job.record_count
+          assert_equal ["Jack,21,x", "Jill,22,y"], input_records
+        end
+
+        it "is uploaded in :hash mode, in which each record keeps the columns of its own file" do
+          job.input_category.mode = :hash
+          upload(".csv", csv)
+          upload(".csv", "Name,City\nJoe,Boston\n")
+
+          assert_equal [{"name" => "Joe", "city" => "Boston"}], input_records.last(1)
+          assert_equal 3, job.record_count
+        end
+
+        it "is uploaded into a category whose columns are set for files without a header row" do
+          job.input_category.columns = %w[name age extra]
+          upload(".csv", "Jack,21,x\n")
+          upload(".csv", "Jill,22,y\n")
+
+          assert_equal ["Jack,21,x", "Jill,22,y"], input_records
+          refute job.input_category.header_uploaded
+        end
+      end
+
       describe "csv" do
         it "keeps a quoted value with a line break in one record, whatever the file name" do
           upload(".txt", %(name,note\nJack,"line one\nline two"\n))

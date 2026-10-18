@@ -17,6 +17,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   the `before_code` of an `OnDemandBatchJob`, whose documentation showed `upload_arel`. Also removed
   `upload_file_name` and `upload_file_name=` of a batch job, deprecated in v6, which read and set the `file_name` of
   its input category: use `input_category.file_name` instead. See the upgrade guide.
+- Uploading a second file with a header row into an input category that holds the header row of an earlier upload,
+  in the `:line` or `:array` mode, raises `ArgumentError` and uploads nothing. Previously the second file's header
+  row was stored as a record, and its lines were read with the first file's columns. Upload each file into its own
+  input category, or in the `:hash` mode, in which each record keeps the columns of its own file. An input category
+  records that its `columns` hold the header row of an upload in its new `header_uploaded`. See the upgrade guide.
 - `RocketJob::Plugins::Transaction` wraps each slice of a batch job in a transaction, and
   `RocketJob::Plugins::ThrottleDependentJobs` throttles its slices, whether the job includes them before or after
   `RocketJob::Batch`, as documented. Previously a job that included `Transaction` first had a transaction around
@@ -320,6 +325,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Dirmon skips a file whose directory is not writable by the current user, logging a warning, since the
   file cannot be moved to the archive directory. The check never ran, since IOStreams paths do not
   implement `writable?`, so such a file failed its Dirmon entry instead.
+- A batch job that restarts, such as the next run of a scheduled job, reads the header row of its own upload.
+  Previously it kept the header row that the previous run's upload read, so the next file's header row was stored
+  as a record, and its lines were read with the previous file's columns. A job saved by v7 keeps that header row
+  until it is cleared, see the upgrade guide.
 - A Dirmon entry whose job class cannot receive a file, since it is not a batch job and has neither an
   `upload_file_name` nor a `full_file_name` field, is not valid, as the Dirmon guide says. Previously it
   was saved, then the first file that it found was archived, the `UploadFileJob` for it was rejected, so

@@ -179,6 +179,38 @@ module Plugins
             RocketJob::Job.destroy_all
           end
 
+          it "reads the header row of the next run's own file, rather than the one that its last upload read" do
+            job                       = PersistBatchJob.new
+            job.input_category.format = :csv
+            job.upload(StringIO.new("first_name,zip\nJack,12345\n"), file_name: "a.csv")
+            job.save!
+            job.create_restart!
+
+            restarted = RocketJob::Job.where(:id.ne => job.id).first
+
+            assert_nil restarted.input_category.columns
+            refute restarted.input_category.header_uploaded
+            assert_equal 1, restarted.upload(StringIO.new("name,city\nJill,Boston\n"), file_name: "b.csv")
+            assert_equal %w[name city], restarted.input_category.columns
+          ensure
+            RocketJob::Job.all.each(&:cleanup!)
+            RocketJob::Job.destroy_all
+          end
+
+          it "keeps the columns set for a file without a header row" do
+            job                        = PersistBatchJob.new
+            job.input_category.format  = :csv
+            job.input_category.columns = %w[name zip]
+            job.save!
+            job.create_restart!
+
+            restarted = RocketJob::Job.where(:id.ne => job.id).first
+
+            assert_equal %w[name zip], restarted.input_category.columns
+          ensure
+            RocketJob::Job.destroy_all
+          end
+
           it "does not create a new instance when the job has expired" do
             @job.expires_at = 1.day.ago
             @job.save!

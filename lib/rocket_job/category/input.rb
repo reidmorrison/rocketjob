@@ -116,6 +116,15 @@ module RocketJob
       field :invalid_characters, type: ::Mongoid::StringifiedSymbol
       validates_inclusion_of :invalid_characters, in: [nil, :remove, :replace, :raise]
 
+      # Whether `columns` hold the header row that an upload read from its file, see #read_header, rather than columns
+      # set for a file without a header row. The category holds the header row of one file, which the workers read
+      # each of its lines by, so another file with a header row cannot be uploaded into it, see
+      # #extract_header_callback, and the next run of a restarted job reads the header row of its own file, see
+      # #restart_copy.
+      #
+      # Default: false, which is also what a job saved before v8 reads.
+      field :header_uploaded, type: ::Mongoid::Boolean, default: false
+
       validates_inclusion_of :serializer, in: %i[none compress encrypt]
 
       # Setting a field that the tabular is built from builds it again when it is next used, see #tabular.
@@ -124,6 +133,18 @@ module RocketJob
           @tabular = nil
           super(value)
         end
+      end
+
+      # Returns [RocketJob::Category::Input] a copy of this category for the next run of its job, see
+      # Category::Base#restart_copy, without the header row that an upload read from the file, see #header_uploaded, so
+      # that the next run reads the header row of its own file.
+      def restart_copy
+        copy = super
+        return copy unless header_uploaded?
+
+        copy.columns         = nil
+        copy.header_uploaded = false
+        copy
       end
 
       # Reports a deprecation warning, see RocketJob::Deprecation, for the deprecated options in the supplied
@@ -251,8 +272,17 @@ module RocketJob
       # When the columns were supplied they take the place of a header row, so the column restrictions are
       # applied to them now. With a schema they were matched to its fields when the tabular was built, see
       # #build_tabular. In :hash mode IOStreams applies them instead, see #each_record.
+      #
+      # Raises ArgumentError when the category already holds the header row of a file, see #header_uploaded, since the
+      # lines of another file could not be read by it.
       def extract_header_callback(on_first, mode: self.mode)
         return on_first unless tabular? && mode != :hash
+
+        if header_uploaded?
+          raise(ArgumentError,
+                "Input category #{name} already holds the header row of an uploaded file, which its lines are read " \
+                "by. Upload each file with a header row into its own input category, or in the :hash mode")
+        end
 
         unless header_first?(mode)
           restrict_columns! if schema.blank?
@@ -368,6 +398,7 @@ module RocketJob
           tabular.read_header(row)
           header_read
         end
+        self.header_uploaded = true
       end
 
       # Applies the column restrictions to the supplied columns, see `IOStreams::Tabular#restrict_columns`, which

@@ -3,6 +3,14 @@ require_relative "../test_helper"
 module Batch
   class CategoryTest < Minitest::Test
     describe RocketJob::Category::Input do
+      describe "#header_uploaded" do
+        it "is false for a category saved before v8, which did not record it" do
+          category = Mongoid::Factory.from_db(RocketJob::Category::Input, {"name" => "main", "format" => "csv", "columns" => %w[name]})
+
+          refute category.header_uploaded
+        end
+      end
+
       describe "#cleanse_header!" do
         it "cleanses the header when cleanse_header is true" do
           category = RocketJob::Category::Input.new(columns: ["Name", "Address One", "zip code"])

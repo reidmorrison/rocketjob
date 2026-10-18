@@ -210,6 +210,12 @@ module RocketJob
         @tabular ||= build_tabular
       end
 
+      # Returns [RocketJob::Category::Input|RocketJob::Category::Output] a copy of this category, with its settings, for
+      # the next run of its job, see RocketJob::Batch::Categories#rocket_job_restart_copy_to.
+      def restart_copy
+        clone
+      end
+
       # Returns [true|false] whether this category has the attributes defined for tabular to work.
       def tabular?
         format.present?

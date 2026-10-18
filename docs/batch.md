@@ -293,6 +293,7 @@ Input category options:
 | `invalid_characters` | `nil`     | What to do with a character that is not valid in the file's encoding: `:remove`, `:replace` with U+FFFD, or `:raise`. `nil` removes them from tabular formats, such as CSV, and raises for `:fixed` and lines.
 | `mode`             | `:line`     | How a file is uploaded: `:line`, `:hash`, or the deprecated `:array`.
 | `columns`          | `nil`       | Set by `upload`: the header row read from the file, as it is in the file, so that the workers read each line by it.
+| `header_uploaded`  | `false`     | Set by `upload`: whether `columns` hold the header row read from the file, see [More than one file](#more-than-one-file).
 
 The options `allowed_columns`, `required_columns`, `skip_unknown` and `header_cleanser`, and setting
 `columns` for a file without a header row, are deprecated, since a `schema` replaces them, see
@@ -309,6 +310,20 @@ The `mode` option controls how a file is read during upload:
   category keeps, while each Hash names its own columns.
 
 The `stream_mode` option of `upload` overrides `mode` for that upload.
+
+### More than one file
+
+In the `:line` and `:array` modes an input category holds the header row of one file, which the
+workers read each of its lines by. So uploading a second file with a header row into the same
+category raises `ArgumentError`, rather than storing that file's header row as a record and reading
+its lines with the first file's columns. Upload each such file into its own input category, or
+upload them in the `:hash` mode, in which each record keeps the columns of its own file. Files
+without a header row, such as JSON, or CSV files whose `columns` are set, can be uploaded one after
+another.
+
+When a batch job restarts, such as the next run of a scheduled job, its input categories keep their
+settings but not the header row that the last upload read, so each run reads the header row of its
+own file.
 
 ## Collecting output
 

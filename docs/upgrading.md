@@ -152,6 +152,29 @@ input_category format: :csv, mode: :hash
 format, `#perform` received each row as an Array, so set the category's format, such as `:csv`, and
 change `#perform` to read the Hash.
 
+### An input category holds the header row of one file
+
+In the `:line` and `:array` modes an input category keeps the header row that `upload` read from a
+file, and its workers read each line by it. Two cases changed, see
+[More than one file](batch.html#more-than-one-file):
+
+* Uploading a second file with a header row into the same input category raises `ArgumentError`. v7
+  stored the second file's header row as a record, and read its lines with the first file's columns.
+  Upload each file into its own input category, or in the `:hash` mode.
+* A batch job that restarts, such as the next run of a job that includes `RocketJob::Plugins::Cron`,
+  reads the header row of its own upload. v7 kept the header row that the previous run read, so each
+  later run stored its file's header row as a record. A job saved by v7 does not record that its
+  columns came from a file, so clear them once after upgrading, for each such scheduled job class:
+
+  ~~~ruby
+  MyScheduledJob.where(:state.in => %w[queued paused]).each do |job|
+    job.input_category.columns = nil
+    job.save!
+  end
+  ~~~
+
+  Leave the `columns` of a category that sets them for a file without a header row.
+
 ### Finding the deprecated options
 
 Rocket Job reports a Ruby deprecation warning for each deprecated category option that it is given,
