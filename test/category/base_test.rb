@@ -123,33 +123,85 @@ module Batch
         end
       end
 
-      describe "#format_options=" do
-        it "sets the schema of a fixed width layout" do
-          category = RocketJob::Category::Input.new(format: :fixed)
-          category.format_options = {layout: [{size: 10, key: :name}, {size: 5}, {size: 5, key: "zip", type: :integer}]}
+      describe "#format" do
+        it "is one of the formats of IOStreams" do
+          assert_predicate RocketJob::Category::Input.new(format: :psv), :valid?
+          assert_predicate RocketJob::Category::Input.new(format: :auto), :valid?
+          refute_predicate RocketJob::Category::Input.new(format: :unknown), :valid?
+        end
 
-          assert_equal(
-            {
-              "fields"      => [
-                {"name" => "name", "type" => "string", "width" => 10, "truncate" => true},
-                {"name" => "zip", "type" => "integer", "width" => 5, "start" => 16}
-              ],
-              # Writing skips the keys of a record that the layout does not have, as a layout did.
-              "fieldsMatch" => "subset"
-            },
-            category.schema
-          )
+        it "accepts a format that is registered after Rocket Job is loaded" do
+          IOStreams::Tabular.register_format(:review_test, IOStreams::Tabular::Parser::Csv)
+
+          assert_predicate RocketJob::Category::Input.new(format: :review_test), :valid?
+          assert_includes RocketJob::Category::Base::FORMATS.to_a, :review_test
+        ensure
+          IOStreams::Tabular.deregister_format(:review_test)
+        end
+
+        it "lists the formats as the choices of the validation, as a form, such as Mission Control's, reads them" do
+          choices = RocketJob::Category::Input.validators_on(:format).first.options[:in]
+
+          assert_equal [nil, :auto], choices.first(2)
+          assert_includes choices.map(&:to_s), "csv"
+        end
+      end
+
+      describe "#format_options" do
+        let(:layout) { {layout: [{size: 10, key: :name}, {size: 5, key: :zip, type: :integer}]} }
+
+        it "reads records with the keys of the layout, as before v8" do
+          category = RocketJob::Category::Input.new(format: :fixed, format_options: layout)
+
+          assert_equal({name: "Jack", zip: 12_345}, category.parse_record("Jack      12345"))
+          assert_nil category.schema
+        end
+
+        it "narrows the records to the input columns, as before v8" do
+          category = RocketJob::Category::Input.new(format: :fixed, format_options: layout, columns: %w[name])
+
+          assert_equal({"name" => "Jack"}, category.parse_record("Jack      12345"))
+        end
+
+        it "renders an Array result by the output columns, as before v8" do
+          layout   = {layout: [{size: 10, key: "name"}, {size: 5, key: "zip"}]}
+          category = RocketJob::Category::Output.new(format: :fixed, format_options: layout, columns: %w[zip name])
+
+          assert_predicate category, :valid?
+          assert_equal "Jack      12345", category.render(%w[12345 Jack])
+        end
+
+        it "can be set with skip_unknown, which does not change the records" do
+          category = RocketJob::Category::Input.new(format: :fixed, format_options: layout, skip_unknown: true)
+
+          assert_predicate category, :valid?
+          assert_equal({name: "Jack", zip: 12_345}, category.parse_record("Jack      12345"))
+        end
+
+        it "cannot be set with a schema" do
+          category = RocketJob::Category::Input.new(format: :fixed, format_options: layout,
+                                                    schema: {"fields" => [{"name" => "name", "width" => 10}]})
+
+          refute_predicate category, :valid?
+          assert_equal ["Schema replaces format_options, which cannot be set with it"], category.errors.full_messages
         end
 
         it "does nothing when blank" do
-          category = RocketJob::Category::Input.new(format_options: {})
+          category = RocketJob::Category::Input.new(format: :fixed, format_options: {})
 
           assert_nil category.schema
+          assert_predicate category, :valid?
         end
 
         it "raises when the layout is not valid" do
           assert_raises(IOStreams::Errors::InvalidLayout) do
             RocketJob::Category::Input.new(format_options: {layout: [{key: "name"}]})
+          end
+        end
+
+        it "raises for an option other than the layout" do
+          assert_raises(ArgumentError) do
+            RocketJob::Category::Input.new(format_options: {layout: [{size: 10, key: :name}], skip_unknown: true})
           end
         end
 
@@ -162,26 +214,17 @@ module Batch
       end
 
       describe "saved before v8" do
-        def from_db(category)
-          RocketJob::Category::Input.instantiate(category)
-        end
-
-        it "translates format_options into its schema" do
-          category = from_db("_id" => BSON::ObjectId.new, "format" => "fixed",
-                             "format_options" => {"layout" => [{"size" => 10, "key" => "name"}]})
-
-          assert_equal(
-            {"fields" => [{"name" => "name", "type" => "string", "width" => 10, "truncate" => true}], "fieldsMatch" => "subset"},
-            category.schema
+        it "keeps its format_options, and reads its records with them" do
+          category = RocketJob::Category::Input.instantiate(
+            "_id"            => BSON::ObjectId.new,
+            "format"         => "fixed",
+            "format_options" => {"layout" => [{"size" => 10, "key" => "name"}, {"size" => 5, "key" => "zip"}]}
           )
-          refute category.attributes.key?("format_options")
-        end
-
-        it "keeps format_options that cannot be translated" do
-          category = from_db("_id" => BSON::ObjectId.new, "format_options" => {"layout" => [{"key" => "name"}]})
 
           assert_nil category.schema
-          assert_equal({"layout" => [{"key" => "name"}]}, category.attributes["format_options"])
+          assert_equal({"layout" => [{"size" => 10, "key" => "name"}, {"size" => 5, "key" => "zip"}]},
+                       category.format_options)
+          assert_equal({"name" => "Jack", "zip" => "12345"}, category.parse_record("Jack      12345"))
         end
       end
 

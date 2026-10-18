@@ -366,6 +366,30 @@ module Sliced
           assert_equal 1, input.running.count
           assert_equal 0, input.failed.count
         end
+
+        it "requeues only the slices of the workers on the server" do
+          mine = input.new(records: %w[hello], worker_name: "host:12:1")
+          mine.start
+          input << mine
+
+          other = input.new(records: %w[world], worker_name: "host:123:1")
+          other.start
+          input << other
+
+          assert_equal 1, input.requeue_running("host:12").modified_count
+          assert_equal ["host:123:1"], input.running.collect(&:worker_name)
+        end
+
+        it "requeues every running slice when no server is named" do
+          %w[host:12:1 host:123:1].each do |worker_name|
+            slice = input.new(records: %w[hello], worker_name: worker_name)
+            slice.start
+            input << slice
+          end
+
+          assert_equal 2, input.requeue_running(nil).modified_count
+          assert_equal 0, input.running.count
+        end
       end
 
       describe "#next_slice" do

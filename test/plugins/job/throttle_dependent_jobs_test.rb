@@ -11,6 +11,16 @@ module Plugins
       class DependentTestJob < RocketJob::Job
       end
 
+      class DependentBeforeBatchJob < RocketJob::Job
+        include RocketJob::Plugins::ThrottleDependentJobs
+        include RocketJob::Batch
+      end
+
+      class DependentAfterBatchJob < RocketJob::Job
+        include RocketJob::Batch
+        include RocketJob::Plugins::ThrottleDependentJobs
+      end
+
       describe RocketJob::Plugins::ThrottleDependentJobs do
         before do
           RocketJob::Job.delete_all
@@ -22,6 +32,13 @@ module Plugins
 
         let(:job) do
           RegularTestJob.new
+        end
+
+        describe "with a batch job" do
+          it "throttles its slices too, whether it is included before or after RocketJob::Batch" do
+            assert DependentBeforeBatchJob.batch_throttle?(:dependent_jobs_running?)
+            assert DependentAfterBatchJob.batch_throttle?(:dependent_jobs_running?)
+          end
         end
 
         describe "with a regular job" do

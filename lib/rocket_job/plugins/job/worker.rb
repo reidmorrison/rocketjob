@@ -74,8 +74,7 @@ module RocketJob
             # branches are not equivalent and must not be collapsed.
             # rubocop:disable-next Style/GuardClause
             if failed? || !may_fail?
-              self.exception        = JobException.from_exception(e)
-              exception.worker_name = worker_name
+              self.exception = JobException.from_exception(e, worker_name: worker_name)
             else
               fail(worker_name, e)
             end

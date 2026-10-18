@@ -15,6 +15,12 @@ module RocketJob
 
       validates_inclusion_of :serializer, in: %i[none compress encrypt bz2 encrypted_bz2 bzip2]
 
+      # Returns [String] the supplied record, such as the Hash that `#perform` returned, rendered as a line in this
+      # category's format, or the record as it is when this category has no format, see #tabular?.
+      def render(record)
+        tabular? ? tabular.render(record) : record
+      end
+
       # Renders [String] the header line.
       # Returns [nil] if no header is needed.
       def render_header

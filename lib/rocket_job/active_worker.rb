@@ -18,9 +18,13 @@ module RocketJob
       servers = []
       # Need paused, failed or aborted since servers may still be working on active slices
       query = RocketJob::Job.where(:state.in => %i[running paused failed aborted])
-      query = query.where(worker_name: /\A#{server_name}/) if server_name
+      if server_name
+        # The workers of a batch job that is processing its slices can be on any server, see
+        # RocketJob::Batch::Worker#rocket_job_active_workers.
+        query = query.any_of({worker_name: RocketJob::Worker.on_server_pattern(server_name)}, {sub_state: "processing"})
+      end
       query.each do |job|
-        servers += job.rocket_job_active_workers
+        servers += job.rocket_job_active_workers(server_name)
       end
       servers
     end
@@ -50,13 +54,9 @@ module RocketJob
       Time.now - (started_at || Time.now)
     end
 
-    # Returns [String] the name of the server running this worker
+    # Returns [String] the name of the server running this worker, see RocketJob::Worker.server_name_of.
     def server_name
-      if (match = name.to_s.match(/(.*:.*):.*/))
-        match[1]
-      else
-        name
-      end
+      RocketJob::Worker.server_name_of(name)
     end
 
     def server

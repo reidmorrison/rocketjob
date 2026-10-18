@@ -169,8 +169,9 @@ The fields of `DirmonEntry`:
   entries, which helps prevent two entries from claiming the same files.
 
 * **`job_class_name`** (required, String)
-  Name of the job class to start for each matching file. The class must be defined and inherit from
-  `RocketJob::Job`.
+  Name of the job class to start for each matching file. The class must be defined, inherit from
+  `RocketJob::Job`, and be able to receive the file, see
+  [How the file reaches the job](#how-the-file-reaches-the-job).
 
 * **`archive_directory`** (required, String, defaults to `archive`)
   Where matching files are moved before their job is started. See [Archiving](#archiving).
@@ -221,8 +222,9 @@ file is delivered depends on what the job supports:
 * **Simple jobs** can instead declare an `upload_file_name` or `full_file_name` field; the absolute
   path of the archived file is assigned to it, leaving the job to open and read the file itself.
 
-A job that is neither a batch job nor declares one of those fields cannot be used as a Dirmon target
-and is rejected by validation.
+A job that is neither a batch job nor declares one of those fields cannot be used as a Dirmon target,
+and an entry for it is not valid. When the class changes after the entry is saved, so that it can no
+longer receive a file, Dirmon fails the entry and leaves the file where it is.
 
 ## Archiving
 
@@ -235,6 +237,13 @@ stored file to the job that processed it.
 * If it is a **relative** path, it is resolved relative to the directory the file was found in, and any
   sub-directory structure under the pattern is preserved.
 * If left unset it defaults to a directory named `archive`.
+
+A pattern that matches the archive, such as `/data/in/**/*`, skips the files in it, and in every
+directory within it: those within a directory named as a relative `archive_directory` below the
+directory that the pattern starts in, such as `/data/in/archive/2026/orders.csv`, or within an
+absolute one. A directory with the same name above where the pattern starts, such as `archive` in
+`/srv/archive/incoming/*.csv`, does not skip its files, and nor does a file or directory whose name
+only starts with the same characters, such as `archived_orders.csv`.
 
 The file must be in a directory that the Dirmon process can write to, since moving a file changes its
 directory. A file in a directory that cannot be written to is skipped, with a warning.
@@ -249,7 +258,8 @@ under its name with each byte that is not valid UTF-8 replaced by `�` (U+FFFD)
 
 A `pattern` can point anywhere the process user can read, so Dirmon supports an allow-list of root
 paths. When any paths are registered, every resolved file must live under one of them or it is skipped
-and a warning is logged.
+and a warning is logged. A file must be within the directory itself: `/var/sftp` does not admit
+`/var/sftp_old`.
 
 ~~~ruby
 # In an initializer, not via the web UI, so it cannot be tampered with.

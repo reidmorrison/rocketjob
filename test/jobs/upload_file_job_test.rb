@@ -90,6 +90,27 @@ module Jobs
         end
       end
 
+      describe ".job_class_errors" do
+        it "is empty for a job class that it can start" do
+          assert_empty RocketJob::Jobs::UploadFileJob.job_class_errors(UploadFileJobTest::TestJob.name)
+          assert_empty RocketJob::Jobs::UploadFileJob.job_class_errors(UploadFileJobTest::FullNameJob.name)
+        end
+
+        it "names a job class without a method to upload the file with" do
+          assert_equal ["Jobs::UploadFileJobTest::BadJob must implement any one of: :upload :upload_file_name= :full_file_name= instance methods"],
+                       RocketJob::Jobs::UploadFileJob.job_class_errors(UploadFileJobTest::BadJob.name)
+        end
+
+        it "names a class that is not a job, or is not defined" do
+          assert_equal ["Job Hash must be defined and inherit from RocketJob::Job"],
+                       RocketJob::Jobs::UploadFileJob.job_class_errors("Hash")
+          assert_equal ["Job No::Such::Constant must be defined and inherit from RocketJob::Job"],
+                       RocketJob::Jobs::UploadFileJob.job_class_errors("No::Such::Constant")
+          assert_equal ["Job RocketJob::VERSION must be defined and inherit from RocketJob::Job"],
+                       RocketJob::Jobs::UploadFileJob.job_class_errors("RocketJob::VERSION")
+        end
+      end
+
       describe "#valid?" do
         it "with valid job and upload_file_name" do
           assert_predicate job, :valid?
@@ -135,7 +156,7 @@ module Jobs
 
           refute_predicate job, :valid?
           assert_includes job.errors.messages[:job_class_name],
-                          "Model Hash must be defined and inherit from RocketJob::Job"
+                          "Job Hash must be defined and inherit from RocketJob::Job"
         end
 
         it "is valid when the job class name cannot be resolved" do
@@ -201,7 +222,7 @@ module Jobs
           batch_job.perform_now
 
           assert created_job = UploadFileJobTest::BatchTestJob.first
-          assert_equal "test/batch/files/test.csv", created_job.upload_file_name.to_s
+          assert_equal "test/batch/files/test.csv", created_job.input_category.file_name.to_s
         end
 
         it "retains the original_file_name when present" do
@@ -210,7 +231,6 @@ module Jobs
 
           assert created_job = UploadFileJobTest::BatchTestJob.first
           assert_equal "file.rb", created_job.input_category.file_name.to_s
-          assert_equal "file.rb", created_job.upload_file_name.to_s
         end
 
         it "retains input and output categories" do

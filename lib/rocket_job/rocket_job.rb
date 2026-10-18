@@ -81,6 +81,19 @@ module RocketJob
   end
   private_class_method :escape_bytes
 
+  # Returns the Active Record database connections of the current thread to their connection pool, when Active
+  # Record is loaded, so that a worker does not hold one while it waits, or while a long upload runs.
+  def self.release_active_record_connections
+    return unless defined?(ActiveRecord::Base)
+
+    if ActiveRecord::Base.respond_to?(:connection_handler)
+      # Rails 7.2+
+      ActiveRecord::Base.connection_handler.clear_active_connections!(:all)
+    else
+      ActiveRecord::Base.clear_active_connections!
+    end
+  end
+
   # Returns a human readable duration from the supplied [Float] number of seconds
   def self.seconds_as_duration(seconds)
     return nil unless seconds

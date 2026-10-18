@@ -3,6 +3,14 @@ require_relative "../test_helper"
 module Batch
   class CategoryTest < Minitest::Test
     describe RocketJob::Category::Input do
+      describe "#header_uploaded" do
+        it "is false for a category saved before v8, which did not record it" do
+          category = Mongoid::Factory.from_db(RocketJob::Category::Input, {"name" => "main", "format" => "csv", "columns" => %w[name]})
+
+          refute category.header_uploaded
+        end
+      end
+
       describe "#cleanse_header!" do
         it "cleanses the header when cleanse_header is true" do
           category = RocketJob::Category::Input.new(columns: ["Name", "Address One", "zip code"])
@@ -16,6 +24,45 @@ module Batch
           category.cleanse_header!
 
           assert_equal ["Name", "Address One", "zip code"], category.columns
+        end
+
+        it "keeps the tabular that read the header" do
+          category = RocketJob::Category::Input.new(format: :csv, columns: ["Name", "Address One", "zip code"])
+          tabular  = category.tabular
+          category.cleanse_header!
+
+          assert_same tabular, category.tabular
+        end
+      end
+
+      describe "#tabular" do
+        def deprecation_warnings(&)
+          warnings = []
+          Warning.stub(:warn, ->(message, category: nil) { warnings << message if category == :deprecated }, &)
+          warnings
+        end
+
+        it "reads the header row that an upload stored without a deprecation warning" do
+          category = RocketJob::Category::Input.new(format: :csv, columns: %w[first_name zip_code])
+          record   = nil
+          warnings = deprecation_warnings { record = category.parse_record("Jack,12345") }
+
+          assert_equal({"first_name" => "Jack", "zip_code" => "12345"}, record)
+          assert_empty warnings
+        end
+
+        it "keeps columns that were set without cleansing them" do
+          category = RocketJob::Category::Input.new(format: :csv, columns: %w[Name Zip])
+
+          assert_equal({"Name" => "Jack", "Zip" => "12345"}, category.parse_record("Jack,12345"))
+        end
+
+        it "is built again after a field that it is built from is set" do
+          category = RocketJob::Category::Input.new(format: :csv)
+          tabular  = category.tabular
+          category.header_cleanser = :none
+
+          refute_same tabular, category.tabular
         end
       end
 

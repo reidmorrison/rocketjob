@@ -12,6 +12,17 @@ module Plugins
         end
       end
 
+      class PersistBatchJob < RocketJob::Job
+        include RocketJob::Batch
+
+        input_category slice_size: 10
+        output_category format: :csv
+
+        def perform(record)
+          record
+        end
+      end
+
       describe RocketJob::Plugins::Job::Persistence do
         before do
           RocketJob::Job.destroy_all
@@ -124,6 +135,22 @@ module Plugins
             assert_nil @job2.data
           end
 
+          it "does not copy what happened to the job that it restarts" do
+            @job.save!
+            @job.start!
+            @job.fail!(nil, "Oh no")
+            @job.create_restart!
+            @job2 = RocketJob::Job.where(:id.ne => @job.id).first
+
+            assert_predicate @job2, :queued?
+            assert_nil @job2.started_at
+            assert_nil @job2.completed_at
+            assert_equal 0, @job2.failure_count
+            assert_nil @job2.worker_name
+            assert_equal 0, @job2.percent_complete
+            assert_nil @job2.exception
+          end
+
           it "applies overrides to the new instance" do
             @job.save!
             @job.create_restart!(priority: 11, description: "Restarted")
@@ -131,6 +158,57 @@ module Plugins
 
             assert_equal 11, @job2.priority
             assert_equal "Restarted", @job2.description
+          end
+
+          it "keeps the categories of a batch job, with their settings" do
+            job = PersistBatchJob.new
+            job.input_category.slice_size = 25
+            job.output_category.format    = :json
+            job.output_category.nils      = true
+            job.output_category.file_name = "output.json.gz"
+            job.save!
+            job.create_restart!
+
+            restarted = RocketJob::Job.where(:id.ne => job.id).first
+
+            assert_equal 25, restarted.input_category.slice_size
+            assert_equal :json, restarted.output_category.format
+            assert restarted.output_category.nils
+            assert_equal "output.json.gz", restarted.output_category.file_name.to_s
+          ensure
+            RocketJob::Job.destroy_all
+          end
+
+          it "reads the header row of the next run's own file, rather than the one that its last upload read" do
+            job                       = PersistBatchJob.new
+            job.input_category.format = :csv
+            job.upload(StringIO.new("first_name,zip\nJack,12345\n"), file_name: "a.csv")
+            job.save!
+            job.create_restart!
+
+            restarted = RocketJob::Job.where(:id.ne => job.id).first
+
+            assert_nil restarted.input_category.columns
+            refute restarted.input_category.header_uploaded
+            assert_equal 1, restarted.upload(StringIO.new("name,city\nJill,Boston\n"), file_name: "b.csv")
+            assert_equal %w[name city], restarted.input_category.columns
+          ensure
+            RocketJob::Job.all.each(&:cleanup!)
+            RocketJob::Job.destroy_all
+          end
+
+          it "keeps the columns set for a file without a header row" do
+            job                        = PersistBatchJob.new
+            job.input_category.format  = :csv
+            job.input_category.columns = %w[name zip]
+            job.save!
+            job.create_restart!
+
+            restarted = RocketJob::Job.where(:id.ne => job.id).first
+
+            assert_equal %w[name zip], restarted.input_category.columns
+          ensure
+            RocketJob::Job.destroy_all
           end
 
           it "does not create a new instance when the job has expired" do

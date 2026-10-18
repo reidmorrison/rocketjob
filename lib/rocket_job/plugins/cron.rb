@@ -64,15 +64,17 @@ copy_on_restart: true
       private
 
       def rocket_job_cron_on_start
-        return unless cron_schedule && cron_after_start
-
-        current_cron_schedule = cron_schedule
-        update_attribute(:cron_schedule, nil)
-        create_restart!(cron_schedule: current_cron_schedule)
+        rocket_job_cron_reschedule if cron_after_start
       end
 
       def rocket_job_cron_end_state
-        return unless cron_schedule && !cron_after_start
+        rocket_job_cron_reschedule unless cron_after_start
+      end
+
+      # Schedules the next instance of this job with its cron schedule, which this instance no longer has, so that it
+      # does not schedule another.
+      def rocket_job_cron_reschedule
+        return unless cron_schedule
 
         current_cron_schedule = cron_schedule
         update_attribute(:cron_schedule, nil)
@@ -86,9 +88,10 @@ copy_on_restart: true
         end
       end
 
-      # Prevent creation of a new job when another is running with the same cron schedule.
+      # Prevent creation of a new job when another is running with the same cron schedule, unless `cron_singleton` is
+      # false.
       def rocket_job_cron_singleton_check
-        return if cron_schedule.nil? || completed? || aborted? || !rocket_job_cron_duplicate?
+        return if cron_schedule.nil? || !cron_singleton || completed? || aborted? || !rocket_job_cron_duplicate?
 
         errors.add(:state,
                    "Another instance of #{self.class.name} is already queued, running, failed, or paused with the same cron schedule: #{cron_schedule}")

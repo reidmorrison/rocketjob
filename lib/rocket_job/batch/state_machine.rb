@@ -75,8 +75,10 @@ module RocketJob
         self.sub_state = nil
       end
 
-      # Called after a job in sub_state: :before is requeued
+      # Called after a job in sub_state: :before is retried or requeued, so its before_batch callbacks run again, without
+      # what they uploaded the last time, see Batch::IO#rocketjob_undo_before_batch.
       def rocket_job_requeue_sub_state_before
+        rocketjob_undo_before_batch
         self.sub_state   = nil
         self.started_at  = nil
         self.worker_name = nil
@@ -87,9 +89,9 @@ module RocketJob
         self.worker_name = nil
       end
 
-      def rocket_job_requeue_sub_state_processing(worker_name)
+      def rocket_job_requeue_sub_state_processing(server_name)
         self.worker_name = nil
-        input.requeue_running(worker_name)
+        input.requeue_running(server_name)
       end
 
       # Also retry failed slices when the job itself is re-tried

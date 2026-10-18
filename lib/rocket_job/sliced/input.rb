@@ -1,16 +1,25 @@
 module RocketJob
   module Sliced
     class Input < Slices
-      def upload(**args, &)
+      # Uploads the records that the block writes, see Writer::Input.collect, and returns how many it wrote.
+      #
+      # When the upload raises, its slices are removed: those of the supplied `upload_id`, otherwise the whole
+      # collection.
+      def upload(upload_id: nil, **args, &)
         # Create indexes before uploading
         create_indexes
-        Writer::Input.collect(self, **args, &)
+        Writer::Input.collect(self, upload_id: upload_id, **args, &)
       rescue Exception => e
-        drop
+        upload_id ? delete_upload(upload_id) : drop
         raise(e)
       end
 
-      def upload_mongo_query(criteria, columns: [], slice_batch_size: nil, &block)
+      # Removes the slices of the upload with the supplied id, see Slice#upload_id.
+      def delete_upload(upload_id)
+        where(upload_id: upload_id).delete_all
+      end
+
+      def upload_mongo_query(criteria, columns: [], slice_batch_size: nil, upload_id: nil, &block)
         options = criteria.options
 
         # Without a block extract the fields from the supplied criteria
@@ -32,7 +41,7 @@ module RocketJob
             end
         end
 
-        upload(slice_batch_size: slice_batch_size) do |records|
+        upload(slice_batch_size: slice_batch_size, upload_id: upload_id) do |records|
           # Drop down to the mongo driver level to avoid constructing a Model for each document returned
           criteria.klass.collection.find(criteria.selector, options).each do |document|
             records << block.call(document)
@@ -40,7 +49,7 @@ module RocketJob
         end
       end
 
-      def upload_arel(arel, columns: nil, slice_batch_size: nil, &block)
+      def upload_arel(arel, columns: nil, slice_batch_size: nil, upload_id: nil, &block)
         unless block
           columns = columns.blank? ? [:id] : columns.collect(&:to_sym)
 
@@ -56,12 +65,14 @@ module RocketJob
           arel      = arel.select(selection)
         end
 
-        upload(slice_batch_size: slice_batch_size) { |records| arel.find_each { |model| records << block.call(model) } }
+        upload(slice_batch_size: slice_batch_size, upload_id: upload_id) do |records|
+          arel.find_each { |model| records << block.call(model) }
+        end
       end
 
-      def upload_integer_range(start_id, last_id, slice_batch_size: 1_000)
+      def upload_integer_range(start_id, last_id, slice_batch_size: 1_000, upload_id: nil)
         # Each "record" is actually a range of Integers which makes up each slice
-        upload(slice_size: 1, slice_batch_size: slice_batch_size) do |records|
+        upload(slice_size: 1, slice_batch_size: slice_batch_size, upload_id: upload_id) do |records|
           while start_id <= last_id
             end_id = start_id + slice_size - 1
             end_id = last_id if end_id > last_id
@@ -71,13 +82,13 @@ module RocketJob
         end
       end
 
-      def upload_integer_range_in_reverse_order(start_id, last_id, slice_batch_size: 1_000)
+      def upload_integer_range_in_reverse_order(start_id, last_id, slice_batch_size: 1_000, upload_id: nil)
         # Each "record" is actually a range of Integers which makes up each slice
-        upload(slice_size: 1, slice_batch_size: slice_batch_size) do |records|
+        upload(slice_size: 1, slice_batch_size: slice_batch_size, upload_id: upload_id) do |records|
           end_id = last_id
           while end_id >= start_id
             first_id = end_id - slice_size + 1
-            first_id = start_id if first_id.negative? || (first_id < start_id)
+            first_id = start_id if first_id < start_id
             records << [first_id, end_id]
             end_id -= slice_size
           end
@@ -109,9 +120,11 @@ module RocketJob
         )
       end
 
-      # Requeue all running slices for a server or worker that is no longer available
-      def requeue_running(worker_name)
-        running.where(worker_name: /\A#{worker_name}/).update_all(
+      # Requeue all running slices of the workers on a server that is no longer available, or of the named worker,
+      # see RocketJob::Worker.on_server?, or every running slice when no server is named.
+      def requeue_running(server_name)
+        slices = server_name ? running.where(worker_name: RocketJob::Worker.on_server_pattern(server_name)) : running
+        slices.update_all(
           "$unset" => {worker_name: nil, started_at: nil},
           "$set"   => {state: "queued"}
         )

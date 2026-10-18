@@ -59,39 +59,6 @@ module RocketJob
         false
       end
 
-      # Prior to a job being made available for processing it can be processed one
-      # slice at a time.
-      #
-      # For example, to extract the header row which would be in the first slice.
-      #
-      # Returns [Integer] the number of records processed in the slice
-      #
-      # Note: The slice will be removed from processing when this method completes
-      #
-      # @deprecated Please open a ticket if you need this behavior.
-      def work_first_slice(&)
-        raise "#work_first_slice can only be called from within before_batch callbacks" unless sub_state == :before
-
-        # TODO: Make these settings configurable
-        count        = 0
-        wait_seconds = 5
-        while input.first.nil?
-          break if count > 10
-
-          logger.info "First slice has not arrived yet, sleeping for #{wait_seconds} seconds"
-          sleep wait_seconds
-          count += 1
-        end
-
-        slice = input.first
-        # No records processed
-        return 0 unless slice
-
-        # TODO: Persist that the first slice is being processed by this worker
-        slice.start
-        rocket_job_process_slice(slice, &)
-      end
-
       # Returns [Array<ActiveWorker>] All workers actively working on this job
       def rocket_job_active_workers(server_name = nil)
         servers = []
@@ -102,7 +69,7 @@ module RocketJob
           end
         when :processing
           query = input.running
-          query = query.where(worker_name: /\A#{server_name}/) if server_name
+          query = query.where(worker_name: RocketJob::Worker.on_server_pattern(server_name)) if server_name
           query.each do |slice|
             servers << ActiveWorker.new(slice.worker_name, slice.started_at, self)
           end
@@ -195,7 +162,9 @@ module RocketJob
             slice.records
           end
 
-        count = 0
+        count    = 0
+        category = input_category
+        # The writer renders each result in its output category, see Sliced::Writer::Output.
         RocketJob::Sliced::Writer::Output.collect(self, input_slice: slice, append: append) do |writer|
           records.each do |record|
             slice.processing_record_number += 1
@@ -203,7 +172,7 @@ module RocketJob
             # record and reuse it for both the log tag and `#perform`.
             record_number = slice.current_record_number
             SemanticLogger.named_tagged(record: record_number) do
-              writer << rocket_job_batch_perform(slice, record, record_number, &block)
+              writer << rocket_job_batch_perform(slice, category.parse(record), record_number, &block)
               count += 1
             end
           end
@@ -211,7 +180,8 @@ module RocketJob
         count
       end
 
-      # Perform a single record within the current slice.
+      # Perform a single record within the current slice, already parsed by its input category, see
+      # Category::Input#parse, returning the result of `#perform` as the callbacks leave it.
       def rocket_job_batch_perform(slice, record, record_number = slice.current_record_number)
         @rocket_job_record_number = record_number
 
@@ -305,21 +275,18 @@ module RocketJob
 
       # Run the before_batch callbacks
       # Saves the current state before and after running callbacks if callbacks present
+      #
+      # Keeps what the job holds when they start, see #before_batch_state, while they run, so that a retry of the job
+      # can remove what they uploaded before they run again.
       def rocket_job_batch_run_before_callbacks
         unless _before_batch_callbacks.empty?
-          self.sub_state = :before
+          self.sub_state          = :before
+          self.before_batch_state = rocketjob_before_batch_state
           save! unless new_record? || destroyed?
-          logger.measure_info(
-            "before_batch",
-            metric:             "#{self.class.name}/before_batch",
-            log_exception:      :full,
-            on_exception_level: :error,
-            silence:            log_level
-          ) do
-            run_callbacks(:before_batch)
-          end
+          rocket_job_batch_measure(:before_batch) { run_callbacks(:before_batch) }
         end
-        self.sub_state = :processing
+        self.sub_state          = :processing
+        self.before_batch_state = nil
         save! unless new_record? || destroyed?
       end
 
@@ -329,21 +296,26 @@ module RocketJob
         unless _after_batch_callbacks.empty?
           self.sub_state = :after
           save! if save_before && !new_record? && !destroyed?
-          logger.measure_info(
-            "after_batch",
-            metric:             "#{self.class.name}/after_batch",
-            log_exception:      :full,
-            on_exception_level: :error,
-            silence:            log_level
-          ) do
-            run_callbacks(:after_batch)
-          end
+          rocket_job_batch_measure(:after_batch) { run_callbacks(:after_batch) }
         end
         if new_record? || destroyed?
           complete if may_complete?
         else
           may_complete? ? complete! : save!
         end
+      end
+
+      # Logs how long the supplied block of the named callbacks takes, and the exception that it raises, and
+      # forwards the duration as the metric of the callbacks.
+      def rocket_job_batch_measure(name, &)
+        logger.measure_info(
+          name.to_s,
+          metric:             "#{self.class.name}/#{name}",
+          log_exception:      :full,
+          on_exception_level: :error,
+          silence:            log_level,
+          &
+        )
       end
 
       # Run Batch before and after callbacks
@@ -354,7 +326,7 @@ module RocketJob
           rocket_job_batch_run_before_callbacks
           # Check for 0 record jobs
           rocket_job_batch_complete?(worker.name) if running?
-        when sub_state == :after
+        when :after
           rocket_job_batch_run_after_callbacks
         end
       end

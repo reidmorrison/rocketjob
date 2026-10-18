@@ -30,6 +30,11 @@ module RocketJob
         # Breaks the :running state up into multiple sub-states:
         #   :running -> :before -> :processing -> :after -> :complete
         field :sub_state, type: Mongoid::StringifiedSymbol
+
+        # While the before_batch callbacks run: the `record_count` and the upload state of each input category when
+        # they started, which a retry, or requeue, of the job restores, after removing the slices that they uploaded,
+        # so that they upload their input again without duplicating it, see RocketJob::Batch::IO#upload.
+        field :before_batch_state, type: Hash
       end
 
       # Returns [Integer] percent of records completed so far
@@ -111,18 +116,6 @@ module RocketJob
           end
         @worker_count_last = Time.now.to_i
         @worker_count
-      end
-
-      # @deprecated
-      # For backward compatibility
-      def upload_file_name
-        input_category.file_name
-      end
-
-      # @deprecated
-      # For backward compatibility
-      def upload_file_name=(upload_file_name)
-        input_category.file_name = upload_file_name
       end
     end
   end

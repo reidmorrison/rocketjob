@@ -104,15 +104,12 @@ module RocketJob
         @rocket_job_perform_statistics = nil
       end
 
-      # Overrides RocketJob::Batch::Logger#rocket_job_batch_log_payload
+      # Adds the statistics of a completed or failed job to the payload of its state change, see
+      # RocketJob::Batch::Logger#rocket_job_batch_log_payload.
       def rocket_job_batch_log_payload
-        h = {
-          from:  aasm.from_state,
-          to:    aasm.to_state,
-          event: aasm.current_event
-        }
-        h[:statistics] = statistics.dup if statistics.present? && (completed? || failed?)
-        h
+        payload              = super
+        payload[:statistics] = statistics.dup if statistics.present? && (completed? || failed?)
+        payload
       end
     end
   end

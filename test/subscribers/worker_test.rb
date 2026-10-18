@@ -81,6 +81,25 @@ class WorkerSubscriberTest < Minitest::Test
         assert_equal [:shutdown!, [:join, 0.1], :kill], worker.calls
       end
 
+      it "acts on a server id published as a String" do
+        worker = FakeWorker.new
+        stub_pool(worker)
+
+        subscriber.kill(server_id: server.id.to_s, worker_id: worker_id, wait_timeout: 0.1)
+
+        assert_equal [:shutdown!, [:join, 0.1], :kill], worker.calls
+      end
+
+      it "ignores a request without a server id" do
+        worker = FakeWorker.new
+        pool   = stub_pool(worker)
+
+        subscriber.kill(server_id: nil, worker_id: worker_id)
+
+        assert_empty worker.calls
+        assert_empty pool.requested_ids
+      end
+
       it "defaults the wait_timeout when not supplied" do
         worker = FakeWorker.new
         stub_pool(worker)

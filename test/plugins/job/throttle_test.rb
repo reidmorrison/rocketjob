@@ -121,6 +121,14 @@ module Plugins
 
             assert ThrottleJob.throttle?(:throttle_running_jobs_exceeded?), ThrottleJob.rocket_job_throttles.throttles
           end
+
+          it "keeps the throttle of the parent class" do
+            child = Class.new(BaseJob)
+            child.undefine_throttle(:base_throttle)
+
+            refute child.throttle?(:base_throttle)
+            assert BaseJob.throttle?(:base_throttle)
+          end
         end
 
         describe "throttle descriptions" do

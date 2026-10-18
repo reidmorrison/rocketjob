@@ -17,9 +17,8 @@ module RocketJob
           "Throttled: dependent jobs are running (#{Array(job.dependent_jobs).join(', ')})"
         }
         define_throttle :dependent_jobs_running?, description: dependent_jobs_description
-        if respond_to?(:define_batch_throttle)
-          define_batch_throttle :dependent_jobs_running?, description: dependent_jobs_description
-        end
+        # Throttles the slices of a batch job too, whether this plugin is included before or after RocketJob::Batch.
+        rocket_job_batch_plugin { define_batch_throttle :dependent_jobs_running?, description: dependent_jobs_description }
       end
 
       class_methods do

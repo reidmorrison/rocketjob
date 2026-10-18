@@ -137,7 +137,7 @@ Useful `upload` keyword options:
 | Option         | Description
 |:---------------|:------------
 | `category`     | Which input category to load into. Default: `:main`.
-| `stream_mode`  | `:line` (default), `:array`, or `:hash`. See [input categories](#input-categories).
+| `stream_mode`  | `:line` (default), `:hash`, or the deprecated `:array`. See [input categories](#input-categories).
 | `file_name`    | Override the file name used to infer format and streams.
 | `delimiter`    | Record delimiter. Default: auto-detect line endings.
 | `on_first`     | A lambda called with the first line, for example to capture a header.
@@ -193,37 +193,38 @@ For the full list of supported file types and transformations, see
 
 ### Active Record queries
 
-`upload_arel` uploads the result of an Active Record query. By default it uploads only the `:id` of
+`upload` uploads the result of an Active Record query. By default it uploads only the `:id` of
 each row, adding it to the select list to reduce overhead:
 
 ~~~ruby
 # Upload the ids of all US users
-job.upload_arel(User.where(country_code: "US"))
+job.upload(User.where(country_code: "US"))
 ~~~
 
-Supply column names to upload more than the id:
+Supply column names to upload those columns instead of the id, as an Array per row, or the value
+itself for a single column:
 
 ~~~ruby
-job.upload_arel(User.where(country_code: "US"), :user_name, :zip_code)
+job.upload(User.where(country_code: "US"), columns: %i[user_name zip_code])
 ~~~
 
 Pass a block to transform each model into the record to upload:
 
 ~~~ruby
-job.upload_arel(User.where(country_code: "US")) { |user| user.email }
+job.upload(User.where(country_code: "US")) { |user| user.email }
 ~~~
 
 ### Mongoid queries
 
-`upload_mongo_query` uploads the result of a MongoDB query. It reads the collection directly, rather
+`upload` uploads the result of a MongoDB query too. It reads the collection directly, rather
 than building a Mongoid model per document, to avoid that overhead:
 
 ~~~ruby
 # Upload the ids of all users in Florida
-job.upload_mongo_query(User.where(state: "FL"))
+job.upload(User.where(state: "FL"))
 
-# Upload an additional field
-job.upload_mongo_query(User.where(state: "FL"), :zip_code)
+# Upload a field instead
+job.upload(User.where(state: "FL"), columns: [:zip_code])
 ~~~
 
 When a block is supplied it receives each document and returns the record to upload. The returned
@@ -232,19 +233,21 @@ value must serialize to BSON (`Hash`, `Array`, `String`, `Integer`, `Float`, `Sy
 
 ### Integer ranges
 
-`upload_integer_range` uploads a range of integers efficiently, which is ideal for driving work off a
-contiguous range of ids:
-
-~~~ruby
-job.upload_integer_range(1, 1_000_000)
-~~~
-
-`upload_integer_range_in_reverse_order` does the same but processes the highest ids first. A plain
-`Range` can also be passed straight to `upload`:
+A `Range` uploads a range of integers efficiently, which is ideal for driving work off a contiguous
+range of ids. Each slice holds one `[first_id, last_id]` range of `slice_size` ids, and a descending
+range processes the highest ids first:
 
 ~~~ruby
 job.upload(1..1_000_000)
+job.upload(1_000_000..1)
 ~~~
+
+Each integer counts as one record in the job's `record_count`, so `percent_complete` follows the ranges
+as they are processed.
+
+`upload_arel`, `upload_mongo_query`, `upload_integer_range` and
+`upload_integer_range_in_reverse_order`, which uploaded a query or a range before `upload` accepted
+them, are removed in v8, see [Upgrading to v8](upgrading.html#removed).
 
 ### A block
 
@@ -289,8 +292,9 @@ Input category options:
 | `schema`           | `nil`       | The fields of each record and their types, and which columns a file can and must have. Also gives the position of each field of a `:fixed` file. See [Typed values with a schema](#typed-values-with-a-schema) and [Validating columns](#validating-columns).
 | `encoding`         | `nil`       | The encoding of the files, such as `"Windows-1252"`, which is converted to UTF-8. `nil` reads UTF-8, or the format's own encoding, such as ASCII for `:fixed`. Name the byte order of UTF-16 or UTF-32, such as `"UTF-16LE"`. See [Files](#files).
 | `invalid_characters` | `nil`     | What to do with a character that is not valid in the file's encoding: `:remove`, `:replace` with U+FFFD, or `:raise`. `nil` removes them from tabular formats, such as CSV, and raises for `:fixed` and lines.
-| `mode`             | `:line`     | How a file is uploaded: `:line`, `:array`, or `:hash`.
+| `mode`             | `:line`     | How a file is uploaded: `:line`, `:hash`, or the deprecated `:array`.
 | `columns`          | `nil`       | Set by `upload`: the header row read from the file, as it is in the file, so that the workers read each line by it.
+| `header_uploaded`  | `false`     | Set by `upload`: whether `columns` hold the header row read from the file, see [More than one file](#more-than-one-file).
 
 The options `allowed_columns`, `required_columns`, `skip_unknown` and `header_cleanser`, and setting
 `columns` for a file without a header row, are deprecated, since a `schema` replaces them, see
@@ -300,11 +304,32 @@ The `mode` option controls how a file is read during upload:
 
 * `:line` (default) uploads a raw line (String) at a time. This is the most performant, since each
   worker parses its own lines.
-* `:array` parses each line into an Array before uploading. The whole file is parsed up front, so an
+* `:hash` parses each line into a Hash before uploading. The whole file is parsed up front, so an
   invalid file is detected before processing starts. Not recommended for very large files.
-* `:hash` parses each line into a Hash before uploading. Like `:array`, but slightly less efficient.
+* `:array` parses each line into an Array before uploading, and is deprecated: use `:line`, or
+  `:hash` to parse the whole file up front. Its rows only make sense with the header row that the
+  category keeps, while each Hash names its own columns.
 
 The `stream_mode` option of `upload` overrides `mode` for that upload.
+
+### More than one file
+
+In the `:line` and `:array` modes an input category holds the header row of one file, which the
+workers read each of its lines by. So uploading a second file with a header row into the same
+category raises `ArgumentError`, in any mode, rather than storing that file's header row as a record
+and reading its lines with the first file's columns. Upload each such file into its own input
+category, or upload every file in the `:hash` mode, in which each record keeps the columns of its
+own file. Files without a header row, such as CSV files whose `columns` are set, or JSON in the
+`:line` mode, can be uploaded one after another. In the deprecated `:array` mode JSON is read by the
+keys of its first record, which act as a header row.
+
+When an upload fails, such as when the file cannot be read to its end, its records are not kept,
+and neither is the header row that it read, so the job can upload the file again when it is
+retried.
+
+When a batch job restarts, such as the next run of a scheduled job, its input categories keep their
+settings but not the header row that the last upload read, so each run reads the header row of its
+own file.
 
 ## Collecting output
 
@@ -599,7 +624,9 @@ So to keep the keys that a job reads, name each field as the column was cleansed
 `Last Login`: the schema matches the column to that field.
 
 `IOStreams.enforce_column_restrictions = false` applies them only to a cleansed header row, as
-earlier versions did. IOStreams 3.0 deprecates it, since it only applies to these options.
+earlier versions did. IOStreams 3.0 deprecates it, since it only applies to these options, so use it
+only while changing a job that relied on them being ignored: describe the columns with a schema
+instead, or remove the options from a job whose input they never applied to, such as JSON records.
 
 ## Writing tabular files
 
@@ -624,7 +651,7 @@ end
 
 ~~~ruby
 job = ExportUsersJob.new
-job.upload_arel(User.where(locked: true))
+job.upload(User.where(locked: true))
 job.save!
 # ... once complete ...
 job.download("output.csv")
@@ -1085,6 +1112,12 @@ slice and batch level:
 final bookkeeping, as shown in the [single output file](#single-output-file-via-after_batch) and
 [lower priority](#lowering-priority-for-large-jobs) examples.
 
+A job that fails, or whose server dies, while its `before_batch` callbacks run, runs them again when
+it is retried or requeued. Before they run again, the job removes the slices that they uploaded, and
+puts back the `record_count` and the input categories as they were when the callbacks started,
+including the header row that an upload read. So uploading in `before_batch` does not duplicate the
+input, and slices uploaded before the job started are kept.
+
 ## Gathering statistics
 
 `RocketJob::Batch::Statistics` lets a job count things while it runs and have those counts aggregated
@@ -1217,10 +1250,11 @@ How batch jobs differ from simple jobs in this diagram:
 * **`fail`**: if any slice raises and only failed slices remain, the job as a whole becomes `failed`
   (see [Error handling](#error-handling)). Individual slices carry their own state and exceptions.
 * **`retry`** is sub-state aware: a job that failed during `before_batch` retries back to `queued`,
-  while one that failed during or after processing retries straight to `running` and reprocesses only
-  the failed slices, leaving already-completed records untouched.
+  without what `before_batch` uploaded (see [Batch callbacks](#batch-callbacks)), while one that
+  failed during or after processing retries straight to `running` and reprocesses only the failed
+  slices, leaving already-completed records untouched.
 * **`requeue`** (automatic when a worker's server dies) also depends on sub-state: work interrupted
-  during `before_batch` goes back to `queued`; work interrupted during processing or `after_batch` is
+  during `before_batch` goes back to `queued`, also without what it uploaded; work interrupted during processing or `after_batch` is
   requeued within `running` so the running slices are reclaimed by other workers.
 
 As with simple jobs, each transition is callable on the job and comes in two forms: `job.abort`

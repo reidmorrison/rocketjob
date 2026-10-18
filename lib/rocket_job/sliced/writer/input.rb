@@ -21,6 +21,10 @@ module RocketJob
         #     The number of slices to batch up and to bulk load.
         #     For smaller slices this significantly improves upload performance.
         #     Note: If `slice_batch_size` is too high, it can exceed the maximum BSON block size.
+        #
+        #   upload_id: [String]
+        #     The id of this upload, which each slice holds, see Slice#upload_id.
+        #     Default: nil
         def self.collect(data_store, **args)
           writer = new(data_store, **args)
           yield(writer)
@@ -29,8 +33,9 @@ module RocketJob
           writer&.flush
         end
 
-        def initialize(data_store, on_first: nil, slice_size: nil, slice_batch_size: nil)
+        def initialize(data_store, on_first: nil, slice_size: nil, slice_batch_size: nil, upload_id: nil)
           @on_first         = on_first
+          @upload_id        = upload_id
           @record_count     = 0
           @data_store       = data_store
           @slice_size       = slice_size || @data_store.slice_size
@@ -68,7 +73,9 @@ module RocketJob
         end
 
         def new_slice
-          @slice = @data_store.new(first_record_number: @record_count + 1)
+          attributes             = {first_record_number: @record_count + 1}
+          attributes[:upload_id] = @upload_id if @upload_id
+          @slice                 = @data_store.new(attributes)
         end
 
         def save_slice

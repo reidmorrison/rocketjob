@@ -20,7 +20,11 @@ A Rocket Job event is a small message that is published to MongoDB and then
 delivered almost immediately (usually under 100 ms) to every process that has
 subscribed to it. There is no separate message broker to install or operate:
 events are stored in a [tailable capped collection](architecture.html) that
-every Rocket Job server tails in the background.
+every Rocket Job server tails in the background. A store without capped
+collections, such as AWS DocumentDB, needs
+`RocketJob::Event.listener_strategy = :polling`, which stores them in a regular
+collection that every server polls instead, see
+[AWS DocumentDB](installation.html#aws-documentdb).
 
 Events are how the supervisor controls its servers. When a server is paused,
 stopped, or killed from [Mission Control](mission_control.html) or from a Rails
@@ -326,10 +330,14 @@ capped collection in MongoDB. Every subscribed process tails that collection
 with a long-polling tailable cursor, so a newly published event is picked up
 within milliseconds and the matching action is invoked on each subscriber.
 
-Because the mechanism relies on a tailable capped collection, it requires a real
-MongoDB server. AWS DocumentDB does not support capped collections and therefore
-cannot host Rocket Job. See [Installation](installation.html) and
-[Architecture](architecture.html) for details.
+A tailable capped collection needs a real MongoDB server. On a store without
+capped collections, such as AWS DocumentDB, set
+`RocketJob::Event.listener_strategy = :polling`. Events are then saved in a
+regular collection, which every process polls every
+`RocketJob::Event.poll_interval` seconds (default `1`), and a TTL index removes
+each event after `RocketJob::Event.event_retention_seconds` (default one hour).
+See [AWS DocumentDB](installation.html#aws-documentdb) for all of the event
+listener settings.
 
 A subscriber receives only the events whose name matches its own. An action that
 is published but is not defined on any subscribed subscriber is simply logged

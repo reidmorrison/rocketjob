@@ -7,6 +7,54 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Breaking changes
 
+- Removed `RocketJob::Plugins::Restart`, deprecated in v6, use `RocketJob::Plugins::Cron`; `RocketJob::LookupCollection`,
+  which was unused, and whose `upload` always raised `ArgumentError`; and `#work_first_slice` of a batch job,
+  deprecated in v6. A batch job saved by v5, and never saved since, is no longer translated into v6 categories when
+  it is read. See the upgrade guide.
+- Removed the batch job methods `upload_arel`, `upload_mongo_query`, `upload_integer_range` and
+  `upload_integer_range_in_reverse_order`, deprecated in v6. Call `upload` with the relation, query or range instead,
+  such as `upload(User.where(country_code: "US"), columns: %i[name zip_code])` or `upload(200..421)`, including in
+  the `before_code` of an `OnDemandBatchJob`, whose documentation showed `upload_arel`. Also removed
+  `upload_file_name` and `upload_file_name=` of a batch job, deprecated in v6, which read and set the `file_name` of
+  its input category: use `input_category.file_name` instead. See the upgrade guide.
+- `.from_properties(nil)` of a batch job builds a job with the defaults, as it does for a job that is not a batch
+  job. Previously it raised `NoMethodError`, such as when Mission Control saved a Dirmon entry for a batch job
+  without changing its properties.
+- A batch job that is retried, or requeued, while in `before_batch` removes the slices that its `before_batch`
+  callbacks uploaded, and restores its `record_count`, and the file name, format, columns and header row of each input
+  category, as they were when the callbacks started, so that they upload the input again without duplicating it.
+  Previously the slices that they uploaded were kept, so a retry uploaded the input a second time. Slices uploaded
+  before the job started are kept. Each slice uploaded by `before_batch` records it in its new `upload_id`, and the
+  job keeps what it restores in its new `before_batch_state` while the callbacks run.
+- Uploading a second file with a header row into an input category that holds the header row of an earlier upload,
+  in the `:line` or `:array` mode, raises `ArgumentError` and uploads nothing. Previously the second file's header
+  row was stored as a record, and its lines were read with the first file's columns. A second file uploaded in the
+  `:hash` mode also raises. Upload each file into its own input category, or upload every file in the `:hash` mode,
+  in which each record keeps the columns of its own file. An input category records that its `columns` hold the
+  header row of an upload in its new `header_uploaded`, which an upload that fails clears, with the columns, so
+  that a retried job can upload its file again. See the upgrade guide.
+- `RocketJob::Plugins::Transaction` wraps each slice of a batch job in a transaction, and
+  `RocketJob::Plugins::ThrottleDependentJobs` throttles its slices, whether the job includes them before or after
+  `RocketJob::Batch`, as documented. Previously a job that included `Transaction` first had a transaction around
+  each record instead, and one that included `ThrottleDependentJobs` first did not throttle its slices.
+- `RocketJob::Plugins::Singleton` does not save a job while another of its class is paused, as its documentation
+  and its error message say. Previously only a running or queued job prevented it.
+- Dirmon only skips the files in its archive directory, and in the directories within it: within a directory named
+  as a relative `archive_directory`, such as `archive`, below the directory that the entry's pattern starts in, or
+  within an absolute one. Previously it skipped every file whose path contained the name of the archive directory
+  anywhere, such as `archived_orders.csv`, the files in `/data/archive_2026`, or every file that a pattern such as
+  `/srv/archive/incoming/*.csv` matched, so those files are processed after the upgrade. Move such files elsewhere
+  first if they must not be processed.
+- Uploading a range of integers, such as `upload(200..421)`, returns, and adds to `record_count`, the number of
+  integers in it, 222, where it was the number of ranges, one per slice of `slice_size` integers, 3. So
+  `percent_complete` follows the ranges as they are processed, where it stayed 0 until the job completed. Each slice
+  still holds one `[first_id, last_id]` record. What reads `record_count` counts the integers too:
+  `RocketJob::Batch::LowerPriority` lowers the priority of such a job by one for each `lower_priority_count`
+  integers, rather than ranges, and the `records_per_hour` of its `status` is the integers processed per hour.
+- Uploading a range that excludes its end, such as `upload(200...421)`, does not upload that end. Previously it was
+  uploaded, as if the range were `200..421`. A range without an end or a beginning, such as `200..`, raises
+  `ArgumentError`, where it raised `RangeError`, and a descending range of negative integers, such as `-1..-25`,
+  uploads each integer once. Previously each of its slices started at its lowest integer, so they overlapped.
 - Require IOStreams 3.0, and so Ruby 3.3 or later, which IOStreams 3.0 requires (was Ruby 3.2).
 - Uploaded files are read as UTF-8 text, and a UTF-8 byte order mark at the start of a file is removed.
   Previously the lines were binary strings, so uploading any file with a non-ASCII character, without
@@ -32,8 +80,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   `header_cleanser: :none`. JSON keys are now cleansed like a header row when either is set, for
   example `"Name"` becomes `"name"`, and a record with an unknown key, or without a required column,
   raises `IOStreams::Errors::InvalidHeader` when it is processed, unless `skip_unknown` is true.
-  A job that accepted such data before will now fail it. Set
-  `IOStreams.enforce_column_restrictions = false` to keep the previous behavior.
+  A job that accepted such data before will now fail it. While such a job is changed, set
+  `IOStreams.enforce_column_restrictions = false` to keep the previous behavior, which IOStreams 3.0 deprecates.
+  To fix the job, describe its columns with a schema, or remove the options that never applied to it, such as
+  from a job that reads JSON. See the upgrade guide.
 - Fixed width uploads are read as ASCII, which IOStreams 3.0 uses for the fixed width format, so a file
   with any other character raises `IOStreams::Errors::InvalidEncoding` and nothing is uploaded.
   Previously each byte of a character that is not ASCII became a space. Set the file's encoding on the
@@ -58,9 +108,16 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - `upload` raises `ArgumentError` when it is given `format:`, `format_options:`, `schema:` or
   `default_format:`, since IOStreams 3.0 reads them only from the path. Set them on the input category,
   or on the path that is uploaded, instead.
-- A `Time` that a job returns to a tabular output category is written in ISO 8601, such as
-  `2026-10-13T09:30:00Z`, where it was `2026-10-13 09:30:00 UTC`, and a `BigDecimal` is written as
-  `12.5`, as IOStreams 3.0 writes them.
+- A `Time` that a job returns to a CSV, PSV or fixed width output category is written in ISO 8601, such as
+  `2026-10-13T09:30:00Z`, where it was `2026-10-13 09:30:00 UTC`. A JSON output category writes all of its fraction of a second, such as
+  `2026-10-13T09:30:00.123456Z`, where it was `2026-10-13T09:30:00.123Z`, and none for a whole second, such as
+  `2026-10-13T09:30:00Z`, where it was `2026-10-13T09:30:00.000Z`, as IOStreams 3.0 writes them.
+- A header row is cleansed as IOStreams 3.0 cleanses it, which keeps the letters and digits that are not ASCII, and
+  treats whitespace that is not ASCII, such as a no-break space, as a space. So the column `Prénom` is `prénom`,
+  where it was `prnom`, and `First Name` with a no-break space is `first_name`, where it was `firstname`, which
+  changes the keys of the records that `#perform` receives. Rename any `allowed_columns`, `required_columns` or
+  `columns` written to match the previous names, such as `prnom`, since a column that they no longer name is
+  rejected, or skipped with `skip_unknown`.
 - A Dirmon entry, and an `UploadFileJob`, check the category properties that they hold for a batch job when
   they are saved, so an entry, or an `UploadFileJob`, that was saved before can now fail validation and
   must be corrected before it can be saved again:
@@ -81,14 +138,12 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   `RocketJob::Category::Base#property_errors`, without building the job.
 - `.from_properties` of a batch job merges category properties whose keys are Symbols onto the categories
   that the job defines, as it did for String keys. Previously they replaced the job's categories.
-- A category's `format_options` is replaced by its `schema`, see below. A category no longer has a
-  `format_options` field or reader. `format_options=` is deprecated: it sets the schema of the supplied
-  fixed width layout, so a Dirmon entry or an `UploadFileJob` whose properties hold `format_options`
-  still builds its job. A job saved before v8 has the `format_options` of each category translated into
-  its schema when it is read, and saved that way the next time it is saved. See the upgrade guide.
 
 ### Security
 
+- A Dirmon whitelist path only admits the files within that directory. Previously it admitted any path that started
+  with the same characters, so the whitelisted `/data/in` also admitted the files of `/data/inbox` and
+  `/data/in_other`.
 - With `format: :auto`, renaming an upload from `.csv` to `.json` bypassed `allowed_columns` and
   `required_columns`. They now apply to JSON records too, see above.
 - Dirmon's log messages, the original file name that it records on each `UploadFileJob`, and its list
@@ -100,6 +155,20 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### New features
 
+- A batch job parses each record in its input category, and renders each result in its output category, in the
+  loop that processes its slices, rather than in perform callbacks. So a batch job without perform callbacks of its
+  own skips running them for each record, which doubled the records per second of a job whose `#perform` does no
+  work, from 59,000 to 117,000, or 43,000 to 93,000 with output. Callbacks see the same values as before: the parsed
+  record in `before_perform`, and the result of `#perform` before it is rendered in `after_perform`, except for a
+  perform callback defined before the job includes `RocketJob::Batch`, which now also sees the parsed record, and the
+  result before it is rendered.
+- `upload` passes each model of an Active Record relation, or each document of a Mongoid query, to a supplied block,
+  and uploads what it returns, such as `job.upload(User.where(country_code: "US")) { |user| user.email }`, as the
+  removed `upload_arel` and `upload_mongo_query` did. Previously it raised `ArgumentError` for a query with a block.
+- A job plugin runs its batch setup, such as defining a batch throttle or a slice callback, in a
+  `rocket_job_batch_plugin` block, which runs in the job class once it includes `RocketJob::Batch`, so the plugin
+  works whether a job includes it before or after `RocketJob::Batch`. `Transaction` and `ThrottleDependentJobs`
+  use it.
 - A category's `schema` is a Frictionless Table Schema, as a Hash, or the path or url of a JSON file,
   that IOStreams 3.0 uses to read each value of its records as its type, such as an `Integer`, a
   `BigDecimal` or a `Date`, and to write each value in the text form of its type, for every tabular
@@ -176,20 +245,82 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Deprecated
 
+- A category's `format_options`, the layout of a fixed width file, since the `schema` replaces it, see below. It
+  still works as before: IOStreams reads it as it did, so the keys of each record are the keys of the layout, which
+  are Strings once the job is saved, and the column options, such as `columns`, still apply to its records. A job saved with it is not
+  changed. It cannot be set with a schema, and a layout that is not valid raises
+  `IOStreams::Errors::InvalidLayout` when it is set. `IOStreams::Schema.from_layout` returns the schema of a layout.
+  See the upgrade guide.
 - An input category's `allowed_columns`, `required_columns`, `skip_unknown` and `header_cleanser`, and the
   `columns` of a file without a header row, or of an output category, since IOStreams 3.0 deprecates the
   options that they set, and the schema replaces them. They still work without a schema, and cannot be set
   with one, so a category that sets both is not valid. See the upgrade guide.
+- The `:array` upload mode, an input category's `mode: :array` and the `stream_mode: :array` of `upload`, since each
+  row that it uploads only makes sense with the header row that the category keeps. Use `:line`, or `:hash` to parse
+  the whole file when it is uploaded. See the upgrade guide.
+- Rocket Job reports a Ruby deprecation warning for each of these options, and for `format_options`, at the line
+  of the job class that defines a category with one, or of the call to `upload` that supplies one, and when a Dirmon
+  entry or an `UploadFileJob` builds a job from properties that hold one. They are only reported while Ruby's
+  deprecation warnings are on, such as in tests, see `RocketJob::Deprecation`.
 
 ### Fixes
 
+- An input category with `format: :auto` uploads the first record of a JSON file. Previously it was dropped, as
+  though it were a header row, so `record_count` was one short.
+- A Hash that a job returns supplies the value of each column of an output category whose name only matches one of
+  its keys once both are cleansed, such as the key `"First Name"` for the column `first_name`, or a String key for
+  the Symbol key of a fixed width layout, as IOStreams 3.0 writes them. Previously such a field was written blank.
+  An Array returned to a fixed width output category without `columns` is written by the position of each field of
+  its layout, where it raised `IOStreams::Errors::InvalidHeader`.
+- A worker that parses the records of a tabular input category without a schema, such as CSV, gives IOStreams the
+  header row that the upload read without its deprecated `columns:` option, so a category that sets no deprecated
+  option no longer reports `IOStreams: columns: is deprecated` while deprecation warnings are on, such as in tests.
+- A category accepts a `format` that the application registers with IOStreams after Rocket Job is loaded, see
+  `IOStreams.tabular_formats`. Previously the formats were read when Rocket Job was loaded, so such a format failed
+  validation.
+- The Active Job adapter works with `config.active_job.queue_adapter = :rocket_job`, for which Active Job creates an
+  instance of the adapter. Previously the adapter only had class methods, so `perform_later` raised `NoMethodError`.
+  It now extends `ActiveJob::QueueAdapters::AbstractAdapter` when Active Job defines it, and its class methods
+  still work, including `enqueue_after_transaction_commit?`, which Active Job 7.2 asks an adapter that is assigned
+  as a class.
+- `cron_singleton = false` allows another job with the same `cron_schedule` to be queued, as documented, and as the
+  v6 upgrade guide prescribes to keep the behavior before v6. Previously the setting was ignored, so the second job
+  failed validation.
+- The `--name` option of the `rocketjob` command sets the name of the server. Previously it raised `NoMethodError`.
+- The `--pidfile` option of the `rocketjob` command writes the id of the process. Previously the file was empty
+  unless a gem that the application loaded had required Ruby's `English` library.
+- A category reads and writes its records with a field that is set after it was first used, such as an output
+  category's `columns` or `format`. Previously it kept using the values that it had when it first read or wrote a
+  record, so for example the header row of a download did not change.
+- A batch job in the `after` sub-state that a worker works on, such as one processed with `#perform_now`, runs its
+  `after_batch` callbacks and completes. Previously the worker skipped them, so the job stayed running.
+- A worker event, such as `RocketJob::Subscribers::Worker.publish(:stop, server_id: id.to_s, worker_id: 1)`,
+  acts on the server whose id it names as a String too, as a server event does. Previously the id only matched
+  when it was published as a `BSON::ObjectId`.
+- A batch job class that defines an input or output category, such as `input_category name: :other`, no longer
+  changes the categories of its parent class. Previously it added the category to, or replaced the category with
+  the same name in, the parent class and its other subclasses too, which shared the list. So which categories a
+  job of the parent class had, and their settings, such as `slice_size`, depended on which of its subclasses had
+  been loaded.
+- An exception raised while a batch job's slice is already failed is recorded on the slice. Previously it was lost,
+  and the slice kept the exception of its first failure.
+- `undefine_batch_throttle` in a subclass removes the throttle from that subclass only. Previously it also removed
+  it from the parent class, and from every other subclass of the parent, since they shared the list of throttles.
+- The jobs and slices of a server that died are requeued only when a worker on that server was processing them.
+  Previously the server's name was matched as a prefix, so the server `host:12` also requeued the jobs and slices
+  of `host:123`, which were still being processed, and `RocketJob::ActiveWorker.all("host:12")` listed its
+  workers. Likewise the server `host` no longer requeues those of `host:2`. For a batch job that is processing its
+  slices, `RocketJob::ActiveWorker.all("host:12")` lists the workers processing them on that server, where it listed
+  those of every server, or none, depending on which worker started the job. The name of a server is also read back
+  correctly from the names of its workers when it has no colon, such as `RocketJob::Config.server_name = "worker1"`,
+  so `HousekeepingJob` no longer requeues the jobs that the workers of such a running server are processing.
 - An upload in the `:array` or `:hash` mode of a tabular input category reads with IOStreams 3.0. The
   category sets its format, and the layout of a fixed width file, on the path that it reads, since
   IOStreams no longer accepts them for each read.
 - A category's `encoding`, and `CopyFileJob#source_encoding` and `#target_encoding`, can be `"UTF-8"`.
   Previously it was rejected as an encoding that Ruby cannot convert to and from UTF-8, since Ruby has no
   converter from UTF-8 to itself.
-- An upload of records, such as with a block, `upload_arel` or `upload_mongo_query`, that holds text that is
+- An upload of records, such as with a block, or of a query, that holds text that is
   binary or not valid UTF-8 raises an error that names the number of the first such record, such as
   `Cannot upload record 4, since MongoDB only stores UTF-8 text: ...`, or `record 4 after the header`
   when the upload started with a header row, since the record is then on the next line of the file.
@@ -212,6 +343,18 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Dirmon skips a file whose directory is not writable by the current user, logging a warning, since the
   file cannot be moved to the archive directory. The check never ran, since IOStreams paths do not
   implement `writable?`, so such a file failed its Dirmon entry instead.
+- A batch job that restarts, such as the next run of a scheduled job with `cron_after_start: false`, reads the
+  header row of its own upload. Previously it kept the header row that the previous run's upload read, so the next
+  file's header row was stored as a record, and its lines were read with the previous file's columns. A job saved by
+  v7 keeps that header row until it is cleared, see the upgrade guide.
+- A Dirmon entry whose job class cannot receive a file, since it is not a batch job and has neither an
+  `upload_file_name` nor a `full_file_name` field, is not valid, as the Dirmon guide says. Previously it
+  was saved, then the first file that it found was archived, the `UploadFileJob` for it was rejected, so
+  no job processed the file, and the entry failed. Dirmon also fails the entry, and leaves the file where
+  it is, when its job class can no longer receive a file, such as after the class changed.
+- Dirmon skips the files in an absolute `archive_directory` that is reached through a symbolic link, such
+  as `/data/archive` when it links to `/mnt/storage`. A scan finds each file by its real path, which did
+  not contain the archive directory as it was set, so the archived files were processed again.
 - A job, or a batch job's slice, whose exception message is not valid UTF-8 is failed and saved, with each
   such byte shown as `\xHH`. Previously saving the failure raised `EncodingError`, which left the job, or
   the slice, `running` with no exception recorded until its server restarted, so a batch job never
@@ -277,8 +420,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   Event/Subscriber pub-sub mechanism run without a tailable capped collection. This
   enables Rocket Job's cross-process shutdown/pause/log-level signaling on MongoDB-
   compatible stores that don't support capped collections, such as AWS DocumentDB.
-  Configurable via `RocketJob::Event.listener_strategy`, `Config.poll_interval`, and
-  `Config.event_retention_seconds`.
+  Configurable via `RocketJob::Event.listener_strategy`, `RocketJob::Event.poll_interval`, and
+  `RocketJob::Event.event_retention_seconds`.
 - Capture the reason a job is throttled and surface it in Mission Control. Throttles can
   now declare a `description:` (String or Proc); the triggered description is persisted
   on new `throttled_by`/`throttled_at` fields on both simple and batch jobs, and cleared

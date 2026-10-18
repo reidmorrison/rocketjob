@@ -17,6 +17,10 @@ upgrade steps that need code or data changes when moving between major versions.
 
 ## Upgrading to v8
 
+Upgrade every server that runs workers at the same time, rather than running v7 and v8 workers
+together. A v7 worker reads the jobs that v8 saves with the options that v7 has, such as
+`format_options`, but ignores those that v8 adds, such as a category's `schema` or `encoding`.
+
 ### format_options is replaced by schema
 
 A category's `format_options` is replaced by its `schema`, which IOStreams uses for every tabular
@@ -24,7 +28,7 @@ format, see [Typed values with a schema](batch.html#typed-values-with-a-schema).
 layout becomes a schema with the `width` of each field:
 
 ~~~ruby
-# Before
+# Before (deprecated)
 input_category format:         :fixed,
                format_options: {layout: [{size: 10, key: "name"}, {size: 5, key: "zip", type: :integer}]}
 
@@ -39,18 +43,34 @@ input_category format: :fixed,
                }
 ~~~
 
-The schema that IOStreams translates from a layout has `"fieldsMatch" => "subset"`, so that writing
-skips the keys of a record that the layout does not list, as a layout did. Leave it out to raise
-`IOStreams::Errors::InvalidHeader` for such a key instead, so that a misspelled key is not silently
-left out.
+`IOStreams::Schema.from_layout(layout: ...)` returns the schema of a layout, with
+`"fieldsMatch" => "subset"`, so that writing skips the keys of a record that the layout does not
+list, as a layout did. Leave it out to raise `IOStreams::Errors::InvalidHeader` for such a key
+instead, so that a misspelled key is not silently left out.
+
+Check these when moving a layout to a schema:
+
+* The keys of the records are the names of the fields, which are Strings, since MongoDB does not
+  store Symbols. A layout with Symbol keys, such as `key: :name`, is saved with String keys, so a job
+  that a worker reads back already gave records with String keys. Only a job that was not saved,
+  such as one run with `perform_now`, gave records with Symbol keys, so change `record[:name]` to
+  `record["name"]` in `#perform` if it reads them.
+* The column options, such as `columns`, cannot be set with a schema. An input category's `columns`
+  that narrowed the records of a layout to some of its keys become the fields of the schema. An
+  output category's `columns` that named the values of an Array result are not needed when they
+  are in the order of the fields, since an Array is written by the position of each field.
 
 Existing jobs and settings keep working:
 
-* A job saved before v8 has the `format_options` of each category translated into its schema when it
-  is read, and saved that way the next time the job is saved.
-* `format_options=` still sets a category's schema from a layout, so a Dirmon entry or an
-  `UploadFileJob` whose properties hold `format_options` still builds its job. It is deprecated, and
-  will be removed. A category no longer has a `format_options` reader.
+* `format_options` still works as it did before v8, since IOStreams reads a layout as it did,
+  and the column options with it. It is deprecated, and will be removed.
+* A job saved before v8 is read with its `format_options`, which are not changed when it is saved
+  again, so its slices can still be processed by a v7 worker while servers are upgraded.
+* A layout cannot be set with a schema, and one that is not valid raises
+  `IOStreams::Errors::InvalidLayout` when it is set, rather than when a file is read.
+* A job class that defines a category with `format_options`, and a Dirmon entry or an `UploadFileJob`
+  that builds a job from properties that hold it, report a deprecation warning, see
+  [Finding the deprecated options](#finding-the-deprecated-options).
 
 ### Column options are replaced by schema
 
@@ -95,11 +115,145 @@ columns, as `skip_unknown: true` did.
 
 Existing jobs and settings keep working:
 
-* The deprecated options still work without a schema, as they did in v7, and will be removed.
+* The deprecated options still work without a schema, as they did in v7, and will be removed. Two
+  changes in the [changelog](https://github.com/reidmorrison/rocketjob/blob/main/CHANGELOG.md) apply
+  to them too: `allowed_columns`, `required_columns` and `skip_unknown` now apply to every tabular
+  input, such as JSON records, and a header row is cleansed as IOStreams 3.0 cleanses it, which keeps
+  the letters that are not ASCII, so a column `Prénom` is `prénom` rather than `prnom`.
+* v7 ignored `allowed_columns`, `required_columns` and `skip_unknown` for JSON records, for `columns`
+  supplied for a file without a header row, and with `header_cleanser: :none`, so a job that relied on
+  that may now fail records that it accepted. To get the v7 behavior back while such a job is changed,
+  set `IOStreams.enforce_column_restrictions = false`, such as in an initializer. IOStreams 3.0
+  deprecates it, and reports a deprecation warning when it is set while Ruby's deprecation warnings
+  are on. To fix the job, describe its
+  columns with a schema, or remove the options from it, since they never applied to its input.
 * They cannot be set with a schema, and a category that sets both is not valid, since IOStreams would
   reject them rather than apply one and ignore the other. An input category's `columns` can still be
   set with a schema: `upload` sets them to the header row read from the file, as it is in the file,
   which the workers match to the fields.
+* A job class that defines a category with one of them, and a Dirmon entry or an `UploadFileJob` that
+  builds a job from properties that hold one, report a deprecation warning, see
+  [Finding the deprecated options](#finding-the-deprecated-options).
+
+### The :array upload mode is deprecated
+
+An input category's `mode: :array`, and the `stream_mode: :array` of `upload`, are deprecated. Each
+row that they upload is an Array, which only makes sense with the header row that the category
+keeps. Use the default `:line` mode, in which each worker parses its lines, or `:hash`, which parses
+the whole file when it is uploaded, so that a file with a problem is found before it is processed,
+and uploads each record as a Hash that names its columns:
+
+~~~ruby
+# Before (deprecated)
+input_category format: :csv, mode: :array
+
+# After
+input_category format: :csv, mode: :hash
+~~~
+
+`#perform` receives each record as a Hash in either mode, when the category has a format. Without a
+format, `#perform` received each row as an Array, so set the category's format, such as `:csv`, and
+change `#perform` to read the Hash.
+
+### An input category holds the header row of one file
+
+In the `:line` and `:array` modes an input category keeps the header row that `upload` read from a
+file, and its workers read each line by it. Two cases changed, see
+[More than one file](batch.html#more-than-one-file):
+
+* Uploading a second file with a header row into the same input category raises `ArgumentError`, in
+  any mode. v7 stored the second file's header row as a record, and read its lines with the first
+  file's columns. Upload each file into its own input category, or upload every file in the `:hash`
+  mode.
+* The next run of a batch job that `RocketJob::Plugins::Cron` creates after the job uploaded its
+  file, such as one with `cron_after_start: false`, whose next run is created when it completes or
+  fails, reads the header row of its own upload. v7 copied the header row that the upload read into
+  the next run, so each later run stored its file's header row as a record. A job saved by v7 does
+  not record that its columns came from a file, so clear them once after upgrading, for each such
+  scheduled job class, and again once the jobs of that class that were running when you upgraded
+  have finished, since their next runs are copied from them:
+
+  ~~~ruby
+  MyScheduledJob.where(:state.in => %w[queued paused]).each do |job|
+    # Skip an input category whose columns are set for a file without a header row.
+    job.input_categories.each { |category| category.columns = nil }
+    job.save!
+  end
+  ~~~
+
+### A paused Singleton job is active
+
+A job that includes `RocketJob::Plugins::Singleton` is not valid while another job of its class is
+running, queued, or now also paused. The check runs whenever such a job is saved, not only when it is
+created, so a queued job saved by v7 alongside a paused one of the same class fails the next time it
+is saved, such as when a server starts it. Before upgrading, check each such class, and when it has
+more than one, abort or destroy all but one of them:
+
+~~~ruby
+active = MySingletonJob.where(:state.in => %w[running queued paused]).to_a
+puts active.map { |job| "#{job.id} #{job.state}" } if active.size > 1
+~~~
+
+### Finding the deprecated options
+
+Rocket Job reports a Ruby deprecation warning for each deprecated category option that it is given,
+naming the line of the job class that defines the category, or of the call to `upload` that supplies
+one, such as `stream_mode: :array` or `allowed_columns:`, for example:
+
+~~~
+app/jobs/import_job.rb:5: warning: Rocket Job: allowed_columns:, skip_unknown: are deprecated, describe the columns of the file with schema: instead, see https://rocketjob.reidmorrison.com/upgrading.html
+~~~
+
+The warnings are only reported while Ruby's deprecation warnings are on, which they are in tests run
+by Minitest, or with `ruby -W:deprecated` or `RUBYOPT=-W:deprecated`, so production stays quiet. A job
+that was saved with a deprecated option, and is read back, does not report one. IOStreams reports its
+own deprecation warnings for the options that it reads, which name a line of Rocket Job instead.
+
+### Removed
+
+These were deprecated or unused, and are removed in v8:
+
+* `RocketJob::Plugins::Restart`, deprecated in v6. Use `RocketJob::Plugins::Cron`, see
+  [Scheduled jobs](guide.html#scheduled-jobs).
+* `RocketJob::LookupCollection`, which was not used by Rocket Job, and whose `upload` always raised
+  `ArgumentError`.
+* `#work_first_slice` of a batch job, deprecated in v6. In a `before_batch` callback, read the records
+  of the first slice with `input.first` instead.
+* The translation of batch jobs saved by v5 into v6 categories, when they are read. A job saved by
+  v5, and never saved since by v6 or v7, cannot be read by v8: finish or destroy such jobs, or open
+  and save them with v7, before upgrading.
+* `upload_arel`, `upload_mongo_query`, `upload_integer_range` and
+  `upload_integer_range_in_reverse_order` of a batch job, deprecated in v6. Call `upload` with the
+  query or the range instead, with the columns to upload as `columns:`, see
+  [Uploading input data](batch.html#uploading-input-data):
+
+  ~~~ruby
+  # Before
+  job.upload_arel(User.where(country_code: "US"), :user_name, :zip_code)
+  job.upload_mongo_query(User.where(state: "FL"), :zip_code)
+  job.upload_integer_range(1, 1_000_000)
+  job.upload_integer_range_in_reverse_order(1, 1_000_000)
+
+  # After
+  job.upload(User.where(country_code: "US"), columns: %i[user_name zip_code])
+  job.upload(User.where(state: "FL"), columns: [:zip_code])
+  job.upload(1..1_000_000)
+  job.upload(1_000_000..1)
+  ~~~
+
+  A block passed to `upload_arel` or `upload_mongo_query` is passed to `upload` the same way. A range
+  is uploaded in the direction it is written, so where `upload_integer_range(first, last)` was called
+  with bounds that it computed, which uploaded nothing when `last` was less than `first`, check for
+  that before calling `upload(first..last)`, which uploads the range in reverse instead. A range that
+  excludes its end, such as `1...100`, does not upload it. The
+  `before_code` of an `OnDemandBatchJob` that calls one of them, as its documentation showed, raises
+  `NoMethodError` when the job runs: change it to call `upload`, including in the jobs that are already
+  saved, such as a scheduled one, which copies its `before_code` to its next run.
+* `upload_file_name` and `upload_file_name=` of a batch job, deprecated in v6, which read and set the
+  `file_name` of its input category. Use the input category instead, such as
+  `job.input_category.file_name = "orders.csv"`. The `upload_file_name` of an `UploadFileJob`, and a
+  field of that name on a simple job, are not affected. Mission Control showed and logged it, so
+  upgrade Mission Control to a release that supports v8.
 
 ## Upgrading to v6
 

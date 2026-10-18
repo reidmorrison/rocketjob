@@ -37,33 +37,6 @@ module RocketJob
         # Requeue any jobs being worked by this server when it is destroyed
         before_destroy :requeue_jobs
 
-        # Returns [Hash<String:Integer>] of the number of servers in each state.
-        # Note: If there are no servers in that particular state then the hash will not have a value for it.
-        #
-        # Example servers in every state:
-        #   RocketJob::Server.counts_by_state
-        #   # => {
-        #          :aborted => 1,
-        #          :completed => 37,
-        #          :failed => 1,
-        #          :paused => 3,
-        #          :queued => 4,
-        #          :running => 1,
-        #          :queued_now => 1,
-        #          :scheduled => 3
-        #        }
-        #
-        # Example no servers active:
-        #   RocketJob::Server.counts_by_state
-        #   # => {}
-        def self.counts_by_state
-          counts = {}
-          collection.aggregate([{"$group" => {_id: "$state", count: {"$sum" => 1}}}]).each do |result|
-            counts[result["_id"].to_sym] = result["count"]
-          end
-          counts
-        end
-
         # Destroy's all instances of zombie servers and requeues any jobs still "running"
         # on those servers.
         def self.destroy_zombies
@@ -78,10 +51,14 @@ module RocketJob
           count
         end
 
+        # Returns [Float] the number of seconds without a heartbeat after which a server is a zombie, see #zombie?.
+        def self.zombie_seconds(missed = 4)
+          Config.heartbeat_seconds * missed
+        end
+
         # Scope for all zombie servers
         def self.zombies(missed = 4)
-          dead_seconds        = Config.heartbeat_seconds * missed
-          last_heartbeat_time = Time.now - dead_seconds
+          last_heartbeat_time = Time.now - zombie_seconds(missed)
           where(
             :state.in => %i[stopping running paused],
             "$or"     => [
@@ -102,8 +79,7 @@ module RocketJob
         return false unless running? || stopping? || paused?
         return true if heartbeat.nil? || heartbeat.updated_at.nil?
 
-        dead_seconds = Config.heartbeat_seconds * missed
-        (Time.now - heartbeat.updated_at) >= dead_seconds
+        (Time.now - heartbeat.updated_at) >= self.class.zombie_seconds(missed)
       end
 
       # Updates the heartbeat and returns a refreshed server instance.

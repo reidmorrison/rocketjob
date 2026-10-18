@@ -130,6 +130,97 @@ module Batch
         end
       end
 
+      describe "a second file" do
+        it "is not uploaded into a category that holds the header row of the first, which its lines are read by" do
+          upload(".csv", csv)
+          error = assert_raises(ArgumentError) { upload(".csv", "Name,City\nJoe,Boston\n") }
+
+          assert_includes error.message, "already holds the header row of an uploaded file"
+          assert_equal 2, job.record_count
+          assert_equal ["Jack,21,x", "Jill,22,y"], input_records
+        end
+
+        it "is uploaded in :hash mode, in which each record keeps the columns of its own file" do
+          job.input_category.mode = :hash
+          upload(".csv", csv)
+          upload(".csv", "Name,City\nJoe,Boston\n")
+
+          assert_equal [{"name" => "Joe", "city" => "Boston"}], input_records.last(1)
+          assert_equal 3, job.record_count
+        end
+
+        it "is uploaded into a category whose columns are set for files without a header row" do
+          job.input_category.columns = %w[name age extra]
+          upload(".csv", "Jack,21,x\n")
+          upload(".csv", "Jill,22,y\n")
+
+          assert_equal ["Jack,21,x", "Jill,22,y"], input_records
+          refute job.input_category.header_uploaded
+        end
+
+        it "is not uploaded in :hash mode into a category that holds the header row of the first" do
+          upload(".csv", csv)
+          error = assert_raises(ArgumentError) { upload(".csv", "Name,City\nJoe,Boston\n", stream_mode: :hash) }
+
+          assert_includes error.message, "already holds the header row of an uploaded file"
+          assert_equal ["Jack,21,x", "Jill,22,y"], input_records
+        end
+
+        it "is uploaded after columns that were set are cleansed" do
+          job.input_category.columns = ["First Name", "Age"]
+          job.input_category.cleanse_header!
+          upload(".csv", "Jack,21\n")
+          upload(".csv", "Jill,22\n")
+
+          assert_equal %w[first_name age], job.input_category.columns
+          assert_equal ["Jack,21", "Jill,22"], input_records
+          refute job.input_category.header_uploaded
+        end
+
+        it "of JSON is uploaded in :line mode" do
+          job.input_category.format = :json
+          upload(".json", %({"name":"Jack"}\n))
+          upload(".json", %({"name":"Jill"}\n))
+
+          assert_equal 2, job.record_count
+        end
+      end
+
+      describe "a failed upload" do
+        it "keeps neither the header row it read nor its records, so the file can be uploaded again" do
+          job.input_category.columns = nil
+          assert_raises(RuntimeError) do
+            job.upload do |io|
+              io << "Name,Age,Extra"
+              io << "Jack,21,x"
+              raise "upload failed"
+            end
+          end
+
+          assert_nil job.input_category.columns
+          refute job.input_category.header_uploaded
+          assert_equal 0, job.input.count
+
+          upload(".csv", csv)
+
+          assert_equal ["Jack,21,x", "Jill,22,y"], input_records
+          assert_equal %w[name age extra], job.input_category.columns
+        end
+
+        it "restores the columns that were set for a file without a header row" do
+          job.input_category.columns = ["First Name", "Age"]
+          assert_raises(RuntimeError) do
+            job.upload do |io|
+              io << "Jack,21"
+              raise "upload failed"
+            end
+          end
+
+          assert_equal ["First Name", "Age"], job.input_category.columns
+          refute job.input_category.header_uploaded
+        end
+      end
+
       describe "csv" do
         it "keeps a quoted value with a line break in one record, whatever the file name" do
           upload(".txt", %(name,note\nJack,"line one\nline two"\n))
@@ -226,6 +317,16 @@ module Batch
           upload(".txt", "Jack      54321\n")
 
           assert_equal [{"name" => "Jack", "zip" => "54321"}], output_records
+        end
+
+        it "passes the records of a layout with Symbol keys to perform with those keys, as before v8" do
+          job.input_category.schema         = nil
+          job.input_category.format_options = {layout: [{size: 10, key: :name}, {size: 5, key: :zip, type: :integer}]}
+          upload(".txt", "Jack      54321\n")
+          records = []
+          job.stub(:perform, ->(record) { records << record }) { job.perform_now }
+
+          assert_equal [{name: "Jack", zip: 54_321}], records
         end
       end
 

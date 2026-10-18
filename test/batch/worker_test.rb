@@ -202,6 +202,26 @@ module Batch
       end
     end
 
+    class AfterBatchJob < RocketJob::Job
+      include RocketJob::Batch
+
+      self.destroy_on_complete = false
+
+      field :after_batch_ran, type: Mongoid::Boolean, default: false
+
+      after_batch :record_after_batch
+
+      def perform(record)
+        record
+      end
+
+      private
+
+      def record_after_batch
+        self.after_batch_ran = true
+      end
+    end
+
     describe RocketJob::Batch::Worker do
       before do
         RocketJob::Job.destroy_all
@@ -209,39 +229,6 @@ module Batch
 
       after do
         RocketJob::Job.destroy_all
-      end
-
-      describe "#work_first_slice" do
-        it "raises unless called from the before sub-state" do
-          job = SimpleJob.new
-          job.start
-          job.sub_state = :processing
-          error = assert_raises(RuntimeError) { job.work_first_slice { |record| record } }
-          assert_includes error.message, "before_batch"
-        end
-
-        it "returns 0 when no slice has arrived" do
-          job = SimpleJob.new
-          job.start
-          job.sub_state = :before
-          # Avoid the real 5 second sleeps while polling for the first slice.
-          job.stub(:sleep, nil) do
-            assert_equal(0, job.work_first_slice { |record| record })
-          end
-        end
-
-        it "processes the first slice and returns the record count" do
-          job = SimpleJob.new
-          job.upload { |records| (1..5).each { |i| records << i } }
-          job.start
-          job.sub_state = :before
-
-          processed = []
-          count     = job.work_first_slice { |record| processed << record }
-
-          assert_equal 5, count
-          assert_equal [1, 2, 3, 4, 5], processed
-        end
       end
 
       describe "#work" do
@@ -694,6 +681,16 @@ module Batch
           assert "Invalid RocketJob Output Category: bad", exception.message
           assert exception.worker_name
           assert exception.backtrace
+        end
+      end
+
+      describe "#rocket_job_batch_callbacks" do
+        it "runs the after_batch callbacks of a job in the after sub-state, and completes it" do
+          job = AfterBatchJob.create!(state: :running, sub_state: :after, record_count: 0, started_at: Time.now)
+          job.send(:rocket_job_batch_callbacks, RocketJob::Worker.new)
+
+          assert job.after_batch_ran
+          assert_predicate job, :completed?
         end
       end
 

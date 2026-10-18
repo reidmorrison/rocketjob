@@ -55,6 +55,14 @@ module Plugins
           assert_predicate job2, :rocket_job_singleton_active?
         end
 
+        it "returns true when other jobs of this class are paused" do
+          @job = SingletonJob.create!
+          @job.pause!
+          job2 = SingletonJob.new
+
+          assert_predicate job2, :rocket_job_singleton_active?
+        end
+
         it "returns false when other jobs of this class are not active" do
           @job = SingletonJob.new
           @job.perform_now

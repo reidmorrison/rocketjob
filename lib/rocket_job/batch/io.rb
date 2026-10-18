@@ -11,7 +11,7 @@ module RocketJob
       # Parameters:
       #   category [Symbol|RocketJob::Category::Input]
       #     The category or the name of the category to access or upload data into
-      #     Default: None ( Uses the single default input collection for this job )
+      #     Default: :main
       #     Validates: This value must be one of those listed in #input_categories
       def input(category = :main)
         category = input_category(category)
@@ -25,49 +25,13 @@ module RocketJob
       # Parameters:
       #   category [Symbol|RocketJob::Category::Input]
       #     The category or the name of the category to access or download data from
-      #     Default: None ( Uses the single default output collection for this job )
+      #     Default: :main
       #     Validates: This value must be one of those listed in #output_categories
       def output(category = :main)
         category = output_category(category)
 
         (@outputs ||= {})[category.name] ||= category.data_store(self)
       end
-
-      # Rapidly upload individual records in batches.
-      #
-      # Operates directly on a Mongo Collection to avoid the overhead of creating Mongoid objects
-      # for each and every row.
-      #
-      #   input_category(:my_lookup).find(id: 123).first
-      #
-      # Lookup collection.
-      #
-      # Upload side / secondary lookup tables that can be accessed during job processing.
-      #
-      # Example:
-      #   lookup_collection(:my_lookup).upload do |io|
-      #     io << {id: 123, data: "first record"}
-      #     io << {id: 124, data: "second record"}
-      #   end
-      #
-      # Parameters:
-      #   category [Symbol|RocketJob::Category::Input]
-      #     The category or the name of the category to access or download data from
-      #     Default: None ( Uses the single default output collection for this job )
-      #     Validates: This value must be one of those listed in #input_categories
-      # def lookup_collection(category = :main)
-      #   category = input_category(category) unless category.is_a?(Category::Input)
-      #
-      #   collection = (@lookup_collections ||= {})[category.name]
-      #
-      #   unless collection
-      #     collection_name = "rocket_job.inputs.#{id}"
-      #     collection_name << ".#{category.name}" unless category.name == :main
-      #
-      #     @lookup_collections[category.name] ||=
-      #       LookupCollection.new(Sliced::Slice.collection.database, collection_name)
-      #   end
-      # end
 
       # Upload the supplied file, io, IOStreams::Path, or IOStreams::Stream.
       #
@@ -92,6 +56,7 @@ module RocketJob
       #     :line
       #       Uploads the file a line (String) at a time for processing by workers.
       #     :array
+      #       Deprecated, use :line, or :hash to parse the whole file when it is uploaded.
       #       Parses each line from the file as an Array and uploads each array for processing by workers.
       #     :hash
       #       Parses each line from the file into a Hash and uploads each hash for processing by workers.
@@ -99,8 +64,8 @@ module RocketJob
       #     See IOStreams::Stream#each.
       #
       #   category [Symbol|RocketJob::Category::Input]
-      #     The category or the name of the category to access or download data from
-      #     Default: None ( Uses the single default output collection for this job )
+      #     The category or the name of the category to upload the data into
+      #     Default: :main
       #     Validates: This value must be one of those listed in #input_categories
       #
       # Example:
@@ -146,7 +111,7 @@ module RocketJob
       #
       # Notes:
       # * Only call from one thread at a time against a single instance of this job.
-      # * The record_count for the job is set to the number of records returned by the arel.
+      # * The number of records uploaded is added to the record_count of the job.
       # * If an exception is raised while uploading data, the input collection is cleared out
       #   so that if a job is retried during an upload failure, data is not duplicated.
       # * Files are read as UTF-8 text, since MongoDB only stores UTF-8 strings. A UTF-8 byte order mark at
@@ -163,129 +128,34 @@ module RocketJob
       # * Binary data cannot be uploaded as records, since they are stored as UTF-8 strings.
       # * CSV parsing is slow, so it is usually left for the workers to do.
       #
-      # Upload results from an Arel into RocketJob::SlicedJob.
+      # Upload the records of a query or a range of integers, as the removed `upload_arel`, `upload_mongo_query`,
+      # `upload_integer_range` and `upload_integer_range_in_reverse_order` did:
       #
-      # Params
-      #   column_names
-      #     When a block is not supplied, supply the names of the columns to be returned
-      #     and uploaded into the job
-      #     These columns are automatically added to the select list to reduce overhead
+      # Example: Upload the id of each user that an Active Record relation returns
+      #   job.upload(User.where(country_code: "US"))
       #
-      #   category [Symbol|RocketJob::Category::Input]
-      #     The category or the name of the category to upload to.
+      # Example: Upload the user_name and zip_code of each user, as an Array, see `columns:`
+      #   job.upload(User.where(country_code: "US"), columns: %i[user_name zip_code])
       #
-      # If a Block is supplied it is passed the model returned from the database and should
-      # return the work item to be uploaded into the job.
+      # Example: Upload the zip_code of each document that a Mongoid query returns
+      #   job.upload(User.where(state: "FL"), columns: [:zip_code])
       #
-      # Returns [Integer] the number of records uploaded
+      # Example: Upload the ids 200 to 421 as one `[first_id, last_id]` range per slice, of `slice_size` ids each,
+      #   starting with the last range when the range is descending, such as `421..200`
+      #   job.upload(200..421)
       #
-      # Example: Upload id's for all users
-      #   arel = User.all
-      #   job.upload_arel(arel)
-      #
-      # Example: Upload selected user id's
-      #   arel = User.where(country_code: 'US')
-      #   job.upload_arel(arel)
-      #
-      # Example: Upload user_name and zip_code
-      #   arel = User.where(country_code: 'US')
-      #   job.upload_arel(arel, columns: [:user_name, :zip_code])
-      #
-      # Notes:
-      # * Only call from one thread at a time against a single instance of this job.
-      # * The record_count for the job is set to the number of records returned by the arel.
-      # * If an exception is raised while uploading data, the input collection is cleared out
-      #   so that if a job is retried during an upload failure, data is not duplicated.
-
-      # Upload the result of a MongoDB query to the input collection for processing
-      # Useful when an entire MongoDB collection, or part thereof needs to be
-      # processed by a job.
-      #
-      # Returns [Integer] the number of records uploaded
-      #
-      # If a Block is supplied it is passed the document returned from the
-      # database and should return a record for processing
-      #
-      # If no Block is supplied then the record will be the :fields returned
-      # from MongoDB
-      #
-      # Note:
-      #   This method uses the collection and not the MongoMapper document to
-      #   avoid the overhead of constructing a Model with every document returned
-      #   by the query
-      #
-      # Note:
-      #   The Block must return types that can be serialized to BSON.
-      #   Valid Types: Hash | Array | String | Integer | Float | Symbol | Regexp | Time
-      #   Invalid: Date, etc.
-      #
-      # Example: Upload document ids
-      #   criteria = User.where(state: 'FL')
-      #   job.record_count = job.upload_mongo_query(criteria)
-      #
-      # Example: Upload only the specified column(s)
-      #   criteria = User.where(state: 'FL')
-      #   job.record_count = job.upload_mongo_query(criteria, columns: [:zip_code])
-      #
-      # Notes:
-      # * Only call from one thread at a time against a single instance of this job.
-      # * The record_count for the job is set to the number of records returned by the monqo query.
-      # * If an exception is raised while uploading data, the input collection is cleared out
-      #   so that if a job is retried during an upload failure, data is not duplicated.
-
-      # Upload sliced range of integer requests as arrays of start and end ids.
-      #
-      # Returns [Integer] the number of slices uploaded.
-      #
-      # Uploads one range per slice so that the response can return multiple records
-      # for each slice processed
-      #
-      # Example
-      #   job.input_category.slice_size = 100
-      #   job.upload_integer_range(200, 421)
-      #
-      #   # Equivalent to calling:
-      #   job.input.insert([200,299])
-      #   job.input.insert([300,399])
-      #   job.input.insert([400,421])
-      #
-      # Notes:
-      # * Only call from one thread at a time against a single instance of this job.
-      # * The record_count for the job is set to: last_id - start_id + 1.
-      # * If an exception is raised while uploading data, the input collection is cleared out
-      #   so that if a job is retried during an upload failure, data is not duplicated.
-
-      # Upload sliced range of integer requests as an arrays of start and end ids
-      # starting with the last range first
-      #
-      # Returns [Integer] the number of slices uploaded.
-      #
-      # Uploads one range per slice so that the response can return multiple records
-      # for each slice processed.
-      # Useful for when the highest order integer values should be processed before
-      # the lower integer value ranges. For example when processing every record
-      # in a database based on the id column
-      #
-      # Example
-      #   job.input_category.slice_size = 100
-      #   job.upload_integer_range_in_reverse_order(200, 421)
-      #
-      #   # Equivalent to calling:
-      #   job.input.insert([400,421])
-      #   job.input.insert([300,399])
-      #   job.input.insert([200,299])
-      #
-      # Notes:
-      # * Only call from one thread at a time against a single instance of this job.
-      # * The record_count for the job is set to: last_id - start_id + 1.
-      # * If an exception is raised while uploading data, the input collection is cleared out
-      #   so that if a job is retried during an upload failure, data is not duplicated.
-
+      # Notes for a query or a range:
+      # * `columns:` is only for a query: the columns, or fields, to upload. Default: the id.
+      # * The number that is returned and added to `record_count` is the number of records uploaded, which for a
+      #   range is the number of integers in it, although each slice holds one `[first_id, last_id]` record.
+      # * If an exception is raised while uploading, the input collection is cleared out, so that if the job is
+      #   retried, its data is not duplicated.
       def upload(object = nil, category: :main, file_name: nil, stream_mode: nil, on_first: nil, columns: nil,
                  slice_batch_size: nil, **args, &block)
         input_collection = input(category)
 
-        if block
+        # A block uploads the records that it writes, unless it transforms the models or documents of a query.
+        if block && !rocketjob_query?(object)
           raise(ArgumentError, "Cannot supply both an object to upload, and a block.") if object
           if stream_mode || columns || slice_batch_size || args.size.positive?
             raise(ArgumentError,
@@ -298,44 +168,29 @@ module RocketJob
           # Extract the header line during the upload when applicable.
           extract_header = category.extract_header_callback(on_first)
 
-          count             = input_collection.upload(on_first: extract_header, slice_batch_size: slice_batch_size, &block)
-          self.record_count = (record_count || 0) + count
-          return count
+          count = category.uploading do
+            input_collection.upload(on_first: extract_header, upload_id: rocketjob_upload_id, &block)
+          end
+          return rocketjob_add_record_count(count)
         end
 
         count =
           case object
           when Range
-            if file_name || stream_mode || on_first || args.size.positive?
-              raise(ArgumentError,
-                    "Unknown keyword arguments when uploading a Range. Only accepts :category, :columns, or :slice_batch_size")
-            end
-
-            first = object.first
-            last  = object.last
-            if first < last
-              input_collection.upload_integer_range(first, last, slice_batch_size: slice_batch_size || 1_000)
-            else
-              input_collection.upload_integer_range_in_reverse_order(last, first, slice_batch_size: slice_batch_size || 1_000)
-            end
+            rocketjob_check_upload_options("a Range", file_name, stream_mode, on_first, args)
+            rocketjob_upload_integer_range(input_collection, object, slice_batch_size || 1_000, rocketjob_upload_id)
           when Mongoid::Criteria
-            if file_name || stream_mode || on_first || args.size.positive?
-              raise(ArgumentError,
-                    "Unknown keyword arguments when uploading a Mongoid::Criteria. Only accepts :category, :columns, or :slice_batch_size")
-            end
-
-            input_collection.upload_mongo_query(object, columns: columns, slice_batch_size: slice_batch_size, &block)
+            rocketjob_check_upload_options("a Mongoid::Criteria", file_name, stream_mode, on_first, args)
+            input_collection.upload_mongo_query(object, columns: columns, slice_batch_size: slice_batch_size,
+                                                        upload_id: rocketjob_upload_id, &block)
           when defined?(ActiveRecord::Relation) ? ActiveRecord::Relation : false
-            if file_name || stream_mode || on_first || args.size.positive?
-              raise(ArgumentError,
-                    "Unknown keyword arguments when uploading an ActiveRecord::Relation. Only accepts :category, :columns, or :slice_batch_size")
-            end
-
-            input_collection.upload_arel(object, columns: columns, slice_batch_size: slice_batch_size, &block)
-
+            rocketjob_check_upload_options("an ActiveRecord::Relation", file_name, stream_mode, on_first, args)
+            input_collection.upload_arel(object, columns: columns, slice_batch_size: slice_batch_size,
+                                                 upload_id: rocketjob_upload_id, &block)
           else
             raise(ArgumentError, "Unknown keyword argument :columns when uploading a file") if columns
 
+            rocketjob_warn_deprecated_upload_options(stream_mode, args)
             category = input_category(category)
             mode     = stream_mode || category.mode
 
@@ -345,43 +200,14 @@ module RocketJob
             # Extract the header line during the upload when applicable.
             extract_header = category.extract_header_callback(on_first, mode: mode)
 
-            input_collection.upload(on_first: extract_header, slice_batch_size: slice_batch_size) do |io|
-              category.each_record(path, mode: mode, **args) { |record| io << record }
+            category.uploading do
+              input_collection.upload(on_first: extract_header, slice_batch_size: slice_batch_size,
+                                      upload_id: rocketjob_upload_id) do |io|
+                category.each_record(path, mode: mode, **args) { |record| io << record }
+              end
             end
-
           end
-
-        self.record_count = (record_count || 0) + count
-        count
-      end
-
-      # @deprecated
-      def upload_arel(arel, *column_names, category: :main, &)
-        count             = input(category).upload_arel(arel, columns: column_names, &)
-        self.record_count = (record_count || 0) + count
-        count
-      end
-
-      # @deprecated
-      def upload_mongo_query(criteria, *column_names, category: :main, &)
-        count             = input(category).upload_mongo_query(criteria, columns: column_names, &)
-        self.record_count = (record_count || 0) + count
-        count
-      end
-
-      # @deprecated
-      def upload_integer_range(start_id, last_id, category: :main, slice_batch_size: 1_000)
-        count             = input(category).upload_integer_range(start_id, last_id, slice_batch_size: slice_batch_size)
-        self.record_count = (record_count || 0) + count
-        count
-      end
-
-      # @deprecated
-      def upload_integer_range_in_reverse_order(start_id, last_id, category: :main, slice_batch_size: 1_000)
-        count             = input(category).upload_integer_range_in_reverse_order(start_id, last_id,
-                                                                                  slice_batch_size: slice_batch_size)
-        self.record_count = (record_count || 0) + count
-        count
+        rocketjob_add_record_count(count)
       end
 
       # Upload the supplied slice for processing by workers
@@ -402,9 +228,7 @@ module RocketJob
       #   Not thread-safe. Only call from one thread at a time
       def upload_slice(slice, category: :main)
         input(category).insert(slice)
-        count             = slice.size
-        self.record_count = (record_count || 0) + count
-        count
+        rocketjob_add_record_count(slice.size)
       end
 
       # Download the output data into the supplied file, io, IOStreams::Path, or IOStreams::Stream.
@@ -501,6 +325,105 @@ module RocketJob
             output_collection.download(header_line: header_line) { |record| io << record }
           end
         end
+      end
+
+      private
+
+      # The upload id of the slices that the before_batch callbacks upload, see Sliced::Slice#upload_id.
+      BEFORE_BATCH_UPLOAD = "before_batch".freeze
+      private_constant :BEFORE_BATCH_UPLOAD
+
+      # Returns [Hash] the `record_count` and the upload state of each input category, see
+      # Category::Input#upload_state, which the before_batch callbacks start with, see #before_batch_state.
+      def rocketjob_before_batch_state
+        {
+          "record_count"     => record_count,
+          "input_categories" => input_categories.to_h { |category| [category.name.to_s, category.upload_state] }
+        }
+      end
+
+      # Removes the slices that the before_batch callbacks uploaded, and restores the `record_count` and the upload
+      # state of each input category that they started with, see #before_batch_state, so that they can run again
+      # without duplicating their input, such as when the job is retried.
+      def rocketjob_undo_before_batch
+        state = before_batch_state
+        return unless state
+
+        self.record_count = state["record_count"]
+        input_categories.each do |category|
+          input(category).delete_upload(BEFORE_BATCH_UPLOAD)
+          category_state = state.dig("input_categories", category.name.to_s)
+          category.restore_upload_state(category_state) if category_state
+        end
+        self.before_batch_state = nil
+      end
+
+      # Returns [String] the upload id of the slices of an upload while the before_batch callbacks run, so that they
+      # can be removed when the job is retried, see #rocketjob_undo_before_batch, otherwise nil.
+      def rocketjob_upload_id
+        BEFORE_BATCH_UPLOAD if before_batch_state
+      end
+
+      # Returns [Integer] the supplied number of records uploaded, after adding it to `record_count`.
+      def rocketjob_add_record_count(count)
+        self.record_count = (record_count || 0) + count
+        count
+      end
+
+      # Returns [true|false] whether the supplied object is a query that #upload uploads the records of, whose models
+      # or documents a block can transform: a Mongoid::Criteria, or an ActiveRecord::Relation.
+      def rocketjob_query?(object)
+        object.is_a?(Mongoid::Criteria) || (defined?(ActiveRecord::Relation) && object.is_a?(ActiveRecord::Relation))
+      end
+
+      # Reports a deprecation warning, see RocketJob::Deprecation, at the line of the application that uploads a file
+      # with the :array `stream_mode`, or with options that describe the columns of the file, which the schema of the
+      # input category replaces: those that IOStreams deprecates, see `IOStreams::Tabular.deprecated_option_names`,
+      # which, as IOStreams does, are ignored when nil.
+      def rocketjob_warn_deprecated_upload_options(stream_mode, args)
+        Category::Input.warn_array_mode(:stream_mode) if stream_mode.to_s == "array"
+
+        names = args.compact.keys & IOStreams::Tabular.deprecated_option_names
+        return if names.empty?
+
+        RocketJob::Deprecation.warn(
+          "#{names.collect { |name| "#{name}:" }.join(', ')} #{names.size == 1 ? 'is' : 'are'} deprecated, describe " \
+          "the columns of the file with the schema: of the input category instead, see " \
+          "#{RocketJob::Deprecation::UPGRADE_GUIDE}"
+        )
+      end
+
+      # Uploads the integers of the supplied range as one `[first_id, last_id]` record per slice, starting with the last
+      # slice when the range is descending, such as `421..200`. An end that the range excludes, such as `200...421`, is
+      # not uploaded.
+      #
+      # Returns [Integer] the number of integers uploaded, rather than of records, since each record is a range of
+      # `slice_size` integers, see #percent_complete.
+      def rocketjob_upload_integer_range(input_collection, range, slice_batch_size, upload_id)
+        first = range.begin
+        last  = range.end
+        unless first.is_a?(Integer) && last.is_a?(Integer)
+          raise(ArgumentError, "Only a Range with an Integer at each end can be uploaded, not #{range.inspect}")
+        end
+        return 0 if range.exclude_end? && first == last
+
+        last += first < last ? -1 : 1 if range.exclude_end?
+        if first < last
+          input_collection.upload_integer_range(first, last, slice_batch_size: slice_batch_size, upload_id: upload_id)
+        else
+          input_collection.upload_integer_range_in_reverse_order(last, first, slice_batch_size: slice_batch_size,
+                                                                              upload_id:        upload_id)
+        end
+        (last - first).abs + 1
+      end
+
+      # Raises ArgumentError when an option that only applies to a file is supplied to upload the supplied kind of
+      # object, a range or a query.
+      def rocketjob_check_upload_options(kind, file_name, stream_mode, on_first, args)
+        return unless file_name || stream_mode || on_first || args.size.positive?
+
+        raise(ArgumentError,
+              "Unknown keyword arguments when uploading #{kind}. Only accepts :category, :columns, or :slice_batch_size")
       end
     end
   end

@@ -20,6 +20,39 @@ module Batch
       end
     end
 
+    class CallbackCategoriesJob < RocketJob::Job
+      include RocketJob::Batch
+
+      input_category format: :csv, columns: %w[name zip]
+      output_category format: :csv, columns: %w[name zip]
+
+      field :seen, type: Array, default: []
+
+      before_perform { seen << @rocket_job_input.class.name }
+      after_perform { seen << @rocket_job_output.class.name }
+
+      def perform(record)
+        record
+      end
+    end
+
+    class ParentCategoriesJob < RocketJob::Job
+      include RocketJob::Batch
+
+      input_category slice_size: 10
+      output_category format: :csv
+
+      def perform(record)
+        record
+      end
+    end
+
+    class ChildCategoriesJob < ParentCategoriesJob
+      input_category name: :other
+      input_category slice_size: 5
+      output_category name: :errors
+    end
+
     describe RocketJob::Batch::Categories do
       before do
         CategoriesJob.destroy_all
@@ -52,11 +85,57 @@ module Batch
         CategoriesJob.destroy_all
       end
 
-      # Builds a job from a raw (v5 era) persisted document, triggering the
-      # after_initialize migration since the document is not a new record.
-      def from_legacy(doc)
+      # Builds a job from a persisted document, as it is read from the database.
+      def from_db(doc)
         doc = {"_id" => BSON::ObjectId.new}.merge(doc)
         Mongoid::Factory.from_db(CategoriesJob, doc)
+      end
+
+      describe "parsing and rendering records" do
+        it "parses and renders without perform callbacks of its own" do
+          assert_empty CategoriesJob._perform_callbacks.to_a
+          assert_empty OutputCategoriesJob._perform_callbacks.to_a
+        end
+
+        it "parses each record before the perform callbacks, and renders the result after them" do
+          job = CallbackCategoriesJob.new
+          job.upload_slice(["Jack,12345"])
+          job.perform_now
+
+          assert_equal %w[Hash Hash], job.seen
+          assert_equal ["Jack,12345"], job.output.first.to_a
+        ensure
+          job&.cleanup!
+        end
+      end
+
+      describe ".input_category" do
+        it "does not change the input categories of the parent class" do
+          parent = ParentCategoriesJob.defined_input_categories.collect { |c| [c.name, c.slice_size] }
+          child  = ChildCategoriesJob.defined_input_categories.collect { |c| [c.name, c.slice_size] }
+
+          assert_equal [[:main, 10]], parent
+          assert_equal [[:main, 5], [:other, 100]], child
+        end
+
+        it "builds jobs of the parent class with its own input categories" do
+          assert_equal [:main], ParentCategoriesJob.new.input_categories.collect(&:name)
+          assert_equal %i[main other], ChildCategoriesJob.new.input_categories.collect(&:name)
+        end
+
+        it "returns the category" do
+          klass = Class.new(CategoriesJob)
+
+          assert_kind_of RocketJob::Category::Input, klass.input_category(name: :first)
+          assert_kind_of RocketJob::Category::Input, klass.input_category(name: :second)
+        end
+      end
+
+      describe ".output_category" do
+        it "does not change the output categories of the parent class" do
+          assert_equal [:main], ParentCategoriesJob.defined_output_categories.collect(&:name)
+          assert_equal %i[main errors], ChildCategoriesJob.defined_output_categories.collect(&:name)
+        end
       end
 
       describe "#input_category?" do
@@ -148,6 +227,13 @@ module Batch
           assert_equal "hello", job.description
         end
 
+        it "builds a job with the defaults without properties, as a job that is not a batch job does" do
+          job = CategoriesJob.from_properties(nil)
+
+          assert_instance_of CategoriesJob, job
+          assert_equal CategoriesJob.new.input_categories.collect(&:name), job.input_categories.collect(&:name)
+        end
+
         it "merges supplied input category properties onto the defaults" do
           job = CategoriesJob.from_properties(
             "description"      => "with categories",
@@ -215,7 +301,7 @@ module Batch
       end
 
       describe "a job saved before v8" do
-        it "replaces the format_options of its categories with their schema when it is saved" do
+        it "keeps the format_options of its categories when it is saved, so that a v7 worker can still read it" do
           job = CategoriesJob.create!
           layout = {"layout" => [{"size" => 10, "key" => "name"}, {"size" => 5, "key" => "zip"}]}
           CategoriesJob.collection.update_one(
@@ -224,28 +310,25 @@ module Batch
           )
 
           job = CategoriesJob.find(job.id)
-          schema = {
-            "fields"      => [{"name" => "name", "type" => "string", "width" => 10, "truncate" => true},
-                              {"name" => "zip", "type" => "string", "width" => 5, "truncate" => true}],
-            # Writing skips the keys of a record that the layout does not have, as a layout did.
-            "fieldsMatch" => "subset"
-          }
 
-          assert_equal schema, job.input_category.schema
+          assert_equal layout, job.input_category.format_options
+          assert_nil job.input_category.schema
 
+          job.description = "Saved again"
           job.save!
           category = CategoriesJob.collection.find(_id: job.id).first["input_categories"].first
 
-          assert_equal schema, category["schema"]
-          refute category.key?("format_options")
+          assert_equal layout, category["format_options"]
+          refute category.key?("schema")
         end
       end
 
-      describe "#rocketjob_categories_migrate" do
-        it "leaves modern documents untouched" do
-          job = from_legacy("input_categories" => [{"name" => "main", "serializer" => "none"}])
+      describe "a job read from the database" do
+        it "reads its categories" do
+          job = from_db("input_categories" => [{"name" => "main", "serializer" => "none"}])
 
           assert_equal :main, job.input_category.name
+          assert_equal :none, job.input_category.serializer
         end
 
         it "saves a change to a category of a job that was read from the database" do
@@ -254,89 +337,6 @@ module Batch
           job.save!
 
           assert_equal 50, CategoriesJob.find(job.id).input_category.slice_size
-        end
-
-        it "migrates a compressed v5 job" do
-          job = from_legacy(
-            "input_categories" => [:main],
-            "compress"         => true,
-            "slice_size"       => 50
-          )
-          category = job.input_category(:main)
-
-          assert_equal :compress, category.serializer
-          assert_equal 50, category.slice_size
-        end
-
-        it "migrates an encrypted v5 job" do
-          job      = from_legacy("input_categories" => [:main], "encrypt" => true)
-          category = job.input_category(:main)
-
-          assert_equal :encrypt, category.serializer
-        end
-
-        it "migrates tabular input attributes onto the main category" do
-          job = from_legacy(
-            "input_categories"     => [:main],
-            "tabular_input_format" => :csv,
-            "tabular_input_header" => %w[name value]
-          )
-          category = job.input_category(:main)
-
-          assert_equal :csv, category.format
-          assert_equal %w[name value], category.columns
-        end
-
-        it "migrates the v5 tabular input modes" do
-          {"line" => :line, "row" => :array, "record" => :hash}.each_pair do |v5_mode, mode|
-            job = from_legacy(
-              "input_categories"     => [:main],
-              "tabular_input_format" => :csv,
-              "tabular_input_mode"   => v5_mode
-            )
-
-            assert_equal mode, job.input_category.mode, v5_mode
-            assert_predicate job.input_category, :valid?
-          end
-        end
-
-        it "migrates a non-main input category without tabular settings" do
-          job = from_legacy(
-            "input_categories"     => %i[main other],
-            "tabular_input_format" => :csv
-          )
-
-          assert_equal :csv, job.input_category(:main).format
-          assert_nil job.input_category(:other).format
-        end
-
-        it "builds an output category when collect_output was set" do
-          job = from_legacy(
-            "input_categories"      => [:main],
-            "collect_output"        => true,
-            "tabular_output_format" => :csv,
-            "tabular_output_header" => %w[a b]
-          )
-          category = job.output_category(:main)
-
-          assert_equal :csv, category.format
-          assert_equal %w[a b], category.columns
-        end
-
-        it "does not build an output category when collect_output was false" do
-          job = from_legacy("input_categories" => [:main], "collect_output" => false)
-
-          assert_empty job.output_categories
-        end
-
-        it "migrates symbol output categories" do
-          job = from_legacy(
-            "input_categories"  => [:main],
-            "output_categories" => %i[main extra],
-            "collect_output"    => true
-          )
-
-          assert_equal %i[main extra], job.output_categories.collect(&:name)
         end
       end
     end

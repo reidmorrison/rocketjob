@@ -30,10 +30,27 @@ module RocketJob
       field :job_id, type: BSON::ObjectId
 
       validates_presence_of :upload_file_name, :job_class_name
-      validate :job_is_a_rocket_job
-      validate :job_implements_upload
+      validate :job_class_can_be_started
       validate :file_exists
       validate :job_has_properties
+
+      # The methods that #upload_file uploads the file with, whichever the job has: its #upload, or the file name that
+      # it reads.
+      VALID_INSTANCE_METHODS = %i[upload upload_file_name= full_file_name=].freeze
+      private_constant :VALID_INSTANCE_METHODS
+
+      # Returns [Array<String>] why an UploadFileJob cannot start a job of the named class: it is not defined, does not
+      # inherit from RocketJob::Job, or has none of the methods that the file is uploaded with. Empty when it can.
+      # A Dirmon entry asks it, so that the files it finds are not archived for a job that cannot be started.
+      def self.job_class_errors(job_class_name)
+        klass = job_class_name.to_s.safe_constantize
+        unless klass.is_a?(Class) && klass <= RocketJob::Job
+          return ["Job #{job_class_name} must be defined and inherit from RocketJob::Job"]
+        end
+        return [] if klass.instance_methods.intersect?(VALID_INSTANCE_METHODS)
+
+        ["#{klass} must implement any one of: :#{VALID_INSTANCE_METHODS.join(' :')} instance methods"]
+      end
 
       # Create the job and upload the file into it.
       def perform
@@ -68,14 +85,7 @@ module RocketJob
         if job.respond_to?(:upload)
           # Return the database connection for this thread back to the connection pool
           # in case the upload takes a long time and the database connection expires.
-          if defined?(ActiveRecord::Base)
-            if ActiveRecord::Base.respond_to?(:connection_handler)
-              # Rails 7
-              ActiveRecord::Base.connection_handler.clear_active_connections!(:all)
-            else
-              ActiveRecord::Base.connection_pool.release_connection
-            end
-          end
+          RocketJob.release_active_record_connections
 
           if original_file_name
             job.upload(upload_file_name, file_name: original_file_name)
@@ -94,24 +104,14 @@ module RocketJob
         end
       end
 
-      # Validates job_class is a Rocket Job
-      def job_is_a_rocket_job
-        klass = job_class
-        return if klass.nil? || klass.ancestors&.include?(RocketJob::Job)
+      # Validates that an UploadFileJob can start a job of the class, see .job_class_errors. A class that is not
+      # defined is accepted, since the server that creates this job, such as Dirmon's, may not load every job class:
+      # this job then fails when it runs, and can be retried once the class is deployed, while the file that it
+      # uploads is kept in the archive.
+      def job_class_can_be_started
+        return unless job_class
 
-        errors.add(:job_class_name, "Model #{job_class_name} must be defined and inherit from RocketJob::Job")
-      end
-
-      VALID_INSTANCE_METHODS = %i[upload upload_file_name= full_file_name=].freeze
-      private_constant :VALID_INSTANCE_METHODS
-
-      # Validates job_class is a Rocket Job
-      def job_implements_upload
-        klass = job_class
-        return if klass.nil? || klass.instance_methods.intersect?(VALID_INSTANCE_METHODS)
-
-        errors.add(:job_class_name,
-                   "#{job_class} must implement any one of: :#{VALID_INSTANCE_METHODS.join(' :')} instance methods")
+        self.class.job_class_errors(job_class_name).each { |message| errors.add(:job_class_name, message) }
       end
 
       def file_exists

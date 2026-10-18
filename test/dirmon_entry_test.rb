@@ -12,6 +12,12 @@ class DirmonEntryTest < Minitest::Test
     end
   end
 
+  # Has none of the methods that an UploadFileJob uploads a file with.
+  class NoUploadJob < RocketJob::Job
+    def perform
+    end
+  end
+
   class BatchTestJob < RocketJob::Job
     include RocketJob::Batch
 
@@ -442,6 +448,14 @@ class DirmonEntryTest < Minitest::Test
           refute_predicate dirmon_entry, :valid?
           assert_equal ["Job Blah must be defined and inherit from RocketJob::Job"], dirmon_entry.errors[:job_class_name], dirmon_entry.errors.messages.ai
         end
+
+        it "can be started by an UploadFileJob, which uploads the file with one of its methods" do
+          dirmon_entry.job_class_name = NoUploadJob.name
+
+          refute_predicate dirmon_entry, :valid?
+          assert_equal ["DirmonEntryTest::NoUploadJob must implement any one of: :upload :upload_file_name= :full_file_name= instance methods"],
+                       dirmon_entry.errors[:job_class_name]
+        end
       end
 
       describe "properties" do
@@ -622,6 +636,110 @@ class DirmonEntryTest < Minitest::Test
           assert_empty files
         end
 
+        it "skips a file in a directory whose name only starts with that of a whitelisted directory" do
+          Dir.mktmpdir do |dir|
+            FileUtils.mkdir_p(["#{dir}/in", "#{dir}/inbox"])
+            File.write("#{dir}/inbox/file.txt", "Hello World")
+            dirmon_entry.pattern = "#{dir}/inbox/*"
+            files                = []
+            dirmon_entry.stub(:whitelist_paths, [IOStreams.path("#{dir}/in").realpath.to_s]) do
+              dirmon_entry.each { |file_name| files << file_name }
+            end
+
+            assert_empty files
+          end
+        end
+
+        it "reads a file within a whitelisted directory given with a trailing slash" do
+          Dir.mktmpdir do |dir|
+            FileUtils.mkdir_p("#{dir}/in/2026")
+            File.write("#{dir}/in/2026/file.txt", "Hello World")
+            dirmon_entry.pattern = "#{dir}/in/**/*"
+            files                = []
+            dirmon_entry.stub(:whitelist_paths, ["#{IOStreams.path("#{dir}/in").realpath}/"]) do
+              dirmon_entry.each { |file_name| files << file_name.basename }
+            end
+
+            assert_equal ["file.txt"], files
+          end
+        end
+
+        it "skips the files in its archive directory, but not a file or directory whose name starts with its name" do
+          Dir.mktmpdir do |dir|
+            FileUtils.mkdir_p(["#{dir}/archive", "#{dir}/archive_2026"])
+            %w[archive/1_orders.csv archive_2026/orders.csv archived_orders.csv orders.csv].each do |name|
+              File.write("#{dir}/#{name}", "Hello World")
+            end
+            dirmon_entry.pattern           = "#{dir}/**/*"
+            dirmon_entry.archive_directory = "archive"
+            files                          = []
+            dirmon_entry.each { |file_name| files << file_name.to_s.delete_prefix("#{File.realpath(dir)}/") }
+
+            assert_equal %w[archive_2026/orders.csv archived_orders.csv orders.csv], files.sort
+          end
+        end
+
+        it "skips the files in a sub-directory of its archive directory" do
+          Dir.mktmpdir do |dir|
+            FileUtils.mkdir_p(["#{dir}/in/archive/2026", "#{dir}/in/east/archive/old"])
+            %w[in/orders.csv in/archive/2026/1_orders.csv in/east/archive/old/2_orders.csv in/east/orders.csv].each do |name|
+              File.write("#{dir}/#{name}", "Hello World")
+            end
+            dirmon_entry.pattern           = "#{dir}/in/**/*"
+            dirmon_entry.archive_directory = "archive"
+            files                          = []
+            dirmon_entry.each { |file_name| files << file_name.to_s.delete_prefix("#{File.realpath(dir)}/") }
+
+            assert_equal %w[in/east/orders.csv in/orders.csv], files.sort
+          end
+        end
+
+        it "reads the files below a directory with the name of its archive directory further up" do
+          Dir.mktmpdir do |dir|
+            FileUtils.mkdir_p("#{dir}/archive/incoming/archive")
+            File.write("#{dir}/archive/incoming/orders.csv", "Hello World")
+            File.write("#{dir}/archive/incoming/archive/1_orders.csv", "Hello World")
+            dirmon_entry.pattern           = "#{dir}/archive/incoming/**/*"
+            dirmon_entry.archive_directory = "archive"
+            files                          = []
+            dirmon_entry.each { |file_name| files << file_name.to_s.delete_prefix("#{File.realpath(dir)}/") }
+
+            assert_equal %w[archive/incoming/orders.csv], files
+          end
+        end
+
+        it "skips the files in an absolute archive directory, but not in a directory whose name starts with its name" do
+          Dir.mktmpdir do |dir|
+            dir = File.realpath(dir)
+            FileUtils.mkdir_p(["#{dir}/done", "#{dir}/done_2026"])
+            File.write("#{dir}/done/1_orders.csv", "Hello World")
+            File.write("#{dir}/done_2026/orders.csv", "Hello World")
+            dirmon_entry.pattern           = "#{dir}/**/*"
+            dirmon_entry.archive_directory = "#{dir}/done"
+            files                          = []
+            dirmon_entry.each { |file_name| files << file_name.to_s.delete_prefix("#{dir}/") }
+
+            assert_equal %w[done_2026/orders.csv], files
+          end
+        end
+
+        it "skips the files in an absolute archive directory that it reaches through a symbolic link" do
+          Dir.mktmpdir do |dir|
+            real = File.join(File.realpath(dir), "real")
+            link = File.join(File.realpath(dir), "link")
+            FileUtils.mkdir_p("#{real}/done")
+            File.write("#{real}/done/1_orders.csv", "Hello World")
+            File.write("#{real}/orders.csv", "Hello World")
+            File.symlink(real, link)
+            dirmon_entry.pattern           = "#{link}/**/*"
+            dirmon_entry.archive_directory = "#{link}/done"
+            files                          = []
+            dirmon_entry.each { |file_name| files << file_name.basename }
+
+            assert_equal %w[orders.csv], files
+          end
+        end
+
         it "skips a file whose directory is not writable, since it cannot be moved to the archive" do
           skip "Root can move any file" if Process.uid.zero?
 
@@ -657,6 +775,24 @@ class DirmonEntryTest < Minitest::Test
           assert created_job = RocketJob::Jobs::UploadFileJob.last
           assert_equal job.id, created_job.id
           assert_predicate job, :queued?
+        end
+
+        it "leaves the file where it is when an UploadFileJob cannot start the job class" do
+          # Such as a class that changed after the entry was saved.
+          dirmon_entry.job_class_name = NoUploadJob.name
+          error = assert_raises(ArgumentError) { dirmon_entry.later(iopath) }
+
+          assert_includes error.message, "must implement any one of"
+          assert_path_exists file_name
+          assert_equal 0, RocketJob::Jobs::UploadFileJob.count
+        end
+
+        it "archives the file for a job class that this server does not load, for the UploadFileJob to start" do
+          dirmon_entry.job_class_name = "Not::Loaded::Here"
+          job = dirmon_entry.later(iopath)
+
+          assert_predicate job, :persisted?
+          refute_path_exists file_name
         end
 
         it "sets attributes" do

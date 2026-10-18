@@ -1,0 +1,11 @@
+source "https://rubygems.org"
+
+# This repository, as it is checked out, with IOStreams 3.0 from GitHub main, as the repository's own Gemfile, and so
+# CI, use it. The lock file is not committed, so the first `bundle install` takes the latest main, and
+# `bundle update iostreams` takes a newer one.
+gem "csv"
+gem "iostreams", github: "reidmorrison/iostreams", branch: "main"
+gem "mongoid", "~> 9.1.0"
+gem "rocketjob", path: "../../.."
+gem "semantic_logger", "~> 5.0"
+gem "symmetric-encryption", "~> 4.6"

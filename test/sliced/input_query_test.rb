@@ -27,6 +27,14 @@ end
 
 module Sliced
   class InputQueryTest < Minitest::Test
+    class QueryUploadJob < RocketJob::Job
+      include RocketJob::Batch
+
+      def perform(record)
+        record
+      end
+    end
+
     describe RocketJob::Sliced::Input do
       let(:collection_name) { :"rocket_job.slices.query_test" }
 
@@ -111,6 +119,49 @@ module Sliced
 
           assert_equal %w[alice bob], input.collect(&:to_a).flatten.sort
         end
+      end
+    end
+
+    describe "RocketJob::Batch#upload of a query" do
+      let(:job) { QueryUploadJob.new }
+
+      before do
+        InputQueryPerson.delete_all
+        InputQueryDoc.delete_all
+        InputQueryPerson.create!(name: "Alice", age: 30)
+        InputQueryPerson.create!(name: "Bob", age: 40)
+        InputQueryDoc.create!(name: "Alice", age: 30)
+        InputQueryDoc.create!(name: "Bob", age: 40)
+      end
+
+      after do
+        job.cleanup!
+        InputQueryPerson.delete_all
+        InputQueryDoc.delete_all
+      end
+
+      it "uploads the columns of an Active Record relation" do
+        assert_equal 2, job.upload(InputQueryPerson.all, columns: %i[name age])
+        assert_equal 2, job.record_count
+        assert_equal [["Alice", 30], ["Bob", 40]], job.input.collect(&:to_a).flatten(1).sort
+      end
+
+      it "uploads what the block returns for each model of an Active Record relation" do
+        assert_equal(2, job.upload(InputQueryPerson.all) { |model| model.name.upcase })
+        assert_equal 2, job.record_count
+        assert_equal %w[ALICE BOB], job.input.collect(&:to_a).flatten.sort
+      end
+
+      it "uploads what the block returns for each document of a Mongoid query" do
+        assert_equal(2, job.upload(InputQueryDoc.all) { |document| document["name"].downcase })
+        assert_equal %w[alice bob], job.input.collect(&:to_a).flatten.sort
+      end
+
+      it "rejects a file option for a query" do
+        error = assert_raises(ArgumentError) { job.upload(InputQueryDoc.all, file_name: "x.csv") }
+
+        assert_equal "Unknown keyword arguments when uploading a Mongoid::Criteria. " \
+                     "Only accepts :category, :columns, or :slice_batch_size", error.message
       end
     end
   end

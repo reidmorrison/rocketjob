@@ -7,7 +7,6 @@ module RocketJob
     include Supervisor::Shutdown
 
     attr_reader :server, :worker_pool
-    attr_accessor :worker_id
 
     # Start the Supervisor, using the supplied attributes to create a new Server instance.
     def self.run
@@ -94,6 +93,58 @@ module RocketJob
 
     def synchronize(&)
       @mutex.synchronize(&)
+    end
+
+    # Returns [true|false] whether the server of this supervisor is the one with the supplied id or name, which an
+    # event names to act on that server only. An event that names neither acts on every server. The id is compared as
+    # text, so that an id published as a String matches too.
+    def server?(server_id: nil, name: nil)
+      return true if server_id.nil? && name.nil?
+
+      server.name == name || server_id.to_s == server.id.to_s
+    end
+
+    # Shuts down this server, stopping its workers, giving those still working `wait_timeout` seconds to finish,
+    # then killing them.
+    def kill(wait_timeout = 5)
+      synchronize do
+        self.class.shutdown!
+
+        logger.info("Stopping Pool")
+        worker_pool.stop
+        unless worker_pool.living_count.zero?
+          logger.info("Giving pool #{wait_timeout} seconds to terminate")
+          sleep(wait_timeout)
+        end
+        logger.info("Kill Pool")
+        worker_pool.kill
+      end
+    end
+
+    # Pauses this server, which stops its workers until it is resumed, see #resume.
+    def pause
+      synchronize { server.pause! if server.may_pause? }
+      self.class.event!
+    end
+
+    # Resumes this server after it was paused, see #pause.
+    def resume
+      synchronize { server.resume! if server.may_resume? }
+      self.class.event!
+    end
+
+    # Logs the backtrace of each of the workers of this server.
+    def log_backtraces
+      worker_pool.log_backtraces
+    end
+
+    # Returns [RocketJob::ThreadWorker] the worker of this server with the supplied id, or nil when it has none that is
+    # alive.
+    def worker(worker_id)
+      return unless worker_id
+
+      worker = worker_pool.find(worker_id)
+      worker if worker&.alive?
     end
   end
 end

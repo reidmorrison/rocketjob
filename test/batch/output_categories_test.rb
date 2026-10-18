@@ -70,9 +70,34 @@ module Batch
       end
     end
 
+    class FixedLayoutColumnsJob < RocketJob::Job
+      include RocketJob::Batch
+
+      output_category format:         :fixed,
+                      columns:        %w[zip name],
+                      format_options: {layout: [{size: 10, key: "name"}, {size: 5, key: "zip"}]}
+
+      def perform(record)
+        name, zip = record.split(",")
+        [zip, name]
+      end
+    end
+
     describe RocketJob::Batch::Categories do
       after do
         @job.destroy if @job && !@job.new_record?
+      end
+
+      describe "fixed width layout with output columns" do
+        it "writes each Array result by the columns, as before v8" do
+          @job = FixedLayoutColumnsJob.new
+          @job.upload_slice(["Jack,12345", "Jill,54321"])
+          @job.perform_now
+          io = StringIO.new
+          @job.download(IOStreams.stream(io))
+
+          assert_equal "Jack      12345\nJill      54321\n", io.string
+        end
       end
 
       let(:lines) { 5.times.collect { |i| "line#{i + 1}" } }

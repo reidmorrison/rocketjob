@@ -1,4 +1,5 @@
 appraise "mongoid_8.1" do
+  gem "activejob", "~> 7.2.3"
   gem "activerecord", "~> 7.2.3"
   gem "activerecord-jdbcsqlite3-adapter", "~> 72.1", platform: :jruby
   gem "jdbc-sqlite3", platform: :jruby
@@ -6,6 +7,7 @@ appraise "mongoid_8.1" do
 end
 
 appraise "mongoid_9.0" do
+  gem "activejob", "~> 8.0.0"
   gem "activerecord", "~> 8.0.0"
   gem "activerecord-jdbcsqlite3-adapter", "~> 80.0.pre1", platform: :jruby
   gem "jdbc-sqlite3", platform: :jruby
@@ -13,6 +15,7 @@ appraise "mongoid_9.0" do
 end
 
 appraise "mongoid_9.1" do
+  gem "activejob", "~> 8.1.0"
   gem "activerecord", "~> 8.1.0"
   gem "mongoid", "~> 9.1.0"
 end

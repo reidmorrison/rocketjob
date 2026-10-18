@@ -104,6 +104,21 @@ module Plugins
 
           assert_predicate @job, :valid?
         end
+
+        it "fails when another job is queued with the same cron schedule" do
+          CronJob.create!(cron_schedule: "0 1 * * *")
+          @job = CronJob.new(cron_schedule: "0 1 * * *")
+
+          refute_predicate @job, :valid?
+          assert_match(/already queued, running, failed, or paused/, @job.errors.messages[:state].first)
+        end
+
+        it "allows another job with the same cron schedule when cron_singleton is false" do
+          CronJob.create!(cron_schedule: "0 1 * * *")
+          @job = CronJob.new(cron_schedule: "0 1 * * *", cron_singleton: false)
+
+          assert_predicate @job, :valid?
+        end
       end
 
       describe "#start" do

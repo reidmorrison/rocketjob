@@ -7,7 +7,6 @@ require "rocket_job/batch/state_machine"
 require "rocket_job/batch/throttle"
 require "rocket_job/batch/throttle_running_workers"
 require "rocket_job/batch/worker"
-# Ensure after_perform is run first and #upload override is after IO#upload is defined.
 require "rocket_job/batch/categories"
 
 module RocketJob
@@ -23,6 +22,11 @@ module RocketJob
     include Throttle
     include ThrottleRunningWorkers
     include IO
+
+    included do
+      # The plugins that the job class included before this module, see .rocket_job_batch_plugin.
+      rocket_job_batch_plugins.each { |plugin| class_exec(&plugin) }
+    end
 
     autoload :LowerPriority, "rocket_job/batch/lower_priority"
     autoload :Performance, "rocket_job/batch/performance"

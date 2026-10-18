@@ -17,15 +17,7 @@ module RocketJob
 
     # Returns [true|false] whether the throttle was triggered.
     def throttled?(job, *args)
-      # Throttle exceeded?
-      # Throttle methods can be private.
-      throttled =
-        if args.size.positive?
-          job.method(method_name).arity.zero? ? job.send(method_name) : job.send(method_name, *args)
-        else
-          job.send(method_name)
-        end
-      return false unless throttled
+      return false unless call_job_method(job, method_name, args)
 
       job.logger.debug { "Throttle: #{method_name} has been exceeded." }
       true
@@ -35,11 +27,7 @@ module RocketJob
     def extract_filter(job, *args)
       return filter.call(job, *args) if filter.is_a?(Proc)
 
-      if args.size.positive?
-        job.method(filter).arity.zero? ? job.send(filter) : job.send(filter, *args)
-      else
-        job.send(filter)
-      end
+      call_job_method(job, filter, args)
     end
 
     # Returns [String] the human readable reason why the job is throttled.
@@ -49,6 +37,16 @@ module RocketJob
 
       # Default: humanize the method name, dropping a trailing `?` or `_exceeded`.
       method_name.to_s.sub(/_exceeded\?\z/, "").sub(/\?\z/, "").tr("_", " ").capitalize
+    end
+
+    private
+
+    # Calls the named method of the job, which can be private, with the supplied arguments, such as the slice of a
+    # batch throttle, unless it takes none.
+    def call_job_method(job, name, args)
+      return job.send(name) if args.empty? || job.method(name).arity.zero?
+
+      job.send(name, *args)
     end
   end
 end

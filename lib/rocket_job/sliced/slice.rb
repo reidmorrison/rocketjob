@@ -47,6 +47,10 @@ module RocketJob
       # This name of the worker that this job is being processed by, or was processed by
       field :worker_name, type: String
 
+      # The id of the upload that inserted this slice, when its uploader named one, so that the slices of that upload
+      # can be removed again, see RocketJob::Sliced::Input#delete_upload.
+      field :upload_id, type: String
+
       # The last exception for this slice if any
       embeds_one :exception, class_name: "RocketJob::JobException"
 
@@ -135,10 +139,7 @@ module RocketJob
 
       # Before Fail save the exception to this slice.
       def set_exception(exc = nil)
-        if exc
-          self.exception        = JobException.from_exception(exc)
-          exception.worker_name = worker_name
-        end
+        self.exception     = JobException.from_failure(exc, worker_name: worker_name) if exc
         self.failure_count = failure_count.to_i + 1
         self.worker_name   = nil
       end
@@ -167,8 +168,7 @@ module RocketJob
       rescue Exception => e
         SemanticLogger.named_tagged(slice: id.to_s) do
           if failed? || !may_fail?
-            exception             = JobException.from_exception(e)
-            exception.worker_name = worker_name
+            self.exception = JobException.from_exception(e, worker_name: worker_name)
             save! unless new_record? || destroyed?
           elsif new_record? || destroyed?
             fail(e)

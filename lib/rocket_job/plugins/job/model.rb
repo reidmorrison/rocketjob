@@ -3,7 +3,8 @@ require "active_support/concern"
 module RocketJob
   module Plugins
     module Job
-      # Prevent more than one instance of this job class from running at a time
+      # The fields of every job, and the class-level declarations that the other plugins build on, such as `field`
+      # with its `user_editable`, `class_attribute`, `copy_on_restart` and `path` options.
       module Model
         extend ActiveSupport::Concern
 
@@ -21,6 +22,10 @@ module RocketJob
           class_attribute :rocket_job_restart_attributes
           self.rocket_job_restart_attributes = []
 
+          # Blocks to run in this job class once it includes RocketJob::Batch, see .rocket_job_batch_plugin.
+          class_attribute :rocket_job_batch_plugins, instance_accessor: false
+          self.rocket_job_batch_plugins = []
+
           #
           # User definable attributes
           #
@@ -37,9 +42,9 @@ module RocketJob
           # Example:
           #   A job with a priority of 40 will execute before a job with priority 50
           #
-          # In RocketJob Pro, if a SlicedJob is running and a higher priority job
-          # arrives, then the current job will complete the current slices and process
-          # the new higher priority job
+          # When a batch job is running and a higher priority job arrives, each of its workers moves to the higher
+          # priority job after the slice that it is processing once `RocketJob::Config.re_check_seconds` have passed
+          # since it started working on the batch job.
           field :priority, type: Integer, default: 50, class_attribute: true, user_editable: true, copy_on_restart: true
           validates_inclusion_of :priority, in: 1..100
 
@@ -197,6 +202,20 @@ module RocketJob
             super
           end
 
+          # Runs the supplied block in this job class once it includes RocketJob::Batch: now when it already has,
+          # otherwise when it does, so that a plugin can act on the slices of a batch job, whichever of them the class
+          # includes first.
+          #
+          # Example:
+          #   included do
+          #     rocket_job_batch_plugin { define_batch_throttle :my_throttle_exceeded? }
+          #   end
+          def rocket_job_batch_plugin(&block)
+            return class_exec(&block) if include?(RocketJob::Batch)
+
+            self.rocket_job_batch_plugins += [block]
+          end
+
           # Builds this job instance from the supplied properties hash.
           # Overridden by batch to support child objects.
           def from_properties(properties)
@@ -343,11 +362,9 @@ module RocketJob
           h
         end
 
-        # Returns [true|false] whether the worker runs on a particular server.
+        # Returns [true|false] whether the worker of this job runs on the named server, see RocketJob::Worker.on_server?.
         def worker_on_server?(server_name)
-          return false unless worker_name.present? && server_name.present?
-
-          worker_name.start_with?(server_name)
+          RocketJob::Worker.on_server?(worker_name, server_name)
         end
       end
     end

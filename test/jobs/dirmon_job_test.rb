@@ -4,6 +4,9 @@ require "socket"
 module Jobs
   class DirmonJobTest < Minitest::Test
     class TestJob < RocketJob::Job
+      # The UploadFileJob that Dirmon starts for each file sets it.
+      field :upload_file_name, type: IOStreams::Path
+
       def perform
         3645
       end

@@ -29,6 +29,21 @@ module RocketJob
       )
     end
 
+    # Returns [JobException] that records the supplied failure: an Exception, see .from_exception, or a message, which
+    # is recorded under the supplied class name, without a backtrace, such as the reason that a batch job failed.
+    #
+    # Parameters
+    #   class_name: [String]
+    #     The class name to record with a message.
+    #     Default: "RocketJob::JobException"
+    #
+    #   Any other attributes, such as `worker_name:`.
+    def self.from_failure(exception_or_message, class_name: name, **args)
+      return from_exception(exception_or_message, **args) if exception_or_message.is_a?(Exception)
+
+      new(args.merge(class_name: class_name, message: exception_or_message, backtrace: []))
+    end
+
     # Sets the message as valid UTF-8, see RocketJob.valid_utf8, so that the exception can always be saved, whatever
     # text the failure held, such as a response body that is not UTF-8, or a file name in Latin-1.
     def message=(message)

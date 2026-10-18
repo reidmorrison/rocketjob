@@ -129,12 +129,12 @@ module RocketJob
     def write_pidfile
       return unless pidfile
 
-      pid = $PID
+      pid = Process.pid
       File.open(pidfile, "w") { |f| f.puts(pid) }
 
       # Remove pidfile on exit
       at_exit do
-        File.delete(pidfile) if pid == $PID
+        File.delete(pidfile) if pid == Process.pid && File.exist?(pidfile)
       end
     end
 
@@ -235,7 +235,7 @@ module RocketJob
     def parse(argv)
       parser        = OptionParser.new do |o|
         o.on("-n", "--name NAME", "Unique Name of this server (Default: host_name:PID)") do |arg|
-          Config.name = arg
+          Config.server_name = arg
         end
         o.on("-w", "--workers COUNT", "Number of workers (threads) to start") do |arg|
           @max_workers = arg.to_i

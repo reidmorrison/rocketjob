@@ -79,7 +79,7 @@ module RocketJob
 
     before_validation :strip_whitespace
     validates_presence_of :pattern, :job_class_name, :archive_directory
-    validate :job_is_a_rocket_job
+    validate :job_class_can_be_started
     validate :job_has_properties
     validates_uniqueness_of :pattern, :name
 
@@ -162,42 +162,21 @@ module RocketJob
       path
     end
 
-    # Returns [Hash<String:Integer>] of the number of dirmon entries in each state.
-    # Note: If there are no workers in that particular state then the hash will not have a value for it.
-    #
-    # Example dirmon entries in every state:
-    #   RocketJob::DirmonEntry.counts_by_state
-    #   # => {
-    #          :pending => 1,
-    #          :enabled => 37,
-    #          :failed => 1,
-    #          :disabled => 3
-    #        }
-    #
-    # Example no dirmon entries:
-    #   RocketJob::Job.counts_by_state
-    #   # => {}
-    def self.counts_by_state
-      counts = {}
-      collection.aggregate([{"$group" => {_id: "$state", count: {"$sum" => 1}}}]).each do |result|
-        counts[result["_id"].to_sym] = result["count"]
-      end
-      counts
-    end
-
     # Yields [IOStreams::Path] for each file found that matches the current pattern.
     def each
       SemanticLogger.named_tagged(dirmon_entry: id.to_s) do
+        archives = absolute_archive_directories
+        starts   = pattern_directories
         # Case insensitive filename matching
         IOStreams.each_child(pattern) do |path|
           path = existing_realpath(path)
           next unless path
 
-          # Skip archive directories
-          next if path.to_s.include?(archive_directory || self.class.default_archive_directory)
+          # Skip the files that were moved to the archive directory, which the pattern can match.
+          next if archived?(path, archives, starts)
 
           # Security check?
-          if whitelist_paths.size.positive? && whitelist_paths.none? { |whitepath| path.to_s.start_with?(whitepath) }
+          if whitelist_paths.size.positive? && whitelist_paths.none? { |whitepath| within?(path, whitepath) }
             logger.warn "Skipping file: #{RocketJob.path_display_name(path)} since it is not in any of the whitelisted paths: #{whitelist_paths.join(', ')}"
             next
           end
@@ -215,17 +194,11 @@ module RocketJob
 
     # Set exception information for this DirmonEntry and fail it
     def set_exception(worker_name, exc_or_message)
-      if exc_or_message.is_a?(Exception)
-        self.exception        = JobException.from_exception(exc_or_message)
-        exception.worker_name = worker_name
-      else
-        build_exception(
-          class_name:  "RocketJob::DirmonEntryException",
-          message:     exc_or_message,
-          backtrace:   [],
-          worker_name: worker_name
-        )
-      end
+      self.exception = JobException.from_failure(
+        exc_or_message,
+        worker_name: worker_name,
+        class_name:  "RocketJob::DirmonEntryException"
+      )
     end
 
     # Records that the storage of this entry could not be reached, such as an SFTP server that is restarting,
@@ -324,7 +297,16 @@ module RocketJob
     # each byte that is not valid UTF-8 as `\xHH`, see #file_display_name.
     #
     # Returns [RocketJob::Jobs::UploadFileJob] the job, or nil when the file was removed after it was found.
+    #
+    # Raises ArgumentError, and leaves the file where it is, when the UploadFileJob cannot start the job class, such as
+    # a class that changed after this entry was saved, see RocketJob::Jobs::UploadFileJob.job_class_errors. A class
+    # that this server does not load is left for the UploadFileJob to start.
     def later(iopath)
+      if job_class
+        messages = RocketJob::Jobs::UploadFileJob.job_class_errors(job_class_name)
+        raise(ArgumentError, messages.join(", ")) if messages.any?
+      end
+
       job_id       = BSON::ObjectId.new
       archive_path = archive_iopath(iopath).join("#{job_id}_#{archive_file_name(iopath)}")
       return unless archive_file(iopath, archive_path)
@@ -381,6 +363,62 @@ module RocketJob
     class_attribute :whitelist_paths
     self.whitelist_paths = Concurrent::Array.new
 
+    # Returns [true|false] whether the supplied file, found by its real path, is in an archive directory, which a file
+    # is moved to when its job is queued, see #archive_iopath, or in a directory within it: within the supplied
+    # absolute ones, see #absolute_archive_directories, otherwise within a directory named as the relative
+    # `archive_directory` below the directory that the pattern starts in, one of the supplied ones, see
+    # #pattern_directories. A directory above it with the same name, such as `archive` in the pattern
+    # `/srv/archive/incoming/*.csv`, does not make its files archived, nor does a file or directory whose name only
+    # starts with the same characters, such as `archived_orders.csv` or `archive_2026`.
+    def archived?(path, archives, starts)
+      return archives.any? { |archive| within?(path, archive) } if archives
+
+      directory = path.directory.to_s.delete_suffix("/")
+      start     = starts.find { |start_directory| within?(directory, start_directory) }
+      directory = directory.delete_prefix(start.delete_suffix("/")) if start
+      "#{directory}/".include?("/#{archive_name}/")
+    end
+
+    # Returns [Array<String>] the directory that the pattern starts in, before its first wildcard, as it is written
+    # and by its real path, see #absolute_archive_directories, since the files that a scan finds are compared by
+    # their real paths.
+    def pattern_directories
+      fixed     = pattern.to_s[/\A[^*?\[{]*/]
+      directory = fixed.end_with?("/") ? fixed.delete_suffix("/") : File.dirname(fixed)
+      [directory, real_directory(IOStreams.path(directory))].compact.uniq
+    end
+
+    # Returns [Array<String>] an absolute `archive_directory`, as it is set and by its real path, since the files that
+    # a scan finds are compared by their real paths, such as when it is reached through a symbolic link, or nil when it
+    # is relative.
+    def absolute_archive_directories
+      archive = IOStreams.path(archive_name)
+      return if archive.relative?
+
+      [archive.to_s, real_directory(archive)].compact.uniq
+    end
+
+    # Returns [String] the real path of the supplied directory, or nil when it does not exist yet, or its store has
+    # no real paths.
+    def real_directory(path)
+      path.realpath.to_s
+    rescue StandardError, NotImplementedError
+      nil
+    end
+
+    # Returns [String] the archive directory, without a leading `./` or a trailing `/`.
+    def archive_name
+      (archive_directory || self.class.default_archive_directory).delete_prefix("./").delete_suffix("/")
+    end
+
+    # Returns [true|false] whether the supplied path is the supplied directory, or is within it, rather than within a
+    # directory whose name only starts with the same characters, such as `/data/inbox` for `/data/in`.
+    def within?(path, directory)
+      name      = path.to_s
+      directory = directory.to_s.delete_suffix("/")
+      name == directory || name.start_with?("#{directory}/")
+    end
+
     # Returns [IOStreams::Path] the real path of the supplied file, or nil when it was removed after it was found,
     # whichever storage it is on.
     def existing_realpath(path)
@@ -423,12 +461,15 @@ module RocketJob
       path.relative? ? iopath.directory.join(archive_directory) : path
     end
 
-    # Validates job_class is a Rocket Job
-    def job_is_a_rocket_job
-      klass = job_class
-      return if job_class_name.nil? || klass&.ancestors&.include?(RocketJob::Job)
+    # Validates that the job class is defined, and that the UploadFileJob that each file starts can start it, see
+    # RocketJob::Jobs::UploadFileJob.job_class_errors, so that an entry whose files would be archived without a job is
+    # not saved.
+    def job_class_can_be_started
+      return if job_class_name.nil?
 
-      errors.add(:job_class_name, "Job #{job_class_name} must be defined and inherit from RocketJob::Job")
+      RocketJob::Jobs::UploadFileJob.job_class_errors(job_class_name).each do |message|
+        errors.add(:job_class_name, message)
+      end
     end
 
     # Can the properties build the job, such as each being one that the job has? The job class decides, see
