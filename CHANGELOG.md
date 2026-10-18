@@ -14,7 +14,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Removed the batch job methods `upload_arel`, `upload_mongo_query`, `upload_integer_range` and
   `upload_integer_range_in_reverse_order`, deprecated in v6. Call `upload` with the relation, query or range instead,
   such as `upload(User.where(country_code: "US"), columns: %i[name zip_code])` or `upload(200..421)`, including in
-  the `before_code` of an `OnDemandBatchJob`, whose documentation showed `upload_arel`. See the upgrade guide.
+  the `before_code` of an `OnDemandBatchJob`, whose documentation showed `upload_arel`. Also removed
+  `upload_file_name` and `upload_file_name=` of a batch job, deprecated in v6, which read and set the `file_name` of
+  its input category: use `input_category.file_name` instead. See the upgrade guide.
 - `RocketJob::Plugins::Transaction` wraps each slice of a batch job in a transaction, and
   `RocketJob::Plugins::ThrottleDependentJobs` throttles its slices, whether the job includes them before or after
   `RocketJob::Batch`, as documented. Previously a job that included `Transaction` first had a transaction around
@@ -236,8 +238,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   of the job class that defines a category with one, or of the call to `upload` that supplies one, and when a Dirmon
   entry or an `UploadFileJob` builds a job from properties that hold one. They are only reported while Ruby's
   deprecation warnings are on, such as in tests, see `RocketJob::Deprecation`.
-- The `upload_file_name` of a batch job, deprecated in v6, which reads and sets the `file_name` of its input
-  category, reports a deprecation warning at the line that calls it. Use `input_category.file_name` instead.
 
 ### Fixes
 

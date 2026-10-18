@@ -151,20 +151,6 @@ module Batch
           assert status.key?("queued_slices")
         end
       end
-
-      describe "#upload_file_name" do
-        # The deprecation warning is tested in test/deprecation_test.rb.
-        it "delegates to the input category file name" do
-          @job = SimpleJob.new
-          Warning.stub(:warn, nil) do
-            assert_nil @job.upload_file_name
-            @job.upload_file_name = "data.csv"
-            # Category#file_name wraps the value in an IOStreams path.
-            assert_equal "data.csv", @job.upload_file_name.to_s
-            assert_equal @job.input_category.file_name, @job.upload_file_name
-          end
-        end
-      end
     end
   end
 end

@@ -5852,28 +5852,11 @@ input_category format: :csv, mode: :hash
 format, `#perform` received each row as an Array, so set the category's format, such as `:csv`, and
 change `#perform` to read the Hash.
 
-### upload_file_name of a batch job is deprecated
-
-The `upload_file_name` of a batch job reads and sets the `file_name` of its input category, as it has
-since v6. Use the input category instead:
-
-~~~ruby
-# Before (deprecated)
-job.upload_file_name = "orders.csv"
-
-# After
-job.input_category.file_name = "orders.csv"
-~~~
-
-The `upload_file_name` of an `UploadFileJob`, and a field of that name on a simple job, are not
-deprecated.
-
 ### Finding the deprecated options
 
 Rocket Job reports a Ruby deprecation warning for each deprecated category option that it is given,
 naming the line of the job class that defines the category, or of the call to `upload` that supplies
-one, such as `stream_mode: :array` or `allowed_columns:`, and for each call to the `upload_file_name`
-of a batch job, for example:
+one, such as `stream_mode: :array` or `allowed_columns:`, for example:
 
 ~~~
 app/jobs/import_job.rb:5: warning: Rocket Job: allowed_columns:, skip_unknown: are deprecated, describe the columns of the file with schema: instead, see https://rocketjob.reidmorrison.com/upgrading.html
@@ -5920,6 +5903,11 @@ These were deprecated or unused, and are removed in v8:
   `before_code` of an `OnDemandBatchJob` that calls one of them, as its documentation showed, raises
   `NoMethodError` when the job runs: change it to call `upload`, including in the jobs that are already
   saved, such as a scheduled one, which copies its `before_code` to its next run.
+* `upload_file_name` and `upload_file_name=` of a batch job, deprecated in v6, which read and set the
+  `file_name` of its input category. Use the input category instead, such as
+  `job.input_category.file_name = "orders.csv"`. The `upload_file_name` of an `UploadFileJob`, and a
+  field of that name on a simple job, are not affected. Mission Control showed and logged it, so
+  upgrade Mission Control to a release that supports v8.
 
 ## Upgrading to v6
 
