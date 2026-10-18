@@ -340,14 +340,19 @@ field :report_date, type: Date, default: -> { Date.today }
 When the default is a proc or lambda, it has access to the job itself:
 
 ~~~ruby
-field :report_date, type: Date, default: -> { new_record? ? Date.yesterday : Date.today }
+field :report_date,
+      type:    Date,
+      default: -> { new_record? ? Date.yesterday : Date.today }
 ~~~
 
 Proc and lambda defaults are applied _after_ all other attributes are set. To apply the default
 _before_ the other attributes are set, use `pre_processed: true`:
 
 ~~~ruby
-field :report_date, type: Date, default: -> { new_record? ? Date.yesterday : Date.today }, pre_processed: true
+field :report_date,
+      type:          Date,
+      default:       -> { new_record? ? Date.yesterday : Date.today },
+      pre_processed: true
 ~~~
 
 A plain default is evaluated once, at class-load time. A proc or lambda default is evaluated every
@@ -1411,7 +1416,9 @@ module ReplicaDelayThrottle
   extend ActiveSupport::Concern
 
   included do
-    rocket_job_batch_plugin { define_batch_throttle :replica_delay_exceeded? }
+    rocket_job_batch_plugin do
+      define_batch_throttle :replica_delay_exceeded?
+    end
   end
 
   private

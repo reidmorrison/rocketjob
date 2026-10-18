@@ -68,7 +68,9 @@ words = %w[these are some words to be processed across many workers]
 
 job = ReverseJob.new
 job.upload do |records|
-  words.each { |word| records << word }
+  words.each do |word|
+    records << word
+  end
 end
 job.save!
 ~~~
@@ -77,7 +79,9 @@ Once the job completes, read the output (see [Collecting output](#collecting-out
 
 ~~~ruby
 job.output.each do |slice|
-  slice.each { |record| puts record }
+  slice.each do |record|
+    puts record
+  end
 end
 ~~~
 
@@ -211,7 +215,9 @@ job.upload(User.where(country_code: "US"), columns: %i[user_name zip_code])
 Pass a block to transform each model into the record to upload:
 
 ~~~ruby
-job.upload(User.where(country_code: "US")) { |user| user.email }
+job.upload(User.where(country_code: "US")) do |user|
+  user.email
+end
 ~~~
 
 ### Mongoid queries
@@ -255,7 +261,9 @@ When `upload` is given a block, it yields a writer to which records are appended
 
 ~~~ruby
 job.upload do |writer|
-  10.times { |i| writer << i }
+  10.times do |i|
+    writer << i
+  end
 end
 ~~~
 
@@ -354,7 +362,9 @@ Read the collected output once the job has completed:
 
 ~~~ruby
 job.output.each do |slice|
-  slice.each { |record| puts record }
+  slice.each do |record|
+    puts record
+  end
 end
 ~~~
 
@@ -498,9 +508,17 @@ end
 ~~~
 
 ~~~ruby
-TabularJob.new.tap { |j| j.upload("really_big.csv") }.save!
-TabularJob.new.tap { |j| j.upload("really_big.xlsx") }.save!
-TabularJob.new.tap { |j| j.upload("really_big.json") }.save!
+csv_job = TabularJob.new
+csv_job.upload("really_big.csv")
+csv_job.save!
+
+excel_job = TabularJob.new
+excel_job.upload("really_big.xlsx")
+excel_job.save!
+
+json_job = TabularJob.new
+json_job.upload("really_big.json")
+json_job.save!
 ~~~
 
 ### Typed values with a schema
@@ -640,7 +658,12 @@ class ExportUsersJob < RocketJob::Job
 
   # These fields are written, in this order
   output_category format: :csv,
-                  schema: {"fields" => [{"name" => "login"}, {"name" => "last_login", "type" => "datetime"}]}
+                  schema: {
+                    "fields" => [
+                      {"name" => "login"},
+                      {"name" => "last_login", "type" => "datetime"}
+                    ]
+                  }
 
   def perform(id)
     u = User.find(id)
@@ -683,7 +706,10 @@ class ExportUsersJob < RocketJob::Job
   output_category format: :csv,
                   schema: {
                     "fieldsMatch" => "subset",
-                    "fields"      => [{"name" => "login"}, {"name" => "last_login", "type" => "datetime"}]
+                    "fields"      => [
+                      {"name" => "login"},
+                      {"name" => "last_login", "type" => "datetime"}
+                    ]
                   }
 
   def perform(login)
@@ -699,7 +725,12 @@ Override the schema per instance to widen or narrow the export:
 job = ExportUsersJob.new
 job.output_category.schema = {
   "fieldsMatch" => "subset",
-  "fields"      => [{"name" => "login"}, {"name" => "last_login"}, {"name" => "name"}, {"name" => "state"}]
+  "fields"      => [
+    {"name" => "login"},
+    {"name" => "last_login"},
+    {"name" => "name"},
+    {"name" => "state"}
+  ]
 }
 job.save!
 ~~~
@@ -789,7 +820,12 @@ class ExportJob < RocketJob::Job
 
   input_category  format: :csv
   output_category format:     :csv,
-                  schema:     {"fields" => [{"name" => "name"}, {"name" => "age", "type" => "integer"}]},
+                  schema:     {
+                    "fields" => [
+                      {"name" => "name"},
+                      {"name" => "age", "type" => "integer"}
+                    ]
+                  },
                   serializer: :encrypted_bz2
 
   after_batch :download_file
@@ -952,7 +988,11 @@ class SampleJob < RocketJob::Job
   private
 
   def upload_data
-    upload { |stream| %w[abc def ghi].each { |r| stream << r } }
+    upload do |stream|
+      %w[abc def ghi].each do |record|
+        stream << record
+      end
+    end
   end
 end
 ~~~
@@ -1001,7 +1041,9 @@ job.input.failed.first            # First failed slice
 job.input.first                   # First input slice, in upload order
 
 # Iterate over every failed slice and print its exception class:
-job.input.failed.each { |slice| puts slice.exception.class_name }
+job.input.failed.each do |slice|
+  puts slice.exception.class_name
+end
 ~~~
 
 **Reading records within a slice.** A slice behaves like an array of its records, and carries metadata
@@ -1035,7 +1077,9 @@ fastest way to see _what_ is failing without paging through slices one at a time
 ~~~ruby
 job.input.group_exceptions.each do |summary|
   puts "#{summary.class_name}: #{summary.count}"
-  summary.messages.each { |message| puts "  #{message}" }
+  summary.messages.each do |message|
+    puts "  #{message}"
+  end
 end
 ~~~
 
