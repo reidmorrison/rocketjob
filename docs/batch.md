@@ -245,8 +245,8 @@ Each integer counts as one record in the job's `record_count`, so `percent_compl
 as they are processed.
 
 `upload_arel`, `upload_mongo_query`, `upload_integer_range` and
-`upload_integer_range_in_reverse_order` still upload a query or a range, as they did before `upload`
-accepted them, and are deprecated.
+`upload_integer_range_in_reverse_order`, which uploaded a query or a range before `upload` accepted
+them, are removed in v8, see [Upgrading to v8](upgrading.html#removed).
 
 ### A block
 

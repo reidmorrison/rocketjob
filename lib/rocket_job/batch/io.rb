@@ -127,8 +127,8 @@ module RocketJob
       # * Binary data cannot be uploaded as records, since they are stored as UTF-8 strings.
       # * CSV parsing is slow, so it is usually left for the workers to do.
       #
-      # Upload the records of a query or a range of integers, which `upload_arel`, `upload_mongo_query`,
-      # `upload_integer_range` and `upload_integer_range_in_reverse_order` did before they were deprecated:
+      # Upload the records of a query or a range of integers, as the removed `upload_arel`, `upload_mongo_query`,
+      # `upload_integer_range` and `upload_integer_range_in_reverse_order` did:
       #
       # Example: Upload the id of each user that an Active Record relation returns
       #   job.upload(User.where(country_code: "US"))
@@ -207,45 +207,6 @@ module RocketJob
             end
           end
         rocketjob_add_record_count(count)
-      end
-
-      # @deprecated Use #upload with an Active Record relation, such as `upload(relation, columns: %i[name zip])`, or
-      #   with a block.
-      #
-      # Uploads the id of each model that the relation returns, or the values of the supplied column names as an
-      # Array, or what the block returns for each model. Returns [Integer] the number of records uploaded, which is
-      # added to `record_count`.
-      def upload_arel(arel, *column_names, category: :main, &)
-        rocketjob_add_record_count(input(category).upload_arel(arel, columns: column_names, &))
-      end
-
-      # @deprecated Use #upload with a Mongoid::Criteria, such as `upload(criteria, columns: [:zip])`, or with a block.
-      #
-      # Uploads the id of each document that the query returns, or the values of the supplied field names as an
-      # Array, or what the block returns for each document, which must be a type that BSON can store. Returns
-      # [Integer] the number of records uploaded, which is added to `record_count`.
-      def upload_mongo_query(criteria, *column_names, category: :main, &)
-        rocketjob_add_record_count(input(category).upload_mongo_query(criteria, columns: column_names, &))
-      end
-
-      # @deprecated Use #upload with a Range, such as `upload(200..421)`.
-      #
-      # Uploads one `[first_id, last_id]` range of `slice_size` integers per slice, from start_id to last_id.
-      # Returns [Integer] the number of integers uploaded, which is added to `record_count`.
-      def upload_integer_range(start_id, last_id, category: :main, slice_batch_size: 1_000)
-        input(category).upload_integer_range(start_id, last_id, slice_batch_size: slice_batch_size)
-        # Nothing is uploaded when last_id is less than start_id.
-        rocketjob_add_record_count([last_id - start_id + 1, 0].max)
-      end
-
-      # @deprecated Use #upload with a descending Range, such as `upload(421..200)`.
-      #
-      # Uploads the ranges of #upload_integer_range, starting with the last range, so that the highest ids are
-      # processed first. Returns [Integer] the number of integers uploaded, which is added to `record_count`.
-      def upload_integer_range_in_reverse_order(start_id, last_id, category: :main, slice_batch_size: 1_000)
-        input(category).upload_integer_range_in_reverse_order(start_id, last_id, slice_batch_size: slice_batch_size)
-        # Nothing is uploaded when last_id is less than start_id.
-        rocketjob_add_record_count([last_id - start_id + 1, 0].max)
       end
 
       # Upload the supplied slice for processing by workers

@@ -11,6 +11,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   which was unused, and whose `upload` always raised `ArgumentError`; and `#work_first_slice` of a batch job,
   deprecated in v6. A batch job saved by v5, and never saved since, is no longer translated into v6 categories when
   it is read. See the upgrade guide.
+- Removed the batch job methods `upload_arel`, `upload_mongo_query`, `upload_integer_range` and
+  `upload_integer_range_in_reverse_order`, deprecated in v6. Call `upload` with the relation, query or range instead,
+  such as `upload(User.where(country_code: "US"), columns: %i[name zip_code])` or `upload(200..421)`, including in
+  the `before_code` of an `OnDemandBatchJob`, whose documentation showed `upload_arel`. See the upgrade guide.
 - `RocketJob::Plugins::Transaction` wraps each slice of a batch job in a transaction, and
   `RocketJob::Plugins::ThrottleDependentJobs` throttles its slices, whether the job includes them before or after
   `RocketJob::Batch`, as documented. Previously a job that included `Transaction` first had a transaction around
@@ -21,13 +25,12 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   such as `archive`, or within an absolute one. Previously it skipped every file whose path contained the name of the
   archive directory anywhere, such as `archived_orders.csv`, or the files in `/data/archive_2026`, so those files are
   processed after the upgrade. Move such files elsewhere first if they must not be processed.
-- Uploading a range of integers, such as `upload(200..421)` or the deprecated `upload_integer_range(200, 421)`,
-  returns, and adds to `record_count`, the number of integers in it, 222, where it was the number of ranges, one
-  per slice of `slice_size` integers, 3. So `percent_complete` follows the ranges as they are processed, where it
-  stayed 0 until the job completed. Each slice still holds one `[first_id, last_id]` record. What reads
-  `record_count` counts the integers too: `RocketJob::Batch::LowerPriority` lowers the priority of such a job by
-  one for each `lower_priority_count` integers, rather than ranges, and the `records_per_hour` of its `status` is
-  the integers processed per hour.
+- Uploading a range of integers, such as `upload(200..421)`, returns, and adds to `record_count`, the number of
+  integers in it, 222, where it was the number of ranges, one per slice of `slice_size` integers, 3. So
+  `percent_complete` follows the ranges as they are processed, where it stayed 0 until the job completed. Each slice
+  still holds one `[first_id, last_id]` record. What reads `record_count` counts the integers too:
+  `RocketJob::Batch::LowerPriority` lowers the priority of such a job by one for each `lower_priority_count`
+  integers, rather than ranges, and the `records_per_hour` of its `status` is the integers processed per hour.
 - Require IOStreams 3.0, and so Ruby 3.3 or later, which IOStreams 3.0 requires (was Ruby 3.2).
 - Uploaded files are read as UTF-8 text, and a UTF-8 byte order mark at the start of a file is removed.
   Previously the lines were binary strings, so uploading any file with a non-ASCII character, without
@@ -135,8 +138,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   result before it is rendered.
 - `upload` passes each model of an Active Record relation, or each document of a Mongoid query, to a supplied block,
   and uploads what it returns, such as `job.upload(User.where(country_code: "US")) { |user| user.email }`, as the
-  deprecated `upload_arel` and `upload_mongo_query` do. Previously it raised `ArgumentError` for a query with a
-  block.
+  removed `upload_arel` and `upload_mongo_query` did. Previously it raised `ArgumentError` for a query with a block.
 - A job plugin runs its batch setup, such as defining a batch throttle or a slice callback, in a
   `rocket_job_batch_plugin` block, which runs in the job class once it includes `RocketJob::Batch`, so the plugin
   works whether a job includes it before or after `RocketJob::Batch`. `Transaction` and `ThrottleDependentJobs`
@@ -234,6 +236,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   of the job class that defines a category with one, or of the call to `upload` that supplies one, and when a Dirmon
   entry or an `UploadFileJob` builds a job from properties that hold one. They are only reported while Ruby's
   deprecation warnings are on, such as in tests, see `RocketJob::Deprecation`.
+- The `upload_file_name` of a batch job, deprecated in v6, which reads and sets the `file_name` of its input
+  category, reports a deprecation warning at the line that calls it. Use `input_category.file_name` instead.
 
 ### Fixes
 
@@ -291,7 +295,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - A category's `encoding`, and `CopyFileJob#source_encoding` and `#target_encoding`, can be `"UTF-8"`.
   Previously it was rejected as an encoding that Ruby cannot convert to and from UTF-8, since Ruby has no
   converter from UTF-8 to itself.
-- An upload of records, such as with a block, `upload_arel` or `upload_mongo_query`, that holds text that is
+- An upload of records, such as with a block, or of a query, that holds text that is
   binary or not valid UTF-8 raises an error that names the number of the first such record, such as
   `Cannot upload record 4, since MongoDB only stores UTF-8 text: ...`, or `record 4 after the header`
   when the upload started with a header row, since the record is then on the next line of the file.

@@ -146,11 +146,28 @@ input_category format: :csv, mode: :hash
 format, `#perform` received each row as an Array, so set the category's format, such as `:csv`, and
 change `#perform` to read the Hash.
 
+### upload_file_name of a batch job is deprecated
+
+The `upload_file_name` of a batch job reads and sets the `file_name` of its input category, as it has
+since v6. Use the input category instead:
+
+~~~ruby
+# Before (deprecated)
+job.upload_file_name = "orders.csv"
+
+# After
+job.input_category.file_name = "orders.csv"
+~~~
+
+The `upload_file_name` of an `UploadFileJob`, and a field of that name on a simple job, are not
+deprecated.
+
 ### Finding the deprecated options
 
 Rocket Job reports a Ruby deprecation warning for each deprecated category option that it is given,
 naming the line of the job class that defines the category, or of the call to `upload` that supplies
-one, such as `stream_mode: :array` or `allowed_columns:`, for example:
+one, such as `stream_mode: :array` or `allowed_columns:`, and for each call to the `upload_file_name`
+of a batch job, for example:
 
 ~~~
 app/jobs/import_job.rb:5: warning: Rocket Job: allowed_columns:, skip_unknown: are deprecated, describe the columns of the file with schema: instead, see https://rocketjob.reidmorrison.com/upgrading.html
@@ -174,6 +191,29 @@ These were deprecated or unused, and are removed in v8:
 * The translation of batch jobs saved by v5 into v6 categories, when they are read. A job saved by
   v5, and never saved since by v6 or v7, cannot be read by v8: finish or destroy such jobs, or open
   and save them with v7, before upgrading.
+* `upload_arel`, `upload_mongo_query`, `upload_integer_range` and
+  `upload_integer_range_in_reverse_order` of a batch job, deprecated in v6. Call `upload` with the
+  query or the range instead, with the columns to upload as `columns:`, see
+  [Uploading input data](batch.html#uploading-input-data):
+
+  ~~~ruby
+  # Before
+  job.upload_arel(User.where(country_code: "US"), :user_name, :zip_code)
+  job.upload_mongo_query(User.where(state: "FL"), :zip_code)
+  job.upload_integer_range(1, 1_000_000)
+  job.upload_integer_range_in_reverse_order(1, 1_000_000)
+
+  # After
+  job.upload(User.where(country_code: "US"), columns: %i[user_name zip_code])
+  job.upload(User.where(state: "FL"), columns: [:zip_code])
+  job.upload(1..1_000_000)
+  job.upload(1_000_000..1)
+  ~~~
+
+  A block passed to `upload_arel` or `upload_mongo_query` is passed to `upload` the same way. The
+  `before_code` of an `OnDemandBatchJob` that calls one of them, as its documentation showed, raises
+  `NoMethodError` when the job runs: change it to call `upload`, including in the jobs that are already
+  saved, such as a scheduled one, which copies its `before_code` to its next run.
 
 ## Upgrading to v6
 

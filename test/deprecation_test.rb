@@ -206,5 +206,21 @@ class DeprecationTest < Minitest::Test
         assert_empty(deprecation_warnings { DeprecatedCategoryJob.property_errors(properties) })
       end
     end
+
+    describe "the upload_file_name of a batch job" do
+      it "warns at the line that sets it, or reads it" do
+        job      = DeprecatedCategoryJob.new
+        line     = __LINE__ + 2
+        warnings = deprecation_warnings do
+          job.upload_file_name = "people.csv"
+          job.upload_file_name
+        end
+
+        assert_equal 2, warnings.size, warnings.inspect
+        assert warnings.first.start_with?("#{__FILE__}:#{line}: warning: Rocket Job: upload_file_name of a batch job"),
+               warnings.first
+        assert_includes warnings.last, "#{__FILE__}:#{line + 1}:"
+      end
+    end
   end
 end

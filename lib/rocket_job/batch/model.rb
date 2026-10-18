@@ -113,16 +113,27 @@ module RocketJob
         @worker_count
       end
 
-      # @deprecated
-      # For backward compatibility
+      # @deprecated Use `input_category.file_name`.
       def upload_file_name
+        rocketjob_warn_upload_file_name
         input_category.file_name
       end
 
-      # @deprecated
-      # For backward compatibility
+      # @deprecated Use `input_category.file_name=`.
       def upload_file_name=(upload_file_name)
+        rocketjob_warn_upload_file_name
         input_category.file_name = upload_file_name
+      end
+
+      private
+
+      # Reports a deprecation warning, see RocketJob::Deprecation, at the line of the application that reads or sets
+      # the deprecated upload_file_name.
+      def rocketjob_warn_upload_file_name
+        RocketJob::Deprecation.warn(
+          "upload_file_name of a batch job is deprecated, use the file_name of its input_category instead, see " \
+          "#{RocketJob::Deprecation::UPGRADE_GUIDE}"
+        )
       end
     end
   end

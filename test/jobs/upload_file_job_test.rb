@@ -201,7 +201,7 @@ module Jobs
           batch_job.perform_now
 
           assert created_job = UploadFileJobTest::BatchTestJob.first
-          assert_equal "test/batch/files/test.csv", created_job.upload_file_name.to_s
+          assert_equal "test/batch/files/test.csv", created_job.input_category.file_name.to_s
         end
 
         it "retains the original_file_name when present" do
@@ -210,7 +210,6 @@ module Jobs
 
           assert created_job = UploadFileJobTest::BatchTestJob.first
           assert_equal "file.rb", created_job.input_category.file_name.to_s
-          assert_equal "file.rb", created_job.upload_file_name.to_s
         end
 
         it "retains input and output categories" do
