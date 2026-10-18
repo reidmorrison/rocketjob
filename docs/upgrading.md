@@ -51,8 +51,10 @@ instead, so that a misspelled key is not silently left out.
 Check these when moving a layout to a schema:
 
 * The keys of the records are the names of the fields, which are Strings, since MongoDB does not
-  store Symbols. A layout with Symbol keys, such as `key: :name`, gave records with Symbol keys, so
-  change `record[:name]` to `record["name"]` in `#perform`.
+  store Symbols. A layout with Symbol keys, such as `key: :name`, is saved with String keys, so a job
+  that a worker reads back already gave records with String keys. Only a job that was not saved,
+  such as one run with `perform_now`, gave records with Symbol keys, so change `record[:name]` to
+  `record["name"]` in `#perform` if it reads them.
 * The column options, such as `columns`, cannot be set with a schema. An input category's `columns`
   that narrowed the records of a layout to some of its keys become the fields of the schema. An
   output category's `columns` that named the values of an Array result are not needed when they
@@ -61,7 +63,7 @@ Check these when moving a layout to a schema:
 Existing jobs and settings keep working:
 
 * `format_options` still works as it did before v8, since IOStreams reads a layout as it did,
-  including its Symbol keys, and the column options with it. It is deprecated, and will be removed.
+  and the column options with it. It is deprecated, and will be removed.
 * A job saved before v8 is read with its `format_options`, which are not changed when it is saved
   again, so its slices can still be processed by a v7 worker while servers are upgraded.
 * A layout cannot be set with a schema, and one that is not valid raises
@@ -122,7 +124,8 @@ Existing jobs and settings keep working:
   supplied for a file without a header row, and with `header_cleanser: :none`, so a job that relied on
   that may now fail records that it accepted. To get the v7 behavior back while such a job is changed,
   set `IOStreams.enforce_column_restrictions = false`, such as in an initializer. IOStreams 3.0
-  deprecates it, and reports a deprecation warning when it is set. To fix the job, describe its
+  deprecates it, and reports a deprecation warning when it is set while Ruby's deprecation warnings
+  are on. To fix the job, describe its
   columns with a schema, or remove the options from it, since they never applied to its input.
 * They cannot be set with a schema, and a category that sets both is not valid, since IOStreams would
   reject them rather than apply one and ignore the other. An input category's `columns` can still be
@@ -158,22 +161,38 @@ In the `:line` and `:array` modes an input category keeps the header row that `u
 file, and its workers read each line by it. Two cases changed, see
 [More than one file](batch.html#more-than-one-file):
 
-* Uploading a second file with a header row into the same input category raises `ArgumentError`. v7
-  stored the second file's header row as a record, and read its lines with the first file's columns.
-  Upload each file into its own input category, or in the `:hash` mode.
-* A batch job that restarts, such as the next run of a job that includes `RocketJob::Plugins::Cron`,
-  reads the header row of its own upload. v7 kept the header row that the previous run read, so each
-  later run stored its file's header row as a record. A job saved by v7 does not record that its
-  columns came from a file, so clear them once after upgrading, for each such scheduled job class:
+* Uploading a second file with a header row into the same input category raises `ArgumentError`, in
+  any mode. v7 stored the second file's header row as a record, and read its lines with the first
+  file's columns. Upload each file into its own input category, or upload every file in the `:hash`
+  mode.
+* The next run of a batch job that `RocketJob::Plugins::Cron` creates after the job uploaded its
+  file, such as one with `cron_after_start: false`, whose next run is created when it completes or
+  fails, reads the header row of its own upload. v7 copied the header row that the upload read into
+  the next run, so each later run stored its file's header row as a record. A job saved by v7 does
+  not record that its columns came from a file, so clear them once after upgrading, for each such
+  scheduled job class, and again once the jobs of that class that were running when you upgraded
+  have finished, since their next runs are copied from them:
 
   ~~~ruby
   MyScheduledJob.where(:state.in => %w[queued paused]).each do |job|
-    job.input_category.columns = nil
+    # Skip an input category whose columns are set for a file without a header row.
+    job.input_categories.each { |category| category.columns = nil }
     job.save!
   end
   ~~~
 
-  Leave the `columns` of a category that sets them for a file without a header row.
+### A paused Singleton job is active
+
+A job that includes `RocketJob::Plugins::Singleton` is not valid while another job of its class is
+running, queued, or now also paused. The check runs whenever such a job is saved, not only when it is
+created, so a queued job saved by v7 alongside a paused one of the same class fails the next time it
+is saved, such as when a server starts it. Before upgrading, check each such class, and when it has
+more than one, abort or destroy all but one of them:
+
+~~~ruby
+active = MySingletonJob.where(:state.in => %w[running queued paused]).to_a
+puts active.map { |job| "#{job.id} #{job.state}" } if active.size > 1
+~~~
 
 ### Finding the deprecated options
 
@@ -222,7 +241,11 @@ These were deprecated or unused, and are removed in v8:
   job.upload(1_000_000..1)
   ~~~
 
-  A block passed to `upload_arel` or `upload_mongo_query` is passed to `upload` the same way. The
+  A block passed to `upload_arel` or `upload_mongo_query` is passed to `upload` the same way. A range
+  is uploaded in the direction it is written, so where `upload_integer_range(first, last)` was called
+  with bounds that it computed, which uploaded nothing when `last` was less than `first`, check for
+  that before calling `upload(first..last)`, which uploads the range in reverse instead. A range that
+  excludes its end, such as `1...100`, does not upload it. The
   `before_code` of an `OnDemandBatchJob` that calls one of them, as its documentation showed, raises
   `NoMethodError` when the job runs: change it to call `upload`, including in the jobs that are already
   saved, such as a scheduled one, which copies its `before_code` to its next run.

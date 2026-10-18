@@ -358,7 +358,7 @@ job.perform_now
 job.cleanup!
 ~~~
 
-Output is not collected by default. Call `#collect_output` to keep it, and set batch options such as
+Output is not collected by default. Call `#add_output_category` to keep it, and set batch options such as
 the [worker throttle](batch.html#throttling-concurrent-workers) and priority:
 
 ~~~ruby
@@ -368,7 +368,7 @@ job = RocketJob::Jobs::OnDemandBatchJob.new(
   throttle_running_workers: 5,
   priority:                 30
 )
-job.collect_output
+job.add_output_category
 job.save!
 ~~~
 

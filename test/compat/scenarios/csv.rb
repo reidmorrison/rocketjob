@@ -50,8 +50,8 @@ module Compat
         BASE + mode_variants
       end
 
-      # Returns [Array<Hash>] scenarios 1-7 again in the :array and :hash upload modes, as the category's mode, and as
-      # the stream_mode of upload.
+      # Returns [Array<Hash>] the scenarios of MODE_BASE, A01 to A08b, again in the :array and :hash upload modes, as
+      # the category's mode, and as the stream_mode of upload.
       def self.mode_variants
         MODE_BASE.flat_map do |base|
           [

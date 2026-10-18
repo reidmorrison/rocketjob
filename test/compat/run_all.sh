@@ -26,11 +26,12 @@ unset BUNDLE_GEMFILE
 cleanup() { if [[ "$KEEP" != "--keep" ]]; then v8 drop; fi; }
 trap cleanup EXIT
 
-# Scenarios 1-11: each version runs the matrix, and the property checks, in a database of its own.
-v7 matrix
-v8 matrix
+# Scenarios 1-11: each version runs the property checks, then the matrix, in a database of its own. The matrix runs
+# last, since each command drops the collections of its database first, so that --keep keeps the jobs of the matrix.
 v7 checks
 v8 checks
+v7 matrix
+v8 matrix
 
 # Scenario 12: v7 saves the jobs, one copy for each way of processing them, without processing them. Then
 #   v7     is processed by v7 with #perform_now (the baseline)

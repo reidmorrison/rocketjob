@@ -44,10 +44,10 @@ module RocketJob
 
       private
 
-      # Iterate over each Dirmon Entry looking for new files
-      # If a new file is found, it is not processed immediately, instead
-      # it is passed to the next run of this job along with the file size.
-      # If the file size has not changed, the Job is kicked off.
+      # Iterates over each enabled Dirmon Entry looking for new files, see #check_entry.
+      # A new file is passed to the next run of this job along with its file size, and processed by that run when its
+      # size has not changed, except in a store that only shows complete files, such as S3, where it is processed as
+      # soon as it is found.
       def check_directories
         new_file_names = {}
         DirmonEntry.enabled.each do |dirmon_entry|

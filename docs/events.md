@@ -20,9 +20,11 @@ A Rocket Job event is a small message that is published to MongoDB and then
 delivered almost immediately (usually under 100 ms) to every process that has
 subscribed to it. There is no separate message broker to install or operate:
 events are stored in a [tailable capped collection](architecture.html) that
-every Rocket Job server tails in the background, or, on a store without capped
-collections such as AWS DocumentDB, in a regular collection that every server
-polls.
+every Rocket Job server tails in the background. A store without capped
+collections, such as AWS DocumentDB, needs
+`RocketJob::Event.listener_strategy = :polling`, which stores them in a regular
+collection that every server polls instead, see
+[AWS DocumentDB](installation.html#aws-documentdb).
 
 Events are how the supervisor controls its servers. When a server is paused,
 stopped, or killed from [Mission Control](mission_control.html) or from a Rails

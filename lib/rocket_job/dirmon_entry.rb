@@ -363,14 +363,15 @@ module RocketJob
     self.whitelist_paths = Concurrent::Array.new
 
     # Returns [true|false] whether the supplied file, found by its real path, is in an archive directory, which a file
-    # is moved to when its job is queued, see #archive_iopath: within a directory named as a relative
-    # `archive_directory`, wherever it is, or within the supplied absolute ones, see #absolute_archive_directories. A
-    # file or directory whose name only starts with the same characters, such as `archived_orders.csv` or
-    # `archive_2026`, is not.
+    # is moved to when its job is queued, see #archive_iopath: directly in a directory named as a relative
+    # `archive_directory`, since a file is moved into the one in its own directory, or within the supplied absolute
+    # ones, see #absolute_archive_directories. A file below a directory that only has the same name further up, such
+    # as `/srv/archive/incoming/orders.csv`, is not, nor is a file or directory whose name only starts with the same
+    # characters, such as `archived_orders.csv` or `archive_2026`.
     def archived?(path, archives)
       return archives.any? { |archive| within?(path, archive) } if archives
 
-      "#{path.directory}/".include?("/#{archive_name}/")
+      "/#{path.directory.to_s.delete_suffix('/')}".end_with?("/#{archive_name}")
     end
 
     # Returns [Array<String>] an absolute `archive_directory`, as it is set and by its real path, since the files that

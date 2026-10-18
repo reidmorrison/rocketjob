@@ -17,7 +17,8 @@ if name.nil? || name == "all"
     lines = comparison.report(each_name)
     path  = Compat::Paths.result("compare-#{each_name}.txt")
     File.write(path, lines.join("\n") + "\n")
-    puts "#{path}: #{Compat::Comparison::PAIRS.key?(each_name) ? lines.first : "#{lines.size} lines"}"
+    summary = lines.grep(/\A(v8 saved|\d+ scenarios:)/)
+    puts "#{path}: #{Compat::Comparison::PAIRS.key?(each_name) ? summary.join('; ') : "#{lines.size} lines"}"
   end
 else
   puts comparison.report(name, other)

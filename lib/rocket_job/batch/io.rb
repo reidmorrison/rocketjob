@@ -11,7 +11,7 @@ module RocketJob
       # Parameters:
       #   category [Symbol|RocketJob::Category::Input]
       #     The category or the name of the category to access or upload data into
-      #     Default: None ( Uses the single default input collection for this job )
+      #     Default: :main
       #     Validates: This value must be one of those listed in #input_categories
       def input(category = :main)
         category = input_category(category)
@@ -25,7 +25,7 @@ module RocketJob
       # Parameters:
       #   category [Symbol|RocketJob::Category::Input]
       #     The category or the name of the category to access or download data from
-      #     Default: None ( Uses the single default output collection for this job )
+      #     Default: :main
       #     Validates: This value must be one of those listed in #output_categories
       def output(category = :main)
         category = output_category(category)
@@ -56,6 +56,7 @@ module RocketJob
       #     :line
       #       Uploads the file a line (String) at a time for processing by workers.
       #     :array
+      #       Deprecated, use :line, or :hash to parse the whole file when it is uploaded.
       #       Parses each line from the file as an Array and uploads each array for processing by workers.
       #     :hash
       #       Parses each line from the file into a Hash and uploads each hash for processing by workers.
@@ -63,8 +64,8 @@ module RocketJob
       #     See IOStreams::Stream#each.
       #
       #   category [Symbol|RocketJob::Category::Input]
-      #     The category or the name of the category to access or download data from
-      #     Default: None ( Uses the single default output collection for this job )
+      #     The category or the name of the category to upload the data into
+      #     Default: :main
       #     Validates: This value must be one of those listed in #input_categories
       #
       # Example:
@@ -110,7 +111,7 @@ module RocketJob
       #
       # Notes:
       # * Only call from one thread at a time against a single instance of this job.
-      # * The record_count for the job is set to the number of records returned by the arel.
+      # * The number of records uploaded is added to the record_count of the job.
       # * If an exception is raised while uploading data, the input collection is cleared out
       #   so that if a job is retried during an upload failure, data is not duplicated.
       # * Files are read as UTF-8 text, since MongoDB only stores UTF-8 strings. A UTF-8 byte order mark at
@@ -167,22 +168,15 @@ module RocketJob
           # Extract the header line during the upload when applicable.
           extract_header = category.extract_header_callback(on_first)
 
-          return rocketjob_add_record_count(input_collection.upload(on_first: extract_header, &block))
+          count = category.uploading { input_collection.upload(on_first: extract_header, &block) }
+          return rocketjob_add_record_count(count)
         end
 
         count =
           case object
           when Range
             rocketjob_check_upload_options("a Range", file_name, stream_mode, on_first, args)
-            first = object.first
-            last  = object.last
-            if first < last
-              input_collection.upload_integer_range(first, last, slice_batch_size: slice_batch_size || 1_000)
-            else
-              input_collection.upload_integer_range_in_reverse_order(last, first, slice_batch_size: slice_batch_size || 1_000)
-            end
-            # Each record is a range of `slice_size` integers, so the integers are counted, see #percent_complete.
-            (last - first).abs + 1
+            rocketjob_upload_integer_range(input_collection, object, slice_batch_size || 1_000)
           when Mongoid::Criteria
             rocketjob_check_upload_options("a Mongoid::Criteria", file_name, stream_mode, on_first, args)
             input_collection.upload_mongo_query(object, columns: columns, slice_batch_size: slice_batch_size, &block)
@@ -202,8 +196,10 @@ module RocketJob
             # Extract the header line during the upload when applicable.
             extract_header = category.extract_header_callback(on_first, mode: mode)
 
-            input_collection.upload(on_first: extract_header, slice_batch_size: slice_batch_size) do |io|
-              category.each_record(path, mode: mode, **args) { |record| io << record }
+            category.uploading do
+              input_collection.upload(on_first: extract_header, slice_batch_size: slice_batch_size) do |io|
+                category.each_record(path, mode: mode, **args) { |record| io << record }
+              end
             end
           end
         rocketjob_add_record_count(count)
@@ -340,18 +336,14 @@ module RocketJob
         object.is_a?(Mongoid::Criteria) || (defined?(ActiveRecord::Relation) && object.is_a?(ActiveRecord::Relation))
       end
 
-      # The options that IOStreams reads a file with which describe its columns, and are deprecated, see
-      # RocketJob::Category::Input#schema.
-      DEPRECATED_UPLOAD_OPTIONS = %i[columns allowed_columns required_columns skip_unknown cleanse_header].freeze
-      private_constant :DEPRECATED_UPLOAD_OPTIONS
-
       # Reports a deprecation warning, see RocketJob::Deprecation, at the line of the application that uploads a file
       # with the :array `stream_mode`, or with options that describe the columns of the file, which the schema of the
-      # input category replaces.
+      # input category replaces: those that IOStreams deprecates, see `IOStreams::Tabular.deprecated_option_names`,
+      # which, as IOStreams does, are ignored when nil.
       def rocketjob_warn_deprecated_upload_options(stream_mode, args)
         Category::Input.warn_array_mode(:stream_mode) if stream_mode.to_s == "array"
 
-        names = args.keys & DEPRECATED_UPLOAD_OPTIONS
+        names = args.compact.keys & IOStreams::Tabular.deprecated_option_names
         return if names.empty?
 
         RocketJob::Deprecation.warn(
@@ -359,6 +351,29 @@ module RocketJob
           "the columns of the file with the schema: of the input category instead, see " \
           "#{RocketJob::Deprecation::UPGRADE_GUIDE}"
         )
+      end
+
+      # Uploads the integers of the supplied range as one `[first_id, last_id]` record per slice, starting with the last
+      # slice when the range is descending, such as `421..200`. An end that the range excludes, such as `200...421`, is
+      # not uploaded.
+      #
+      # Returns [Integer] the number of integers uploaded, rather than of records, since each record is a range of
+      # `slice_size` integers, see #percent_complete.
+      def rocketjob_upload_integer_range(input_collection, range, slice_batch_size)
+        first = range.begin
+        last  = range.end
+        unless first.is_a?(Integer) && last.is_a?(Integer)
+          raise(ArgumentError, "Only a Range with an Integer at each end can be uploaded, not #{range.inspect}")
+        end
+        return 0 if range.exclude_end? && first == last
+
+        last += first < last ? -1 : 1 if range.exclude_end?
+        if first < last
+          input_collection.upload_integer_range(first, last, slice_batch_size: slice_batch_size)
+        else
+          input_collection.upload_integer_range_in_reverse_order(last, first, slice_batch_size: slice_batch_size)
+        end
+        (last - first).abs + 1
       end
 
       # Raises ArgumentError when an option that only applies to a file is supplied to upload the supplied kind of

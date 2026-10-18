@@ -13,6 +13,10 @@ module Compat
       "persist-mixed"  => %w[v7-persist-process-v7.json v7-persist-process-mixed.json]
     }.freeze
 
+    # The ids of the CSV scenarios of the :array and :hash modes, see Scenarios::Csv.mode_variants, and not those that
+    # other scenarios run again, such as with IOStreams.enforce_column_restrictions false.
+    MODE_VARIANT = /\AA\d+\w*__(mode|stream)_(array|hash)\z/
+
     # The comparisons that `all` writes to compare-<name>.txt in the results directory.
     ALL = (PAIRS.keys + %w[checks triage warnings]).freeze
 
@@ -57,9 +61,11 @@ module Compat
     # v8 matrix of the supplied other results directory with the v8 matrix of this one, such as of another commit.
     def report(name, other = nil)
       case name
+      when "persist-mixed" then touched + differences(*PAIRS.fetch(name).map { |file| results(file) })
       when *PAIRS.keys then differences(*PAIRS.fetch(name).map { |file| results(file) })
-      when "versus" then differences(results("v8-matrix.json", other || abort("Name the other results directory")),
-                                     results("v8-matrix.json"))
+      when "versus"
+        other ||= abort("Name the other results directory")
+        differences(results("v8-matrix.json", other), results("v8-matrix.json"), labels: [other, @dir])
       when "checks" then checks
       when "triage" then triage
       when "warnings" then warnings
@@ -78,7 +84,19 @@ module Compat
       VIEW.transform_values { |part| part.call(result) }
     end
 
-    def differences(before, after)
+    # Returns [Array<String>] how many jobs v8 rewrote with categories that differ from what v7 saved, and each job that
+    # v8 could not load or save, which v7 then processes as v7 saved it, see PersistedJobs#touch, so that the
+    # comparison of persist-mixed is not read as v7 processing what v8 saved when it did not.
+    def touched
+      touched = results("v8-persist-touch-mixed.json")
+      failed  = touched.select { |result| result["error"] }
+      changed = touched.count { |result| !result["error"] && result["stored_before"] != result["stored_after"] }
+      ["v8 saved #{touched.size - failed.size} of #{touched.size} jobs, and changed the stored categories of " \
+       "#{changed} of them, before v7 processed them"] +
+        failed.map { |result| "NOT SAVED  #{result['id']}: #{self.class.error_line(result['error'])}" } + [""]
+    end
+
+    def differences(before, after, labels: %w[v7 v8])
       after_by_id = after.to_h { |result| [result["id"], result] }
       rows        = before.map do |result|
         a     = view(result)
@@ -87,13 +105,15 @@ module Compat
         [result["id"], result["desc"], diffs.to_h { |key| [key, [a[key], b[key]]] }]
       end
       same = rows.count { |_id, _desc, diffs| diffs.empty? }
-      ["#{rows.size} scenarios: #{same} same, #{rows.size - same} different", ""] + rows.flat_map { |row| row_lines(*row) }
+      ["#{rows.size} scenarios: #{same} same, #{rows.size - same} different", ""] +
+        rows.flat_map { |row| row_lines(*row, labels) }
     end
 
-    def row_lines(id, desc, diffs)
+    def row_lines(id, desc, diffs, labels)
       lines = ["#{diffs.empty? ? 'SAME' : 'DIFF'}  #{id}  (#{desc})"]
       diffs.each do |key, (before, after)|
-        lines.push("    #{key}:", "      v7: #{self.class.show(before)}", "      v8: #{self.class.show(after)}")
+        lines.push("    #{key}:", "      #{labels[0]}: #{self.class.show(before)}",
+                   "      #{labels[1]}: #{self.class.show(after)}")
       end
       lines
     end
@@ -110,14 +130,14 @@ module Compat
       end
     end
 
-    # The scenarios of the :array and :hash modes that differ, by whether v7 raised, since v7 could not upload in
-    # those modes, see the changelog, so that the differences that matter stand out.
+    # The CSV scenarios of the :array and :hash modes that differ, see Scenarios::Csv.mode_variants, by whether v7
+    # raised, since v7 raised for many of them, see the changelog, so that the differences that matter stand out.
     def triage
       before = results("v7-matrix.json")
       after  = results("v8-matrix.json").to_h { |result| [result["id"], result] }
       before.filter_map do |result|
         other = after[result["id"]]
-        next unless result["id"].include?("__") && other && view(result) != view(other)
+        next unless result["id"].match?(MODE_VARIANT) && other && view(result) != view(other)
 
         "#{triage_kind(result, other)}  #{result['id']}: v7 #{self.class.error_line(result['error']) || 'ok'}; " \
           "v8 #{self.class.error_line(other['error']) || 'ok'}"

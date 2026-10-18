@@ -65,6 +65,14 @@ module ActiveJob
         new.enqueue_at(active_job, timestamp)
       end
 
+      # Active Job 7.2 asks the adapter whether to enqueue a job after the transaction it is enqueued in commits, so the
+      # class answers as an instance does, for an application that assigns the class itself as its adapter.
+      if method_defined?(:enqueue_after_transaction_commit?)
+        def self.enqueue_after_transaction_commit?
+          new.enqueue_after_transaction_commit?
+        end
+      end
+
       def enqueue(active_job)
         create_job(active_job, active_job_params(active_job))
       end

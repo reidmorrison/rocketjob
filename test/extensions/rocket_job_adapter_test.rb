@@ -75,6 +75,17 @@ module Extensions
           assert_equal AdapterTestJob.name, job.active_job_class
         end
       end
+
+      describe ".enqueue_after_transaction_commit?" do
+        it "answers as an instance does, when Active Job asks the adapter" do
+          adapter = ActiveJob::QueueAdapters::RocketJobAdapter
+          unless adapter.method_defined?(:enqueue_after_transaction_commit?)
+            skip "Active Job #{ActiveJob.version} does not ask the adapter"
+          end
+
+          assert_equal adapter.new.enqueue_after_transaction_commit?, adapter.enqueue_after_transaction_commit?
+        end
+      end
     end
   end
 end

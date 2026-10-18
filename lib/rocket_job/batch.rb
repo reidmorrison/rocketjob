@@ -7,7 +7,6 @@ require "rocket_job/batch/state_machine"
 require "rocket_job/batch/throttle"
 require "rocket_job/batch/throttle_running_workers"
 require "rocket_job/batch/worker"
-# Ensure after_perform is run first and #upload override is after IO#upload is defined.
 require "rocket_job/batch/categories"
 
 module RocketJob

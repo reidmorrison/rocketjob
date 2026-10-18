@@ -186,6 +186,17 @@ class DeprecationTest < Minitest::Test
       ensure
         job&.cleanup!
       end
+
+      it "does not warn for an option that is nil, which IOStreams ignores" do
+        job      = Class.new(DeprecatedCategoryJob) { input_category format: :csv }.new
+        warnings = deprecation_warnings do
+          job.upload(StringIO.new("name\nJack\n"), file_name: "people.csv", stream_mode: :hash, allowed_columns: nil)
+        end
+
+        assert_empty warnings.grep(/Rocket Job:/), warnings.inspect
+      ensure
+        job&.cleanup!
+      end
     end
 
     describe "properties with a deprecated option" do

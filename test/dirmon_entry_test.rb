@@ -679,6 +679,20 @@ class DirmonEntryTest < Minitest::Test
           end
         end
 
+        it "reads the files below a directory with the name of its archive directory further up" do
+          Dir.mktmpdir do |dir|
+            FileUtils.mkdir_p("#{dir}/archive/incoming/archive")
+            File.write("#{dir}/archive/incoming/orders.csv", "Hello World")
+            File.write("#{dir}/archive/incoming/archive/1_orders.csv", "Hello World")
+            dirmon_entry.pattern           = "#{dir}/archive/incoming/**/*"
+            dirmon_entry.archive_directory = "archive"
+            files                          = []
+            dirmon_entry.each { |file_name| files << file_name.to_s.delete_prefix("#{File.realpath(dir)}/") }
+
+            assert_equal %w[archive/incoming/orders.csv], files
+          end
+        end
+
         it "skips the files in an absolute archive directory, but not in a directory whose name starts with its name" do
           Dir.mktmpdir do |dir|
             dir = File.realpath(dir)

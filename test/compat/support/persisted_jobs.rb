@@ -54,10 +54,17 @@ module Compat
 
     # (v8) Loads the supplied copy of each job and saves it, as a v8 server or Mission Control would, without
     # processing it, so that a v7 process can then process it.
+    #
+    # `save!` writes only the fields that changed, which are none for a job that is only loaded, so the whole document
+    # is then written as v8 holds it, with every field of v8 that has a default, the most that a v8 save can write.
     def touch(copy)
       each_job(copy) do |job, result|
-        result[:loaded] = Inspection.categories(job)
-        result.step("save") { job.save! }
+        result[:loaded]        = Inspection.categories(job)
+        result[:stored_before] = Inspection.stored_categories(job.id)
+        result.step("save") do
+          job.save!
+          job.collection.find(_id: job.id).replace_one(job.as_document)
+        end
         result[:validation_errors] = Inspection.validation_errors(job) if result.failed?
         result[:stored_after]      = Inspection.stored_categories(job.id)
       end

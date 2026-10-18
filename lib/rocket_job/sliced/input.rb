@@ -77,7 +77,7 @@ module RocketJob
           end_id = last_id
           while end_id >= start_id
             first_id = end_id - slice_size + 1
-            first_id = start_id if first_id.negative? || (first_id < start_id)
+            first_id = start_id if first_id < start_id
             records << [first_id, end_id]
             end_id -= slice_size
           end

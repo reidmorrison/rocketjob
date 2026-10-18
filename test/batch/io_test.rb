@@ -282,6 +282,41 @@ module Batch
             assert_equal [[[35, 44]], [[25, 34]], [[15, 24]], [[5, 14]]], job.input.collect(&:to_a)
             assert_equal [1, 2, 3, 4], job.input.collect(&:first_record_number)
           end
+
+          it "uploads each negative id once" do
+            count = job.upload(-1..-25)
+
+            assert_equal 25, count
+            assert_equal [[[-10, -1]], [[-20, -11]], [[-25, -21]]], job.input.collect(&:to_a)
+          end
+
+          it "does not upload the end that the range excludes" do
+            count = job.upload(20...1)
+
+            assert_equal 19, count
+            assert_equal [[[11, 20]], [[2, 10]]], job.input.collect(&:to_a)
+          end
+        end
+
+        describe "Range that excludes its end" do
+          before do
+            job.input_category.slice_size = 10
+          end
+
+          it "does not upload its end" do
+            count = job.upload(1...21)
+
+            assert_equal 20, count
+            assert_equal 20, job.record_count
+            assert_equal [[[1, 10]], [[11, 20]]], job.input.collect(&:to_a)
+          end
+
+          it "uploads nothing when it is empty" do
+            count = job.upload(5...5)
+
+            assert_equal 0, count
+            assert_equal 0, job.input.count
+          end
         end
       end
 
@@ -296,6 +331,15 @@ module Batch
 
         it "rejects keyword arguments when uploading a Range" do
           assert_raises(ArgumentError) { job.upload(1..10, file_name: "x.txt") }
+        end
+
+        it "rejects a Range without an end" do
+          error = assert_raises(ArgumentError) { job.upload(1..) }
+          assert_includes error.message, "Integer at each end"
+        end
+
+        it "rejects a Range without a beginning" do
+          assert_raises(ArgumentError) { job.upload(..10) }
         end
 
         it "rejects :columns when uploading a file" do

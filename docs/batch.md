@@ -201,7 +201,8 @@ each row, adding it to the select list to reduce overhead:
 job.upload(User.where(country_code: "US"))
 ~~~
 
-Supply column names to upload more than the id, as an Array per row:
+Supply column names to upload those columns instead of the id, as an Array per row, or the value
+itself for a single column:
 
 ~~~ruby
 job.upload(User.where(country_code: "US"), columns: %i[user_name zip_code])
@@ -315,11 +316,16 @@ The `stream_mode` option of `upload` overrides `mode` for that upload.
 
 In the `:line` and `:array` modes an input category holds the header row of one file, which the
 workers read each of its lines by. So uploading a second file with a header row into the same
-category raises `ArgumentError`, rather than storing that file's header row as a record and reading
-its lines with the first file's columns. Upload each such file into its own input category, or
-upload them in the `:hash` mode, in which each record keeps the columns of its own file. Files
-without a header row, such as JSON, or CSV files whose `columns` are set, can be uploaded one after
-another.
+category raises `ArgumentError`, in any mode, rather than storing that file's header row as a record
+and reading its lines with the first file's columns. Upload each such file into its own input
+category, or upload every file in the `:hash` mode, in which each record keeps the columns of its
+own file. Files without a header row, such as CSV files whose `columns` are set, or JSON in the
+`:line` mode, can be uploaded one after another. In the deprecated `:array` mode JSON is read by the
+keys of its first record, which act as a header row.
+
+When an upload fails, such as when the file cannot be read to its end, its records are not kept,
+and neither is the header row that it read, so the job can upload the file again when it is
+retried.
 
 When a batch job restarts, such as the next run of a scheduled job, its input categories keep their
 settings but not the header row that the last upload read, so each run reads the header row of its

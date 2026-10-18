@@ -75,8 +75,8 @@ module RocketJob
       #   Similar to :array above in that the entire file is parsed before processing is started.
       #   Slightly less efficient than :array since it stores every record as a hash with both the key and value.
       #
-      # Recommend using :array when the entire file must be parsed/validated before processing is started, and
-      # upload time is not important.
+      # Use :hash when the entire file must be parsed/validated before processing is started, and upload time is not
+      # important.
       # See IOStreams#each for more details.
       field :mode, type: ::Mongoid::StringifiedSymbol, default: :line
       validates_inclusion_of :mode, in: %i[line array hash]
@@ -275,14 +275,19 @@ module RocketJob
       #
       # Raises ArgumentError when the category already holds the header row of a file, see #header_uploaded, since the
       # lines of another file could not be read by it.
+      #
+      # Raises ArgumentError also in :hash mode, since its records would be narrowed to the columns of that header row
+      # when they are parsed, see #parse_record.
       def extract_header_callback(on_first, mode: self.mode)
-        return on_first unless tabular? && mode != :hash
+        return on_first unless tabular?
 
         if header_uploaded?
           raise(ArgumentError,
                 "Input category #{name} already holds the header row of an uploaded file, which its lines are read " \
-                "by. Upload each file with a header row into its own input category, or in the :hash mode")
+                "by. Upload each file with a header row into its own input category, or upload every file in the " \
+                ":hash mode")
         end
+        return on_first if mode == :hash
 
         unless header_first?(mode)
           restrict_columns! if schema.blank?
@@ -290,10 +295,22 @@ module RocketJob
         end
 
         lambda do |row|
-          read_header(row)
+          self.header_uploaded = true if read_header(row)
           # Call chained on_first if present
           on_first&.call(row)
         end
+      end
+
+      # Yields to upload a file into this category, see RocketJob::Batch::IO#upload. When the upload raises, its records
+      # are not kept, so the columns that the header row it read replaced are restored, see #header_uploaded, and the
+      # file can be uploaded again, such as when the job is retried.
+      def uploading
+        columns_before = columns
+        yield
+      rescue Exception
+        self.columns         = columns_before
+        self.header_uploaded = false
+        raise
       end
 
       private
@@ -386,6 +403,8 @@ module RocketJob
       # Reads the header row. With a schema IOStreams matches its columns to the fields, and they are kept as they are
       # in the file, see #columns. Otherwise it is cleansed, unless `header_cleanser` is :none, and the column
       # restrictions are applied to it, see #tabular_columns and `IOStreams::Tabular#read_header`.
+      #
+      # Returns [true|nil] whether a header row was read: a blank row with a schema is not one.
       def read_header(row)
         if schema.present?
           return if row.blank?
@@ -398,7 +417,7 @@ module RocketJob
           tabular.read_header(row)
           header_read
         end
-        self.header_uploaded = true
+        true
       end
 
       # Applies the column restrictions to the supplied columns, see `IOStreams::Tabular#restrict_columns`, which

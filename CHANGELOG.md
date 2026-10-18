@@ -19,25 +19,33 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   its input category: use `input_category.file_name` instead. See the upgrade guide.
 - Uploading a second file with a header row into an input category that holds the header row of an earlier upload,
   in the `:line` or `:array` mode, raises `ArgumentError` and uploads nothing. Previously the second file's header
-  row was stored as a record, and its lines were read with the first file's columns. Upload each file into its own
-  input category, or in the `:hash` mode, in which each record keeps the columns of its own file. An input category
-  records that its `columns` hold the header row of an upload in its new `header_uploaded`. See the upgrade guide.
+  row was stored as a record, and its lines were read with the first file's columns. A second file uploaded in the
+  `:hash` mode also raises. Upload each file into its own input category, or upload every file in the `:hash` mode,
+  in which each record keeps the columns of its own file. An input category records that its `columns` hold the
+  header row of an upload in its new `header_uploaded`, which an upload that fails clears, with the columns, so
+  that a retried job can upload its file again. See the upgrade guide.
 - `RocketJob::Plugins::Transaction` wraps each slice of a batch job in a transaction, and
   `RocketJob::Plugins::ThrottleDependentJobs` throttles its slices, whether the job includes them before or after
   `RocketJob::Batch`, as documented. Previously a job that included `Transaction` first had a transaction around
   each record instead, and one that included `ThrottleDependentJobs` first did not throttle its slices.
 - `RocketJob::Plugins::Singleton` does not save a job while another of its class is paused, as its documentation
   and its error message say. Previously only a running or queued job prevented it.
-- Dirmon only skips the files in its archive directory: within a directory named as a relative `archive_directory`,
-  such as `archive`, or within an absolute one. Previously it skipped every file whose path contained the name of the
-  archive directory anywhere, such as `archived_orders.csv`, or the files in `/data/archive_2026`, so those files are
-  processed after the upgrade. Move such files elsewhere first if they must not be processed.
+- Dirmon only skips the files in its archive directory: directly in a directory named as a relative
+  `archive_directory`, such as `archive`, which is where it moves each file, or within an absolute one. Previously it
+  skipped every file whose path contained the name of the archive directory anywhere, such as `archived_orders.csv`,
+  the files in `/data/archive_2026`, every file that a pattern such as `/srv/archive/incoming/*.csv` matched, or the
+  files in a sub-directory of an archive directory, so those files are processed after the upgrade. Move such files
+  elsewhere first if they must not be processed.
 - Uploading a range of integers, such as `upload(200..421)`, returns, and adds to `record_count`, the number of
   integers in it, 222, where it was the number of ranges, one per slice of `slice_size` integers, 3. So
   `percent_complete` follows the ranges as they are processed, where it stayed 0 until the job completed. Each slice
   still holds one `[first_id, last_id]` record. What reads `record_count` counts the integers too:
   `RocketJob::Batch::LowerPriority` lowers the priority of such a job by one for each `lower_priority_count`
   integers, rather than ranges, and the `records_per_hour` of its `status` is the integers processed per hour.
+- Uploading a range that excludes its end, such as `upload(200...421)`, does not upload that end. Previously it was
+  uploaded, as if the range were `200..421`. A range without an end or a beginning, such as `200..`, raises
+  `ArgumentError`, where it raised `RangeError`, and a descending range of negative integers, such as `-1..-25`,
+  uploads each integer once. Previously each of its slices started at its lowest integer, so they overlapped.
 - Require IOStreams 3.0, and so Ruby 3.3 or later, which IOStreams 3.0 requires (was Ruby 3.2).
 - Uploaded files are read as UTF-8 text, and a UTF-8 byte order mark at the start of a file is removed.
   Previously the lines were binary strings, so uploading any file with a non-ASCII character, without
@@ -91,8 +99,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - `upload` raises `ArgumentError` when it is given `format:`, `format_options:`, `schema:` or
   `default_format:`, since IOStreams 3.0 reads them only from the path. Set them on the input category,
   or on the path that is uploaded, instead.
-- A `Time` that a job returns to a CSV output category is written in ISO 8601, such as `2026-10-13T09:30:00Z`,
-  where it was `2026-10-13 09:30:00 UTC`. A JSON output category writes all of its fraction of a second, such as
+- A `Time` that a job returns to a CSV, PSV or fixed width output category is written in ISO 8601, such as
+  `2026-10-13T09:30:00Z`, where it was `2026-10-13 09:30:00 UTC`. A JSON output category writes all of its fraction of a second, such as
   `2026-10-13T09:30:00.123456Z`, where it was `2026-10-13T09:30:00.123Z`, and none for a whole second, such as
   `2026-10-13T09:30:00Z`, where it was `2026-10-13T09:30:00.000Z`, as IOStreams 3.0 writes them.
 - A header row is cleansed as IOStreams 3.0 cleanses it, which keeps the letters and digits that are not ASCII, and
@@ -229,8 +237,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Deprecated
 
 - A category's `format_options`, the layout of a fixed width file, since the `schema` replaces it, see below. It
-  still works as before: IOStreams reads it as it did, so the keys of each record are the keys of the layout, such
-  as Symbols, and the column options, such as `columns`, still apply to its records. A job saved with it is not
+  still works as before: IOStreams reads it as it did, so the keys of each record are the keys of the layout, which
+  are Strings once the job is saved, and the column options, such as `columns`, still apply to its records. A job saved with it is not
   changed. It cannot be set with a schema, and a layout that is not valid raises
   `IOStreams::Errors::InvalidLayout` when it is set. `IOStreams::Schema.from_layout` returns the schema of a layout.
   See the upgrade guide.
@@ -264,7 +272,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - The Active Job adapter works with `config.active_job.queue_adapter = :rocket_job`, for which Active Job creates an
   instance of the adapter. Previously the adapter only had class methods, so `perform_later` raised `NoMethodError`.
   It now extends `ActiveJob::QueueAdapters::AbstractAdapter` when Active Job defines it, and its class methods
-  still work.
+  still work, including `enqueue_after_transaction_commit?`, which Active Job 7.2 asks an adapter that is assigned
+  as a class.
 - `cron_singleton = false` allows another job with the same `cron_schedule` to be queued, as documented, and as the
   v6 upgrade guide prescribes to keep the behavior before v6. Previously the setting was ignored, so the second job
   failed validation.
@@ -325,10 +334,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Dirmon skips a file whose directory is not writable by the current user, logging a warning, since the
   file cannot be moved to the archive directory. The check never ran, since IOStreams paths do not
   implement `writable?`, so such a file failed its Dirmon entry instead.
-- A batch job that restarts, such as the next run of a scheduled job, reads the header row of its own upload.
-  Previously it kept the header row that the previous run's upload read, so the next file's header row was stored
-  as a record, and its lines were read with the previous file's columns. A job saved by v7 keeps that header row
-  until it is cleared, see the upgrade guide.
+- A batch job that restarts, such as the next run of a scheduled job with `cron_after_start: false`, reads the
+  header row of its own upload. Previously it kept the header row that the previous run's upload read, so the next
+  file's header row was stored as a record, and its lines were read with the previous file's columns. A job saved by
+  v7 keeps that header row until it is cleared, see the upgrade guide.
 - A Dirmon entry whose job class cannot receive a file, since it is not a batch job and has neither an
   `upload_file_name` nor a `full_file_name` field, is not valid, as the Dirmon guide says. Previously it
   was saved, then the first file that it found was archived, the `UploadFileJob` for it was rejected, so

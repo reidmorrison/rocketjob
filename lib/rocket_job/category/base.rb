@@ -72,8 +72,9 @@ module RocketJob
         #
         # The layout of a fixed width file, as `layout:` and `truncate:`, such as
         #   {layout: [{size: 10, key: :name}, {size: 5, key: :zip, type: :integer}]}
-        # which IOStreams reads as it did before v8: the keys of each record are the keys of the layout, such as the
-        # Symbol :name, and the column options, such as `columns`, apply to its records. It cannot be set with a
+        # which IOStreams reads as it did before v8: the keys of each record are the keys of the layout, such as
+        # "name", since a saved job holds them as Strings, and the column options, such as `columns`, apply to its
+        # records. It cannot be set with a
         # schema. `IOStreams::Schema.from_layout` returns the schema of a layout.
         #
         # Raises IOStreams::Errors::InvalidLayout when it is set to a layout that is not valid.
