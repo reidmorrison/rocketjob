@@ -1,0 +1,56 @@
+# Based on test/config/mongoid.yml, with databases of its own, so that a run does not touch the test databases:
+#   v7      the v7 run of the matrix
+#   v8      the v8 run of the matrix
+#   shared  the jobs that v7 saves and both versions then process (scenario 12)
+# run_all.sh drops all three when it finishes, unless it is given --keep.
+client_options: &client_options
+  max_pool_size:            50
+  min_pool_size:            1
+  read:
+    mode:                   :primary
+  connect_timeout:          5
+  socket_timeout:           30
+  wait_queue_timeout:       125
+  server_selection_timeout: 10
+
+mongoid_options: &mongoid_options
+  use_utc: true
+
+v7:
+  clients:
+    default: &default_v7
+      uri: mongodb://127.0.0.1:27017/rocketjob_compat_v7
+      options:
+        <<: *client_options
+    rocketjob:
+      <<: *default_v7
+    rocketjob_slices:
+      <<: *default_v7
+  options:
+    <<: *mongoid_options
+
+v8:
+  clients:
+    default: &default_v8
+      uri: mongodb://127.0.0.1:27017/rocketjob_compat_v8
+      options:
+        <<: *client_options
+    rocketjob:
+      <<: *default_v8
+    rocketjob_slices:
+      <<: *default_v8
+  options:
+    <<: *mongoid_options
+
+shared:
+  clients:
+    default: &default_shared
+      uri: mongodb://127.0.0.1:27017/rocketjob_compat_shared
+      options:
+        <<: *client_options
+    rocketjob:
+      <<: *default_shared
+    rocketjob_slices:
+      <<: *default_shared
+  options:
+    <<: *mongoid_options
