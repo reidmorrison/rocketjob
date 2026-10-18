@@ -382,8 +382,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   Event/Subscriber pub-sub mechanism run without a tailable capped collection. This
   enables Rocket Job's cross-process shutdown/pause/log-level signaling on MongoDB-
   compatible stores that don't support capped collections, such as AWS DocumentDB.
-  Configurable via `RocketJob::Event.listener_strategy`, `Config.poll_interval`, and
-  `Config.event_retention_seconds`.
+  Configurable via `RocketJob::Event.listener_strategy`, `RocketJob::Event.poll_interval`, and
+  `RocketJob::Event.event_retention_seconds`.
 - Capture the reason a job is throttled and surface it in Mission Control. Throttles can
   now declare a `description:` (String or Proc); the triggered description is persisted
   on new `throttled_by`/`throttled_at` fields on both simple and batch jobs, and cleared
