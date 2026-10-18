@@ -17,6 +17,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   the `before_code` of an `OnDemandBatchJob`, whose documentation showed `upload_arel`. Also removed
   `upload_file_name` and `upload_file_name=` of a batch job, deprecated in v6, which read and set the `file_name` of
   its input category: use `input_category.file_name` instead. See the upgrade guide.
+- `.from_properties(nil)` of a batch job builds a job with the defaults, as it does for a job that is not a batch
+  job. Previously it raised `NoMethodError`, such as when Mission Control saved a Dirmon entry for a batch job
+  without changing its properties.
 - A batch job that is retried, or requeued, while in `before_batch` removes the slices that its `before_batch`
   callbacks uploaded, and restores its `record_count`, and the file name, format, columns and header row of each input
   category, as they were when the callbacks started, so that they upload the input again without duplicating it.

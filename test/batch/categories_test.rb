@@ -227,6 +227,13 @@ module Batch
           assert_equal "hello", job.description
         end
 
+        it "builds a job with the defaults without properties, as a job that is not a batch job does" do
+          job = CategoriesJob.from_properties(nil)
+
+          assert_instance_of CategoriesJob, job
+          assert_equal CategoriesJob.new.input_categories.collect(&:name), job.input_categories.collect(&:name)
+        end
+
         it "merges supplied input category properties onto the defaults" do
           job = CategoriesJob.from_properties(
             "description"      => "with categories",

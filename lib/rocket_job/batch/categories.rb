@@ -52,9 +52,9 @@ module RocketJob
         # Builds this job instance from the supplied properties hash that may contain input and output categories.
         # Keeps the defaults and merges in settings without replacing existing categories.
         # The keys can be Strings or Symbols, since Mongoid 9 returns Hash field keys as Strings, earlier versions as
-        # Symbols.
+        # Symbols. Without properties, as nil, it builds a job with the defaults, as a job that is not a batch job does.
         def from_properties(properties)
-          properties = properties.stringify_keys
+          properties = properties.to_h.stringify_keys
           return super unless properties.key?("input_categories") || properties.key?("output_categories")
 
           input_categories  = properties.delete("input_categories")
