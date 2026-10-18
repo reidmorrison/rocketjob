@@ -257,7 +257,9 @@ unless RocketJob.server?
   RocketJob::Subscribers::SecretConfig.subscribe if defined?(SecretConfig)
 
   # Start the Rocket Job event listener thread
-  Thread.new { RocketJob::Event.listener }
+  Thread.new do
+    RocketJob::Event.listener
+  end
 end
 ~~~
 

@@ -30,7 +30,12 @@ layout becomes a schema with the `width` of each field:
 ~~~ruby
 # Before (deprecated)
 input_category format:         :fixed,
-               format_options: {layout: [{size: 10, key: "name"}, {size: 5, key: "zip", type: :integer}]}
+               format_options: {
+                 layout: [
+                   {size: 10, key: "name"},
+                   {size: 5, key: "zip", type: :integer}
+                 ]
+               }
 
 # After
 input_category format: :fixed,
@@ -100,7 +105,13 @@ input_category  format: :csv,
                   ]
                 }
 output_category format: :csv,
-                schema: {"fieldsMatch" => "subset", "fields" => [{"name" => "login"}, {"name" => "last_login"}]}
+                schema: {
+                  "fieldsMatch" => "subset",
+                  "fields"      => [
+                    {"name" => "login"},
+                    {"name" => "last_login"}
+                  ]
+                }
 ~~~
 
 `"allowBlank" => true` keeps a record whose `login` is blank, as `required_columns` did, which only
@@ -176,7 +187,9 @@ file, and its workers read each line by it. Two cases changed, see
   ~~~ruby
   MyScheduledJob.where(:state.in => %w[queued paused]).each do |job|
     # Skip an input category whose columns are set for a file without a header row.
-    job.input_categories.each { |category| category.columns = nil }
+    job.input_categories.each do |category|
+      category.columns = nil
+    end
     job.save!
   end
   ~~~
@@ -191,7 +204,11 @@ more than one, abort or destroy all but one of them:
 
 ~~~ruby
 active = MySingletonJob.where(:state.in => %w[running queued paused]).to_a
-puts active.map { |job| "#{job.id} #{job.state}" } if active.size > 1
+if active.size > 1
+  active.each do |job|
+    puts "#{job.id} #{job.state}"
+  end
+end
 ~~~
 
 ### Finding the deprecated options
