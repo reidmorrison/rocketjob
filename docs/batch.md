@@ -603,7 +603,9 @@ So to keep the keys that a job reads, name each field as the column was cleansed
 `Last Login`: the schema matches the column to that field.
 
 `IOStreams.enforce_column_restrictions = false` applies them only to a cleansed header row, as
-earlier versions did. IOStreams 3.0 deprecates it, since it only applies to these options.
+earlier versions did. IOStreams 3.0 deprecates it, since it only applies to these options, so use it
+only while changing a job that relied on them being ignored: describe the columns with a schema
+instead, or remove the options from a job whose input they never applied to, such as JSON records.
 
 ## Writing tabular files
 

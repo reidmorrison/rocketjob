@@ -58,8 +58,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   `header_cleanser: :none`. JSON keys are now cleansed like a header row when either is set, for
   example `"Name"` becomes `"name"`, and a record with an unknown key, or without a required column,
   raises `IOStreams::Errors::InvalidHeader` when it is processed, unless `skip_unknown` is true.
-  A job that accepted such data before will now fail it. Set
+  A job that accepted such data before will now fail it. While such a job is changed, set
   `IOStreams.enforce_column_restrictions = false` to keep the previous behavior, which IOStreams 3.0 deprecates.
+  To fix the job, describe its columns with a schema, or remove the options that never applied to it, such as
+  from a job that reads JSON. See the upgrade guide.
 - Fixed width uploads are read as ASCII, which IOStreams 3.0 uses for the fixed width format, so a file
   with any other character raises `IOStreams::Errors::InvalidEncoding` and nothing is uploaded.
   Previously each byte of a character that is not ASCII became a space. Set the file's encoding on the

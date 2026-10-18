@@ -118,6 +118,12 @@ Existing jobs and settings keep working:
   to them too: `allowed_columns`, `required_columns` and `skip_unknown` now apply to every tabular
   input, such as JSON records, and a header row is cleansed as IOStreams 3.0 cleanses it, which keeps
   the letters that are not ASCII, so a column `Prénom` is `prénom` rather than `prnom`.
+* v7 ignored `allowed_columns`, `required_columns` and `skip_unknown` for JSON records, for `columns`
+  supplied for a file without a header row, and with `header_cleanser: :none`, so a job that relied on
+  that may now fail records that it accepted. To get the v7 behavior back while such a job is changed,
+  set `IOStreams.enforce_column_restrictions = false`, such as in an initializer. IOStreams 3.0
+  deprecates it, and reports a deprecation warning when it is set. To fix the job, describe its
+  columns with a schema, or remove the options from it, since they never applied to its input.
 * They cannot be set with a schema, and a category that sets both is not valid, since IOStreams would
   reject them rather than apply one and ignore the other. An input category's `columns` can still be
   set with a schema: `upload` sets them to the header row read from the file, as it is in the file,
