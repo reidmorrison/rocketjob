@@ -79,7 +79,7 @@ module RocketJob
 
     before_validation :strip_whitespace
     validates_presence_of :pattern, :job_class_name, :archive_directory
-    validate :job_is_a_rocket_job
+    validate :job_class_can_be_started
     validate :job_has_properties
     validates_uniqueness_of :pattern, :name
 
@@ -296,7 +296,16 @@ module RocketJob
     # each byte that is not valid UTF-8 as `\xHH`, see #file_display_name.
     #
     # Returns [RocketJob::Jobs::UploadFileJob] the job, or nil when the file was removed after it was found.
+    #
+    # Raises ArgumentError, and leaves the file where it is, when the UploadFileJob cannot start the job class, such as
+    # a class that changed after this entry was saved, see RocketJob::Jobs::UploadFileJob.job_class_errors. A class
+    # that this server does not load is left for the UploadFileJob to start.
     def later(iopath)
+      if job_class
+        messages = RocketJob::Jobs::UploadFileJob.job_class_errors(job_class_name)
+        raise(ArgumentError, messages.join(", ")) if messages.any?
+      end
+
       job_id       = BSON::ObjectId.new
       archive_path = archive_iopath(iopath).join("#{job_id}_#{archive_file_name(iopath)}")
       return unless archive_file(iopath, archive_path)
@@ -437,12 +446,15 @@ module RocketJob
       path.relative? ? iopath.directory.join(archive_directory) : path
     end
 
-    # Validates job_class is a Rocket Job
-    def job_is_a_rocket_job
-      klass = job_class
-      return if job_class_name.nil? || klass&.ancestors&.include?(RocketJob::Job)
+    # Validates that the job class is defined, and that the UploadFileJob that each file starts can start it, see
+    # RocketJob::Jobs::UploadFileJob.job_class_errors, so that an entry whose files would be archived without a job is
+    # not saved.
+    def job_class_can_be_started
+      return if job_class_name.nil?
 
-      errors.add(:job_class_name, "Job #{job_class_name} must be defined and inherit from RocketJob::Job")
+      RocketJob::Jobs::UploadFileJob.job_class_errors(job_class_name).each do |message|
+        errors.add(:job_class_name, message)
+      end
     end
 
     # Can the properties build the job, such as each being one that the job has? The job class decides, see

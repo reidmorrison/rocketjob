@@ -12,6 +12,12 @@ class DirmonEntryTest < Minitest::Test
     end
   end
 
+  # Has none of the methods that an UploadFileJob uploads a file with.
+  class NoUploadJob < RocketJob::Job
+    def perform
+    end
+  end
+
   class BatchTestJob < RocketJob::Job
     include RocketJob::Batch
 
@@ -442,6 +448,14 @@ class DirmonEntryTest < Minitest::Test
           refute_predicate dirmon_entry, :valid?
           assert_equal ["Job Blah must be defined and inherit from RocketJob::Job"], dirmon_entry.errors[:job_class_name], dirmon_entry.errors.messages.ai
         end
+
+        it "can be started by an UploadFileJob, which uploads the file with one of its methods" do
+          dirmon_entry.job_class_name = NoUploadJob.name
+
+          refute_predicate dirmon_entry, :valid?
+          assert_equal ["DirmonEntryTest::NoUploadJob must implement any one of: :upload :upload_file_name= :full_file_name= instance methods"],
+                       dirmon_entry.errors[:job_class_name]
+        end
       end
 
       describe "properties" do
@@ -732,6 +746,24 @@ class DirmonEntryTest < Minitest::Test
           assert created_job = RocketJob::Jobs::UploadFileJob.last
           assert_equal job.id, created_job.id
           assert_predicate job, :queued?
+        end
+
+        it "leaves the file where it is when an UploadFileJob cannot start the job class" do
+          # Such as a class that changed after the entry was saved.
+          dirmon_entry.job_class_name = NoUploadJob.name
+          error = assert_raises(ArgumentError) { dirmon_entry.later(iopath) }
+
+          assert_includes error.message, "must implement any one of"
+          assert_path_exists file_name
+          assert_equal 0, RocketJob::Jobs::UploadFileJob.count
+        end
+
+        it "archives the file for a job class that this server does not load, for the UploadFileJob to start" do
+          dirmon_entry.job_class_name = "Not::Loaded::Here"
+          job = dirmon_entry.later(iopath)
+
+          assert_predicate job, :persisted?
+          refute_path_exists file_name
         end
 
         it "sets attributes" do

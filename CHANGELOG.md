@@ -318,6 +318,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Dirmon skips a file whose directory is not writable by the current user, logging a warning, since the
   file cannot be moved to the archive directory. The check never ran, since IOStreams paths do not
   implement `writable?`, so such a file failed its Dirmon entry instead.
+- A Dirmon entry whose job class cannot receive a file, since it is not a batch job and has neither an
+  `upload_file_name` nor a `full_file_name` field, is not valid, as the Dirmon guide says. Previously it
+  was saved, then the first file that it found was archived, the `UploadFileJob` for it was rejected, so
+  no job processed the file, and the entry failed. Dirmon also fails the entry, and leaves the file where
+  it is, when its job class can no longer receive a file, such as after the class changed.
 - Dirmon skips the files in an absolute `archive_directory` that is reached through a symbolic link, such
   as `/data/archive` when it links to `/mnt/storage`. A scan finds each file by its real path, which did
   not contain the archive directory as it was set, so the archived files were processed again.
