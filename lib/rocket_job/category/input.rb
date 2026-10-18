@@ -245,24 +245,33 @@ module RocketJob
         path.each(mode, **read_options(mode), **args, &)
       end
 
-      # Returns the lambda to call with the first record uploaded, that reads the header row, when the upload
-      # starts with one, see #header_first?, otherwise the supplied `on_first`.
+      # Returns the lambda that the upload calls with each record before the first that it stores, instead of storing
+      # it, until the lambda returns true, see `Sliced::Writer::Input`: it reads the header row, when the upload starts
+      # with one, see #header_first?, then calls the supplied `on_first` with it. Otherwise it calls `on_first` with the
+      # first record. Returns nil when there is neither.
+      #
+      # A blank line before the header row is skipped, as IOStreams skips it when it reads the header row itself, such
+      # as in :hash mode, so that the header row is not stored as a record.
       #
       # When the columns were supplied they take the place of a header row, so the column restrictions are
       # applied to them now. With a schema they were matched to its fields when the tabular was built, see
       # #build_tabular. In :hash mode IOStreams applies them instead, see #each_record.
       def extract_header_callback(on_first, mode: self.mode)
-        return on_first unless tabular? && mode != :hash
+        first_record = first_record_callback(on_first)
+        return first_record unless tabular? && mode != :hash
 
         unless header_first?(mode)
           restrict_columns! if schema.blank?
-          return on_first
+          return first_record
         end
 
         lambda do |row|
+          next false if row.blank?
+
           read_header(row)
           # Call chained on_first if present
           on_first&.call(row)
+          true
         end
       end
 
@@ -351,6 +360,17 @@ module RocketJob
       # the fields of a schema, such as of fixed width, see `IOStreams::Tabular#rows_header?`.
       def header_first?(mode)
         mode == :array ? tabular.rows_header? : tabular.header?
+      end
+
+      # Returns the lambda that calls the supplied `on_first` with the first record uploaded, which is not stored, see
+      # #extract_header_callback, or nil without one.
+      def first_record_callback(on_first)
+        return unless on_first
+
+        lambda do |record|
+          on_first.call(record)
+          true
+        end
       end
 
       # Reads the header row. With a schema IOStreams matches its columns to the fields, and they are kept as they are
