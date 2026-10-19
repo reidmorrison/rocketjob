@@ -72,15 +72,21 @@ class DeprecationTest < Minitest::Test
         assert_equal options.keys, RocketJob::Category::Input.deprecated_column_options(options)
       end
 
-      it "does not warn for an input category's columns with a schema, nor for the default values" do
+      it "does not warn for the default values" do
         options = {
-          "columns"         => %w[Name],
           "schema"          => {"fields" => [{"name" => "name"}]},
           "skip_unknown"    => false,
           "header_cleanser" => "default"
         }
 
         assert_empty RocketJob::Category::Input.deprecated_column_options(options)
+      end
+
+      it "warns for an input category's columns, with or without a schema" do
+        assert_equal ["columns"], RocketJob::Category::Input.deprecated_column_options("columns" => %w[Name])
+        assert_equal ["columns"], RocketJob::Category::Input.deprecated_column_options(
+          "columns" => %w[Name], "schema" => {"fields" => [{"name" => "name"}]}
+        )
       end
 
       it "warns for the columns of an output category" do

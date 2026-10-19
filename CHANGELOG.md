@@ -261,10 +261,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   changed. It cannot be set with a schema, and a layout that is not valid raises
   `IOStreams::Errors::InvalidLayout` when it is set. `IOStreams::Schema.from_layout` returns the schema of a layout.
   See the upgrade guide.
-- An input category's `allowed_columns`, `required_columns`, `skip_unknown` and `header_cleanser`, and the
-  `columns` of a file without a header row, or of an output category, since IOStreams 3.0 deprecates the
-  options that they set, and the schema replaces them. They still work without a schema, and cannot be set
-  with one, so a category that sets both is not valid. See the upgrade guide.
+- An input category's `allowed_columns`, `required_columns`, `skip_unknown`, `header_cleanser` and `columns`, and an
+  output category's `columns`, since IOStreams 3.0 deprecates the options that they set, and the schema replaces them.
+  They still work without a schema, and cannot be set with one, so a category that sets both is not valid. See the
+  upgrade guide.
 - The `:array` upload mode, an input category's `mode: :array` and the `stream_mode: :array` of `upload`, since each
   row that it uploads only makes sense with the header row that the category keeps. Use `:line`, or `:hash` to parse
   the whole file when it is uploaded. See the upgrade guide.

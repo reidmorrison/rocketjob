@@ -30,8 +30,8 @@ module RocketJob
         # Note:
         # - All column names must be strings so that it can be serialized into MongoDB.
         # - Deprecated, use `schema`, whose fields are the columns, with `"header": false` for a file without a
-        #   header row. It cannot be set with a schema, except on an input category, where it holds the header row
-        #   read from the uploaded file, see RocketJob::Category::Input.
+        #   header row. It cannot be set with a schema: each slice of a file uploaded into an input category with
+        #   one holds its header row instead, see RocketJob::Category::Input#each_slice.
         field :columns, type: Array
 
         # On an input collection `format` specifies the format of the input data so that it can be

@@ -23,9 +23,8 @@ module RocketJob
       #
       # The fields below only apply if the field `format` has been set.
       #
-      # With a schema, see #schema, `columns` holds the columns of the header row read from the uploaded file, as they
-      # are in the file, which IOStreams matches to the fields of the schema, so that the workers parse each line by
-      # them. The other fields below are deprecated, since the schema replaces them, and cannot be set with it.
+      # With a schema, see #schema, each slice of an uploaded file holds its header row, see #each_slice, so `columns`
+      # is not set. The fields below are deprecated, since the schema replaces them, and cannot be set with it.
       #
 
       # List of columns to allow.
@@ -168,21 +167,18 @@ module RocketJob
       end
 
       # Returns [Array<String>] the names of the deprecated options in the supplied properties of an input category,
-      # with String keys, see Category::Base.deprecated_column_options: `allowed_columns`, `required_columns`,
-      # `skip_unknown` when true, `header_cleanser` when :none, and `columns` without a schema, since with one they
-      # hold the header row read from the file.
+      # with String keys, see Category::Base.deprecated_column_options: `columns`, `allowed_columns`,
+      # `required_columns`, `skip_unknown` when true, and `header_cleanser` when :none.
       def self.deprecated_column_options(properties)
-        names = []
-        names << "columns" if properties["columns"].present? && properties["schema"].blank?
+        names = super
         names.concat(%w[allowed_columns required_columns].select { |name| properties[name].present? })
         names << "skip_unknown" if [true, "true"].include?(properties["skip_unknown"])
         names << "header_cleanser" if properties["header_cleanser"].to_s == "none"
         names
       end
 
-      # Treats the current columns as a header row read from the file: matches them to the fields of the schema, see
-      # #schema, otherwise cleanses their names when `header_cleanser` is :default, and applies `allowed_columns`,
-      # `required_columns` and `skip_unknown`.
+      # Treats the current columns as a header row read from the file: cleanses their names when `header_cleanser` is
+      # :default, and applies `allowed_columns`, `required_columns` and `skip_unknown`.
       def cleanse_header!
         read_header(columns)
       end
@@ -211,9 +207,12 @@ module RocketJob
 
       # Returns [Hash|Array|String] the record uploaded into this category, parsed for `#perform`.
       #
-      # A Hash was parsed when it was uploaded, for example in :hash mode, by the schema when there is one, so it is
-      # kept as it is, otherwise only narrowed to the columns, when they are set. For a format whose records supply
-      # their own keys, such as JSON, the schema, or the column restrictions, are applied to each record's keys.
+      # A Hash was parsed when it was uploaded, for example in :hash mode without a schema, or by the application with
+      # `upload_slice`, so it is kept as it is with a schema, otherwise only narrowed to the columns, when they are set.
+      # A record of a category with a schema that is not a Hash, such as one that `upload_slice` uploaded, is read by
+      # the schema, so it needs a format without a header row, such as JSON or fixed width, since the slices of a file
+      # hold its header row instead, see #parse_records. For a format whose records supply their own keys, such as
+      # JSON, the column restrictions are applied to each record's keys.
       def parse_record(record)
         if record.is_a?(Hash)
           return record if schema.present?
@@ -399,8 +398,8 @@ module RocketJob
       # as in :hash mode, so that the header row is not stored as a record.
       #
       # When the columns were supplied they take the place of a header row, so the column restrictions are
-      # applied to them now. With a schema they were matched to its fields when the tabular was built, see
-      # #build_tabular. In :hash mode IOStreams applies them instead, see #each_record.
+      # applied to them now. In :hash mode IOStreams applies them instead, see #each_record. A category with a schema
+      # uploads slices instead, see #each_slice.
       #
       # Raises ArgumentError when the category already holds the header row of a file, see #header_uploaded, since the
       # lines of another file could not be read by it.
@@ -420,14 +419,15 @@ module RocketJob
         return first_record if mode == :hash
 
         unless header_first?(mode)
-          restrict_columns! if schema.blank?
+          restrict_columns!
           return first_record
         end
 
         lambda do |row|
           next false if row.blank?
 
-          self.header_uploaded = true if read_header(row)
+          read_header(row)
+          self.header_uploaded = true
           # Call chained on_first if present
           on_first&.call(row)
           true
@@ -473,13 +473,10 @@ module RocketJob
         path.encoding(replace: replacement) if replacement
       end
 
-      # With a schema, also matches the columns of the header row read from the file, see #columns, to its fields, so
-      # that each line uploaded is parsed by them. Without one, the tabular reads the header row in the same way, see
-      # #header_row_tabular.
+      # Without a schema, the tabular reads the header row that an upload read from the file as a header row, see
+      # #header_row_tabular. With one, each slice of a file holds its header row instead, see #parse_records.
       def build_tabular
-        tabular = header_row_tabular || super
-        tabular.read_header(columns) if schema.present? && columns.present? && tabular.header?
-        tabular
+        header_row_tabular || super
       end
 
       # Returns [IOStreams::Tabular] that has read the header row that an upload read from a file without a schema, see
@@ -523,10 +520,10 @@ module RocketJob
         }.compact
       end
 
-      # Its `columns` hold the header row read from a file with a schema, see #columns, so the schema does not
-      # replace them.
+      # Each slice of a file uploaded with a schema holds its header row, see #each_slice, so the schema replaces
+      # `columns` too, as it does on an output category.
       def fields_replaced_by_schema
-        replaced = super + %i[allowed_columns required_columns].select { |name| public_send(name).present? }
+        replaced = super + %i[columns allowed_columns required_columns].select { |name| public_send(name).present? }
         replaced << :skip_unknown if skip_unknown
         replaced << :header_cleanser unless cleanse_header?
         replaced
@@ -555,24 +552,12 @@ module RocketJob
         end
       end
 
-      # Reads the header row. With a schema IOStreams matches its columns to the fields, and they are kept as they are
-      # in the file, see #columns. Otherwise it is cleansed, unless `header_cleanser` is :none, and the column
-      # restrictions are applied to it, see #tabular_columns and `IOStreams::Tabular#read_header`.
-      #
-      # Returns [true|nil] whether a header row was read: a blank row with a schema is not one.
+      # Reads the header row of a category without a schema: cleansed, unless `header_cleanser` is :none, with the
+      # column restrictions applied to it, see #tabular_columns and `IOStreams::Tabular#read_header`. A category with a
+      # schema uploads slices instead, which hold the header row of their file, see #each_slice.
       def read_header(row)
-        if schema.present?
-          return if row.blank?
-
-          columns = tabular.parser.parse(row)
-          tabular.read_header(columns)
-          # Kept without building the tabular again, which has read them.
-          self[:columns] = columns
-        else
-          tabular.read_header(row)
-          header_read
-        end
-        true
+        tabular.read_header(row)
+        header_read
       end
 
       # Applies the column restrictions to the supplied columns, see `IOStreams::Tabular#restrict_columns`, which
@@ -592,7 +577,7 @@ module RocketJob
       # Returns [Hash] the deprecated options for IOStreams to read records in the supplied mode, when they are set. The
       # format and schema are set on the path instead, see #upload_path.
       def read_options(mode)
-        return {} if mode == :line || !tabular? || schema.present?
+        return {} if mode == :line || !tabular?
 
         options = {columns: columns.presence}
         if mode == :hash

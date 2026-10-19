@@ -2786,7 +2786,7 @@ Input category options:
 | `encoding`         | `nil`       | The encoding of the files, such as `"Windows-1252"`, which is converted to UTF-8. `nil` reads UTF-8, or the format's own encoding, such as ASCII for `:fixed`. Name the byte order of UTF-16 or UTF-32, such as `"UTF-16LE"`. See [Files](#files).
 | `invalid_characters` | `nil`     | What to do with a character that is not valid in the file's encoding: `:remove`, `:replace` with U+FFFD, or `:raise`. `nil` removes them from tabular formats, such as CSV, and raises for `:fixed` and lines.
 | `mode`             | `:line`     | How a file is uploaded: `:line`, `:hash`, or the deprecated `:array`.
-| `columns`          | `nil`       | Set by `upload` without a `schema`: the header row read from the file, so that the workers read each line by it. With a `schema`, each slice holds the header row of its file instead.
+| `columns`          | `nil`       | Set by `upload` without a `schema`: the header row read from the file, so that the workers read each line by it. It cannot be set with a `schema`, since each slice holds the header row of its file instead.
 | `header_uploaded`  | `false`     | Set by `upload` without a `schema`: whether `columns` hold the header row read from the file, see [More than one file](#more-than-one-file).
 
 The options `allowed_columns`, `required_columns`, `skip_unknown` and `header_cleanser`, and setting
@@ -3117,9 +3117,8 @@ Columns that do not match the schema raise `IOStreams::Errors::InvalidHeader`:
 #### Deprecated column options
 
 Before v8 the columns of an input category were described with the options below. They are
-deprecated: they still work without a schema, and `allowed_columns`, `required_columns`,
-`skip_unknown` and `header_cleanser` cannot be set with one. The schema property that replaces each
-one:
+deprecated: they still work without a schema, and none of them can be set with one. The schema
+property that replaces each one:
 
 | Option                                      | With a schema
 |:--------------------------------------------|:-------------

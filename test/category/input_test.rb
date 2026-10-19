@@ -69,10 +69,11 @@ module Batch
       describe "validation" do
         let(:schema) { {"fields" => [{"name" => "name"}]} }
 
-        it "accepts the header row read from a file with a schema" do
+        it "rejects columns with a schema, since each slice of a file holds its header row" do
           category = RocketJob::Category::Input.new(format: :csv, schema: schema, columns: %w[Name])
 
-          assert_predicate category, :valid?
+          refute_predicate category, :valid?
+          assert_equal ["replaces columns, which cannot be set with it"], category.errors[:schema]
         end
 
         it "rejects the deprecated fields that a schema replaces" do
@@ -112,12 +113,11 @@ module Batch
           assert_equal({"action" => "A", "date" => Date.new(2026, 10, 13)}, tabular.record_parse("A2026-10-13rest"))
         end
 
-        it "matches the header row read from the file to the fields of the schema" do
-          schema   = {"fieldsMatch" => "subset", "fields" => [{"name" => "first_name"}, {"name" => "age", "type" => "integer"}]}
-          category = RocketJob::Category::Input.new(format: :csv, schema: schema, columns: ["Age", "Zip", "First Name"])
+        it "reads a record without a header row by the schema, such as a line of JSON" do
+          schema   = {"fields" => [{"name" => "first_name"}, {"name" => "age", "type" => "integer"}]}
+          category = RocketJob::Category::Input.new(format: :json, schema: schema)
 
-          refute_predicate category.tabular, :header?
-          assert_equal({"first_name" => "Jack", "age" => 21}, category.parse_record("21,12345,Jack"))
+          assert_equal({"first_name" => "Jack", "age" => 21}, category.parse_record(%({"first_name":"Jack","age":"21"})))
         end
 
         it "applies the deprecated column restrictions, without a schema" do
