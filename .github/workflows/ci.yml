@@ -28,7 +28,9 @@ jobs:
       contents: write
     services:
       mongodb:
-        image: mongo:8
+        # MongoDB 8 refuses to start on Linux kernels 6.19 through 7.0.13, which newer runner images use
+        # (SERVER-121912). Return to mongo:8 once the runners have kernel 7.0.14 or later.
+        image: mongo:7
         ports:
           - 27017:27017
     strategy:
