@@ -118,7 +118,7 @@ Since changes cannot be made directly to the Rocket Job repository, fork it to y
 
        bundle exec rubocop
 
-   The minimum supported Ruby is 3.2, so please do not use syntax newer than that under `lib`.
+   The minimum supported Ruby is 3.3, so please do not use syntax newer than that under `lib`.
 
 8. When making a bug fix it is recommended to update the test first, ensure the test fails, and only then
    make the code fix.

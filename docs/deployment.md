@@ -58,7 +58,7 @@ RUN bundle config set --local without 'development test' \
 CMD ["bin/rocketjob"]
 ~~~
 
-Use a Ruby version that Rocket Job supports (3.2, 3.4, or 4.0). See
+Use a Ruby version that Rocket Job supports (3.3, 3.4, or 4.0). See
 [Compatibility](installation.html#compatibility).
 
 Add `--quiet` to the `CMD` if you would rather log only to a file instead of stdout, for example

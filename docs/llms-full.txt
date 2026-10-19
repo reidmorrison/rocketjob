@@ -432,7 +432,7 @@ runs.
 
 Rocket Job is tested against a matrix of Ruby, Mongoid, and Rails versions:
 
-* **Ruby:** MRI 3.2, 3.4, and 4.0 are exercised in CI; JRuby 9.4 or newer is also supported. The
+* **Ruby:** MRI 3.3, 3.4, and 4.0 are exercised in CI; JRuby 10.0 or newer is also supported. The
   authoritative list is the [CI matrix](https://github.com/reidmorrison/rocketjob/blob/main/.github/workflows/ci.yml).
 * **Mongoid:** 8.1, 9.0, and 9.1, as defined in
   [Appraisals](https://github.com/reidmorrison/rocketjob/blob/main/Appraisals).
@@ -474,7 +474,7 @@ exercised in CI are the authoritative list; see
 [ci.yml](https://github.com/reidmorrison/rocketjob/blob/main/.github/workflows/ci.yml) and
 [Appraisals](https://github.com/reidmorrison/rocketjob/blob/main/Appraisals).
 
-* **Ruby:** MRI 3.3, 3.4, and 4.0. JRuby 9.4 or newer is also supported.
+* **Ruby:** MRI 3.3, 3.4, and 4.0. JRuby 10.0 or newer is also supported.
 * **Mongoid:** 8.1, 9.0, and 9.1.
 * **Rails / Active Record:** 7.2, 8.0, and 8.1 (optional; Rocket Job also runs standalone).
 * **MongoDB server:** whatever your Mongoid version supports. Mongoid 8.1 through 9.1 currently
@@ -5347,7 +5347,7 @@ RUN bundle config set --local without 'development test' \
 CMD ["bin/rocketjob"]
 ~~~
 
-Use a Ruby version that Rocket Job supports (3.2, 3.4, or 4.0). See
+Use a Ruby version that Rocket Job supports (3.3, 3.4, or 4.0). See
 [Compatibility](installation.html#compatibility).
 
 Add `--quiet` to the `CMD` if you would rather log only to a file instead of stdout, for example
@@ -5814,6 +5814,9 @@ Release notes for every version are published in the
 upgrade steps that need code or data changes when moving between major versions.
 
 ## Upgrading to v8
+
+Rocket Job v8 requires IOStreams 3.0, and so Ruby 3.3 or later, which IOStreams 3.0 requires. On
+JRuby that is JRuby 10.0 or later. Upgrade Ruby before upgrading Rocket Job.
 
 Upgrade every server that runs workers at the same time, rather than running v7 and v8 workers
 together. A v7 worker reads the jobs that v8 saves with the options that v7 has, such as
