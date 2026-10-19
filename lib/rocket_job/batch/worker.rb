@@ -146,35 +146,40 @@ module RocketJob
       end
 
       # Perform individual slice without callbacks
+      #
+      # Resumes after the records of the slice that an earlier attempt processed, whose results are already in its
+      # output, see Sliced::Writer::Output. The slice's `processing_record_number` names the record being processed, or
+      # the next one, since a record that cannot be parsed raises before its input category yields it, see
+      # Category::Input#parse_records, so that a failure names that record.
       def rocket_job_perform_slice(slice, &block)
-        slice.processing_record_number ||= 0
-        append                         = false
-
-        # Skip processed records in this slice if it has no output categories.
-        records =
-          if slice.processing_record_number.to_i > 1
-            append = true
-            logger.info("Resuming previously incomplete slice from record number #{slice.processing_record_number}")
-            slice.records[(slice.processing_record_number - 1)..]
-          else
-            # Reprocess all records in this slice.
-            slice.processing_record_number = 0
-            slice.records
-          end
+        first  = slice.processing_record_number.to_i
+        append = first > 1
+        if append
+          logger.info("Resuming previously incomplete slice from record number #{first}")
+        else
+          # Reprocess all records in this slice.
+          first = 1
+        end
+        slice.processing_record_number = first
 
         count    = 0
+        index    = 0
         category = input_category
         # The writer renders each result in its output category, see Sliced::Writer::Output.
         RocketJob::Sliced::Writer::Output.collect(self, input_slice: slice, append: append) do |writer|
-          records.each do |record|
-            slice.processing_record_number += 1
+          category.parse_records(slice.records) do |record|
+            index += 1
+            # The records that an earlier attempt processed are parsed again, since the rows of a file are read in order.
+            next if index < first
+
             # `current_record_number` reads Mongoid fields, so compute it once per
             # record and reuse it for both the log tag and `#perform`.
             record_number = slice.current_record_number
             SemanticLogger.named_tagged(record: record_number) do
-              writer << rocket_job_batch_perform(slice, category.parse(record), record_number, &block)
+              writer << rocket_job_batch_perform(slice, record, record_number, &block)
               count += 1
             end
+            slice.processing_record_number = index + 1
           end
         end
         count

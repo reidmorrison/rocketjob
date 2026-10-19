@@ -97,10 +97,12 @@ module RocketJob
         field :encoding, type: String
         validates_with EncodingValidator, attributes: [:encoding]
 
-        # Setting a field that the tabular is built from builds it again when it is next used, see #tabular.
+        # Setting a field that the tabular is built from builds it again when it is next used, see #tabular, and the
+        # schema is read again, see #schema_descriptor.
         %i[format file_name schema columns].each do |name|
           define_method(:"#{name}=") do |value|
-            @tabular = nil
+            @tabular           = nil
+            @schema_descriptor = nil
             super(value)
           end
         end
@@ -253,6 +255,16 @@ module RocketJob
       # nil when it has none.
       def tabular_schema
         IOStreams::Schema::Source.new(schema).schema if schema.present?
+      end
+
+      # Returns [Hash] this category's schema, see #schema, reading its file the first time when it is a path or url,
+      # so that IOStreams reads each slice of a file with it, see RocketJob::Category::Input#parse_records, without
+      # reading the file again for each one. A UTF-8 byte order mark at the start of the file is removed.
+      # Returns nil when it has none.
+      def schema_descriptor
+        return schema unless schema.is_a?(String)
+
+        @schema_descriptor ||= JSON.parse(IOStreams.path(schema).read.delete_prefix("﻿"))
       end
 
       # Returns [Array<Symbol>] the deprecated fields of this category that are set, which its schema replaces, see

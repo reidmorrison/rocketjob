@@ -187,6 +187,18 @@ module RocketJob
         read_header(columns)
       end
 
+      # Yields each record of the supplied records of a slice of this category, as `#perform` receives it. The rows of a
+      # file, see IOStreams::Slice, are read by IOStreams by the header row and format that they carry, with this
+      # category's schema, see #schema. Otherwise each record is parsed on its own, see #parse. A blank row is nil.
+      #
+      # A record that cannot be parsed raises before it is yielded, after the records before it, so that the caller
+      # knows which record failed.
+      def parse_records(records, &)
+        return records.each { |record| yield parse(record) } unless records.is_a?(IOStreams::Slice)
+
+        IOStreams.stream(records).schema(schema_descriptor).each(:hash, &)
+      end
+
       # Returns the supplied record of a slice of this category as `#perform` receives it: parsed in this category's
       # format, see #parse_record, or as it is when the category has no format. A blank record of a tabular format is
       # nil.

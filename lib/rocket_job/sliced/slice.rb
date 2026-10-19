@@ -23,6 +23,12 @@ module RocketJob
 
       store_in client: "rocketjob_slices"
 
+      # What a worker of Rocket Job 7, which reads the records of a slice from "r", reads in place of the rows of a
+      # file, see #records_document: the major version that reads them, which is not a list of records, so that it
+      # raises NoMethodError, which fails the slice, rather than processing no records and removing the slice. The
+      # slice can be retried once every server runs this version.
+      ROWS_GUARD = 8
+
       # The record number of the first record in this slice.
       # Useful in knowing the line number of each record in this slice
       # relative to the original file that was uploaded. (1-based index)
@@ -189,11 +195,34 @@ module RocketJob
       end
 
       def parse_records
-        @records = attributes.delete("records")
+        stored = attributes.delete("records")
+        return @records = stored unless stored.is_a?(BSON::Binary)
+
+        @records = records_from_document(Hash.from_bson(BSON::ByteBuffer.new(stored.data)))
       end
 
+      # The rows of a file are saved as the binary BSON of their document, see #records_document, so that a worker of
+      # Rocket Job 7 does not read the Hash that holds them as records. Other records are saved as they are.
       def serialize_records
-        records.mongoize
+        rows? ? BSON::Binary.new(records_document.to_bson.to_s) : records.mongoize
+      end
+
+      # Returns [true|false] whether the records are the rows of a file, see IOStreams::Slice, which carry the header
+      # row of their file and its format, so that they are read by them, see RocketJob::Category::Input#parse_records.
+      def rows?
+        records.is_a?(IOStreams::Slice)
+      end
+
+      # Returns [Hash] the document that holds the records: the rows of a file as the Hash that they return, see
+      # IOStreams::Slice#to_h, which this slice does not read, under "s", with ROWS_GUARD under "r"; otherwise the
+      # records under "r".
+      def records_document
+        rows? ? {"r" => ROWS_GUARD, "s" => records.to_h} : {"r" => records.to_a}
+      end
+
+      # Returns [Array] the records that the supplied document holds, see #records_document.
+      def records_from_document(document)
+        document.key?("s") ? IOStreams.slice(document["s"]) : document["r"]
       end
 
       # Before Start

@@ -217,9 +217,17 @@ module RocketJob
       # Returns [Integer] the number of records uploaded
       #
       # Parameters
-      #   `slice` [ Array<Hash | Array | String | Integer | Float | Symbol | Regexp | Time> ]
+      #   `slice` [ Array<Hash | Array | String | Integer | Float | Symbol | Regexp | Time> | IOStreams::Slice ]
       #     All elements in `array` must be serializable to BSON
       #     For example the following types are not supported: Date
+      #
+      #     Or, the rows of a file that IOStreams read in slices, such as with `each(:slice)`, which carry the header row
+      #     of their file and its format, so that the workers read each row by them, with the input category's schema.
+      #
+      # Example: Upload a file in slices of its rows
+      #   IOStreams.path("people.csv").schema(job.input_category.schema).each(:slice, size: 100) do |slice|
+      #     job.upload_slice(slice)
+      #   end
       #
       # Note:
       #   The caller should implement `:slice_size`, since the entire slice is saved as-is.

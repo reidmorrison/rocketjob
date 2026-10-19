@@ -79,6 +79,29 @@ module Sliced
           assert_equal dataset, found_slice.to_a
         end
       end
+
+      describe "the rows of a file" do
+        let(:rows) { IOStreams::Slice.new(["Jack,21", "Jill,22"], header: %w[Name AGE], format: :csv) }
+
+        it "keeps the header row and format that they carry" do
+          slice.records = rows
+          slice.save!
+          found = slices.find(slice.id)
+
+          assert_kind_of IOStreams::Slice, found.records
+          assert_equal rows.to_a, found.records.to_a
+          assert_equal %w[Name AGE], found.records.header
+          assert_equal :csv, found.records.format
+        end
+
+        it "saves ROWS_GUARD where Rocket Job 7 reads the records, so that it raises rather than process none" do
+          slice.records = rows
+          document      = Hash.from_bson(BSON::ByteBuffer.new(slice.send(:decode_records, slice.send(:serialize_records).data)))
+
+          assert_equal RocketJob::Sliced::Slice::ROWS_GUARD, document["r"]
+          assert_equal rows.to_h, document["s"]
+        end
+      end
     end
   end
 end

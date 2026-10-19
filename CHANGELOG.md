@@ -185,6 +185,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   uploaded. An input category's `columns` hold the header row as it is in the file, which the workers
   match to the fields. An output category writes the names of the fields as its header row, and the
   fields of each result, in order.
+- `upload_slice` accepts the rows of a file that IOStreams read in slices, an `IOStreams::Slice`, such as each slice of
+  `IOStreams.path("people.csv").schema(schema).each(:slice, size: 100)`. The slice keeps the header row of its file and
+  its format, so that the workers read its rows by them, with the input category's schema. A row that cannot be read
+  fails its record, and a retry processes the slice again from that record. Every serializer stores such a slice so
+  that a worker of Rocket Job 7 fails it, rather than processing no records.
 - `CopyFileJob` converts the text of a file from its `source_encoding` to its `target_encoding`, such as
   `source_encoding: "Windows-1252"`, which copies a file that Excel saved on Windows as UTF-8. When only one
   is set, the other is UTF-8, and when neither is set the file is still copied byte for byte. The text is
