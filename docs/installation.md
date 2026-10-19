@@ -244,10 +244,11 @@ That is a complete Rails installation. Define jobs under `app/jobs` and queue th
 [Rocket Job Mission Control](mission_control.html) is a Rails engine that mounts into your
 application.
 
-Add the gem:
+Add the gem. Bundler installs the release of Mission Control that supports your versions of
+Rocket Job and Rails:
 
 ~~~ruby
-gem "rocketjob_mission_control", "~> 6.0"
+gem "rocketjob_mission_control"
 ~~~
 
 ~~~bash
@@ -365,7 +366,7 @@ Add to the bottom of the `Gemfile`:
 ~~~ruby
 gem "rails_semantic_logger"
 gem "rocketjob"
-gem "rocketjob_mission_control", "~> 6.0"
+gem "rocketjob_mission_control"
 gem "puma"
 ~~~
 
