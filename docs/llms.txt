@@ -4,7 +4,7 @@
 
 Key facts:
 
-- Install with `gem install rocketjob` or `gem "rocketjob"` in a Gemfile. Requires Ruby 3.2 or later (MRI 3.2, 3.4 and 4.0, or JRuby 9.4+), Mongoid 8.1 to 9.1, and a MongoDB server. Rails is optional; Rocket Job also runs standalone.
+- Install with `gem install rocketjob` or `gem "rocketjob"` in a Gemfile. Requires Ruby 3.3 or later (MRI 3.3, 3.4 and 4.0, or JRuby 10.0+), Mongoid 8.1 to 9.1, and a MongoDB server. Rails is optional; Rocket Job also runs standalone.
 - A simple job is a class inheriting from `RocketJob::Job` that implements `perform`. It is queued with `MyJob.create!(...)` and picked up by any running server.
 - A batch job is the same class plus `include RocketJob::Batch`. Its input is uploaded with `upload`, split into slices, and processed one slice at a time per worker, with results collected into output categories.
 - Servers are started with `bundle exec rocketjob`. Workers are threads within a server process, and any number of servers can run against the same MongoDB.

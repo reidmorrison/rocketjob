@@ -17,6 +17,9 @@ upgrade steps that need code or data changes when moving between major versions.
 
 ## Upgrading to v8
 
+Rocket Job v8 requires IOStreams 3.0, and so Ruby 3.3 or later, which IOStreams 3.0 requires. On
+JRuby that is JRuby 10.0 or later. Upgrade Ruby before upgrading Rocket Job.
+
 Upgrade every server that runs workers at the same time, rather than running v7 and v8 workers
 together. A v7 worker reads the jobs that v8 saves with the options that v7 has, such as
 `format_options`, but ignores those that v8 adds, such as a category's `schema` or `encoding`.

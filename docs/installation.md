@@ -21,7 +21,7 @@ exercised in CI are the authoritative list; see
 [ci.yml](https://github.com/reidmorrison/rocketjob/blob/main/.github/workflows/ci.yml) and
 [Appraisals](https://github.com/reidmorrison/rocketjob/blob/main/Appraisals).
 
-* **Ruby:** MRI 3.3, 3.4, and 4.0. JRuby 9.4 or newer is also supported.
+* **Ruby:** MRI 3.3, 3.4, and 4.0. JRuby 10.0 or newer is also supported.
 * **Mongoid:** 8.1, 9.0, and 9.1.
 * **Rails / Active Record:** 7.2, 8.0, and 8.1 (optional; Rocket Job also runs standalone).
 * **MongoDB server:** whatever your Mongoid version supports. Mongoid 8.1 through 9.1 currently
@@ -244,10 +244,11 @@ That is a complete Rails installation. Define jobs under `app/jobs` and queue th
 [Rocket Job Mission Control](mission_control.html) is a Rails engine that mounts into your
 application.
 
-Add the gem:
+Add the gem. Bundler installs the release of Mission Control that supports your versions of
+Rocket Job and Rails:
 
 ~~~ruby
-gem "rocketjob_mission_control", "~> 6.0"
+gem "rocketjob_mission_control"
 ~~~
 
 ~~~bash
@@ -365,7 +366,7 @@ Add to the bottom of the `Gemfile`:
 ~~~ruby
 gem "rails_semantic_logger"
 gem "rocketjob"
-gem "rocketjob_mission_control", "~> 6.0"
+gem "rocketjob_mission_control"
 gem "puma"
 ~~~
 

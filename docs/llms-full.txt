@@ -432,7 +432,7 @@ runs.
 
 Rocket Job is tested against a matrix of Ruby, Mongoid, and Rails versions:
 
-* **Ruby:** MRI 3.2, 3.4, and 4.0 are exercised in CI; JRuby 9.4 or newer is also supported. The
+* **Ruby:** MRI 3.3, 3.4, and 4.0 are exercised in CI; JRuby 10.0 or newer is also supported. The
   authoritative list is the [CI matrix](https://github.com/reidmorrison/rocketjob/blob/main/.github/workflows/ci.yml).
 * **Mongoid:** 8.1, 9.0, and 9.1, as defined in
   [Appraisals](https://github.com/reidmorrison/rocketjob/blob/main/Appraisals).
@@ -474,7 +474,7 @@ exercised in CI are the authoritative list; see
 [ci.yml](https://github.com/reidmorrison/rocketjob/blob/main/.github/workflows/ci.yml) and
 [Appraisals](https://github.com/reidmorrison/rocketjob/blob/main/Appraisals).
 
-* **Ruby:** MRI 3.3, 3.4, and 4.0. JRuby 9.4 or newer is also supported.
+* **Ruby:** MRI 3.3, 3.4, and 4.0. JRuby 10.0 or newer is also supported.
 * **Mongoid:** 8.1, 9.0, and 9.1.
 * **Rails / Active Record:** 7.2, 8.0, and 8.1 (optional; Rocket Job also runs standalone).
 * **MongoDB server:** whatever your Mongoid version supports. Mongoid 8.1 through 9.1 currently
@@ -695,10 +695,11 @@ That is a complete Rails installation. Define jobs under `app/jobs` and queue th
 [Rocket Job Mission Control](mission_control.html) is a Rails engine that mounts into your
 application.
 
-Add the gem:
+Add the gem. Bundler installs the release of Mission Control that supports your versions of
+Rocket Job and Rails:
 
 ~~~ruby
-gem "rocketjob_mission_control", "~> 6.0"
+gem "rocketjob_mission_control"
 ~~~
 
 ~~~bash
@@ -816,7 +817,7 @@ Add to the bottom of the `Gemfile`:
 ~~~ruby
 gem "rails_semantic_logger"
 gem "rocketjob"
-gem "rocketjob_mission_control", "~> 6.0"
+gem "rocketjob_mission_control"
 gem "puma"
 ~~~
 
@@ -1191,14 +1192,19 @@ field :report_date, type: Date, default: -> { Date.today }
 When the default is a proc or lambda, it has access to the job itself:
 
 ~~~ruby
-field :report_date, type: Date, default: -> { new_record? ? Date.yesterday : Date.today }
+field :report_date,
+      type:    Date,
+      default: -> { new_record? ? Date.yesterday : Date.today }
 ~~~
 
 Proc and lambda defaults are applied _after_ all other attributes are set. To apply the default
 _before_ the other attributes are set, use `pre_processed: true`:
 
 ~~~ruby
-field :report_date, type: Date, default: -> { new_record? ? Date.yesterday : Date.today }, pre_processed: true
+field :report_date,
+      type:          Date,
+      default:       -> { new_record? ? Date.yesterday : Date.today },
+      pre_processed: true
 ~~~
 
 A plain default is evaluated once, at class-load time. A proc or lambda default is evaluated every
@@ -2262,7 +2268,9 @@ module ReplicaDelayThrottle
   extend ActiveSupport::Concern
 
   included do
-    rocket_job_batch_plugin { define_batch_throttle :replica_delay_exceeded? }
+    rocket_job_batch_plugin do
+      define_batch_throttle :replica_delay_exceeded?
+    end
   end
 
   private
@@ -2532,7 +2540,9 @@ words = %w[these are some words to be processed across many workers]
 
 job = ReverseJob.new
 job.upload do |records|
-  words.each { |word| records << word }
+  words.each do |word|
+    records << word
+  end
 end
 job.save!
 ~~~
@@ -2541,7 +2551,9 @@ Once the job completes, read the output (see [Collecting output](#collecting-out
 
 ~~~ruby
 job.output.each do |slice|
-  slice.each { |record| puts record }
+  slice.each do |record|
+    puts record
+  end
 end
 ~~~
 
@@ -2675,7 +2687,9 @@ job.upload(User.where(country_code: "US"), columns: %i[user_name zip_code])
 Pass a block to transform each model into the record to upload:
 
 ~~~ruby
-job.upload(User.where(country_code: "US")) { |user| user.email }
+job.upload(User.where(country_code: "US")) do |user|
+  user.email
+end
 ~~~
 
 ### Mongoid queries
@@ -2719,7 +2733,9 @@ When `upload` is given a block, it yields a writer to which records are appended
 
 ~~~ruby
 job.upload do |writer|
-  10.times { |i| writer << i }
+  10.times do |i|
+    writer << i
+  end
 end
 ~~~
 
@@ -2818,7 +2834,9 @@ Read the collected output once the job has completed:
 
 ~~~ruby
 job.output.each do |slice|
-  slice.each { |record| puts record }
+  slice.each do |record|
+    puts record
+  end
 end
 ~~~
 
@@ -2962,9 +2980,17 @@ end
 ~~~
 
 ~~~ruby
-TabularJob.new.tap { |j| j.upload("really_big.csv") }.save!
-TabularJob.new.tap { |j| j.upload("really_big.xlsx") }.save!
-TabularJob.new.tap { |j| j.upload("really_big.json") }.save!
+csv_job = TabularJob.new
+csv_job.upload("really_big.csv")
+csv_job.save!
+
+excel_job = TabularJob.new
+excel_job.upload("really_big.xlsx")
+excel_job.save!
+
+json_job = TabularJob.new
+json_job.upload("really_big.json")
+json_job.save!
 ~~~
 
 ### Typed values with a schema
@@ -3104,7 +3130,12 @@ class ExportUsersJob < RocketJob::Job
 
   # These fields are written, in this order
   output_category format: :csv,
-                  schema: {"fields" => [{"name" => "login"}, {"name" => "last_login", "type" => "datetime"}]}
+                  schema: {
+                    "fields" => [
+                      {"name" => "login"},
+                      {"name" => "last_login", "type" => "datetime"}
+                    ]
+                  }
 
   def perform(id)
     u = User.find(id)
@@ -3147,7 +3178,10 @@ class ExportUsersJob < RocketJob::Job
   output_category format: :csv,
                   schema: {
                     "fieldsMatch" => "subset",
-                    "fields"      => [{"name" => "login"}, {"name" => "last_login", "type" => "datetime"}]
+                    "fields"      => [
+                      {"name" => "login"},
+                      {"name" => "last_login", "type" => "datetime"}
+                    ]
                   }
 
   def perform(login)
@@ -3163,7 +3197,12 @@ Override the schema per instance to widen or narrow the export:
 job = ExportUsersJob.new
 job.output_category.schema = {
   "fieldsMatch" => "subset",
-  "fields"      => [{"name" => "login"}, {"name" => "last_login"}, {"name" => "name"}, {"name" => "state"}]
+  "fields"      => [
+    {"name" => "login"},
+    {"name" => "last_login"},
+    {"name" => "name"},
+    {"name" => "state"}
+  ]
 }
 job.save!
 ~~~
@@ -3253,7 +3292,12 @@ class ExportJob < RocketJob::Job
 
   input_category  format: :csv
   output_category format:     :csv,
-                  schema:     {"fields" => [{"name" => "name"}, {"name" => "age", "type" => "integer"}]},
+                  schema:     {
+                    "fields" => [
+                      {"name" => "name"},
+                      {"name" => "age", "type" => "integer"}
+                    ]
+                  },
                   serializer: :encrypted_bz2
 
   after_batch :download_file
@@ -3416,7 +3460,11 @@ class SampleJob < RocketJob::Job
   private
 
   def upload_data
-    upload { |stream| %w[abc def ghi].each { |r| stream << r } }
+    upload do |stream|
+      %w[abc def ghi].each do |record|
+        stream << record
+      end
+    end
   end
 end
 ~~~
@@ -3465,7 +3513,9 @@ job.input.failed.first            # First failed slice
 job.input.first                   # First input slice, in upload order
 
 # Iterate over every failed slice and print its exception class:
-job.input.failed.each { |slice| puts slice.exception.class_name }
+job.input.failed.each do |slice|
+  puts slice.exception.class_name
+end
 ~~~
 
 **Reading records within a slice.** A slice behaves like an array of its records, and carries metadata
@@ -3499,7 +3549,9 @@ fastest way to see _what_ is failing without paging through slices one at a time
 ~~~ruby
 job.input.group_exceptions.each do |summary|
   puts "#{summary.class_name}: #{summary.count}"
-  summary.messages.each { |message| puts "  #{message}" }
+  summary.messages.each do |message|
+    puts "  #{message}"
+  end
 end
 ~~~
 
@@ -4776,7 +4828,9 @@ unless RocketJob.server?
   RocketJob::Subscribers::SecretConfig.subscribe if defined?(SecretConfig)
 
   # Start the Rocket Job event listener thread
-  Thread.new { RocketJob::Event.listener }
+  Thread.new do
+    RocketJob::Event.listener
+  end
 end
 ~~~
 
@@ -4906,10 +4960,11 @@ The top navigation bar mirrors these concepts with four sections: **Jobs**, **Se
 
 Mission Control is a Rails engine. Mount it into a new or existing Rails application.
 
-Add it to the `Gemfile`:
+Add it to the `Gemfile`. Bundler installs the release of Mission Control that supports your
+versions of Rocket Job and Rails:
 
 ~~~ruby
-gem "rocketjob_mission_control", "~> 6.0"
+gem "rocketjob_mission_control"
 ~~~
 
 Install it:
@@ -5292,7 +5347,7 @@ RUN bundle config set --local without 'development test' \
 CMD ["bin/rocketjob"]
 ~~~
 
-Use a Ruby version that Rocket Job supports (3.2, 3.4, or 4.0). See
+Use a Ruby version that Rocket Job supports (3.3, 3.4, or 4.0). See
 [Compatibility](installation.html#compatibility).
 
 Add `--quiet` to the `CMD` if you would rather log only to a file instead of stdout, for example
@@ -5760,6 +5815,9 @@ upgrade steps that need code or data changes when moving between major versions.
 
 ## Upgrading to v8
 
+Rocket Job v8 requires IOStreams 3.0, and so Ruby 3.3 or later, which IOStreams 3.0 requires. On
+JRuby that is JRuby 10.0 or later. Upgrade Ruby before upgrading Rocket Job.
+
 Upgrade every server that runs workers at the same time, rather than running v7 and v8 workers
 together. A v7 worker reads the jobs that v8 saves with the options that v7 has, such as
 `format_options`, but ignores those that v8 adds, such as a category's `schema` or `encoding`.
@@ -5773,7 +5831,12 @@ layout becomes a schema with the `width` of each field:
 ~~~ruby
 # Before (deprecated)
 input_category format:         :fixed,
-               format_options: {layout: [{size: 10, key: "name"}, {size: 5, key: "zip", type: :integer}]}
+               format_options: {
+                 layout: [
+                   {size: 10, key: "name"},
+                   {size: 5, key: "zip", type: :integer}
+                 ]
+               }
 
 # After
 input_category format: :fixed,
@@ -5843,7 +5906,13 @@ input_category  format: :csv,
                   ]
                 }
 output_category format: :csv,
-                schema: {"fieldsMatch" => "subset", "fields" => [{"name" => "login"}, {"name" => "last_login"}]}
+                schema: {
+                  "fieldsMatch" => "subset",
+                  "fields"      => [
+                    {"name" => "login"},
+                    {"name" => "last_login"}
+                  ]
+                }
 ~~~
 
 `"allowBlank" => true` keeps a record whose `login` is blank, as `required_columns` did, which only
@@ -5919,7 +5988,9 @@ file, and its workers read each line by it. Two cases changed, see
   ~~~ruby
   MyScheduledJob.where(:state.in => %w[queued paused]).each do |job|
     # Skip an input category whose columns are set for a file without a header row.
-    job.input_categories.each { |category| category.columns = nil }
+    job.input_categories.each do |category|
+      category.columns = nil
+    end
     job.save!
   end
   ~~~
@@ -5934,7 +6005,11 @@ more than one, abort or destroy all but one of them:
 
 ~~~ruby
 active = MySingletonJob.where(:state.in => %w[running queued paused]).to_a
-puts active.map { |job| "#{job.id} #{job.state}" } if active.size > 1
+if active.size > 1
+  active.each do |job|
+    puts "#{job.id} #{job.state}"
+  end
+end
 ~~~
 
 ### Finding the deprecated options

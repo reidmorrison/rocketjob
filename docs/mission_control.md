@@ -48,10 +48,11 @@ The top navigation bar mirrors these concepts with four sections: **Jobs**, **Se
 
 Mission Control is a Rails engine. Mount it into a new or existing Rails application.
 
-Add it to the `Gemfile`:
+Add it to the `Gemfile`. Bundler installs the release of Mission Control that supports your
+versions of Rocket Job and Rails:
 
 ~~~ruby
-gem "rocketjob_mission_control", "~> 6.0"
+gem "rocketjob_mission_control"
 ~~~
 
 Install it:

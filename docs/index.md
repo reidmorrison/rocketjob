@@ -430,7 +430,7 @@ runs.
 
 Rocket Job is tested against a matrix of Ruby, Mongoid, and Rails versions:
 
-* **Ruby:** MRI 3.2, 3.4, and 4.0 are exercised in CI; JRuby 9.4 or newer is also supported. The
+* **Ruby:** MRI 3.3, 3.4, and 4.0 are exercised in CI; JRuby 10.0 or newer is also supported. The
   authoritative list is the [CI matrix](https://github.com/reidmorrison/rocketjob/blob/main/.github/workflows/ci.yml).
 * **Mongoid:** 8.1, 9.0, and 9.1, as defined in
   [Appraisals](https://github.com/reidmorrison/rocketjob/blob/main/Appraisals).
