@@ -267,6 +267,19 @@ job.upload do |writer|
 end
 ~~~
 
+For an input category with a `schema`, the block writes the lines of a file: its header row first,
+when the file has one, then its rows. They are read as the lines of a file are, in slices that each
+hold the header row, so a header row that does not match the schema raises
+`IOStreams::Errors::InvalidHeader`, and nothing is uploaded:
+
+~~~ruby
+job.upload do |writer|
+  writer << "name,age"
+  writer << "Jack,21"
+  writer << "Jill,22"
+end
+~~~
+
 Text in a record must be UTF-8, since MongoDB only stores UTF-8. A string in another encoding, such as
 ISO-8859-1 from a database connection, is converted, but a binary string, or one that is not valid
 UTF-8, raises an `EncodingError` that names the number of the first such record, and nothing is

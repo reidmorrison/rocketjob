@@ -511,6 +511,110 @@ module Batch
 
           assert_equal [typed], output_records
         end
+
+        describe "lines written to a block" do
+          let(:jill) { {"name" => "Jill", "age" => 22, "balance" => BigDecimal("1.5"), "joined" => Date.new(2026, 10, 14)} }
+
+          it "are read after the header row written first" do
+            count =
+              job.upload do |records|
+                records << ""
+                records << "Name,AGE,Balance,Joined"
+                records << "Jack,21,12.50,2026-10-13"
+              end
+
+            assert_equal 1, count
+            assert_nil job.input_category.columns
+            assert_equal %w[Name AGE Balance Joined], job.input.first.records.header
+            assert_equal [typed], output_records
+          end
+
+          it "are read in slices that each hold the header row" do
+            job.input_category.slice_size = 2
+            job.upload do |records|
+              records << "name,age,balance,joined"
+              3.times do
+                records << "Jack,21,12.50,2026-10-13"
+              end
+              records << "Jill,22,1.5,2026-10-14"
+            end
+
+            # The first `slice_size` lines include the header row, so its slice holds one row fewer.
+            sizes   = job.input.collect(&:size)
+            headers = job.input.collect { |slice| slice.records.header }
+
+            assert_equal 4, job.record_count
+            assert_equal [1, 2, 1], sizes
+            assert_equal [%w[name age balance joined]] * 3, headers
+            assert_equal [typed, typed, typed, jill], output_records
+          end
+
+          it "can follow a file in the same category" do
+            upload(".csv", people)
+            job.upload do |records|
+              records << "name,age,balance,joined"
+              records << "Jill,22,1.5,2026-10-14"
+            end
+
+            assert_equal [typed, jill], output_records
+          end
+
+          it "call on_first with the header row" do
+            header = nil
+            job.upload(on_first: ->(row) { header = row }) do |records|
+              records << "Name,AGE,Balance,Joined"
+            end
+
+            assert_equal %w[Name AGE Balance Joined], header
+            assert_equal 0, job.input.count
+          end
+
+          it "of JSON have no header row" do
+            job.input_category.format = :json
+            job.upload do |records|
+              records << %({"name":"Jack","age":21,"balance":"12.50","joined":"2026-10-13"})
+              records << %({"name":"Jill","age":22,"balance":"1.5","joined":"2026-10-14"})
+            end
+
+            assert_equal [typed, jill], output_records
+          end
+
+          it "of JSON call on_first with the first line, which is not uploaded" do
+            first = nil
+            job.input_category.format     = :json
+            job.input_category.slice_size = 1
+            job.upload(on_first: ->(row) { first = row }) do |records|
+              records << %({"name":"First","age":1,"balance":"1","joined":"2026-10-01"})
+              records << %({"name":"Jack","age":21,"balance":"12.50","joined":"2026-10-13"})
+              records << %({"name":"Jill","age":22,"balance":"1.5","joined":"2026-10-14"})
+            end
+
+            assert_equal %({"name":"First","age":1,"balance":"1","joined":"2026-10-01"}), first
+            assert_equal [typed, jill], output_records
+          end
+
+          it "with a header row that does not match the schema upload nothing" do
+            assert_raises(IOStreams::Errors::InvalidHeader) do
+              job.upload do |records|
+                records << "name,height"
+                records << "Jack,2"
+              end
+            end
+
+            assert_equal 0, job.input.count
+          end
+
+          it "raise for a record that is not a line" do
+            error = assert_raises(ArgumentError) do
+              job.upload do |records|
+                records << {"name" => "Jack"}
+              end
+            end
+
+            assert_includes error.message, "not a Hash"
+            assert_equal 0, job.input.count
+          end
+        end
       end
 
       describe "column restrictions" do

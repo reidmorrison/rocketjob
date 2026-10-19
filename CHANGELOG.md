@@ -26,8 +26,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   Previously the slices that they uploaded were kept, so a retry uploaded the input a second time. Slices uploaded
   before the job started are kept. Each slice uploaded by `before_batch` records it in its new `upload_id`, and the
   job keeps what it restores in its new `before_batch_state` while the callbacks run.
-- Uploading a second file with a header row into an input category that holds the header row of an earlier upload,
-  in the `:line` or `:array` mode, raises `ArgumentError` and uploads nothing. Previously the second file's header
+- Uploading a second file with a header row into an input category without a `schema`, which holds the header row of
+  an earlier upload, in the `:line` or `:array` mode, raises `ArgumentError` and uploads nothing. Previously the second file's header
   row was stored as a record, and its lines were read with the first file's columns. A second file uploaded in the
   `:hash` mode also raises. Upload each file into its own input category, or upload every file in the `:hash` mode,
   in which each record keeps the columns of its own file. An input category records that its `columns` hold the
@@ -193,6 +193,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   from that record. `on_first` is called with the header row as an Array of its columns, or for a file without one,
   such as JSON, with its first line, which is not uploaded. A worker of Rocket Job 7 fails such a slice, rather than
   processing no records, see the upgrade guide.
+  The lines that the block of `upload` writes for such a category are read in the same slices, after the header row
+  read from the first lines, and a record written to it that is not a line, such as a Hash, raises `ArgumentError`.
 - `CopyFileJob` converts the text of a file from its `source_encoding` to its `target_encoding`, such as
   `source_encoding: "Windows-1252"`, which copies a file that Excel saved on Windows as UTF-8. When only one
   is set, the other is UTF-8, and when neither is set the file is still copied byte for byte. The text is

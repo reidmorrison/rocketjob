@@ -308,6 +308,80 @@ module RocketJob
         end
       end
 
+      # Yields a writer to the supplied block of an upload, see RocketJob::Batch::IO#upload, to which the block writes the
+      # lines of a file, such as its header row followed by its rows, and yields each slice of them, as IOStreams reads
+      # the slices of a file, see #each_slice: IOStreams reads the header row from the first lines, matches it to the
+      # fields of the schema, and each slice holds it.
+      #
+      # Raises ArgumentError for a record written to the writer that is not a line, such as a Hash.
+      def each_written_slice(block, on_first: nil, &)
+        lines = WrittenLines.new(format: tabular.format, schema: schema_descriptor, size: slice_size,
+                                 validate: mode != :line, on_first: on_first, &)
+        block.call(lines)
+        lines.flush
+      end
+
+      # The lines that the block of an upload writes, see #each_written_slice, which it reads in slices of up to `size`
+      # rows, as IOStreams reads the slices of a file, see #each_slice, after the header row read from the first lines,
+      # which the slices of the later lines hold too.
+      class WrittenLines
+        def initialize(format:, schema:, size:, validate:, on_first:, &on_slice)
+          @format   = format
+          @schema   = schema
+          @size     = size
+          @validate = validate
+          @on_first = on_first
+          @on_slice = on_slice
+          @lines    = []
+          @header   = nil
+        end
+
+        # Adds the supplied line, and reads the lines added since the last slice once there are `size` of them.
+        def <<(line)
+          unless line.is_a?(String)
+            raise(ArgumentError, "Write each line of a file to the upload of an input category with a schema, not a " \
+                                 "#{line.class.name}")
+          end
+
+          @lines << line
+          flush if @lines.size >= @size
+          self
+        end
+
+        # Reads the lines added since the last slice as the rows of a file, see IOStreams::Slice, after the header row
+        # read from the first lines, so that IOStreams reads the header row and matches it to the fields only once, and
+        # yields each slice of them.
+        def flush
+          return if @lines.empty?
+
+          rows   = IOStreams::Slice.new(@lines, header: @header, format: @format)
+          @lines = []
+          IOStreams.stream(rows).schema(@schema).reader(:slice, size: @size, validate: @validate) do |reader|
+            reader.each { |slice| on_slice(slice) }
+            @header ||= reader.header
+            # A header row, but no rows after it, yet.
+            first(@header) if @header
+          end
+        end
+
+        private
+
+        # Calls `on_first` with the header row, or for lines without one, such as JSON, with the first line, which is
+        # not uploaded, see RocketJob::Category::Input#each_slice, then the block with the slice.
+        def on_slice(slice)
+          first(slice.header || slice.shift) if @on_first
+          @on_slice.call(slice) unless slice.empty?
+        end
+
+        def first(row)
+          return unless @on_first
+
+          @on_first.call(row)
+          @on_first = nil
+        end
+      end
+      private_constant :WrittenLines
+
       # Yields each record read from the supplied path in the supplied mode, see #mode.
       #
       # In :hash mode IOStreams reads the header row, and applies the column restrictions, since the header row

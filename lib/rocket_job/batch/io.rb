@@ -165,12 +165,22 @@ module RocketJob
           category           = input_category(category)
           category.file_name = file_name if file_name
 
-          # Extract the header line during the upload when applicable.
-          extract_header = category.extract_header_callback(on_first)
+          count =
+            if category.slices?
+              # The block writes the lines of a file, which are read in slices, as the lines of a file are.
+              category.uploading do
+                input_collection.upload(upload_id: rocketjob_upload_id) do |writer|
+                  category.each_written_slice(block, on_first: on_first) { |slice| writer.write_slice(slice) }
+                end
+              end
+            else
+              # Extract the header line during the upload when applicable.
+              extract_header = category.extract_header_callback(on_first)
 
-          count = category.uploading do
-            input_collection.upload(on_first: extract_header, upload_id: rocketjob_upload_id, &block)
-          end
+              category.uploading do
+                input_collection.upload(on_first: extract_header, upload_id: rocketjob_upload_id, &block)
+              end
+            end
           return rocketjob_add_record_count(count)
         end
 
