@@ -273,7 +273,8 @@ module RocketJob
       # Returns the lambda that the upload calls with each record before the first that it stores, instead of storing
       # it, until the lambda returns true, see `Sliced::Writer::Input`: it reads the header row, when the upload starts
       # with one, see #header_first?, then calls the supplied `on_first` with it. Otherwise it calls `on_first` with the
-      # first record. Returns nil when there is neither.
+      # first record. Returns nil when there is neither. In :hash mode IOStreams reads the header row itself, so
+      # `on_first` is not called for a file with one, as in v7, and every record is uploaded.
       #
       # A blank line before the header row is skipped, as IOStreams skips it when it reads the header row itself, such
       # as in :hash mode, so that the header row is not stored as a record.
@@ -297,7 +298,8 @@ module RocketJob
                 "by. Upload each file with a header row into its own input category, or upload every file in the " \
                 ":hash mode")
         end
-        return first_record if mode == :hash
+        # IOStreams reads the header row itself in :hash mode, see #each_record.
+        return tabular.header? ? nil : first_record if mode == :hash
 
         unless header_first?(mode)
           restrict_columns! if schema.blank?

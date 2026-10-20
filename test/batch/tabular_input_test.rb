@@ -128,6 +128,24 @@ module Batch
 
           assert_equal %w[Name Age Extra], header
         end
+
+        it "does not call on_first in :hash mode for a file with a header row, and uploads every record, as v7" do
+          job.input_category.mode = :hash
+          called                  = false
+
+          assert_equal 2, upload(".csv", csv, on_first: ->(_row) { called = true })
+          refute called
+          assert_equal 2, input_records.size
+        end
+
+        it "calls on_first in :hash mode with the first record of JSON, which is not uploaded, as v7" do
+          job.input_category.format = :json
+          job.input_category.mode   = :hash
+          first                     = nil
+
+          assert_equal 1, upload(".json", json, on_first: ->(record) { first = record })
+          assert_equal({"Name" => "Jack", "age" => 21, "extra" => "x"}, first)
+        end
       end
 
       describe "a second file" do
