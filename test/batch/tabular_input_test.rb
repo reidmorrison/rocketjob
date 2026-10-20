@@ -253,7 +253,9 @@ module Batch
 
           assert_equal 1, upload(".csv", csv)
 
-          assert_equal %w[Name Age], job.input_category.columns
+          # Each slice carries the header row of its file, as it is in the file, rather than the category.
+          assert_nil job.input_category.columns
+          assert_equal %w[Name Age], job.input.first.records.header
           assert_equal [{"name" => "Jack", "age" => 21}], output_records
         end
 
@@ -292,11 +294,11 @@ module Batch
           assert_equal [{"name" => "Jack", "zip" => "54321"}], output_records
         end
 
-        it "uploads the values of each line in :array mode, which the workers read by the schema" do
+        it "uploads each line in :array mode, which the workers read by the schema" do
           job.input_category.mode = :array
           upload(".txt", "Jack      54321\nJill      12345\n")
 
-          assert_equal [%w[Jack 54321], %w[Jill 12345]], input_records
+          assert_equal ["Jack      54321", "Jill      12345"], input_records
           assert_equal [{"name" => "Jack", "zip" => "54321"}, {"name" => "Jill", "zip" => "12345"}], output_records
         end
 
@@ -338,19 +340,20 @@ module Batch
           assert_equal [{"name" => "Jos", "zip" => "12345"}], output_records
         end
 
-        it "uploads hashes in :hash mode, with the layout set on the path" do
+        it "uploads each line in :hash mode, after reading it, which the workers read by the schema" do
           job.input_category.mode = :hash
           upload(".txt", "Jack      54321\nJill      12345\n")
 
-          assert_equal [{"name" => "Jack", "zip" => "54321"}, {"name" => "Jill", "zip" => "12345"}], input_records
+          assert_equal ["Jack      54321", "Jill      12345"], input_records
+          assert_equal [{"name" => "Jack", "zip" => "54321"}, {"name" => "Jill", "zip" => "12345"}], output_records
         end
 
-        it "uploads the values of each line in :array mode, with the layout set on the path" do
-          job.input_category.mode = :array
-          upload(".txt", "Jack      54321\nJill      12345\n")
+        it "calls on_first with the first line, which is not uploaded, since the file has no header row" do
+          first = nil
+          upload(".txt", "HEADER    00000\nJack      54321\n", on_first: ->(row) { first = row })
 
-          # IOStreams reads each line of a fixed width file as an Array of the values of its fields, in order.
-          assert_equal [%w[Jack 54321], %w[Jill 12345]], input_records
+          assert_equal "HEADER    00000", first
+          assert_equal ["Jack      54321"], input_records
         end
 
         it "fails a record whose integer column is not a number" do
@@ -406,7 +409,7 @@ module Batch
         it "matches the header row to the fields whatever its case and punctuation, and keeps it as it is" do
           upload(".csv", "Name,AGE,Balance,Joined\nJack,21,12.50,2026-10-13\n")
 
-          assert_equal %w[Name AGE Balance Joined], job.input_category.columns
+          assert_equal %w[Name AGE Balance Joined], job.input.first.records.header
           assert_equal [typed], output_records
         end
 
@@ -422,20 +425,74 @@ module Batch
           assert_equal [typed], output_records
         end
 
-        it "uploads typed values in :array mode" do
+        it "uploads each line in :array mode, after parsing it" do
           job.input_category.mode = :array
           upload(".csv", "Name,AGE,Balance,Joined\nJack,21,12.50,2026-10-13\n")
 
-          # IOStreams reads the header row as the names of the fields.
-          assert_equal %w[name age balance joined], job.input_category.columns
+          assert_equal ["Jack,21,12.50,2026-10-13"], input_records
           assert_equal [typed], output_records
         end
 
-        it "uploads typed values in :hash mode, with a date as a time, since MongoDB has no date" do
+        it "uploads each line in :hash mode, after parsing it, so that a date reaches perform as a date" do
           job.input_category.mode = :hash
           upload(".csv", people)
 
-          assert_equal [typed.merge("joined" => Time.utc(2026, 10, 13))], input_records
+          assert_equal ["Jack,21,12.50,2026-10-13"], input_records
+          assert_equal [typed], output_records
+        end
+
+        it "rejects a value that is not valid in :hash mode, and uploads nothing" do
+          job.input_category.mode = :hash
+          assert_raises(IOStreams::Errors::InvalidValue) { upload(".csv", "#{people}Jill,x,1,2026-10-13\n") }
+
+          assert_equal 0, job.input.count
+          assert_equal 0, job.record_count.to_i
+        end
+
+        it "uploads files whose columns are in another order into the same category" do
+          job.input_category.schema = schema.merge("fieldsMatch" => "equal")
+          upload(".csv", people)
+          upload(".csv", "joined,name,balance,age\n2026-10-14,Jill,1.5,22\n")
+          jill = {"name" => "Jill", "age" => 22, "balance" => BigDecimal("1.5"), "joined" => Date.new(2026, 10, 14)}
+
+          assert_equal 2, job.record_count
+          assert_equal [typed, jill], output_records
+        end
+
+        it "calls on_first with the header row, as it is in the file" do
+          header = nil
+          upload(".csv", "Name,AGE,Balance,Joined\nJack,21,12.50,2026-10-13\n", on_first: ->(row) { header = row })
+
+          assert_equal %w[Name AGE Balance Joined], header
+          assert_equal [typed], output_records
+        end
+
+        it "calls on_first with the header row of a file without rows" do
+          header = nil
+
+          assert_equal 0, upload(".csv", "Name,AGE,Balance,Joined\n", on_first: ->(row) { header = row })
+          assert_equal %w[Name AGE Balance Joined], header
+        end
+
+        it "fails the record whose value is not valid, which is processed again once it is corrected" do
+          upload(".csv", "#{people}Jill,x,1,2026-10-13\nBob,23,2,2026-10-15\n")
+          job.save!
+          job.start!
+          job.rocket_job_work(RocketJob::Worker.new, false)
+          slice = job.input.first
+
+          assert_predicate job, :failed?
+          assert_equal 2, slice.processing_record_number
+          assert_equal "Jill,x,1,2026-10-13", slice.failed_record
+
+          slice.replace_record(1, "Jill,22,1,2026-10-13")
+          slice.save!
+          job.retry!
+          job.rocket_job_work(RocketJob::Worker.new, false)
+          names = job.output.collect(&:to_a).flatten(1).collect { |record| record["name"] }
+
+          assert_predicate job, :completed?
+          assert_equal %w[Jack Jill Bob], names
         end
 
         it "reads a file without a header row" do

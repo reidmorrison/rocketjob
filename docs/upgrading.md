@@ -22,7 +22,9 @@ JRuby that is JRuby 10.0 or later. Upgrade Ruby before upgrading Rocket Job.
 
 Upgrade every server that runs workers at the same time, rather than running v7 and v8 workers
 together. A v7 worker reads the jobs that v8 saves with the options that v7 has, such as
-`format_options`, but ignores those that v8 adds, such as a category's `schema` or `encoding`.
+`format_options`, but ignores those that v8 adds, such as a category's `schema` or `encoding`. A
+file that v8 uploads into an input category with a `schema` is stored in slices that a v7 worker
+cannot read, so it fails each one, and they can be retried once every worker runs v8.
 
 ### format_options is replaced by schema
 
@@ -171,8 +173,9 @@ change `#perform` to read the Hash.
 
 ### An input category holds the header row of one file
 
-In the `:line` and `:array` modes an input category keeps the header row that `upload` read from a
-file, and its workers read each line by it. Two cases changed, see
+Without a schema, in the `:line` and `:array` modes an input category keeps the header row that
+`upload` read from a file, and its workers read each line by it. With a schema, each slice of a file
+holds its header row instead, so neither case below applies. Without one, two cases changed, see
 [More than one file](batch.html#more-than-one-file):
 
 * Uploading a second file with a header row into the same input category raises `ArgumentError`, in

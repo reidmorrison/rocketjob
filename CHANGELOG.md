@@ -174,17 +174,25 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   `BigDecimal` or a `Date`, and to write each value in the text form of its type, for every tabular
   format. It also gives the position of each field of a fixed width file, and `"header" => false`
   describes a file without a header row. It is set on the path that is uploaded, and validated when the
-  category is saved, without reading a file that holds it. In the `:array` and `:hash` upload modes a
-  `date` is stored in the slices as a `Time` at midnight UTC, since MongoDB has no date type.
+  category is saved, without reading a file that holds it.
 
   The schema also describes the columns of a file. Each column of the header row, or key of a JSON
   record, is matched to a field by its name or one of its `aliases`, whatever its case, spaces and
   punctuation, and the keys of each record are the names of the fields. Its `fieldsMatch` says which
   columns a file can have, and `"constraints" => {"required" => true}` which fields it must have. An
   uploaded header row that does not match raises `IOStreams::Errors::InvalidHeader`, and nothing is
-  uploaded. An input category's `columns` hold the header row as it is in the file, which the workers
-  match to the fields. An output category writes the names of the fields as its header row, and the
-  fields of each result, in order.
+  uploaded. Each slice of a file uploaded into an input category holds its header row, see below. An output
+  category writes the names of the fields as its header row, and the fields of each result, in order.
+- `upload` reads a file into an input category with a `schema` with IOStreams' `each(:slice)`, rather than splitting
+  it into slices itself: IOStreams reads up to `slice_size` rows at a time, after the header row, which it matches to
+  the fields before any slice is uploaded, and each slice holds the header row of its file. So the category's
+  `columns` are not set, and files whose columns are in another order can be uploaded into the same input category,
+  one after another. In the `:hash` and `:array` modes IOStreams also reads each row while the file is uploaded, so
+  that a file with a value that is not valid uploads nothing, but the slices hold the lines as they are, and a `date`
+  reaches `perform` as a `Date`. A row that cannot be read fails its record, and a retry processes the slice again
+  from that record. `on_first` is called with the header row as an Array of its columns, or for a file without one,
+  such as JSON, with its first line, which is not uploaded. A worker of Rocket Job 7 fails such a slice, rather than
+  processing no records, see the upgrade guide.
 - `CopyFileJob` converts the text of a file from its `source_encoding` to its `target_encoding`, such as
   `source_encoding: "Windows-1252"`, which copies a file that Excel saved on Windows as UTF-8. When only one
   is set, the other is UTF-8, and when neither is set the file is still copied byte for byte. The text is

@@ -230,6 +230,78 @@ module Sliced
 
         assert_equal :completed, slice.state
       end
+
+      describe "#replace_record" do
+        it "replaces the record at the index, and saves it with the slice" do
+          slice.records = %w[same same other]
+          slice.replace_record(1, "changed")
+          slice.save!
+
+          assert_equal %w[same changed other], slices.find(slice.id).records
+        end
+
+        it "raises for an index without a record" do
+          slice.records = %w[only]
+
+          assert_raises(IndexError) { slice.replace_record(1, "changed") }
+          assert_equal %w[only], slice.records
+        end
+      end
+
+      describe "#delete_record" do
+        it "removes only the record at the index, and saves it with the slice" do
+          slice.records = %w[same same other]
+
+          assert_equal "same", slice.delete_record(1)
+          slice.save!
+
+          assert_equal %w[same other], slices.find(slice.id).records
+        end
+
+        it "raises for an index without a record" do
+          slice.records = %w[only]
+
+          assert_raises(IndexError) { slice.delete_record(1) }
+          assert_equal %w[only], slice.records
+        end
+      end
+
+      describe "the rows of a file" do
+        let(:rows) { IOStreams::Slice.new(["Jack,21", "", "Jill,22"], header: %w[Name AGE], format: :csv) }
+
+        it "keep their header row when a record is replaced or removed" do
+          slice.records = rows
+          slice.replace_record(0, "Jack,22")
+          slice.delete_record(1)
+          slice.save!
+          found = slices.find(slice.id)
+
+          assert_equal ["Jack,22", "Jill,22"], found.records.to_a
+          assert_equal %w[Name AGE], found.records.header
+        end
+
+        it "keeps the header row and format that they carry" do
+          slice.records = rows
+          slice.save!
+          found = slices.find(slice.id)
+
+          assert_kind_of IOStreams::Slice, found.records
+          assert_equal rows.to_a, found.records.to_a
+          assert_equal %w[Name AGE], found.records.header
+          assert_equal :csv, found.records.format
+        end
+
+        it "are saved as binary, so that Rocket Job 7 raises rather than read them as records" do
+          slice.records = rows
+          slice.save!
+          stored   = slices.collection.find(_id: slice.id).first["records"]
+          document = Hash.from_bson(BSON::ByteBuffer.new(stored.data))
+
+          assert_kind_of BSON::Binary, stored
+          assert_equal RocketJob::Sliced::Slice::ROWS_GUARD, document["r"]
+          assert_equal rows.to_h, document["s"]
+        end
+      end
     end
   end
 end

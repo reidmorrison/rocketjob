@@ -187,6 +187,18 @@ module RocketJob
         read_header(columns)
       end
 
+      # Yields each record of the supplied records of a slice of this category, as `#perform` receives it. The rows of a
+      # file, see IOStreams::Slice, are read by IOStreams by the header row and format that they carry, with this
+      # category's schema, see #schema. Otherwise each record is parsed on its own, see #parse. A blank row is nil.
+      #
+      # A record that cannot be parsed raises before it is yielded, after the records before it, so that the caller
+      # knows which record failed.
+      def parse_records(records, &)
+        return records.each { |record| yield parse(record) } unless records.is_a?(IOStreams::Slice)
+
+        IOStreams.stream(records).schema(schema_descriptor).each(:hash, &)
+      end
+
       # Returns the supplied record of a slice of this category as `#perform` receives it: parsed in this category's
       # format, see #parse_record, or as it is when the category has no format. A blank record of a tabular format is
       # nil.
@@ -247,11 +259,12 @@ module RocketJob
         # since only the caller knows how the file was written.
         if tabular?
           path.format(format)
-          # The fields of the records, and the position of each field of a fixed width file, so that the :array and
-          # :hash modes read typed values in their columns, see #each_record. A schema, or a layout, set on the supplied
+          # The fields of the records, and the position of each field of a fixed width file, so that IOStreams matches
+          # the header row to the fields, and reads typed values in their columns, see #each_slice and #each_record. The
+          # schema is read once, see #schema_descriptor, for the workers too. A schema, or a layout, set on the supplied
           # path is kept.
           if path.schema.nil?
-            path.schema(schema) if schema.present?
+            path.schema(schema_descriptor) if schema.present?
             path.format_options(format_options.to_h.deep_symbolize_keys) if format_options.present?
           end
           # Replace the non-printable characters of a fixed width file, such as NUL padding, so that the columns stay
@@ -260,6 +273,39 @@ module RocketJob
         end
         apply_invalid_characters(path)
         path
+      end
+
+      # Returns [true|false] whether a file is uploaded into this category in slices of its rows, which carry the header
+      # row of their file and its format, see #each_slice: when it has a schema, which describes the columns of its
+      # files. Otherwise each record is uploaded on its own, see #each_record, and parsed by the columns that this
+      # category holds, see #parse.
+      def slices?
+        tabular? && schema.present?
+      end
+
+      # Yields each slice of up to `slice_size` rows of the file that the supplied path reads, see #upload_path, as
+      # IOStreams reads them, see `IOStreams::Stream#each(:slice)`: after its header row, which IOStreams matches to the
+      # fields of the schema, so that a file whose columns do not match raises IOStreams::Errors::InvalidHeader before
+      # any slice. Each slice carries the header row of its file, so that more than one file can be uploaded into this
+      # category, and the workers read each row by it, see #parse_records.
+      #
+      # In the :hash and the deprecated :array modes, see #mode, IOStreams also parses each row as it reads it, so that a
+      # file with a value that is not valid raises before it is processed. Each slice still holds the rows as they are.
+      #
+      # `on_first` is called with the header row, an Array of its columns as they are in the file. For a file without
+      # one, such as JSON or fixed width, it is called with its first row instead, which is not uploaded.
+      def each_slice(path, mode: self.mode, on_first: nil, **args)
+        path.reader(:slice, size: slice_size, validate: mode != :line, **args) do |reader|
+          reader.each do |slice|
+            if on_first
+              on_first.call(slice.header || slice.shift)
+              on_first = nil
+            end
+            yield slice unless slice.empty?
+          end
+          # A file with a header row, but no rows after it.
+          on_first&.call(reader.header) if reader.header
+        end
       end
 
       # Yields each record read from the supplied path in the supplied mode, see #mode.

@@ -197,13 +197,18 @@ module RocketJob
             # Sets the format first when it is :auto, since the format determines whether there is a header line.
             path = category.upload_path(object, original_file_name: file_name)
 
-            # Extract the header line during the upload when applicable.
-            extract_header = category.extract_header_callback(on_first, mode: mode)
+            if category.slices?
+              rocketjob_upload_slices(input_collection, category, path, mode: mode, on_first: on_first,
+                                      slice_batch_size: slice_batch_size, **args)
+            else
+              # Extract the header line during the upload when applicable.
+              extract_header = category.extract_header_callback(on_first, mode: mode)
 
-            category.uploading do
-              input_collection.upload(on_first: extract_header, slice_batch_size: slice_batch_size,
-                                      upload_id: rocketjob_upload_id) do |io|
-                category.each_record(path, mode: mode, **args) { |record| io << record }
+              category.uploading do
+                input_collection.upload(on_first: extract_header, slice_batch_size: slice_batch_size,
+                                        upload_id: rocketjob_upload_id) do |io|
+                  category.each_record(path, mode: mode, **args) { |record| io << record }
+                end
               end
             end
           end
@@ -391,6 +396,19 @@ module RocketJob
           "the columns of the file with the schema: of the input category instead, see " \
           "#{RocketJob::Deprecation::UPGRADE_GUIDE}"
         )
+      end
+
+      # Uploads the file that the supplied path reads into the supplied input category, which has a schema, in the slices
+      # of its rows that IOStreams reads, each of which carries the header row of the file, see
+      # Category::Input#each_slice.
+      #
+      # Returns [Integer] the number of records uploaded.
+      def rocketjob_upload_slices(input_collection, category, path, mode:, on_first:, slice_batch_size:, **args)
+        category.uploading do
+          input_collection.upload(slice_batch_size: slice_batch_size, upload_id: rocketjob_upload_id) do |writer|
+            category.each_slice(path, mode: mode, on_first: on_first, **args) { |slice| writer.write_slice(slice) }
+          end
+        end
       end
 
       # Uploads the integers of the supplied range as one `[first_id, last_id]` record per slice, starting with the last
