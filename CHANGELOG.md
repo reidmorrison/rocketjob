@@ -9,6 +9,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 deprecation warning where an application uses one of those, so that it can move to them before it upgrades. It changes
 no existing behavior: a job that does not use what is new reads and writes its files as in v7.0.
 
+Upgrade one version at a time: move to 7.1, fix each deprecation warning that it reports, and only then upgrade to 8.
+See [Upgrading to v7.1](https://rocketjob.reidmorrison.com/upgrading.html#upgrading-to-v71).
+
 ### Changed
 
 - Require IOStreams 2.2, which adds the schemas that describe the files of a category, and reports deprecation
