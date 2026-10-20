@@ -156,6 +156,26 @@ module RocketJob
         at(processing_record_number - 1) if exception && processing_record_number
       end
 
+      # Replaces the record at the supplied index, such as a failed record once it is corrected, see #failed_record. The
+      # records keep what they hold besides, such as the header row of the rows of a file, see IOStreams::Slice. Saved
+      # with the slice.
+      #
+      # Raises IndexError when the slice has no record at the index.
+      def replace_record(index, record)
+        records.fetch(index)
+        records[index] = record
+      end
+
+      # Removes the record at the supplied index, rather than every record equal to it. The records keep what they hold
+      # besides, see #replace_record. Saved with the slice.
+      #
+      # Returns the record removed.
+      # Raises IndexError when the slice has no record at the index.
+      def delete_record(index)
+        records.fetch(index)
+        records.delete_at(index)
+      end
+
       # Returns [Hash] the slice as a Hash for storage purposes
       # Compresses / Encrypts the slice according to the job setting
       def as_attributes

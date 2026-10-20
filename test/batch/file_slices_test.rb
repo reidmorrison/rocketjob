@@ -80,10 +80,8 @@ module Batch
         assert_equal 2, slice.processing_record_number
         assert_equal "Jill,x", slice.failed_record
 
-        # As Mission Control corrects a record: a copy of the records keeps the header row of their file.
-        records       = slice.records.dup
-        records[1]    = "Jill,22"
-        slice.records = records
+        # As Mission Control corrects a record: the slice keeps the header row of its file.
+        slice.replace_record(1, "Jill,22")
         slice.save!
         job.retry!
         work

@@ -190,6 +190,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   its format, so that the workers read its rows by them, with the input category's schema. A row that cannot be read
   fails its record, and a retry processes the slice again from that record. Every serializer stores such a slice so
   that a worker of Rocket Job 7 fails it, rather than processing no records.
+- A slice replaces or removes one of its records with `replace_record` and `delete_record`, such as a failed record
+  that Mission Control corrects, which keep what its records hold besides, such as the header row of the rows of a
+  file.
 - `CopyFileJob` converts the text of a file from its `source_encoding` to its `target_encoding`, such as
   `source_encoding: "Windows-1252"`, which copies a file that Excel saved on Windows as UTF-8. When only one
   is set, the other is UTF-8, and when neither is set the file is still copied byte for byte. The text is
