@@ -268,6 +268,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - The `:array` upload mode, an input category's `mode: :array` and the `stream_mode: :array` of `upload`, since each
   row that it uploads only makes sense with the header row that the category keeps. Use `:line`, or `:hash` to parse
   the whole file when it is uploaded. See the upgrade guide.
+- `RocketJob::Deprecation.saved_options` lists the saved jobs that can still run, the Dirmon entries and the
+  `UploadFileJob`s that hold one of these options, by category, since reading a saved document does not warn. Each
+  category class decides which of its options are deprecated, see `RocketJob::Category::Base.deprecated_option_names`.
+  See the upgrade guide.
 - Rocket Job reports a Ruby deprecation warning for each of these options, and for `format_options`, at the line
   of the job class that defines a category with one, or of the call to `upload` that supplies one, and when a Dirmon
   entry or an `UploadFileJob` builds a job from properties that hold one. They are only reported while Ruby's

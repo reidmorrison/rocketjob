@@ -166,6 +166,18 @@ module RocketJob
         )
       end
 
+      # Returns [Array<String>] the names of the deprecated options that the supplied properties of an input category
+      # set, see Category::Base.deprecated_option_names, and its `mode` when it is the deprecated :array. The `columns`
+      # that an upload read from the header row of a file, see #header_uploaded, are left out, since the application
+      # did not set them.
+      def self.deprecated_option_names(properties)
+        properties = properties.to_h.stringify_keys
+        names      = super
+        names.delete("columns") if [true, "true"].include?(properties["header_uploaded"])
+        names << "mode" if properties["mode"].to_s == "array"
+        names
+      end
+
       # Returns [Array<String>] the names of the deprecated options in the supplied properties of an input category,
       # with String keys, see Category::Base.deprecated_column_options: `columns`, `allowed_columns`,
       # `required_columns`, `skip_unknown` when true, and `header_cleanser` when :none.
