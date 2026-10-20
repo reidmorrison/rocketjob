@@ -64,6 +64,11 @@ module RocketJob
       # Recommend using :array when the entire file must be parsed/validated before processing is started, and
       # upload time is not important.
       # See IOStreams#each for more details.
+      #
+      # With a schema, see #schema, the lines of the file are uploaded in the :line and :hash modes, which the workers
+      # parse by the schema, so that each value reaches `#perform` as its type, such as a Date. In :hash mode every line
+      # is also parsed when it is uploaded, so that a file with a value that is not valid is not uploaded at all. The
+      # :array mode cannot be used with a schema.
       field :mode, type: ::Mongoid::StringifiedSymbol, default: :line
       validates_inclusion_of :mode, in: %i[line array hash]
 
@@ -96,6 +101,8 @@ module RocketJob
       end
 
       def tabular
+        return @tabular ||= schema_tabular if schema.present?
+
         @tabular ||= IOStreams::Tabular.new(
           columns:          columns,
           format:           format == :auto ? nil : format,
@@ -133,13 +140,41 @@ module RocketJob
           @tabular = nil
         end
 
-        # Remove non-printable characters from tabular input formats.
-        if tabular?
+        if schema.present?
+          # IOStreams reads the text of a file with a schema as UTF-8, and raises for text that is not valid UTF-8,
+          # unless an encoding is set on the supplied path, which reads it instead. A schema set on the supplied path
+          # is kept.
+          path.schema(schema) if path.schema.nil?
+        elsif tabular?
+          # Remove non-printable characters from tabular input formats.
           # Cannot change the length of fixed width lines.
           replace = format == :fixed ? " " : ""
           path.encoding("UTF-8", cleaner: :printable, replace: replace)
         end
         path
+      end
+
+      # Yields each record read from the supplied path for an upload, see RocketJob::Batch::IO#upload, in the supplied
+      # mode, otherwise in :line mode, see `IOStreams::Stream#each`.
+      #
+      # With a schema it yields the lines of the file in the supplied mode, otherwise in this category's mode, see
+      # #mode, and in :hash mode parses each line after the header row by the schema first, so that a value that is not
+      # valid raises before any record is processed.
+      def each_record(path, mode: nil, **args, &)
+        return path.each(mode || :line, **args, &) if schema.blank?
+
+        mode ||= self.mode
+        if mode == :array
+          raise(ArgumentError,
+                "Input category #{name} has a schema, which cannot be uploaded in :array mode, use :line or :hash")
+        end
+        return path.each(:line, **args, &) if mode == :line
+
+        path.each(:line, **args) do |line|
+          # The lines before the header row, and the header row itself, are read by #extract_header_callback.
+          tabular.record_parse(line) unless tabular.header?
+          yield(line)
+        end
       end
 
       # Returns the lambda that the upload calls with each record before the first that it stores, instead of storing
@@ -150,6 +185,7 @@ module RocketJob
       # A blank line before the header row is skipped, as IOStreams skips it when it reads the header row itself, such
       # as in :hash mode, so that the header row is not stored as a record.
       def extract_header_callback(on_first)
+        return schema_header_callback(on_first) if schema.present?
         return first_record_callback(on_first) unless tabular? && tabular.header?
 
         case mode
@@ -176,6 +212,54 @@ module RocketJob
       end
 
       private
+
+      # Returns [IOStreams::Tabular] that reads the records of this category by its schema, see Category::Base#schema,
+      # and has read the header row that an upload read from the file, see #columns, so that the workers parse each line
+      # by it.
+      def schema_tabular
+        tabular = super
+        tabular.read_header(columns) if columns.present? && tabular.header?
+        tabular
+      end
+
+      # Returns the lambda that reads the header row of a file with a schema, see #extract_header_callback. Its columns
+      # are matched to the fields of the schema, which raises IOStreams::Errors::InvalidHeader when they do not match,
+      # and are kept as they are in the file, see #columns. A blank row before it, which IOStreams does not read as a
+      # header row, such as a line of only commas, is skipped, as IOStreams skips it when it reads the header row itself.
+      #
+      # With a schema, `columns` hold the header row of the file uploaded, so an upload reads the header row of its own
+      # file, rather than keep the columns of an earlier one, such as those that a job scheduled again copies from its
+      # last run, see Plugins::Cron.
+      def schema_header_callback(on_first)
+        self.columns = nil
+        @tabular     = nil
+        return first_record_callback(on_first) unless tabular.header?
+
+        lambda do |line|
+          tabular.read_header(line)
+          next false if tabular.header?
+
+          self.columns = tabular.header.columns
+          # Call chained on_first if present
+          on_first&.call(line)
+          true
+        end
+      end
+
+      # The schema describes the columns of the file, so the options that describe them without one cannot be set with
+      # it, see Category::Base#schema.
+      def fields_replaced_by_schema
+        replaced = super + %i[allowed_columns required_columns].select { |name| public_send(name).present? }
+        replaced << :skip_unknown if skip_unknown
+        replaced << :header_cleanser if header_cleanser == :none
+        replaced
+      end
+
+      # The :array mode cannot be used with a schema, see #mode.
+      def schema_replaces_fields
+        super
+        errors.add(:mode, "cannot be :array with a schema, use :line or :hash") if schema.present? && mode == :array
+      end
 
       # Returns the lambda that calls the supplied `on_first` with the first record uploaded, which is not stored, see
       # #extract_header_callback, or nil without one.

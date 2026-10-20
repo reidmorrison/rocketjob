@@ -29,6 +29,13 @@ module RocketJob
           slice_class:     serializer_class
         )
       end
+
+      private
+
+      # The schema gives the columns of the file written, see Category::Base#schema.
+      def fields_replaced_by_schema
+        columns.present? ? super + [:columns] : super
+      end
     end
   end
 end

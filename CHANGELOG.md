@@ -23,6 +23,25 @@ no existing behavior: a job that does not use what is new reads and writes its f
   `source_streams` and `target_streams` still default to, and a category checks its `format` against
   `IOStreams.tabular_formats`.
 
+### New features
+
+- A category's `schema` describes the fields of its files, and the type of each one, as a
+  [Frictionless Table Schema](https://datapackage.org/standard/table-schema/), as a Hash, or as the path or url of a
+  JSON file, which is read when the category is first used. Records are read as typed values, such as an Integer, a
+  BigDecimal or a Date, keyed by the names of the fields, and written in the text form of each type, for every tabular
+  format. The schema gives the width of each field of a fixed width file, describes a file without a header row with
+  `"header": false`, and says which columns a file can have with `fieldsMatch`, and must have with
+  `constraints: {required: true}`. The columns of a header row are matched to the fields whatever their case, spaces
+  and punctuation, and a header row that does not match raises `IOStreams::Errors::InvalidHeader` during the upload.
+  An input category with a schema reads the text of its files as UTF-8, keeping letters that are not ASCII, and raises
+  `IOStreams::Errors::InvalidEncoding` for text that is not valid UTF-8. It uploads the lines of the file in the `:line`
+  and `:hash` modes, which the workers parse, so that `perform` receives a `date` as a Date, and in `:hash` mode it also
+  parses every line during the upload. Its `columns` hold the header row of the file uploaded, as it is in the file,
+  read again by each upload, such as that of a job scheduled again. A category with a schema needs a `format`, and
+  cannot be set with the options that it replaces: `format_options`, the `columns` of an output category, and the
+  `allowed_columns`, `required_columns`, `skip_unknown`, `header_cleanser` and `:array` mode of an input category.
+  Without a schema, files are read and written as before. See "Typed values with a schema" in the batch guide.
+
 ### Fixes
 
 - An upload of a tabular file that starts with blank lines, such as a CSV file, skips them and reads the header row

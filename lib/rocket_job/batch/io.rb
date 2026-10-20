@@ -332,7 +332,7 @@ module RocketJob
             extract_header = category.extract_header_callback(on_first)
 
             input_collection.upload(on_first: extract_header, slice_batch_size: slice_batch_size) do |io|
-              path.each(stream_mode || :line, **args) { |line| io << line }
+              category.each_record(path, mode: stream_mode, **args) { |record| io << record }
             end
 
           end
