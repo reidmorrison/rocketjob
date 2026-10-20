@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [7.1.0] Unreleased
+
+7.1 prepares applications for Rocket Job 8: it adds the settings that replace those that v8 removes, and reports a
+deprecation warning where an application uses one of those, so that it can move to them before it upgrades. It changes
+no existing behavior: a job that does not use what is new reads and writes its files as in v7.0.
+
+### Changed
+
+- Require IOStreams 2.2, which adds the schemas that describe the files of a category, and reports deprecation
+  warnings for what IOStreams 3.0 removes. Rocket Job 7.0 also runs on IOStreams 2.2 unchanged.
+
 ## [7.0.0] 2026-09-05
 
 ### Breaking changes
