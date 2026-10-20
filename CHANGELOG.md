@@ -23,6 +23,13 @@ no existing behavior: a job that does not use what is new reads and writes its f
   `source_streams` and `target_streams` still default to, and a category checks its `format` against
   `IOStreams.tabular_formats`.
 
+### Fixes
+
+- An upload of a tabular file that starts with blank lines, such as a CSV file, skips them and reads the header row
+  after them, as IOStreams does when it reads the header row itself. Previously the first blank line was taken as the
+  header row, so the header row was uploaded as a record, and every slice then failed, since the job had no columns.
+  The `on_first` lambda is called with the header row.
+
 ## [7.0.0] 2026-09-05
 
 ### Breaking changes

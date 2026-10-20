@@ -142,18 +142,27 @@ module RocketJob
         path
       end
 
-      # Return a lambda to extract the header row from the uploaded file.
+      # Returns the lambda that the upload calls with each record before the first that it stores, instead of storing
+      # it, until the lambda returns true, see `Sliced::Writer::Input`: it reads the header row, when the file has one,
+      # then calls the supplied `on_first` with it. Otherwise it calls `on_first` with the first record. Returns nil
+      # when there is neither.
+      #
+      # A blank line before the header row is skipped, as IOStreams skips it when it reads the header row itself, such
+      # as in :hash mode, so that the header row is not stored as a record.
       def extract_header_callback(on_first)
-        return on_first unless tabular? && tabular.header?
+        return first_record_callback(on_first) unless tabular? && tabular.header?
 
         case mode
         when :line
           lambda do |line|
+            next false if line.blank?
+
             tabular.parse_header(line)
             cleanse_header!
             self.columns = tabular.header.columns
             # Call chained on_first if present
             on_first&.call(line)
+            true
           end
         when :array
           lambda do |row|
@@ -163,6 +172,19 @@ module RocketJob
             # Call chained on_first if present
             on_first&.call(line)
           end
+        end
+      end
+
+      private
+
+      # Returns the lambda that calls the supplied `on_first` with the first record uploaded, which is not stored, see
+      # #extract_header_callback, or nil without one.
+      def first_record_callback(on_first)
+        return unless on_first
+
+        lambda do |record|
+          on_first.call(record)
+          true
         end
       end
     end
