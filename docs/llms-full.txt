@@ -2785,7 +2785,8 @@ The `mode` option controls how a file is read during upload:
 * `:line` (default) uploads a raw line (String) at a time. This is the most performant, since each
   worker parses its own lines.
 * `:hash` parses each line into a Hash before uploading. The whole file is parsed up front, so an
-  invalid file is detected before processing starts. Not recommended for very large files.
+  invalid file is detected before processing starts. Not recommended for very large files. IOStreams
+  reads the header row itself, so `on_first` is not called for a file with one.
 * `:array` parses each line into an Array before uploading, and is deprecated: use `:line`, or
   `:hash` to parse the whole file up front. Its rows only make sense with the header row that the
   category keeps, while each Hash names its own columns.
