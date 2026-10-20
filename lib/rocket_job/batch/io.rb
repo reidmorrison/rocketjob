@@ -109,7 +109,7 @@ module RocketJob
       # Example:
       #   # Load plain text records from a file, stripping all non-printable characters,
       #   # as well as any characters that cannot be converted to UTF-8
-      #   path = IOStreams.path('hello.csv').option(:encode, cleaner: :printable, replace: '')
+      #   path = IOStreams.path('hello.csv').encoding(cleaner: :printable, replace: '')
       #   job.upload(path)
       #
       # Example: Zip
@@ -120,11 +120,11 @@ module RocketJob
       #   job.upload('myfile.csv.zip.enc')
       #
       # Example: Explicitly set the streams
-      #   path = IOStreams.path('myfile.ze').stream(:encode, encoding: 'UTF-8').stream(:zip).stream(:enc)
+      #   path = IOStreams.path('myfile.ze').stream(:zip).stream(:enc).encoding('UTF-8')
       #   job.upload(path)
       #
       # Example: Supply custom options
-      #   path = IOStreams.path('myfile.csv.enc').option(:enc, compress: false).option(:encode, encoding: 'UTF-8')
+      #   path = IOStreams.path('myfile.csv.enc').option(:enc, compress: false).encoding('UTF-8')
       #   job.upload(path)
       #
       # Example: Read from a tempfile and use the original file name to determine which streams to apply
@@ -417,7 +417,7 @@ module RocketJob
       #   job.download(path)
       #
       # Example: Supply custom options. Set the file name within the zip file.
-      #   path = IOStreams.path('myfile.csv.zip').option(:zip, zip_file_name: 'myfile.csv')
+      #   path = IOStreams.path('myfile.csv.zip').option(:zip, entry_file_name: 'myfile.csv')
       #   job.download(path)
       #
       # Example: Download into a tempfile, or stream, using the original file name to determine the streams to apply:

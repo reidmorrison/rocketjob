@@ -137,7 +137,7 @@ module RocketJob
         if tabular?
           # Cannot change the length of fixed width lines.
           replace = format == :fixed ? " " : ""
-          path.option_or_stream(:encode, encoding: "UTF-8", cleaner: :printable, replace: replace)
+          path.encoding("UTF-8", cleaner: :printable, replace: replace)
         end
         path
       end

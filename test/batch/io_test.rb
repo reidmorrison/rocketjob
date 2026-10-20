@@ -150,6 +150,17 @@ module Batch
             assert_equal csv_file.read, csv_columns.to_csv + result
           end
 
+          it "a path whose streams are set, into a category with a format" do
+            job.input_category.format = :csv
+            IOStreams.temp_file("io_test", ".bin") do |path|
+              File.binwrite(path.to_s, Zlib.gzip("name\nJack\n"))
+
+              assert_equal 1, job.upload(IOStreams.path(path.to_s).stream(:gz))
+            end
+
+            assert_equal ["Jack"], job.input.collect(&:to_a).flatten
+          end
+
           it "autodetect csv" do
             job.input_category.format = :auto
 

@@ -13,6 +13,15 @@ no existing behavior: a job that does not use what is new reads and writes its f
 
 - Require IOStreams 2.2, which adds the schemas that describe the files of a category, and reports deprecation
   warnings for what IOStreams 3.0 removes. Rocket Job 7.0 also runs on IOStreams 2.2 unchanged.
+- An upload of a path whose streams the application set with `#stream`, such as
+  `IOStreams.path("data").stream(:gz)`, into a category with a format reads the file. Previously the encode stream
+  that removes non-printable characters was applied to the bytes as they are stored, before the other streams, so the
+  upload raised, such as `Zlib::GzipFile::Error`, or read the wrong text.
+- Rocket Job no longer uses what IOStreams 2.2 deprecates, so it reports no IOStreams deprecation warning of its own:
+  tabular uploads remove non-printable characters with `#encoding` rather than `option(:encode)`, with the same
+  results, `CopyFileJob` reads and writes a file as it is stored with `#raw` rather than `stream(:none)`, which its
+  `source_streams` and `target_streams` still default to, and a category checks its `format` against
+  `IOStreams.tabular_formats`.
 
 ## [7.0.0] 2026-09-05
 

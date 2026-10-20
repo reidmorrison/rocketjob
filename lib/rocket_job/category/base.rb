@@ -28,7 +28,7 @@ module RocketJob
         #
         # Default: `nil`
         field :format, type: ::Mongoid::StringifiedSymbol
-        validates_inclusion_of :format, in: [nil, :auto] + IOStreams::Tabular.registered_formats
+        validates_inclusion_of :format, in: [nil, :auto] + IOStreams.tabular_formats
 
         # Any specialized format specific options. For example, `:fixed` format requires a `:layout`.
         field :format_options, type: Hash
