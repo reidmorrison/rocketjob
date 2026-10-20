@@ -21,9 +21,13 @@ module RocketJob
       # Note:
       #   When supplied any columns that are rejected will be returned in the cleansed columns
       #   as nil so that they can be ignored during processing.
+      #
+      # Deprecated, use `schema`, whose `fieldsMatch` says which columns a file can have.
       field :allowed_columns, type: Array
 
       # List of columns that must be present, otherwise an Exception is raised.
+      #
+      # Deprecated, use `schema`, with `constraints: {required: true}` on each field that a file must have.
       field :required_columns, type: Array
 
       # Whether to skip unknown columns in the uploaded file.
@@ -41,6 +45,7 @@ module RocketJob
       # Notes:
       # - Only applicable when `allowed_columns` has been set.
       # - Recommended to leave as `false` otherwise a misspelled column can result in missed columns.
+      # - Deprecated, use `schema`, whose `fieldsMatch` of "subset" or "partial" skips the other columns.
       field :skip_unknown, type: ::Mongoid::Boolean, default: false
       validates_inclusion_of :skip_unknown, in: [true, false]
 
@@ -50,6 +55,7 @@ module RocketJob
       #   This is the default behavior and is the most performant since it leaves the parsing of each line
       #   up to the workers themselves.
       # :array
+      #   Deprecated, use :line, or :hash to parse the whole file when it is uploaded.
       #   Parses each line from the file as an Array and uploads each array for processing by workers.
       #   Every line in the input file is parsed and converted into an array before uploading.
       #   This approach ensures that the entire files is valid before starting to process it.
@@ -61,8 +67,8 @@ module RocketJob
       #   Similar to :array above in that the entire file is parsed before processing is started.
       #   Slightly less efficient than :array since it stores every record as a hash with both the key and value.
       #
-      # Recommend using :array when the entire file must be parsed/validated before processing is started, and
-      # upload time is not important.
+      # Use :hash when the entire file must be parsed/validated before processing is started, and upload time is not
+      # important.
       # See IOStreams#each for more details.
       #
       # With a schema, see #schema, the lines of the file are uploaded in the :line and :hash modes, which the workers
@@ -85,10 +91,42 @@ module RocketJob
       #     Do not cleanse the columns names supplied in the header row.
       #
       # Note: Submit a ticket if you have other cleansers that you want added.
+      #
+      # Deprecated, use `schema`, whose fields name the keys of each record, and which the columns of the header row
+      # are matched to whatever their case, spaces and punctuation.
       field :header_cleanser, type: ::Mongoid::StringifiedSymbol, default: :default
       validates :header_cleanser, inclusion: %i[default none]
 
       validates_inclusion_of :serializer, in: %i[none compress encrypt]
+
+      # Reports a deprecation warning, see RocketJob::Deprecation, for the deprecated options in the supplied
+      # properties of an input category, see Category::Base.warn_deprecated_options, and for its :array `mode`.
+      def self.warn_deprecated_options(properties)
+        super
+        warn_array_mode if properties.to_h.stringify_keys["mode"].to_s == "array"
+      end
+
+      # Reports a deprecation warning, see RocketJob::Deprecation, for the :array mode of an upload, see #mode, set as
+      # the supplied option, such as the `stream_mode:` of `upload`.
+      def self.warn_array_mode(option = :mode)
+        RocketJob::Deprecation.warn(
+          "#{option}: :array is deprecated, use :line, the default, which the workers parse, or :hash to parse the " \
+          "whole file when it is uploaded, see #{RocketJob::Deprecation::UPGRADE_GUIDE}"
+        )
+      end
+
+      # Returns [Array<String>] the names of the deprecated options in the supplied properties of an input category,
+      # with String keys, see Category::Base.deprecated_column_options: `allowed_columns`, `required_columns`,
+      # `skip_unknown` when true, `header_cleanser` when :none, and `columns` without a schema, since with one they
+      # hold the header row read from the file.
+      def self.deprecated_column_options(properties)
+        names = []
+        names << "columns" if properties["columns"].present? && properties["schema"].blank?
+        names.concat(%w[allowed_columns required_columns].select { |name| properties[name].present? })
+        names << "skip_unknown" if [true, "true"].include?(properties["skip_unknown"])
+        names << "header_cleanser" if properties["header_cleanser"].to_s == "none"
+        names
+      end
 
       # Cleanses the header column names when `cleanse_header` is true
       def cleanse_header!

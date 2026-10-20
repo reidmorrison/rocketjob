@@ -42,6 +42,23 @@ no existing behavior: a job that does not use what is new reads and writes its f
   `allowed_columns`, `required_columns`, `skip_unknown`, `header_cleanser` and `:array` mode of an input category.
   Without a schema, files are read and written as before. See "Typed values with a schema" in the batch guide.
 
+### Deprecated
+
+These still work as in 7.0, and will be removed in Rocket Job 8. Rocket Job reports a Ruby deprecation warning, at
+the line of the application, for each one that a job class defines a category with, that a Dirmon entry or an
+`UploadFileJob` builds a job with, or that is passed to `upload`. The warnings are only reported while Ruby's
+deprecation warnings are on, such as in tests run by Minitest, so production stays quiet. A job read back from the
+database does not report one. See the upgrade guide.
+
+- A category's `format_options`, replaced by its `schema`, which gives the width of each field of a fixed width file.
+- The options that describe the columns of a file, replaced by the category's `schema`: an input category's
+  `allowed_columns`, `required_columns`, `skip_unknown` and `header_cleanser`, and the `columns` of a file without a
+  header row, or of an output category. The same options passed to `upload`, such as `allowed_columns:`, are
+  deprecated too. With a schema, an input category's `columns` hold the header row read from the file, which is not
+  deprecated.
+- An input category's `mode: :array`, and the `stream_mode: :array` of `upload`. Use the default `:line` mode, or
+  `:hash` to parse the whole file when it is uploaded.
+
 ### Fixes
 
 - An upload of a tabular file that starts with blank lines, such as a CSV file, skips them and reads the header row

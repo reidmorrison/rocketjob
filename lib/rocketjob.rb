@@ -23,6 +23,7 @@ module RocketJob
   autoload :ActiveWorker,            "rocket_job/active_worker"
   autoload :Batch,                   "rocket_job/batch"
   autoload :CLI,                     "rocket_job/cli"
+  autoload :Deprecation,             "rocket_job/deprecation"
   autoload :DirmonEntry,             "rocket_job/dirmon_entry"
   autoload :Event,                   "rocket_job/event"
   autoload :Heartbeat,               "rocket_job/heartbeat"

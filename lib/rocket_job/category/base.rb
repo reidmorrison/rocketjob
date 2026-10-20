@@ -17,6 +17,8 @@ module RocketJob
         # - All column names must be strings so that it can be serialized into MongoDB.
         # - With a schema, see #schema, the columns of an input category hold the header row read from the uploaded
         #   file, see RocketJob::Category::Input, and those of an output category cannot be set.
+        # - Deprecated without a schema, use `schema`, whose fields are the columns, with `"header": false` for a file
+        #   without a header row.
         field :columns, type: Array
 
         # On an input collection `format` specifies the format of the input data so that it can be
@@ -33,7 +35,9 @@ module RocketJob
         validates_inclusion_of :format, in: [nil, :auto] + IOStreams.tabular_formats
 
         # Any specialized format specific options. For example, `:fixed` format requires a `:layout`.
-        # Cannot be set with a schema, see #schema, which gives the width of each field of a fixed width file.
+        #
+        # Deprecated, use `schema`, see #schema, which gives the width of each field of a fixed width file. It cannot be
+        # set with a schema.
         field :format_options, type: Hash
 
         # The fields of the records in this category and the type of each one, as a Frictionless Table Schema, see
@@ -68,6 +72,34 @@ module RocketJob
         # Optional.
         # Default: nil
         field :file_name, type: IOStreams::Path
+      end
+
+      module ClassMethods
+        # Returns [Array<String>] the names of the deprecated options in the supplied properties of a category, with
+        # String keys, that its schema replaces, see #schema: its `columns`. Overridden by the input category.
+        def deprecated_column_options(properties)
+          properties["columns"].present? ? ["columns"] : []
+        end
+
+        # Reports a deprecation warning, see RocketJob::Deprecation, for the deprecated options in the supplied
+        # properties of a category, such as those that a job class defines it with, or that a Dirmon entry holds.
+        def warn_deprecated_options(properties)
+          properties = properties.to_h.stringify_keys
+          names      = deprecated_column_options(properties)
+          unless names.empty?
+            options = names.collect { |name| "#{name}:" }.join(", ")
+            RocketJob::Deprecation.warn(
+              "#{options} #{names.size == 1 ? 'is' : 'are'} deprecated, describe the columns of the file with schema: " \
+              "instead, see #{RocketJob::Deprecation::UPGRADE_GUIDE}"
+            )
+          end
+          return if properties["format_options"].blank?
+
+          RocketJob::Deprecation.warn(
+            "format_options: is deprecated, use schema: instead, which gives the width of each field of a fixed width " \
+            "file, see #{RocketJob::Deprecation::UPGRADE_GUIDE}"
+          )
+        end
       end
 
       # Return which slice serializer class to use that matches the current options.

@@ -324,6 +324,7 @@ module RocketJob
           else
             raise(ArgumentError, "Unknown keyword argument :columns when uploading a file") if columns
 
+            rocketjob_warn_deprecated_upload_options(stream_mode, args)
             category = input_category(category)
 
             # The path sets the format of a category whose format is :auto, which decides whether the file has a
@@ -392,6 +393,11 @@ module RocketJob
         self.record_count = (record_count || 0) + count
         count
       end
+
+      # The options that IOStreams reads a file with which describe its columns, and are deprecated, see
+      # RocketJob::Category::Input#schema.
+      DEPRECATED_UPLOAD_OPTIONS = %i[allowed_columns required_columns skip_unknown cleanse_header].freeze
+      private_constant :DEPRECATED_UPLOAD_OPTIONS
 
       # Download the output data into the supplied file, io, IOStreams::Path, or IOStreams::Stream.
       # Returns [Integer] the number of records / lines downloaded.
@@ -479,6 +485,24 @@ module RocketJob
             output_collection.download(header_line: header_line) { |record| io << record }
           end
         end
+      end
+
+      private
+
+      # Reports a deprecation warning, see RocketJob::Deprecation, at the line of the application that uploads a file
+      # with the :array `stream_mode`, or with options that describe the columns of the file, which the schema of the
+      # input category replaces.
+      def rocketjob_warn_deprecated_upload_options(stream_mode, args)
+        Category::Input.warn_array_mode(:stream_mode) if stream_mode.to_s == "array"
+
+        names = args.keys & DEPRECATED_UPLOAD_OPTIONS
+        return if names.empty?
+
+        RocketJob::Deprecation.warn(
+          "#{names.collect { |name| "#{name}:" }.join(', ')} #{names.size == 1 ? 'is' : 'are'} deprecated, describe " \
+          "the columns of the file with the schema: of the input category instead, see " \
+          "#{RocketJob::Deprecation::UPGRADE_GUIDE}"
+        )
       end
     end
   end

@@ -2971,15 +2971,38 @@ header row of its own file, which the input category holds in its `columns`, as 
 
 ### Validating columns
 
-When a tabular `input_category` has `allowed_columns`, `required_columns`, or `skip_unknown` set,
-Rocket Job validates the header during upload, so a malformed file is rejected before any worker runs:
+A schema validates the columns of a file during upload, see
+[Matching columns to the fields of a schema](#matching-columns-to-the-fields-of-a-schema), so a
+malformed file is rejected before any worker runs.
+
+Before 7.1 the columns of an input category were validated with the options below. They are
+deprecated in 7.1, and will be removed in Rocket Job 8: they still work without a schema, a category
+cannot set them with one, and a job class that defines a category with one reports a deprecation
+warning, see the [upgrade guide](upgrading.html#upgrading-to-v71).
 
 ~~~ruby
+# Deprecated
 input_category format:           :csv,
                allowed_columns:  %w[login last_login name state],
                required_columns: %w[login],
                skip_unknown:     true
 ~~~
+
+The schema property that replaces each one:
+
+| Option                                      | With a schema
+|:--------------------------------------------|:-------------
+| `columns`, for a file without a header row  | The fields are the columns, in order, with `"header" => false`.
+| `allowed_columns`                           | `"fieldsMatch" => "superset"`, which accepts a file without some of the fields, as `allowed_columns` does, or `"equal"` when `required_columns` lists every allowed column.
+| `allowed_columns` with `skip_unknown: true` | `"fieldsMatch" => "partial"`, which accepts a file without some of the fields, as `allowed_columns` does, or `"subset"` when `required_columns` lists every allowed column.
+| `required_columns`                          | `"constraints" => {"required" => true}` with `"allowBlank" => true` on each field, which needs the column but not a value, as `required_columns` did. Without `allowBlank`, a blank value raises too.
+| `header_cleanser`                           | Not needed: the keys of each record are the names of the fields, which the columns are matched to.
+| `format_options` with a fixed width layout  | The `width` of each field.
+
+Without a schema, the restrictions are compared to the column names after they are cleansed, and the
+keys of each record are the cleansed column names. So to keep the keys that a job reads, name each
+field as the column was cleansed, which is how `allowed_columns` and `required_columns` already name
+them, such as `last_login` for the column `Last Login`: the schema matches the column to that field.
 
 ## Writing tabular files
 
@@ -3017,8 +3040,8 @@ jbloggs,2019-02-11 05:43:20
 kadams,2019-01-12 01:20:20
 ~~~
 
-With a schema instead of `columns`, each value is written in the text form of its type, and the
-header row is the names of the fields:
+`columns` is deprecated in 7.1, and will be removed in Rocket Job 8. With a schema instead, each
+value is written in the text form of its type, and the header row is the names of the fields:
 
 ~~~ruby
 output_category format: :csv,
@@ -3042,30 +3065,48 @@ By default a key of the hash that is not a field of the schema raises
 
 ### Filtering output columns
 
-Rocket Job only writes the columns listed in `columns`, so `perform` can return a full attribute
-hash and let the category select which columns to export. The same job can then export different
-columns on different runs:
+With `"fieldsMatch" => "subset"` Rocket Job only writes the fields of the schema, so `perform` can
+return a full attribute hash and let the category select which fields to export. The same job can then
+export different fields on different runs:
 
 ~~~ruby
 class ExportUsersJob < RocketJob::Job
   include RocketJob::Batch
 
-  output_category format: :csv, columns: ["login", "last_login"]
+  output_category format: :csv,
+                  schema: {
+                    "fieldsMatch" => "subset",
+                    "fields"      => [
+                      {"name" => "login"},
+                      {"name" => "last_login", "type" => "datetime"}
+                    ]
+                  }
 
   def perform(login)
-    # Return all attributes; only the configured columns are written
+    # Return all attributes; only the fields of the schema are written
     User.find_by(login: login).attributes
   end
 end
 ~~~
 
-Override the columns per instance to widen or narrow the export:
+Override the schema per instance to widen or narrow the export:
 
 ~~~ruby
 job = ExportUsersJob.new
-job.output_category.columns = ["login", "last_login", "name", "state"]
+job.output_category.schema = {
+  "fieldsMatch" => "subset",
+  "fields"      => [
+    {"name" => "login"},
+    {"name" => "last_login", "type" => "datetime"},
+    {"name" => "name"},
+    {"name" => "state"}
+  ]
+}
 job.save!
 ~~~
+
+Before 7.1 the columns to write were listed in the deprecated `columns`, such as
+`output_category format: :csv, columns: ["login", "last_login"]`, which still works without a schema.
 
 ### Single output file via after_batch
 

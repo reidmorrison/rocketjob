@@ -29,6 +29,7 @@ module RocketJob
         # Define a new input category
         # @see RocketJob::Category::Input
         def input_category(**args)
+          RocketJob::Category::Input.warn_deprecated_options(args)
           category = RocketJob::Category::Input.new(**args)
           if defined_input_categories.nil?
             self.defined_input_categories = [category]
@@ -40,6 +41,7 @@ module RocketJob
         # Define a new output category
         # @see RocketJob::Category::Output
         def output_category(**args)
+          RocketJob::Category::Output.warn_deprecated_options(args)
           category = RocketJob::Category::Output.new(**args)
           if defined_output_categories.nil?
             self.defined_output_categories = [category]
@@ -120,27 +122,38 @@ module RocketJob
         false
       end
 
+      # Sets the supplied properties of each input category on it, such as those that a Dirmon entry or an
+      # UploadFileJob holds, and reports a deprecation warning for a deprecated option among them, see
+      # Category::Base.warn_deprecated_options.
       def merge_input_categories(categories)
         return if categories.blank?
 
         categories.each do |properties|
           category_name = (properties["name"] || properties[:name] || :main).to_sym
           category      = input_category(category_name)
-          properties.each { |key, value| category.public_send(:"#{key}=", value) }
+          rocketjob_categories_merge(category, properties)
         end
       end
 
+      # Sets the supplied properties of each output category on it, see #merge_input_categories.
       def merge_output_categories(categories)
         return if categories.blank?
 
         categories.each do |properties|
           category_name = (properties["name"] || properties[:name] || :main).to_sym
           category      = output_category(category_name)
-          properties.each { |key, value| category.public_send(:"#{key}=", value) }
+          rocketjob_categories_merge(category, properties)
         end
       end
 
       private
+
+      # Sets the supplied properties on the category, after reporting a deprecation warning for a deprecated option
+      # among them, which includes the category's schema, since an input category's columns are not deprecated with one.
+      def rocketjob_categories_merge(category, properties)
+        category.class.warn_deprecated_options(category.attributes.slice("schema").merge(properties.to_h.stringify_keys))
+        properties.each { |key, value| category.public_send(:"#{key}=", value) }
+      end
 
       def rocketjob_categories_assign
         # Input categories defaults to :main if none was set in the class
