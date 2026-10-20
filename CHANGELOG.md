@@ -29,6 +29,9 @@ no existing behavior: a job that does not use what is new reads and writes its f
   after them, as IOStreams does when it reads the header row itself. Previously the first blank line was taken as the
   header row, so the header row was uploaded as a record, and every slice then failed, since the job had no columns.
   The `on_first` lambda is called with the header row.
+- An input category with `format: :auto` uploads the first record of a JSON or fixed width file. Previously it was
+  dropped, as though it were a header row, since the upload checked for a header row before it took the format from
+  the file name, so `record_count` was one short.
 
 ## [7.0.0] 2026-09-05
 

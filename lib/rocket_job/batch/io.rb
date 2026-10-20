@@ -326,9 +326,10 @@ module RocketJob
 
             category = input_category(category)
 
-            # Extract the header line during the upload when applicable.
+            # The path sets the format of a category whose format is :auto, which decides whether the file has a
+            # header row to extract during the upload.
+            path           = category.upload_path(object, original_file_name: file_name)
             extract_header = category.extract_header_callback(on_first)
-            path = category.upload_path(object, original_file_name: file_name)
 
             input_collection.upload(on_first: extract_header, slice_batch_size: slice_batch_size) do |io|
               path.each(stream_mode || :line, **args) { |line| io << line }

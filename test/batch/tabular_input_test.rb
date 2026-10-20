@@ -76,6 +76,26 @@ module Batch
         end
       end
 
+      describe "format :auto" do
+        before do
+          job.input_category.format = :auto
+        end
+
+        it "uploads the first record of a JSON file, which has no header row" do
+          assert_equal 2, upload(".json", %({"name":"Jack"}\n{"name":"Jill"}\n))
+
+          assert_equal :json, job.input_category.format
+          assert_equal [{"name" => "Jack"}, {"name" => "Jill"}], output_records
+        end
+
+        it "reads the header row of a CSV file" do
+          assert_equal 1, upload(".csv", "Name\nJack\n")
+
+          assert_equal :csv, job.input_category.format
+          assert_equal [{"name" => "Jack"}], output_records
+        end
+      end
+
       describe "on_first" do
         it "is called with the first record of a category without a format, which is not uploaded" do
           job.input_category.format = nil
