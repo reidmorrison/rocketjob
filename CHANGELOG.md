@@ -190,11 +190,14 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   one after another. In the `:hash` and `:array` modes IOStreams also reads each row while the file is uploaded, so
   that a file with a value that is not valid uploads nothing, but the slices hold the lines as they are, and a `date`
   reaches `perform` as a `Date`. A row that cannot be read fails its record, and a retry processes the slice again
-  from that record. `on_first` is called with the header row as an Array of its columns, or for a file without one,
-  such as JSON, with its first line, which is not uploaded. A worker of Rocket Job 7 fails such a slice, rather than
-  processing no records, see the upgrade guide.
+  from that record. `on_first` is called with a copy of the header row as an Array of its columns, or for a file
+  without one, such as JSON, with its first line, which is not uploaded. A worker of Rocket Job 7 fails such a slice,
+  rather than processing no records, see the upgrade guide. The workers read each slice with the category's schema,
+  so uploading a path that has another schema set on it raises `ArgumentError`. Assigning an Array of rows to the
+  `records` of such a slice, such as a changed copy of them, keeps its header row and format.
   The lines that the block of `upload` writes for such a category are read in the same slices, after the header row
   read from the first lines, and a record written to it that is not a line, such as a Hash, raises `ArgumentError`.
+  The lines written before the block breaks out are uploaded, as without a schema.
 - `CopyFileJob` converts the text of a file from its `source_encoding` to its `target_encoding`, such as
   `source_encoding: "Windows-1252"`, which copies a file that Excel saved on Windows as UTF-8. When only one
   is set, the other is UTF-8, and when neither is set the file is still copied byte for byte. The text is
@@ -271,7 +274,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - `RocketJob::Deprecation.saved_options` lists the saved jobs that can still run, the Dirmon entries and the
   `UploadFileJob`s that hold one of these options, by category, since reading a saved document does not warn. Each
   category class decides which of its options are deprecated, see `RocketJob::Category::Base.deprecated_option_names`.
-  See the upgrade guide.
+  Each document is read on its own, so one whose class, or whose job class, cannot be loaded, or that raises when it
+  is read, is listed with why, and the others still are. See the upgrade guide.
 - Rocket Job reports a Ruby deprecation warning for each of these options, and for `format_options`, at the line
   of the job class that defines a category with one, or of the call to `upload` that supplies one, and when a Dirmon
   entry or an `UploadFileJob` builds a job from properties that hold one. They are only reported while Ruby's
@@ -279,6 +283,13 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixes
 
+- When an upload raises, only the slices that it stored are removed, so the slices of an earlier upload into the same
+  input category, such as the first of two files, are kept. Previously the whole input collection was removed, while
+  the job's `record_count` still counted the earlier records, so the job completed without processing them. The
+  slices of an upload into an input collection that already holds slices record it in their `upload_id`.
+- A slice whose records cannot be read, such as one encrypted with a key that the worker does not have, fails with
+  that error when it is processed. Previously reading it raised as the worker claimed it, which stopped that worker
+  thread, and left the slice running under its name until the server restarted.
 - An upload of a tabular file that starts with blank lines, such as a CSV file, skips them and reads the header row
   after them, as IOStreams does. Previously the first blank line was taken as the header row, so the header row was
   uploaded as a record, and with a schema every slice then failed, since the header row had not been read. The

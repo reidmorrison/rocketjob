@@ -102,6 +102,14 @@ module Sliced
           assert_equal rows.to_h, document["s"]
         end
       end
+
+      it "raises when records that cannot be decompressed are used, rather than when the slice is read" do
+        slice_with_records.save!
+        slices.collection.update_one({_id: slice.id}, {"$set" => {"records" => BSON::Binary.new("not compressed")}})
+        found = slices.find(slice.id)
+
+        assert_raises(Zlib::Error) { found.records }
+      end
     end
   end
 end

@@ -11,9 +11,11 @@ module RocketJob
       def parse_records
         # A slice without records is saved as an empty array, see #serialize_records
         binary = attributes.delete("records")
-        return @records = [] unless binary.is_a?(BSON::Binary)
+        read_records do
+          next [] unless binary.is_a?(BSON::Binary)
 
-        @records = records_from_document(Hash.from_bson(BSON::ByteBuffer.new(decode_records(binary.data))))
+          records_from_document(Hash.from_bson(BSON::ByteBuffer.new(decode_records(binary.data))))
+        end
       end
 
       def serialize_records

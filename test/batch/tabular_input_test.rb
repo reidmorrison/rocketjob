@@ -149,6 +149,21 @@ module Batch
           assert_equal 3, job.record_count
         end
 
+        it "that fails in :hash mode keeps the records of the first" do
+          job.input_category.mode = :hash
+          upload(".csv", csv)
+          assert_raises(RuntimeError) do
+            job.upload do |io|
+              io << {"name" => "Joe"}
+              raise "upload failed"
+            end
+          end
+
+          assert_equal 2, job.record_count
+          assert_equal [{"name" => "Jack", "age" => "21", "extra" => "x"}, {"name" => "Jill", "age" => "22", "extra" => "y"}],
+                       input_records
+        end
+
         it "is uploaded into a category whose columns are set for files without a header row" do
           job.input_category.columns = %w[name age extra]
           upload(".csv", "Jack,21,x\n")
@@ -539,14 +554,45 @@ module Batch
               records << "Jill,22,1.5,2026-10-14"
             end
 
-            # The first `slice_size` lines include the header row, so its slice holds one row fewer.
+            # Each slice holds `slice_size` rows after the header row, as for a file.
             sizes   = job.input.collect(&:size)
             headers = job.input.collect { |slice| slice.records.header }
 
             assert_equal 4, job.record_count
-            assert_equal [1, 2, 1], sizes
-            assert_equal [%w[name age balance joined]] * 3, headers
+            assert_equal [2, 2], sizes
+            assert_equal [%w[name age balance joined]] * 2, headers
             assert_equal [typed, typed, typed, jill], output_records
+          end
+
+          it "are read with one tabular, which reads the header row once" do
+            job.input_category.slice_size = 2
+            built = 0
+            new   = IOStreams::Schema.method(:new)
+            IOStreams::Schema.stub(:new, lambda { |descriptor|
+              built += 1
+              new.call(descriptor)
+            }) do
+              job.upload do |records|
+                records << "name,age,balance,joined"
+                9.times do
+                  records << "Jack,21,12.50,2026-10-13"
+                end
+              end
+            end
+
+            assert_equal 1, built
+            assert_equal 5, job.input.count
+          end
+
+          it "written before the block breaks out are uploaded" do
+            job.upload do |records|
+              records << "name,age,balance,joined"
+              records << "Jack,21,12.50,2026-10-13"
+              break
+            end
+
+            assert_equal ["Jack,21,12.50,2026-10-13"], input_records
+            assert_equal %w[name age balance joined], job.input.first.records.header
           end
 
           it "can follow a file in the same category" do

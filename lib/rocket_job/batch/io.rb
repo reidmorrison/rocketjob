@@ -112,8 +112,8 @@ module RocketJob
       # Notes:
       # * Only call from one thread at a time against a single instance of this job.
       # * The number of records uploaded is added to the record_count of the job.
-      # * If an exception is raised while uploading data, the input collection is cleared out
-      #   so that if a job is retried during an upload failure, data is not duplicated.
+      # * If an exception is raised while uploading data, the records that this upload stored are removed, so that
+      #   if the job is retried, its data is not duplicated. The records of earlier uploads are kept.
       # * Files are read as UTF-8 text, since MongoDB only stores UTF-8 strings. A UTF-8 byte order mark at
       #   the start of the file is removed. Data that is not valid UTF-8 raises
       #   Encoding::UndefinedConversionError and nothing is uploaded, unless the file's encoding is set, either
@@ -148,8 +148,8 @@ module RocketJob
       # * `columns:` is only for a query: the columns, or fields, to upload. Default: the id.
       # * The number that is returned and added to `record_count` is the number of records uploaded, which for a
       #   range is the number of integers in it, although each slice holds one `[first_id, last_id]` record.
-      # * If an exception is raised while uploading, the input collection is cleared out, so that if the job is
-      #   retried, its data is not duplicated.
+      # * If an exception is raised while uploading, the records that this upload stored are removed, so that if the
+      #   job is retried, its data is not duplicated.
       def upload(object = nil, category: :main, file_name: nil, stream_mode: nil, on_first: nil, columns: nil,
                  slice_batch_size: nil, **args, &block)
         input_collection = input(category)

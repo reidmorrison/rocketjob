@@ -211,6 +211,36 @@ module Batch
 
           assert_equal [{"name" => "Jack", "age" => 21}], parse_records(category, rows)
         end
+
+        it "reads a schema held in a file once for the tabular too, until the schema is set" do
+          IOStreams.temp_file("input_test", ".json") do |path|
+            path.write(JSON.generate(schema))
+            category = RocketJob::Category::Input.new(format: :csv, schema: path.to_s)
+            rows     = IOStreams::Slice.new(["Jack,21"], header: %w[name age], format: :csv)
+
+            assert_equal [{"name" => "Jack", "age" => 21}], parse_records(category, rows)
+            path.write("not json")
+            category.file_name = "people.csv"
+            category.format    = :csv
+
+            assert_equal %w[name age], category.tabular.render_header.split(",")
+            assert_equal [{"name" => "Jack", "age" => 21}], parse_records(category, rows)
+
+            category.schema = path.to_s
+            error = assert_raises(ArgumentError) { parse_records(category, rows) }
+            assert_includes error.message, "Invalid schema in"
+          end
+        end
+
+        it "raises ArgumentError for a schema file that is not a valid schema" do
+          IOStreams.temp_file("input_test", ".json") do |path|
+            path.write(JSON.generate("fields" => [{"name" => "name"}], "unknown" => 1))
+            category = RocketJob::Category::Input.new(format: :csv, schema: path.to_s)
+
+            error = assert_raises(ArgumentError) { category.tabular }
+            assert_includes error.message, "Invalid schema in"
+          end
+        end
       end
     end
   end

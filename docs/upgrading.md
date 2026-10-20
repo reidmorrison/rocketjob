@@ -247,9 +247,10 @@ Dirmon entry "Daily orders" 6512f1c0a1b2c3d4e5f60719: input category main: forma
 ~~~
 
 It reads the jobs that can still run, queued, which includes scheduled, running, paused and failed,
-and every Dirmon entry. The `columns` of an input category that an upload read from a file are not
-listed, but a scheduled job saved by v7 does not record that its columns came from a file, so its
-columns are listed, see [An input category holds the header row of one file](#an-input-category-holds-the-header-row-of-one-file).
+and every Dirmon entry, each on its own, so a document that cannot be read, such as a job whose class
+the console does not load, is listed with why. The `columns` of an input category that an upload read
+from a file are not listed, but a scheduled job saved by v7 does not record that its columns came from
+a file, so its columns are listed, see [An input category holds the header row of one file](#an-input-category-holds-the-header-row-of-one-file).
 
 ### Removed
 

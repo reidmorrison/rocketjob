@@ -119,15 +119,36 @@ module RocketJob
 
       # `records` array has special handling so that it can be modified in place instead of having
       # to replace the entire array every time. For example, when appending lines with `<<`.
+      #
+      # Raises the error that reading the saved records raised, see #parse_records, such as for the rows of a file in a
+      # format that this process does not have, so that the slice fails when it is processed, rather than the worker
+      # that read it.
       def records
+        raise(@records_error) if @records_error
+
         @records ||= []
       end
 
-      # Replace the records within this slice
+      # Replace the records within this slice.
+      #
+      # When the slice holds the rows of a file, see IOStreams::Slice, they keep the header row and format that they
+      # carry, so that they are still read by them, such as when a copy of them, which is an Array, is changed and
+      # assigned back. Records that are not rows, such as Hashes, are assigned as they are.
       def records=(records)
         raise(ArgumentError, "Cannot assign type: #{records.class.name} to records") unless records.is_a?(Array)
 
-        @records = records
+        @records_error = nil
+        @records       = rows_of_file?(records) ? rows_like(@records, records) : records
+      end
+
+      # Returns [Array] the records of this slice from the supplied record number on, see #processing_record_number,
+      # such as those that an earlier attempt did not process. The rows of a file keep the header row and format that
+      # they carry.
+      def records_from(record_number)
+        return records if record_number <= 1
+
+        rest = records[(record_number - 1)..] || []
+        rows? ? rows_like(records, rest) : rest
       end
 
       def_instance_delegators :records, :each, :<<, :size, :concat, :at
@@ -216,9 +237,20 @@ module RocketJob
 
       def parse_records
         stored = attributes.delete("records")
-        return @records = stored unless stored.is_a?(BSON::Binary)
+        read_records do
+          stored.is_a?(BSON::Binary) ? records_from_document(Hash.from_bson(BSON::ByteBuffer.new(stored.data))) : stored
+        end
+      end
 
-        @records = records_from_document(Hash.from_bson(BSON::ByteBuffer.new(stored.data)))
+      # Sets the records to those that the block reads from the saved document. An error that reading them raises is
+      # held, and raised when the records are used, see #records, rather than by the query that read this slice, since a
+      # worker reads it after claiming it, outside of the processing that fails the slice.
+      def read_records
+        @records_error = nil
+        @records       = yield
+      rescue StandardError => e
+        @records_error = e
+        @records       = nil
       end
 
       # The rows of a file are saved as the binary BSON of their document, see #records_document, so that a worker of
@@ -231,6 +263,17 @@ module RocketJob
       # row of their file and its format, so that they are read by them, see RocketJob::Category::Input#parse_records.
       def rows?
         records.is_a?(IOStreams::Slice)
+      end
+
+      # Returns [true|false] whether the supplied records replace the rows of a file that this slice holds with other
+      # rows, see #records=, rather than with a slice of rows of their own, or with records that are not rows: Hashes.
+      def rows_of_file?(records)
+        @records.is_a?(IOStreams::Slice) && !records.is_a?(IOStreams::Slice) && records.none?(Hash)
+      end
+
+      # Returns [IOStreams::Slice] the supplied rows, with the header row and format of the supplied rows of a file.
+      def rows_like(slice, rows)
+        IOStreams::Slice.new(rows, header: slice.header, format: slice.format)
       end
 
       # Returns [Hash] the document that holds the records: the rows of a file as the Hash that they return, see

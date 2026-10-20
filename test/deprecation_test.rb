@@ -22,6 +22,16 @@ class DeprecationTest < Minitest::Test
     end
   end
 
+  class BrokenCallbackJob < RocketJob::Job
+    field :broken, type: Mongoid::Boolean, default: false
+
+    after_find :read_broken
+
+    def read_broken
+      nil.no_such_method if broken
+    end
+  end
+
   describe RocketJob::Deprecation do
     # Returns [Array<String>] the deprecation warnings that Rocket Job reported while the block runs, with deprecation
     # warnings on. IOStreams' own warnings, which name a line of Rocket Job, are left out.
@@ -244,6 +254,7 @@ class DeprecationTest < Minitest::Test
                        allowed_columns: %w[name], format_options: {layout: []}, mode: :array, skip_unknown: false
                      )
         assert_equal %w[columns], RocketJob::Category::Output.deprecated_option_names("columns" => %w[name])
+        assert_equal %w[allowed_columns], RocketJob::Category::Input.new(allowed_columns: %w[name]).deprecated_option_names
         assert_empty RocketJob::Category::Input.deprecated_option_names("mode" => "line", "header_cleanser" => "default")
       end
 
@@ -347,6 +358,42 @@ class DeprecationTest < Minitest::Test
 
         assert_equal ["Job #{id}: its class cannot be loaded, so its options cannot be read"],
                      RocketJob::Deprecation.saved_options
+      end
+
+      it "lists a Dirmon entry whose job class cannot be loaded" do
+        entry = RocketJob::DirmonEntry.create!(
+          name:           "Renamed",
+          pattern:        "deprecation_test/renamed/*.csv",
+          job_class_name: job_class_name,
+          properties:     {input_categories: [{name: "main", allowed_columns: %w[name]}]}
+        )
+        RocketJob::DirmonEntry.collection.update_one({_id: entry.id}, {"$set" => {"job_class_name" => "NoSuchJob"}})
+
+        assert_equal [
+          "Dirmon entry \"Renamed\" #{entry.id}: the class of the job that it creates cannot be loaded, so its options " \
+          "cannot be read"
+        ], RocketJob::Deprecation.saved_options
+      end
+
+      it "lists an UploadFileJob whose job class cannot be loaded" do
+        upload_job = RocketJob::Jobs::UploadFileJob.create!(job_class_name: "NoSuchJob", upload_file_name: __FILE__)
+
+        assert_equal [
+          "RocketJob::Jobs::UploadFileJob #{upload_job.id} (queued): the class of the job that it creates cannot be " \
+          "loaded, so its options cannot be read"
+        ], RocketJob::Deprecation.saved_options
+      end
+
+      it "lists a job that raises when it is read with its error, and still lists the others" do
+        broken = BrokenCallbackJob.create!(broken: true)
+        job    = saved_job do |saved|
+          saved.input_category.allowed_columns = %w[name]
+        end
+        lines = RocketJob::Deprecation.saved_options
+
+        assert_equal 2, lines.size
+        assert lines.first.start_with?("Job #{broken.id}: cannot be read: NoMethodError: "), lines.first
+        assert_equal "#{job_class_name} #{job.id} (queued): input category main: allowed_columns", lines.last
       end
 
       it "lists nothing for a job with a schema" do

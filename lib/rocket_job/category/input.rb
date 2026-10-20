@@ -8,6 +8,10 @@ module RocketJob
 
       embedded_in :job, class_name: "RocketJob::Job", inverse_of: :input_categories
 
+      autoload :UploadSlices, "rocket_job/category/input/upload_slices"
+      autoload :WrittenLines, "rocket_job/category/input/written_lines"
+      private_constant :UploadSlices, :WrittenLines
+
       # The fields that an upload sets, see #upload_state.
       UPLOAD_FIELDS = %w[file_name format columns header_uploaded].freeze
       private_constant :UPLOAD_FIELDS
@@ -272,11 +276,14 @@ module RocketJob
           path.format(format)
           # The fields of the records, and the position of each field of a fixed width file, so that IOStreams matches
           # the header row to the fields, and reads typed values in their columns, see #each_slice and #each_record. The
-          # schema is read once, see #schema_descriptor, for the workers too. A schema, or a layout, set on the supplied
-          # path is kept.
-          if path.schema.nil?
-            path.schema(schema_descriptor) if schema.present?
-            path.format_options(format_options.to_h.deep_symbolize_keys) if format_options.present?
+          # schema is read once, see #schema_descriptor, for the workers too, which read each slice with it, see
+          # #parse_records, so that another schema cannot be set on the supplied path. Without a schema, a schema or a
+          # layout set on the supplied path is kept.
+          if schema.present?
+            check_path_schema(path)
+            path.schema(schema_descriptor)
+          elsif path.schema.nil? && format_options.present?
+            path.format_options(format_options.to_h.deep_symbolize_keys)
           end
           # Replace the non-printable characters of a fixed width file, such as NUL padding, so that the columns stay
           # in place, and remove those of any other tabular format.
@@ -303,95 +310,26 @@ module RocketJob
       # In the :hash and the deprecated :array modes, see #mode, IOStreams also parses each row as it reads it, so that a
       # file with a value that is not valid raises before it is processed. Each slice still holds the rows as they are.
       #
-      # `on_first` is called with the header row, an Array of its columns as they are in the file. For a file without
-      # one, such as JSON or fixed width, it is called with its first row instead, which is not uploaded.
-      def each_slice(path, mode: self.mode, on_first: nil, **args)
+      # `on_first` is called with the header row, see UploadSlices.
+      def each_slice(path, mode: self.mode, on_first: nil, **args, &)
+        slices = UploadSlices.new(on_first, &)
         path.reader(:slice, size: slice_size, validate: mode != :line, **args) do |reader|
-          reader.each do |slice|
-            if on_first
-              on_first.call(slice.header || slice.shift)
-              on_first = nil
-            end
-            yield slice unless slice.empty?
-          end
-          # A file with a header row, but no rows after it.
-          on_first&.call(reader.header) if reader.header
+          reader.each { |slice| slices << slice }
+          slices.finish(reader.header)
         end
       end
 
       # Yields a writer to the supplied block of an upload, see RocketJob::Batch::IO#upload, to which the block writes the
       # lines of a file, such as its header row followed by its rows, and yields each slice of them, as IOStreams reads
-      # the slices of a file, see #each_slice: IOStreams reads the header row from the first lines, matches it to the
-      # fields of the schema, and each slice holds it.
+      # the slices of a file, see #each_slice and WrittenLines: the header row is read from the first lines, and matched
+      # to the fields of the schema, and each slice holds it. `on_first` is called with the header row, see
+      # UploadSlices.
       #
       # Raises ArgumentError for a record written to the writer that is not a line, such as a Hash.
       def each_written_slice(block, on_first: nil, &)
-        lines = WrittenLines.new(format: tabular.format, schema: schema_descriptor, size: slice_size,
-                                 validate: mode != :line, on_first: on_first, &)
-        block.call(lines)
-        lines.flush
+        slices = UploadSlices.new(on_first, &)
+        WrittenLines.new(build_tabular, slices, size: slice_size, validate: mode != :line).write(block)
       end
-
-      # The lines that the block of an upload writes, see #each_written_slice, which it reads in slices of up to `size`
-      # rows, as IOStreams reads the slices of a file, see #each_slice, after the header row read from the first lines,
-      # which the slices of the later lines hold too.
-      class WrittenLines
-        def initialize(format:, schema:, size:, validate:, on_first:, &on_slice)
-          @format   = format
-          @schema   = schema
-          @size     = size
-          @validate = validate
-          @on_first = on_first
-          @on_slice = on_slice
-          @lines    = []
-          @header   = nil
-        end
-
-        # Adds the supplied line, and reads the lines added since the last slice once there are `size` of them.
-        def <<(line)
-          unless line.is_a?(String)
-            raise(ArgumentError, "Write each line of a file to the upload of an input category with a schema, not a " \
-                                 "#{line.class.name}")
-          end
-
-          @lines << line
-          flush if @lines.size >= @size
-          self
-        end
-
-        # Reads the lines added since the last slice as the rows of a file, see IOStreams::Slice, after the header row
-        # read from the first lines, so that IOStreams reads the header row and matches it to the fields only once, and
-        # yields each slice of them.
-        def flush
-          return if @lines.empty?
-
-          rows   = IOStreams::Slice.new(@lines, header: @header, format: @format)
-          @lines = []
-          IOStreams.stream(rows).schema(@schema).reader(:slice, size: @size, validate: @validate) do |reader|
-            reader.each { |slice| on_slice(slice) }
-            @header ||= reader.header
-            # A header row, but no rows after it, yet.
-            first(@header) if @header
-          end
-        end
-
-        private
-
-        # Calls `on_first` with the header row, or for lines without one, such as JSON, with the first line, which is
-        # not uploaded, see RocketJob::Category::Input#each_slice, then the block with the slice.
-        def on_slice(slice)
-          first(slice.header || slice.shift) if @on_first
-          @on_slice.call(slice) unless slice.empty?
-        end
-
-        def first(row)
-          return unless @on_first
-
-          @on_first.call(row)
-          @on_first = nil
-        end
-      end
-      private_constant :WrittenLines
 
       # Yields each record read from the supplied path in the supplied mode, see #mode.
       #
@@ -474,6 +412,15 @@ module RocketJob
       # The text that replaces each character that is not valid in the file's encoding, see #invalid_characters.
       INVALID_CHARACTER_REPLACEMENTS = {remove: "", replace: "�"}.freeze
       private_constant :INVALID_CHARACTER_REPLACEMENTS
+
+      # Raises ArgumentError when the supplied path has a schema, or a layout, other than this category's, which the
+      # workers read each slice of the file with, see #parse_records.
+      def check_path_schema(path)
+        return if path.schema.nil? || path.schema == schema
+
+        raise(ArgumentError, "Set the schema of the file uploaded into input category #{name} on the category, not on " \
+                             "the path, since its workers read each slice with the category's schema")
+      end
 
       # Sets what the path does with each character that is not valid in the file's encoding, see
       # #invalid_characters, unless the caller set `replace:` on the path.

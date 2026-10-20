@@ -24,6 +24,14 @@ module Batch
       end
     end
 
+    class AfterSliceJob < PeopleJob
+      after_slice :fail_after_slice
+
+      def fail_after_slice
+        raise(ArgumentError, "after_slice")
+      end
+    end
+
     describe "a file uploaded with a schema" do
       let(:job) { PeopleJob.new }
 
@@ -82,6 +90,95 @@ module Batch
 
         assert_predicate job, :completed?
         assert_equal %w[Jack Jill Bob], names
+      end
+
+      it "keeps the slices of an earlier file when a later one fails" do
+        job.input_category.mode       = :hash
+        job.input_category.slice_size = 1
+        upload("Name,AGE\nJack,21\n")
+
+        # The slice of Jill is stored before Bob's value raises.
+        assert_raises(IOStreams::Errors::InvalidValue) { upload("Name,AGE\nJill,22\nBob,x\n") }
+        assert_equal 1, job.input.count
+        assert_equal 1, job.record_count
+
+        work
+
+        assert_predicate job, :completed?
+        assert_equal [{"name" => "Jack", "age" => 21}], output_records
+      end
+
+      it "raises for a path with another schema, since the workers read each slice with the category's" do
+        path  = IOStreams.stream(StringIO.new("name\nJack\n")).file_name("people.csv")
+        error = assert_raises(ArgumentError) { job.upload(path.schema("fields" => [{"name" => "name"}])) }
+
+        assert_includes error.message, "on the category"
+        assert_equal 0, job.input.count
+      end
+
+      it "accepts a path with the category's schema" do
+        path = IOStreams.stream(StringIO.new("Name,AGE\nJack,21\n")).file_name("people.csv")
+
+        assert_equal 1, job.upload(path.schema(job.input_category.schema))
+      end
+
+      it "calls on_first with a copy of the header row, which it can change" do
+        header = nil
+        job.upload(StringIO.new("Name,AGE\nJack,21\n"), file_name: "people.csv", on_first: lambda { |row|
+          row.map!(&:downcase)
+          row.first << "s"
+          header = row
+        })
+
+        assert_equal %w[names age], header
+        assert_equal %w[Name AGE], job.input.first.records.header
+      end
+
+      it "resumes a slice without reading the records that an earlier attempt processed" do
+        upload("Name,AGE\nJack,x\nJill,22\n")
+        slice = job.input.first
+        slice.processing_record_number = 2
+        slice.save!
+
+        work
+
+        assert_predicate job, :completed?
+        assert_equal [{"name" => "Jill", "age" => 22}], output_records
+      end
+
+      it "fails a slice whose rows cannot be read, rather than the worker" do
+        job.input_category.serializer = :none
+        upload("Name,AGE\nJack,21\n")
+        id       = job.input.first.id
+        stored   = job.input.collection.find(_id: id).first["records"]
+        document = Hash.from_bson(BSON::ByteBuffer.new(stored.data))
+        document["s"]["format"] = "no_such_format"
+        job.input.collection.update_one({_id: id}, {"$set" => {"records" => BSON::Binary.new(document.to_bson.to_s)}})
+
+        work
+        slice = job.input.first
+
+        assert_predicate job, :failed?
+        assert_predicate slice, :failed?
+        assert_equal "ArgumentError", slice.exception.class_name
+        assert_includes slice.exception.message, "no_such_format"
+      end
+
+      describe "when an after_slice callback fails" do
+        let(:job) { AfterSliceJob.new }
+
+        it "names the last record of the slice" do
+          upload("Name,AGE\nJack,21\nJill,22\n")
+          work
+          slice  = job.input.first
+          failed = []
+          job.input.each_failed_record { |record, _slice| failed << record }
+
+          assert_predicate slice, :failed?
+          assert_equal 2, slice.processing_record_number
+          assert_equal 2, slice.current_record_number
+          assert_equal ["Jill,22"], failed
+        end
       end
 
       %i[none compress encrypt].each do |serializer|

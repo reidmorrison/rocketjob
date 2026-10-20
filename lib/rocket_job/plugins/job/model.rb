@@ -325,7 +325,7 @@ module RocketJob
         # Returns [Hash<String, Array<String>>] the names of the deprecated options that this saved job holds, by where
         # they are set, see `.deprecated_options`, which a job reads without a warning. None for a job without
         # categories. Overridden by batch, and by a job that holds the properties of another job, such as an
-        # UploadFileJob.
+        # UploadFileJob, which returns nil when the class of that job cannot be loaded.
         def deprecated_options
           {}
         end

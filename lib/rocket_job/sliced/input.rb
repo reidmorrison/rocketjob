@@ -3,11 +3,13 @@ module RocketJob
     class Input < Slices
       # Uploads the records that the block writes, see Writer::Input.collect, and returns how many it wrote.
       #
-      # When the upload raises, its slices are removed: those of the supplied `upload_id`, otherwise the whole
-      # collection.
+      # When the upload raises, its slices are removed, and the slices of earlier uploads are kept: those of the
+      # supplied `upload_id`, or when the collection already holds slices, of an id of its own, otherwise the whole
+      # collection, so that the slices of the first upload do not each hold an id.
       def upload(upload_id: nil, **args, &)
         # Create indexes before uploading
         create_indexes
+        upload_id = BSON::ObjectId.new.to_s if upload_id.nil? && count.positive?
         Writer::Input.collect(self, upload_id: upload_id, **args, &)
       rescue Exception => e
         upload_id ? delete_upload(upload_id) : drop

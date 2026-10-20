@@ -144,7 +144,7 @@ Useful `upload` keyword options:
 | `stream_mode`  | `:line` (default), `:hash`, or the deprecated `:array`. See [input categories](#input-categories).
 | `file_name`    | Override the file name used to infer format and streams.
 | `delimiter`    | Record delimiter. Default: auto-detect line endings.
-| `on_first`     | A lambda called with the first line, for example to capture a header. With a `schema`, it is called with the header row as an Array of its columns.
+| `on_first`     | A lambda called with the first line, for example to capture a header. With a `schema`, it is called with a copy of the header row as an Array of its columns, or for a file without one, such as JSON or fixed width, with its first line, which is not uploaded.
 
 Files are read as UTF-8 text, since MongoDB only stores UTF-8 strings, and a UTF-8 byte order mark
 at the start of the file (as Excel writes) is removed. A file that is not valid UTF-8 raises
@@ -336,7 +336,8 @@ The `stream_mode` option of `upload` overrides `mode` for that upload.
 With a `schema`, every mode uploads the lines of a file as they are, in slices that each hold the
 header row of the file, and the workers read each line into the types of its fields. The `:hash` and
 `:array` modes also read each line while the file is uploaded, so that a file with a value that is
-not valid is rejected before processing starts.
+not valid is rejected before processing starts. Since the workers read each slice with the category's
+`schema`, uploading a path that has another schema set on it raises `ArgumentError`.
 
 ### More than one file
 
@@ -356,7 +357,7 @@ keys of its first record, which act as a header row.
 
 When an upload fails, such as when the file cannot be read to its end, its records are not kept,
 and neither is the header row that it read, so the job can upload the file again when it is
-retried.
+retried. The records of the files uploaded before it are kept.
 
 When a batch job restarts, such as the next run of a scheduled job, its input categories keep their
 settings but not the header row that the last upload read, so each run reads the header row of its
