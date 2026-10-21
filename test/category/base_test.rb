@@ -116,6 +116,13 @@ module Batch
         ensure
           job&.destroy
         end
+
+        it "is shown without the credentials of its url" do
+          properties = RocketJob::Category::Input.display_properties("schema" => "sftp://user:secret@host/schema.json")
+
+          assert_equal({"schema" => "sftp://host/schema.json"}, properties)
+          assert_equal({"schema" => schema}, RocketJob::Category::Input.display_properties("schema" => schema))
+        end
       end
 
       describe "tabular" do

@@ -15,6 +15,29 @@ module Batch
         CategoriesJob.destroy_all
       end
 
+      describe "#display_attributes" do
+        it "shows the file name of each category without its credentials" do
+          job = CategoriesJob.new
+          job.input_category.file_name = "sftp://user:secret@sftp.example.org/in/file.csv"
+          attrs = job.display_attributes
+
+          assert_equal "sftp://sftp.example.org/in/file.csv", attrs["input_categories"].first["file_name"]
+          assert_equal "sftp://user:secret@sftp.example.org/in/file.csv", job.input_category.file_name.to_s
+        end
+      end
+
+      describe ".display_properties" do
+        it "shows the file name of each category without its credentials" do
+          properties = CategoriesJob.display_properties(
+            "input_categories"  => [{"format" => "csv", "file_name" => "sftp://user:secret@sftp.example.org/in.csv"}],
+            "output_categories" => [{"file_name" => "sftp://user:secret@sftp.example.org/out.csv"}]
+          )
+
+          assert_equal [{"format" => "csv", "file_name" => "sftp://sftp.example.org/in.csv"}], properties["input_categories"]
+          assert_equal [{"file_name" => "sftp://sftp.example.org/out.csv"}], properties["output_categories"]
+        end
+      end
+
       after do
         CategoriesJob.destroy_all
       end

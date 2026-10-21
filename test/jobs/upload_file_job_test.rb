@@ -80,6 +80,16 @@ module Jobs
         )
       end
 
+      describe "#display_attributes" do
+        it "shows the paths in the properties without their credentials" do
+          batch_job.properties["input_categories"].first["file_name"] = "sftp://user:secret@sftp.example.org/in.csv"
+          attrs = batch_job.display_attributes
+
+          assert_equal "sftp://sftp.example.org/in.csv", attrs["properties"]["input_categories"].first["file_name"]
+          assert_equal "sftp://user:secret@sftp.example.org/in.csv", batch_job.properties["input_categories"].first["file_name"]
+        end
+      end
+
       describe "#valid?" do
         it "with valid job and upload_file_name" do
           assert_predicate job, :valid?
