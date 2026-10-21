@@ -9,6 +9,8 @@ module Jobs
     end
 
     describe RocketJob::Jobs::DirmonJob do
+      include SemanticLogger::Test::Minitest
+
       let :dirmon_job do
         RocketJob::Jobs::DirmonJob.new
       end
@@ -140,6 +142,24 @@ module Jobs
           result = dirmon_job.send(:check_directories)
 
           assert_equal [5, 10], result.values.sort
+        end
+      end
+
+      describe "#check_entry" do
+        it "tracks and logs a file without the credentials in its url" do
+          path       = IOStreams.path("sftp://jack:secret@sftp.example.org/abc/file.csv")
+          file_names = {}
+          events     = semantic_logger_events do
+            path.stub(:size, 5) do
+              dirmon_entry.stub(:each, ->(&block) { block.call(path) }) do
+                dirmon_job.send(:check_entry, dirmon_entry, file_names)
+              end
+            end
+          end
+
+          assert_equal({"#{dirmon_entry.id}:sftp://sftp_example_org/abc/file_csv" => 5}, file_names)
+          assert_includes events.map(&:message), "Found file: sftp://sftp.example.org/abc/file.csv. File size: 5"
+          refute(events.any? { |event| "#{event.message}#{event.payload}".include?("secret") })
         end
       end
 

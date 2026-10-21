@@ -186,7 +186,7 @@ module RocketJob
 
           # Security check?
           if whitelist_paths.size.positive? && whitelist_paths.none? { |whitepath| path.to_s.start_with?(whitepath) }
-            logger.warn "Skipping file: #{path} since it is not in any of the whitelisted paths: #{whitelist_paths.join(', ')}"
+            logger.warn "Skipping file: #{path.display_name} since it is not in any of the whitelisted paths: #{whitelist_paths.join(', ')}"
             next
           end
 
@@ -245,7 +245,7 @@ module RocketJob
         properties:         properties,
         description:        "#{name}: #{iopath.basename}",
         upload_file_name:   archive_path,
-        original_file_name: iopath.to_s,
+        original_file_name: iopath.display_name,
         job_id:             job_id
       )
 
@@ -253,8 +253,8 @@ module RocketJob
         message: "Created RocketJob::Jobs::UploadFileJob",
         payload: {
           dirmon_entry_name:  name,
-          upload_file_name:   archive_path,
-          original_file_name: iopath.to_s,
+          upload_file_name:   archive_path.display_name,
+          original_file_name: iopath.display_name,
           job_class_name:     job_class_name,
           job_id:             job_id.to_s,
           upload_job_id:      job.id.to_s
