@@ -26,8 +26,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   Previously the slices that they uploaded were kept, so a retry uploaded the input a second time. Slices uploaded
   before the job started are kept. Each slice uploaded by `before_batch` records it in its new `upload_id`, and the
   job keeps what it restores in its new `before_batch_state` while the callbacks run.
-- Uploading a second file with a header row into an input category that holds the header row of an earlier upload,
-  in the `:line` or `:array` mode, raises `ArgumentError` and uploads nothing. Previously the second file's header
+- Uploading a second file with a header row into an input category without a `schema`, which holds the header row of
+  an earlier upload, in the `:line` or `:array` mode, raises `ArgumentError` and uploads nothing. Previously the second file's header
   row was stored as a record, and its lines were read with the first file's columns. A second file uploaded in the
   `:hash` mode also raises. Upload each file into its own input category, or upload every file in the `:hash` mode,
   in which each record keeps the columns of its own file. An input category records that its `columns` hold the
@@ -174,17 +174,30 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   `BigDecimal` or a `Date`, and to write each value in the text form of its type, for every tabular
   format. It also gives the position of each field of a fixed width file, and `"header" => false`
   describes a file without a header row. It is set on the path that is uploaded, and validated when the
-  category is saved, without reading a file that holds it. In the `:array` and `:hash` upload modes a
-  `date` is stored in the slices as a `Time` at midnight UTC, since MongoDB has no date type.
+  category is saved, without reading a file that holds it.
 
   The schema also describes the columns of a file. Each column of the header row, or key of a JSON
   record, is matched to a field by its name or one of its `aliases`, whatever its case, spaces and
   punctuation, and the keys of each record are the names of the fields. Its `fieldsMatch` says which
   columns a file can have, and `"constraints" => {"required" => true}` which fields it must have. An
   uploaded header row that does not match raises `IOStreams::Errors::InvalidHeader`, and nothing is
-  uploaded. An input category's `columns` hold the header row as it is in the file, which the workers
-  match to the fields. An output category writes the names of the fields as its header row, and the
-  fields of each result, in order.
+  uploaded. Each slice of a file uploaded into an input category holds its header row, see below. An output
+  category writes the names of the fields as its header row, and the fields of each result, in order.
+- `upload` reads a file into an input category with a `schema` with IOStreams' `each(:slice)`, rather than splitting
+  it into slices itself: IOStreams reads up to `slice_size` rows at a time, after the header row, which it matches to
+  the fields before any slice is uploaded, and each slice holds the header row of its file. So the category's
+  `columns` are not set, and files whose columns are in another order can be uploaded into the same input category,
+  one after another. In the `:hash` and `:array` modes IOStreams also reads each row while the file is uploaded, so
+  that a file with a value that is not valid uploads nothing, but the slices hold the lines as they are, and a `date`
+  reaches `perform` as a `Date`. A row that cannot be read fails its record, and a retry processes the slice again
+  from that record. `on_first` is called with a copy of the header row as an Array of its columns, or for a file
+  without one, such as JSON, with its first line, which is not uploaded. A worker of Rocket Job 7 fails such a slice,
+  rather than processing no records, see the upgrade guide. The workers read each slice with the category's schema,
+  so uploading a path that has another schema set on it raises `ArgumentError`. Assigning an Array of rows to the
+  `records` of such a slice, such as a changed copy of them, keeps its header row and format.
+  The lines that the block of `upload` writes for such a category are read in the same slices, after the header row
+  read from the first lines, and a record written to it that is not a line, such as a Hash, raises `ArgumentError`.
+  The lines written before the block breaks out are uploaded, as without a schema.
 - `CopyFileJob` converts the text of a file from its `source_encoding` to its `target_encoding`, such as
   `source_encoding: "Windows-1252"`, which copies a file that Excel saved on Windows as UTF-8. When only one
   is set, the other is UTF-8, and when neither is set the file is still copied byte for byte. The text is
@@ -251,13 +264,18 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   changed. It cannot be set with a schema, and a layout that is not valid raises
   `IOStreams::Errors::InvalidLayout` when it is set. `IOStreams::Schema.from_layout` returns the schema of a layout.
   See the upgrade guide.
-- An input category's `allowed_columns`, `required_columns`, `skip_unknown` and `header_cleanser`, and the
-  `columns` of a file without a header row, or of an output category, since IOStreams 3.0 deprecates the
-  options that they set, and the schema replaces them. They still work without a schema, and cannot be set
-  with one, so a category that sets both is not valid. See the upgrade guide.
+- An input category's `allowed_columns`, `required_columns`, `skip_unknown`, `header_cleanser` and `columns`, and an
+  output category's `columns`, since IOStreams 3.0 deprecates the options that they set, and the schema replaces them.
+  They still work without a schema, and cannot be set with one, so a category that sets both is not valid. See the
+  upgrade guide.
 - The `:array` upload mode, an input category's `mode: :array` and the `stream_mode: :array` of `upload`, since each
   row that it uploads only makes sense with the header row that the category keeps. Use `:line`, or `:hash` to parse
   the whole file when it is uploaded. See the upgrade guide.
+- `RocketJob::Deprecation.saved_options` lists the saved jobs that can still run, the Dirmon entries and the
+  `UploadFileJob`s that hold one of these options, by category, since reading a saved document does not warn. Each
+  category class decides which of its options are deprecated, see `RocketJob::Category::Base.deprecated_option_names`.
+  Each document is read on its own, so one whose class, or whose job class, cannot be loaded, or that raises when it
+  is read, is listed with why, and the others still are. See the upgrade guide.
 - Rocket Job reports a Ruby deprecation warning for each of these options, and for `format_options`, at the line
   of the job class that defines a category with one, or of the call to `upload` that supplies one, and when a Dirmon
   entry or an `UploadFileJob` builds a job from properties that hold one. They are only reported while Ruby's
@@ -265,6 +283,13 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixes
 
+- When an upload raises, only the slices that it stored are removed, so the slices of an earlier upload into the same
+  input category, such as the first of two files, are kept. Previously the whole input collection was removed, while
+  the job's `record_count` still counted the earlier records, so the job completed without processing them. The
+  slices of an upload into an input collection that already holds slices record it in their `upload_id`.
+- A slice whose records cannot be read, such as one encrypted with a key that the worker does not have, fails with
+  that error when it is processed. Previously reading it raised as the worker claimed it, which stopped that worker
+  thread, and left the slice running under its name until the server restarted.
 - An upload of a tabular file that starts with blank lines, such as a CSV file, skips them and reads the header row
   after them, as IOStreams does. Previously the first blank line was taken as the header row, so the header row was
   uploaded as a record, and with a schema every slice then failed, since the header row had not been read. The

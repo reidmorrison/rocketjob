@@ -15,6 +15,63 @@ module RocketJob
     # Where the upgrade guide says what replaces each deprecated option.
     UPGRADE_GUIDE = "https://rocketjob.reidmorrison.com/upgrading.html".freeze
 
+    # The states of a job that can still run, and so read its saved options, see .saved_options.
+    RUNNABLE_JOB_STATES = %w[queued running paused failed].freeze
+
+    # Returns [Array<String>] a line for each saved job, Dirmon entry and UploadFileJob that holds a deprecated
+    # option, such as an input category's `allowed_columns`, which no warning reports, since reading a saved document
+    # does not warn, so that they can be changed before upgrading to a release that removes the option. Each document
+    # decides which of its options are deprecated, see RocketJob::Plugins::Job::Model#deprecated_options and
+    # RocketJob::DirmonEntry#deprecated_options.
+    #
+    # Only the jobs that can still run are read: queued, which includes scheduled, running, paused and failed. Each
+    # document is read on its own, so that one that cannot be read is listed, and the others still are: a job whose
+    # class cannot be loaded in this process, a Dirmon entry or an UploadFileJob whose job class cannot be, since their
+    # options cannot be read, and a document that raises when it is read, with its error.
+    #
+    # Example:
+    #   puts RocketJob::Deprecation.saved_options
+    #   # ImportJob 6512f1c0a1b2c3d4e5f60718 (queued): input category main: allowed_columns, skip_unknown
+    #   # Dirmon entry "Daily orders" 6512f1c0a1b2c3d4e5f60719: input category main: format_options
+    def self.saved_options
+      jobs = RocketJob::Job.where(:state.in => RUNNABLE_JOB_STATES).pluck(:id).flat_map do |id|
+        saved_document_options(RocketJob::Job, "Job", id) { |job| "#{job.class.name} #{job.id} (#{job.state})" }
+      end
+      entries = RocketJob::DirmonEntry.pluck(:id).flat_map do |id|
+        saved_document_options(RocketJob::DirmonEntry, "Dirmon entry", id) do |entry|
+          "Dirmon entry #{entry.name.inspect} #{entry.id}"
+        end
+      end
+      jobs + entries
+    end
+
+    # Returns [Array<String>] the lines of .saved_options for the saved document of the supplied class and id, which
+    # the block names once it is read, or the supplied kind and the id when it cannot be read. None when it was removed
+    # since its id was read.
+    def self.saved_document_options(klass, kind, id)
+      document = klass.where(id: id).first
+      return [] if document.nil?
+
+      label   = yield(document)
+      options = document.deprecated_options
+      return ["#{label}: the class of the job that it creates cannot be loaded, so its options cannot be read"] if options.nil?
+
+      options.map { |where, names| "#{label}: #{where}: #{names.join(', ')}" }
+    rescue StandardError => e
+      return ["#{kind} #{id}: its class cannot be loaded, so its options cannot be read"] if unloadable_class?(e)
+
+      ["#{kind} #{id}: cannot be read: #{e.class.name}: #{e.message}"]
+    end
+    private_class_method :saved_document_options
+
+    # Returns [true|false] whether the supplied error, which reading a saved document raised, says that its class cannot
+    # be loaded: Mongoid knows of no such class, or loading it named a constant that is not defined, rather than a
+    # NoMethodError, which is a NameError too, raised by the code of a class that was loaded, such as a callback.
+    def self.unloadable_class?(error)
+      error.is_a?(Mongoid::Errors::UnknownModel) || (error.is_a?(NameError) && !error.is_a?(NoMethodError))
+    end
+    private_class_method :unloadable_class?
+
     # Reports that the application used something deprecated, unless deprecation warnings are off, with the message,
     # which says what is deprecated and what to use instead, after "Rocket Job: ", at the first line of the call stack
     # outside this library and the libraries that call it, or without a line when there is none, such as in a worker

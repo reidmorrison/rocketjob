@@ -63,6 +63,24 @@ module RocketJob
           self
         end
 
+        # Stores the supplied rows of a file, see IOStreams::Slice, as a slice of their own, numbered after the records
+        # already written, so that they keep the header row and format that they carry. They are neither split nor
+        # joined with other records, since IOStreams read them in slices of `slice_size` rows.
+        def write_slice(rows)
+          return self if rows.empty?
+
+          unless @slice.records.empty?
+            save_slice
+            new_slice
+          end
+          @header        = true if rows.header
+          @slice.records = rows
+          @record_count += rows.size
+          save_slice
+          new_slice
+          self
+        end
+
         def flush
           if @slice_batch_size
             @batch << @slice if @slice.size.positive?

@@ -144,7 +144,7 @@ Useful `upload` keyword options:
 | `stream_mode`  | `:line` (default), `:hash`, or the deprecated `:array`. See [input categories](#input-categories).
 | `file_name`    | Override the file name used to infer format and streams.
 | `delimiter`    | Record delimiter. Default: auto-detect line endings.
-| `on_first`     | A lambda called with the first line, for example to capture a header.
+| `on_first`     | A lambda called with the first line, for example to capture a header. With a `schema`, it is called with a copy of the header row as an Array of its columns, or for a file without one, such as JSON or fixed width, with its first line, which is not uploaded.
 
 Files are read as UTF-8 text, since MongoDB only stores UTF-8 strings, and a UTF-8 byte order mark
 at the start of the file (as Excel writes) is removed. A file that is not valid UTF-8 raises
@@ -267,6 +267,19 @@ job.upload do |writer|
 end
 ~~~
 
+For an input category with a `schema`, the block writes the lines of a file: its header row first,
+when the file has one, then its rows. They are read as the lines of a file are, in slices that each
+hold the header row, so a header row that does not match the schema raises
+`IOStreams::Errors::InvalidHeader`, and nothing is uploaded:
+
+~~~ruby
+job.upload do |writer|
+  writer << "name,age"
+  writer << "Jack,21"
+  writer << "Jill,22"
+end
+~~~
+
 Text in a record must be UTF-8, since MongoDB only stores UTF-8. A string in another encoding, such as
 ISO-8859-1 from a database connection, is converted, but a binary string, or one that is not valid
 UTF-8, raises an `EncodingError` that names the number of the first such record, and nothing is
@@ -301,8 +314,8 @@ Input category options:
 | `encoding`         | `nil`       | The encoding of the files, such as `"Windows-1252"`, which is converted to UTF-8. `nil` reads UTF-8, or the format's own encoding, such as ASCII for `:fixed`. Name the byte order of UTF-16 or UTF-32, such as `"UTF-16LE"`. See [Files](#files).
 | `invalid_characters` | `nil`     | What to do with a character that is not valid in the file's encoding: `:remove`, `:replace` with U+FFFD, or `:raise`. `nil` removes them from tabular formats, such as CSV, and raises for `:fixed` and lines.
 | `mode`             | `:line`     | How a file is uploaded: `:line`, `:hash`, or the deprecated `:array`.
-| `columns`          | `nil`       | Set by `upload`: the header row read from the file, as it is in the file, so that the workers read each line by it.
-| `header_uploaded`  | `false`     | Set by `upload`: whether `columns` hold the header row read from the file, see [More than one file](#more-than-one-file).
+| `columns`          | `nil`       | Set by `upload` without a `schema`: the header row read from the file, so that the workers read each line by it. It cannot be set with a `schema`, since each slice holds the header row of its file instead.
+| `header_uploaded`  | `false`     | Set by `upload` without a `schema`: whether `columns` hold the header row read from the file, see [More than one file](#more-than-one-file).
 
 The options `allowed_columns`, `required_columns`, `skip_unknown` and `header_cleanser`, and setting
 `columns` for a file without a header row, are deprecated, since a `schema` replaces them, see
@@ -321,10 +334,21 @@ The `mode` option controls how a file is read during upload:
 
 The `stream_mode` option of `upload` overrides `mode` for that upload.
 
+With a `schema`, every mode uploads the lines of a file as they are, in slices that each hold the
+header row of the file, and the workers read each line into the types of its fields. The `:hash` and
+`:array` modes also read each line while the file is uploaded, so that a file with a value that is
+not valid is rejected before processing starts. Since the workers read each slice with the category's
+`schema`, uploading a path that has another schema set on it raises `ArgumentError`.
+
 ### More than one file
 
-In the `:line` and `:array` modes an input category holds the header row of one file, which the
-workers read each of its lines by. So uploading a second file with a header row into the same
+With a `schema`, each slice holds the header row of its file, so files can be uploaded into the same
+input category one after another, in any mode. The header row of each file is matched to the fields
+on its own, so with `"fieldsMatch" => "equal"` the files can even list their columns in different
+orders.
+
+Without a schema, in the `:line` and `:array` modes an input category holds the header row of one
+file, which the workers read each of its lines by. So uploading a second file with a header row into the same
 category raises `ArgumentError`, in any mode, rather than storing that file's header row as a record
 and reading its lines with the first file's columns. Upload each such file into its own input
 category, or upload every file in the `:hash` mode, in which each record keeps the columns of its
@@ -334,7 +358,7 @@ keys of its first record, which act as a header row.
 
 When an upload fails, such as when the file cannot be read to its end, its records are not kept,
 and neither is the header row that it read, so the job can upload the file again when it is
-retried.
+retried. The records of the files uploaded before it are kept.
 
 When a batch job restarts, such as the next run of a scheduled job, its input categories keep their
 settings but not the header row that the last upload read, so each run reads the header row of its
@@ -573,9 +597,8 @@ The schema also describes the file:
   `schema: "s3://bucket/schemas/people.json"`. It is read when the category is first used, so the file
   must be available to every server that runs the job.
 
-In the `:array` and `:hash` upload modes the typed values are stored in the slices, and MongoDB has
-no date type, so a `date` reaches `perform` as a `Time` at midnight UTC. In the default `:line` mode
-the workers read each value, so `perform` receives a `Date`.
+In every upload mode the slices hold the lines of the file as they are, and the workers read each
+value into the type of its field, so a `date` reaches `perform` as a `Date`.
 
 ### Validating columns
 
@@ -624,9 +647,8 @@ Columns that do not match the schema raise `IOStreams::Errors::InvalidHeader`:
 #### Deprecated column options
 
 Before v8 the columns of an input category were described with the options below. They are
-deprecated: they still work without a schema, and `allowed_columns`, `required_columns`,
-`skip_unknown` and `header_cleanser` cannot be set with one. The schema property that replaces each
-one:
+deprecated: they still work without a schema, and none of them can be set with one. The schema
+property that replaces each one:
 
 | Option                                      | With a schema
 |:--------------------------------------------|:-------------

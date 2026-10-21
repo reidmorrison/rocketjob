@@ -23,6 +23,12 @@ module RocketJob
 
       store_in client: "rocketjob_slices"
 
+      # What a worker of Rocket Job 7, which reads the records of a slice from "r", reads in place of the rows of a
+      # file, see #records_document: the major version that reads them, which is not a list of records, so that it
+      # raises NoMethodError, which fails the slice, rather than processing no records and removing the slice. The
+      # slice can be retried once every server runs this version.
+      ROWS_GUARD = 8
+
       # The record number of the first record in this slice.
       # Useful in knowing the line number of each record in this slice
       # relative to the original file that was uploaded. (1-based index)
@@ -113,15 +119,36 @@ module RocketJob
 
       # `records` array has special handling so that it can be modified in place instead of having
       # to replace the entire array every time. For example, when appending lines with `<<`.
+      #
+      # Raises the error that reading the saved records raised, see #parse_records, such as for the rows of a file in a
+      # format that this process does not have, so that the slice fails when it is processed, rather than the worker
+      # that read it.
       def records
+        raise(@records_error) if @records_error
+
         @records ||= []
       end
 
-      # Replace the records within this slice
+      # Replace the records within this slice.
+      #
+      # When the slice holds the rows of a file, see IOStreams::Slice, they keep the header row and format that they
+      # carry, so that they are still read by them, such as when a copy of them, which is an Array, is changed and
+      # assigned back. Records that are not rows, such as Hashes, are assigned as they are.
       def records=(records)
         raise(ArgumentError, "Cannot assign type: #{records.class.name} to records") unless records.is_a?(Array)
 
-        @records = records
+        @records_error = nil
+        @records       = rows_of_file?(records) ? rows_like(@records, records) : records
+      end
+
+      # Returns [Array] the records of this slice from the supplied record number on, see #processing_record_number,
+      # such as those that an earlier attempt did not process. The rows of a file keep the header row and format that
+      # they carry.
+      def records_from(record_number)
+        return records if record_number <= 1
+
+        rest = records[(record_number - 1)..] || []
+        rows? ? rows_like(records, rest) : rest
       end
 
       def_instance_delegators :records, :each, :<<, :size, :concat, :at
@@ -148,6 +175,26 @@ module RocketJob
       # Returns [nil] if there is no failed record
       def failed_record
         at(processing_record_number - 1) if exception && processing_record_number
+      end
+
+      # Replaces the record at the supplied index, such as a failed record once it is corrected, see #failed_record. The
+      # records keep what they hold besides, such as the header row of the rows of a file, see IOStreams::Slice. Saved
+      # with the slice.
+      #
+      # Raises IndexError when the slice has no record at the index.
+      def replace_record(index, record)
+        records.fetch(index)
+        records[index] = record
+      end
+
+      # Removes the record at the supplied index, rather than every record equal to it. The records keep what they hold
+      # besides, see #replace_record. Saved with the slice.
+      #
+      # Returns the record removed.
+      # Raises IndexError when the slice has no record at the index.
+      def delete_record(index)
+        records.fetch(index)
+        records.delete_at(index)
       end
 
       # Returns [Hash] the slice as a Hash for storage purposes
@@ -189,11 +236,56 @@ module RocketJob
       end
 
       def parse_records
-        @records = attributes.delete("records")
+        stored = attributes.delete("records")
+        read_records do
+          stored.is_a?(BSON::Binary) ? records_from_document(Hash.from_bson(BSON::ByteBuffer.new(stored.data))) : stored
+        end
       end
 
+      # Sets the records to those that the block reads from the saved document. An error that reading them raises is
+      # held, and raised when the records are used, see #records, rather than by the query that read this slice, since a
+      # worker reads it after claiming it, outside of the processing that fails the slice.
+      def read_records
+        @records_error = nil
+        @records       = yield
+      rescue StandardError => e
+        @records_error = e
+        @records       = nil
+      end
+
+      # The rows of a file are saved as the binary BSON of their document, see #records_document, so that a worker of
+      # Rocket Job 7 does not read the Hash that holds them as records. Other records are saved as they are.
       def serialize_records
-        records.mongoize
+        rows? ? BSON::Binary.new(records_document.to_bson.to_s) : records.mongoize
+      end
+
+      # Returns [true|false] whether the records are the rows of a file, see IOStreams::Slice, which carry the header
+      # row of their file and its format, so that they are read by them, see RocketJob::Category::Input#parse_records.
+      def rows?
+        records.is_a?(IOStreams::Slice)
+      end
+
+      # Returns [true|false] whether the supplied records replace the rows of a file that this slice holds with other
+      # rows, see #records=, rather than with a slice of rows of their own, or with records that are not rows: Hashes.
+      def rows_of_file?(records)
+        @records.is_a?(IOStreams::Slice) && !records.is_a?(IOStreams::Slice) && records.none?(Hash)
+      end
+
+      # Returns [IOStreams::Slice] the supplied rows, with the header row and format of the supplied rows of a file.
+      def rows_like(slice, rows)
+        IOStreams::Slice.new(rows, header: slice.header, format: slice.format)
+      end
+
+      # Returns [Hash] the document that holds the records: the rows of a file as the Hash that they return, see
+      # IOStreams::Slice#to_h, which this slice does not read, under "s", with ROWS_GUARD under "r"; otherwise the
+      # records under "r".
+      def records_document
+        rows? ? {"r" => ROWS_GUARD, "s" => records.to_h} : {"r" => records.to_a}
+      end
+
+      # Returns [Array] the records that the supplied document holds, see #records_document.
+      def records_from_document(document)
+        document.key?("s") ? IOStreams.slice(document["s"]) : document["r"]
       end
 
       # Before Start

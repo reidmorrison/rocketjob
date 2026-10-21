@@ -46,7 +46,9 @@ JRuby that is JRuby 10.0 or later. Upgrade Ruby before upgrading Rocket Job.
 
 Upgrade every server that runs workers at the same time, rather than running v7 and v8 workers
 together. A v7 worker reads the jobs that v8 saves with the options that v7 has, such as
-`format_options`, but ignores those that v8 adds, such as a category's `schema` or `encoding`.
+`format_options`, but ignores those that v8 adds, such as a category's `schema` or `encoding`. A
+file that v8 uploads into an input category with a `schema` is stored in slices that a v7 worker
+cannot read, so it fails each one, and they can be retried once every worker runs v8.
 
 ### format_options is replaced by schema
 
@@ -195,8 +197,9 @@ change `#perform` to read the Hash.
 
 ### An input category holds the header row of one file
 
-In the `:line` and `:array` modes an input category keeps the header row that `upload` read from a
-file, and its workers read each line by it. Two cases changed, see
+Without a schema, in the `:line` and `:array` modes an input category keeps the header row that
+`upload` read from a file, and its workers read each line by it. With a schema, each slice of a file
+holds its header row instead, so neither case below applies. Without one, two cases changed, see
 [More than one file](batch.html#more-than-one-file):
 
 * Uploading a second file with a header row into the same input category raises `ArgumentError`, in
@@ -252,6 +255,26 @@ The warnings are only reported while Ruby's deprecation warnings are on, which t
 by Minitest, or with `ruby -W:deprecated` or `RUBYOPT=-W:deprecated`, so production stays quiet. A job
 that was saved with a deprecated option, and is read back, does not report one. IOStreams reports its
 own deprecation warnings for the options that it reads, which name a line of Rocket Job instead.
+
+To find the saved documents that still hold a deprecated option, such as a scheduled job, a Dirmon
+entry or an `UploadFileJob`, list them from a console of the application:
+
+~~~ruby
+puts RocketJob::Deprecation.saved_options
+~~~
+
+Each line names the document and the category, and the options that it sets, for example:
+
+~~~
+ImportJob 6512f1c0a1b2c3d4e5f60718 (queued): input category main: allowed_columns, skip_unknown
+Dirmon entry "Daily orders" 6512f1c0a1b2c3d4e5f60719: input category main: format_options
+~~~
+
+It reads the jobs that can still run, queued, which includes scheduled, running, paused and failed,
+and every Dirmon entry, each on its own, so a document that cannot be read, such as a job whose class
+the console does not load, is listed with why. The `columns` of an input category that an upload read
+from a file are not listed, but a scheduled job saved by v7 does not record that its columns came from
+a file, so its columns are listed, see [An input category holds the header row of one file](#an-input-category-holds-the-header-row-of-one-file).
 
 ### Removed
 

@@ -112,8 +112,8 @@ module RocketJob
       # Notes:
       # * Only call from one thread at a time against a single instance of this job.
       # * The number of records uploaded is added to the record_count of the job.
-      # * If an exception is raised while uploading data, the input collection is cleared out
-      #   so that if a job is retried during an upload failure, data is not duplicated.
+      # * If an exception is raised while uploading data, the records that this upload stored are removed, so that
+      #   if the job is retried, its data is not duplicated. The records of earlier uploads are kept.
       # * Files are read as UTF-8 text, since MongoDB only stores UTF-8 strings. A UTF-8 byte order mark at
       #   the start of the file is removed. Data that is not valid UTF-8 raises
       #   Encoding::UndefinedConversionError and nothing is uploaded, unless the file's encoding is set, either
@@ -148,8 +148,8 @@ module RocketJob
       # * `columns:` is only for a query: the columns, or fields, to upload. Default: the id.
       # * The number that is returned and added to `record_count` is the number of records uploaded, which for a
       #   range is the number of integers in it, although each slice holds one `[first_id, last_id]` record.
-      # * If an exception is raised while uploading, the input collection is cleared out, so that if the job is
-      #   retried, its data is not duplicated.
+      # * If an exception is raised while uploading, the records that this upload stored are removed, so that if the
+      #   job is retried, its data is not duplicated.
       def upload(object = nil, category: :main, file_name: nil, stream_mode: nil, on_first: nil, columns: nil,
                  slice_batch_size: nil, **args, &block)
         input_collection = input(category)
@@ -165,12 +165,22 @@ module RocketJob
           category           = input_category(category)
           category.file_name = file_name if file_name
 
-          # Extract the header line during the upload when applicable.
-          extract_header = category.extract_header_callback(on_first)
+          count =
+            if category.slices?
+              # The block writes the lines of a file, which are read in slices, as the lines of a file are.
+              category.uploading do
+                input_collection.upload(upload_id: rocketjob_upload_id) do |writer|
+                  category.each_written_slice(block, on_first: on_first) { |slice| writer.write_slice(slice) }
+                end
+              end
+            else
+              # Extract the header line during the upload when applicable.
+              extract_header = category.extract_header_callback(on_first)
 
-          count = category.uploading do
-            input_collection.upload(on_first: extract_header, upload_id: rocketjob_upload_id, &block)
-          end
+              category.uploading do
+                input_collection.upload(on_first: extract_header, upload_id: rocketjob_upload_id, &block)
+              end
+            end
           return rocketjob_add_record_count(count)
         end
 
@@ -197,13 +207,18 @@ module RocketJob
             # Sets the format first when it is :auto, since the format determines whether there is a header line.
             path = category.upload_path(object, original_file_name: file_name)
 
-            # Extract the header line during the upload when applicable.
-            extract_header = category.extract_header_callback(on_first, mode: mode)
+            if category.slices?
+              rocketjob_upload_slices(input_collection, category, path, mode: mode, on_first: on_first,
+                                      slice_batch_size: slice_batch_size, **args)
+            else
+              # Extract the header line during the upload when applicable.
+              extract_header = category.extract_header_callback(on_first, mode: mode)
 
-            category.uploading do
-              input_collection.upload(on_first: extract_header, slice_batch_size: slice_batch_size,
-                                      upload_id: rocketjob_upload_id) do |io|
-                category.each_record(path, mode: mode, **args) { |record| io << record }
+              category.uploading do
+                input_collection.upload(on_first: extract_header, slice_batch_size: slice_batch_size,
+                                        upload_id: rocketjob_upload_id) do |io|
+                  category.each_record(path, mode: mode, **args) { |record| io << record }
+                end
               end
             end
           end
@@ -391,6 +406,19 @@ module RocketJob
           "the columns of the file with the schema: of the input category instead, see " \
           "#{RocketJob::Deprecation::UPGRADE_GUIDE}"
         )
+      end
+
+      # Uploads the file that the supplied path reads into the supplied input category, which has a schema, in the slices
+      # of its rows that IOStreams reads, each of which carries the header row of the file, see
+      # Category::Input#each_slice.
+      #
+      # Returns [Integer] the number of records uploaded.
+      def rocketjob_upload_slices(input_collection, category, path, mode:, on_first:, slice_batch_size:, **args)
+        category.uploading do
+          input_collection.upload(slice_batch_size: slice_batch_size, upload_id: rocketjob_upload_id) do |writer|
+            category.each_slice(path, mode: mode, on_first: on_first, **args) { |slice| writer.write_slice(slice) }
+          end
+        end
       end
 
       # Uploads the integers of the supplied range as one `[first_id, last_id]` record per slice, starting with the last

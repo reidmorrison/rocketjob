@@ -79,6 +79,32 @@ module RocketJob
           errors
         end
 
+        # Returns [Hash<String, Array<String>>] the names of the deprecated options that the supplied properties of a
+        # job of this class set for its categories, by category, such as `{"input category main" => ["allowed_columns"]}`.
+        # Each category class decides, see RocketJob::Category::Base.deprecated_option_names. None when the properties
+        # are not a Hash.
+        def deprecated_options(properties)
+          return {} unless properties.is_a?(Hash)
+
+          properties = properties.stringify_keys
+          CATEGORY_PROPERTIES.each_with_object({}) do |(key, category_class), found|
+            categories = properties[key.to_s]
+            next unless categories.is_a?(Array)
+
+            categories.each do |category|
+              next unless category.is_a?(Hash)
+
+              names = category_class.deprecated_option_names(category)
+              found[rocketjob_category_label(category_class, category_class.name_in(category))] = names unless names.empty?
+            end
+          end
+        end
+
+        # Returns [String] how the category of the supplied class and name is named, such as "input category main".
+        def rocketjob_category_label(category_class, name)
+          "#{category_class.name.demodulize.downcase} category #{name}"
+        end
+
         # Returns [Array<RocketJob::Category::Input|RocketJob::Category::Output>] new copies of the categories that a
         # new job of this class starts with, for the supplied property, `:input_categories` or `:output_categories`.
         # The input categories are `main` when the class does not define any.
@@ -173,6 +199,16 @@ module RocketJob
 
       def output_category?(category_name)
         !rocketjob_category_named(output_categories, category_name).nil?
+      end
+
+      # Returns [Hash<String, Array<String>>] the names of the deprecated options that the categories of this job hold,
+      # by category, such as `{"input category main" => ["allowed_columns"]}`, which each category decides, see
+      # RocketJob::Category::Base#deprecated_option_names.
+      def deprecated_options
+        (input_categories.to_a + output_categories.to_a).each_with_object({}) do |category, found|
+          names = category.deprecated_option_names
+          found[self.class.rocketjob_category_label(category.class, category.name)] = names unless names.empty?
+        end
       end
 
       def merge_input_categories(categories)
