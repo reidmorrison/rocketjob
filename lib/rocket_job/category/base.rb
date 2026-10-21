@@ -142,7 +142,40 @@ module RocketJob
         collection_name
       end
 
+      # Returns [Array<String>] the names of the deprecated options that this category sets, see
+      # .deprecated_column_options, and `format_options`, whose schema #schema_proposal proposes.
+      def deprecated_options_set
+        names = self.class.deprecated_column_options(attributes.to_h.stringify_keys)
+        names << "format_options" if format_options.present?
+        names
+      end
+
       private
+
+      # Returns [Hash] the supplied deprecated options, by name, set to their defaults, as a schema proposal sets them,
+      # see RocketJob::SchemaProposal#changes.
+      def default_settings(names)
+        names.to_h { |name| [name, self.class.fields[name].default_val] }
+      end
+
+      # Returns [Array] the schema of this category's fixed width layout, see #format_options, with String keys, as
+      # MongoDB stores it, and nil, or nil and why IOStreams cannot translate the layout, such as two columns with one
+      # key. The fields that the supplied columns leave out are skipped, which holds their place in each line.
+      def layout_schema(keep = nil)
+        layout = format_options.to_h.deep_symbolize_keys
+        schema = JSON.parse(JSON.generate(IOStreams::Schema.from_layout(**layout)))
+        if keep.present?
+          keep = keep.map(&:to_s)
+          schema["fields"] = schema["fields"].map do |field|
+            keep.include?(field["name"].to_s) ? field : field.slice("name", "width", "start").merge("skip" => true)
+          end
+          # 7.0 keyed the records of a layout narrowed to its columns by Strings, whatever the keys of the layout.
+          schema.delete("keyType")
+        end
+        [schema, nil]
+      rescue IOStreams::Errors::InvalidLayout, ArgumentError => e
+        [nil, "#{e.message} Write its schema by hand, see \"Moving a layout to a schema\" in IOStreams' upgrade guide"]
+      end
 
       # Returns [IOStreams::Tabular] that reads or writes the records of this category by its schema, see #schema,
       # reading the file that holds it when it is a path or url.

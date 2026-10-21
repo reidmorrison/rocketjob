@@ -5561,7 +5561,8 @@ before you upgrade to the next version:
    [Find the deprecated options that you use](#find-the-deprecated-options-that-you-use), and
    change what each warning reports, until none are left.
 3. Change the saved documents that still hold a deprecated option, such as Dirmon entries, scheduled
-   jobs and `UploadFileJob`s, since reading one back reports no warning.
+   jobs and `UploadFileJob`s, since reading one back reports no warning, see
+   [Propose the schema of each category](#propose-the-schema-of-each-category).
 4. Deploy, and only then upgrade to the next version.
 
 A minor release, such as v7.1, adds what replaces the options that the next major release removes,
@@ -5575,7 +5576,9 @@ v7.2 prepares an application for v8. Upgrade to v7.1 first, see
 [Upgrading to v7.1](#upgrading-to-v71). v7.2 reports a deprecation warning for each of the other
 options that v8 removes, and adds what replaces them. The deprecated options keep working. Its
 warnings are reported as v7.1 reports its own, see
-[Find the deprecated options that you use](#find-the-deprecated-options-that-you-use).
+[Find the deprecated options that you use](#find-the-deprecated-options-that-you-use), and
+`RocketJob::SchemaProposal` lists the saved documents that still hold an option that v8 removes, see
+[Propose the schema of each category](#propose-the-schema-of-each-category).
 
 ### Replace the :array upload mode
 
@@ -5594,6 +5597,49 @@ input_category format: :csv
 To also parse every line when the file is uploaded, so that a file with a problem is found before it
 is processed, give the category a schema and use the `:hash` mode, see
 [Upload modes with a schema](#upload-modes-with-a-schema).
+
+### Propose the schema of each category
+
+The warnings name the lines of code, but not the saved documents that hold a deprecated option, such
+as scheduled jobs, Dirmon entries and `UploadFileJob`s, since reading one back does not report a
+warning. `RocketJob::SchemaProposal` proposes the schema that replaces the deprecated options of each
+category, for both, and changes nothing. Run it from a console of the application, once its job
+classes are loaded, such as with `Rails.application.eager_load!`:
+
+~~~ruby
+puts RocketJob::SchemaProposal.report
+~~~
+
+It lists each job class that defines a category with a deprecated option, each saved job that can
+still run, and each Dirmon entry and `UploadFileJob` whose properties hold one, for example:
+
+~~~
+ImportJob, input category main
+  Set: allowed_columns: remove, skip_unknown: false
+  Set schema: {"fieldsMatch" => "partial", "fields" => [{"name" => "first_name"}, {"name" => "zip_code"}], "keyType" => "cleansed"}
+  Check: A name that 7.0 cleansed from a column with letters that are not ASCII lost them, ...
+~~~
+
+Each proposal reads the files as the options did in 7.0, which is not always what they say: options
+that 7.0 never applied, such as `allowed_columns` for JSON records, are removed rather than described
+in the schema, and the proposal says so. It also says what to check, and when it cannot translate a
+category, such as a layout with two columns that have one key, or a job that is already running, which
+should finish first. Columns that a scheduled job copied from the header row of an earlier upload are
+removed, rather than read as the columns of a file without a header row.
+
+Before applying a proposal, read a recent file of the job with it. `#dry_run` reads the first records
+of a file both ways, and lists what differs, such as a key that is no longer read:
+
+~~~ruby
+proposal = ImportJob.schema_proposals.first
+proposal.dry_run("/data/in/orders_20261020.csv")
+# => ["Record 1: keys no longer read: [\"prnom\"]"]
+~~~
+
+Then apply it by hand: in the job class, replace the deprecated options with the schema, and for a
+saved job, Dirmon entry or `UploadFileJob`, set the same in its category, or its properties. Mission
+Control 7.1 shows and sets the schema of a category, in the job and Dirmon entry forms. Mission
+Control 7.0 cannot, and saving a Dirmon entry in it rebuilds the entry's properties without one.
 
 ## Upgrading to v7.1
 

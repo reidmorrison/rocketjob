@@ -193,6 +193,27 @@ module RocketJob
           def from_properties(properties)
             new(properties)
           end
+
+          # Returns [Array<RocketJob::SchemaProposal>] the schemas proposed to replace the deprecated category options
+          # that this job class defines, see RocketJob::SchemaProposal. None for a job without categories. Overridden
+          # by batch.
+          def schema_proposals
+            []
+          end
+
+          # Returns [Array<RocketJob::SchemaProposal>] the schemas proposed to replace the deprecated options in the
+          # supplied properties of a job of this class, such as those that a Dirmon entry or an UploadFileJob holds,
+          # at the supplied place. None for a job without categories. Overridden by batch.
+          def property_schema_proposals(_properties, _where)
+            []
+          end
+        end
+
+        # Returns [Array<RocketJob::SchemaProposal>] the schemas proposed to replace the deprecated category options
+        # that this saved job holds, see RocketJob::SchemaProposal. None for a job without categories. Overridden by
+        # batch, and by a job that holds the properties of another job, such as an UploadFileJob.
+        def schema_proposals
+          []
         end
 
         # Returns [Float] the number of seconds the job has taken
