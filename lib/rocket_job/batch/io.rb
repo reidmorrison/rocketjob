@@ -109,7 +109,7 @@ module RocketJob
       # Example:
       #   # Load plain text records from a file, stripping all non-printable characters,
       #   # as well as any characters that cannot be converted to UTF-8
-      #   path = IOStreams.path('hello.csv').option(:encode, cleaner: :printable, replace: '')
+      #   path = IOStreams.path('hello.csv').encoding(cleaner: :printable, replace: '')
       #   job.upload(path)
       #
       # Example: Zip
@@ -120,11 +120,11 @@ module RocketJob
       #   job.upload('myfile.csv.zip.enc')
       #
       # Example: Explicitly set the streams
-      #   path = IOStreams.path('myfile.ze').stream(:encode, encoding: 'UTF-8').stream(:zip).stream(:enc)
+      #   path = IOStreams.path('myfile.ze').stream(:zip).stream(:enc).encoding('UTF-8')
       #   job.upload(path)
       #
       # Example: Supply custom options
-      #   path = IOStreams.path('myfile.csv.enc').option(:enc, compress: false).option(:encode, encoding: 'UTF-8')
+      #   path = IOStreams.path('myfile.csv.enc').option(:enc, compress: false).encoding('UTF-8')
       #   job.upload(path)
       #
       # Example: Read from a tempfile and use the original file name to determine which streams to apply
@@ -324,14 +324,16 @@ module RocketJob
           else
             raise(ArgumentError, "Unknown keyword argument :columns when uploading a file") if columns
 
+            rocketjob_warn_deprecated_upload_options(stream_mode, args)
             category = input_category(category)
 
-            # Extract the header line during the upload when applicable.
+            # The path sets the format of a category whose format is :auto, which decides whether the file has a
+            # header row to extract during the upload.
+            path           = category.upload_path(object, original_file_name: file_name)
             extract_header = category.extract_header_callback(on_first)
-            path = category.upload_path(object, original_file_name: file_name)
 
             input_collection.upload(on_first: extract_header, slice_batch_size: slice_batch_size) do |io|
-              path.each(stream_mode || :line, **args) { |line| io << line }
+              category.each_record(path, mode: stream_mode, **args) { |record| io << record }
             end
 
           end
@@ -392,6 +394,11 @@ module RocketJob
         count
       end
 
+      # The options that IOStreams reads a file with which describe its columns, and are deprecated, see
+      # RocketJob::Category::Input#schema.
+      DEPRECATED_UPLOAD_OPTIONS = %i[allowed_columns required_columns skip_unknown cleanse_header].freeze
+      private_constant :DEPRECATED_UPLOAD_OPTIONS
+
       # Download the output data into the supplied file, io, IOStreams::Path, or IOStreams::Stream.
       # Returns [Integer] the number of records / lines downloaded.
       #
@@ -417,7 +424,7 @@ module RocketJob
       #   job.download(path)
       #
       # Example: Supply custom options. Set the file name within the zip file.
-      #   path = IOStreams.path('myfile.csv.zip').option(:zip, zip_file_name: 'myfile.csv')
+      #   path = IOStreams.path('myfile.csv.zip').option(:zip, entry_file_name: 'myfile.csv')
       #   job.download(path)
       #
       # Example: Download into a tempfile, or stream, using the original file name to determine the streams to apply:
@@ -478,6 +485,24 @@ module RocketJob
             output_collection.download(header_line: header_line) { |record| io << record }
           end
         end
+      end
+
+      private
+
+      # Reports a deprecation warning, see RocketJob::Deprecation, at the line of the application that uploads a file
+      # with the :array `stream_mode`, or with options that describe the columns of the file, which the schema of the
+      # input category replaces.
+      def rocketjob_warn_deprecated_upload_options(stream_mode, args)
+        Category::Input.warn_array_mode(:stream_mode) if stream_mode.to_s == "array"
+
+        names = args.keys & DEPRECATED_UPLOAD_OPTIONS
+        return if names.empty?
+
+        RocketJob::Deprecation.warn(
+          "#{names.collect { |name| "#{name}:" }.join(', ')} #{names.size == 1 ? 'is' : 'are'} deprecated, describe " \
+          "the columns of the file with the schema: of the input category instead, see " \
+          "#{RocketJob::Deprecation::UPGRADE_GUIDE}"
+        )
       end
     end
   end

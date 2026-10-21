@@ -23,6 +23,7 @@ module RocketJob
   autoload :ActiveWorker,            "rocket_job/active_worker"
   autoload :Batch,                   "rocket_job/batch"
   autoload :CLI,                     "rocket_job/cli"
+  autoload :Deprecation,             "rocket_job/deprecation"
   autoload :DirmonEntry,             "rocket_job/dirmon_entry"
   autoload :Event,                   "rocket_job/event"
   autoload :Heartbeat,               "rocket_job/heartbeat"
@@ -31,6 +32,7 @@ module RocketJob
   autoload :LookupCollection,        "rocket_job/lookup_collection"
   autoload :Worker,                  "rocket_job/worker"
   autoload :Performance,             "rocket_job/performance"
+  autoload :SchemaProposal,          "rocket_job/schema_proposal"
   autoload :Server,                  "rocket_job/server"
   autoload :Sliced,                  "rocket_job/sliced"
   autoload :Subscriber,              "rocket_job/subscriber"
@@ -43,6 +45,7 @@ module RocketJob
   module Category
     autoload :Base,                  "rocket_job/category/base"
     autoload :Input,                 "rocket_job/category/input"
+    autoload :InputSchemaProposal,   "rocket_job/category/input_schema_proposal"
     autoload :Output,                "rocket_job/category/output"
   end
 

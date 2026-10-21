@@ -2,6 +2,16 @@ require_relative "../test_helper"
 
 module Batch
   class CategoryTest < Minitest::Test
+    class SchemaJob < RocketJob::Job
+      include RocketJob::Batch
+
+      input_category format: :csv
+
+      def perform(record)
+        record
+      end
+    end
+
     describe RocketJob::Category::Base do
       describe "#serializer_class" do
         let(:category) { RocketJob::Category::Input.new(name: :blah) }
@@ -32,6 +42,79 @@ module Batch
           category = RocketJob::Category::Input.new(name: :blah, serializer: :bz2)
 
           assert_equal RocketJob::Sliced::BZip2OutputSlice, category.serializer_class
+        end
+      end
+
+      describe "#schema" do
+        let(:schema) { {"fields" => [{"name" => "name"}, {"name" => "age", "type" => "integer"}]} }
+
+        it "is valid as a Hash" do
+          category = RocketJob::Category::Input.new(format: :csv, schema: schema)
+
+          assert_predicate category, :valid?
+        end
+
+        it "is valid as the path or url of a JSON file, which is not read" do
+          category = RocketJob::Category::Input.new(format: :csv, schema: "/no/such/schema.json")
+
+          assert_predicate category, :valid?
+        end
+
+        it "is not valid when the Hash is not a schema" do
+          category = RocketJob::Category::Input.new(format: :csv, schema: {"fields" => "name"})
+
+          refute_predicate category, :valid?
+          assert_match(/Schema is not valid/, category.errors.full_messages.first)
+        end
+
+        it "is not valid when it is not a Hash or a String" do
+          category = RocketJob::Category::Input.new(format: :csv, schema: 12)
+
+          refute_predicate category, :valid?
+          assert_equal ["Schema must be a Hash, or the path or url of a JSON file"], category.errors.full_messages
+        end
+
+        it "needs a format" do
+          category = RocketJob::Category::Input.new(schema: schema)
+
+          refute_predicate category, :valid?
+          assert_equal ["Schema needs a format, such as :csv, or :auto to take it from the file name"],
+                       category.errors.full_messages
+        end
+
+        it "cannot be set with format_options" do
+          category = RocketJob::Category::Output.new(
+            format:         :fixed,
+            schema:         schema,
+            format_options: {"layout" => [{"size" => 5, "key" => "name"}]}
+          )
+
+          refute_predicate category, :valid?
+          assert_equal ["Schema replaces format_options, which cannot be set with it"], category.errors.full_messages
+        end
+
+        it "builds the tabular from the schema, again once it is set" do
+          category = RocketJob::Category::Output.new(format: :csv, columns: %w[a b])
+
+          assert_equal "a,b", category.tabular.render_header
+
+          category.columns = nil
+          category.schema  = schema
+
+          assert_equal "name,age", category.tabular.render_header
+          assert_equal "Jack,21", category.tabular.render({"name" => "Jack", "age" => 21})
+        end
+
+        it "is kept when the job is saved and read back" do
+          job = Batch::CategoryTest::SchemaJob.new
+          job.input_category.schema = {fields: [{name: "name"}]}
+          job.save!
+          job = RocketJob::Job.find(job.id)
+
+          assert_equal({"fields" => [{"name" => "name"}]}, job.input_category.schema)
+          assert_predicate job, :valid?
+        ensure
+          job&.destroy
         end
       end
 

@@ -3,6 +3,40 @@ require_relative "../test_helper"
 module Batch
   class CategoryTest < Minitest::Test
     describe RocketJob::Category::Input do
+      describe "#schema" do
+        let(:schema) { {"fields" => [{"name" => "name"}]} }
+
+        it "cannot be set with the options that describe the columns without one" do
+          category = RocketJob::Category::Input.new(
+            format:           :csv,
+            schema:           schema,
+            allowed_columns:  %w[name],
+            required_columns: %w[name],
+            skip_unknown:     true,
+            header_cleanser:  :none
+          )
+
+          refute_predicate category, :valid?
+          assert_equal [
+            "Schema replaces allowed_columns, required_columns, skip_unknown, and header_cleanser, which cannot be " \
+            "set with it"
+          ], category.errors.full_messages
+        end
+
+        it "can be set with the default skip_unknown and header_cleanser, and with the columns of its header row" do
+          category = RocketJob::Category::Input.new(format: :csv, schema: schema, columns: %w[Name])
+
+          assert_predicate category, :valid?
+        end
+
+        it "cannot be set with the :array mode" do
+          category = RocketJob::Category::Input.new(format: :csv, schema: schema, mode: :array)
+
+          refute_predicate category, :valid?
+          assert_equal ["Mode cannot be :array with a schema, use :line or :hash"], category.errors.full_messages
+        end
+      end
+
       describe "#cleanse_header!" do
         it "cleanses the header when cleanse_header is true" do
           category = RocketJob::Category::Input.new(columns: ["Name", "Address One", "zip code"])

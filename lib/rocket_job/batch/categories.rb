@@ -29,6 +29,7 @@ module RocketJob
         # Define a new input category
         # @see RocketJob::Category::Input
         def input_category(**args)
+          RocketJob::Category::Input.warn_deprecated_options(args)
           category = RocketJob::Category::Input.new(**args)
           if defined_input_categories.nil?
             self.defined_input_categories = [category]
@@ -40,6 +41,7 @@ module RocketJob
         # Define a new output category
         # @see RocketJob::Category::Output
         def output_category(**args)
+          RocketJob::Category::Output.warn_deprecated_options(args)
           category = RocketJob::Category::Output.new(**args)
           if defined_output_categories.nil?
             self.defined_output_categories = [category]
@@ -62,7 +64,70 @@ module RocketJob
           job
         end
 
+        # Returns [Array<RocketJob::SchemaProposal>] the schemas proposed to replace the deprecated options of the
+        # categories that this job class defines, rather than inherits, see RocketJob::Category::Input#schema_proposal.
+        def schema_proposals
+          inherited = superclass.respond_to?(:defined_input_categories) ? rocketjob_categories_of(superclass) : []
+          rocketjob_categories_of(self).filter_map do |category|
+            next if inherited.any? { |parent| parent.equal?(category) }
+
+            category.schema_proposal("#{name}, #{rocketjob_category_label(category)}")
+          end
+        end
+
+        # Returns [Array<RocketJob::SchemaProposal>] the schemas proposed to replace the deprecated options in the
+        # supplied properties of a job of this class, such as those that a Dirmon entry or an UploadFileJob holds, at
+        # the supplied place. Each is proposed for the category that the properties build, with the job class's own
+        # settings.
+        def property_schema_proposals(properties, where)
+          properties = properties.to_h.stringify_keys
+          {"input_categories" => RocketJob::Category::Input, "output_categories" => RocketJob::Category::Output}.flat_map do |key, klass|
+            Array(properties[key]).filter_map do |category_properties|
+              next unless category_properties.is_a?(Hash)
+
+              category_properties = category_properties.stringify_keys
+              next if rocketjob_deprecated_properties(klass, category_properties).empty?
+
+              category = rocketjob_category_from(klass, category_properties)
+              category.schema_proposal("#{where}, #{rocketjob_category_label(category)}, in its properties")
+            end
+          end
+        end
+
+        # Returns [String] how a category is named in a proposal, such as "input category main".
+        def rocketjob_category_label(category)
+          "#{category.class.name.demodulize.downcase} category #{category.name}"
+        end
+
+        # Returns [RocketJob::Category::Input|RocketJob::Category::Output] the category of the supplied class that a job
+        # of this class starts with, by the name of the supplied category, see #rocketjob_categories_assign.
+        def rocketjob_defined_category(category)
+          defined = category.is_a?(RocketJob::Category::Input) ? defined_input_categories : defined_output_categories
+          defined&.find { |candidate| candidate.name == category.name }
+        end
+
         private
+
+        def rocketjob_categories_of(klass)
+          [*klass.defined_input_categories, *klass.defined_output_categories]
+        end
+
+        def rocketjob_deprecated_properties(klass, properties)
+          names = klass.deprecated_column_options(properties)
+          names << "format_options" if properties["format_options"].present?
+          names << "mode" if klass == RocketJob::Category::Input && properties["mode"].to_s == "array"
+          names
+        end
+
+        # Returns the category that the supplied properties build for a job of this class, from its own category of
+        # that name, see #merge_input_categories, without reporting a deprecation warning.
+        def rocketjob_category_from(klass, properties)
+          name     = (properties["name"] || :main).to_sym
+          defined  = klass == RocketJob::Category::Input ? defined_input_categories : defined_output_categories
+          category = defined&.find { |candidate| candidate.name == name }&.deep_dup || klass.new(name: name)
+          properties.each_pair { |key, value| category.public_send(:"#{key}=", value) }
+          category
+        end
 
         def rocketjob_categories_set(category, categories)
           index = categories.find_index { |cat| cat.name == category.name }
@@ -120,27 +185,62 @@ module RocketJob
         false
       end
 
+      # Returns [Array<RocketJob::SchemaProposal>] the schemas proposed to replace the deprecated options of this saved
+      # job's categories, see RocketJob::Category::Input#schema_proposal. A job that is running, paused or failed has
+      # uploaded its input with them, so it is only told to finish first.
+      def schema_proposals
+        where     = "#{self.class.name} #{id} (#{state})"
+        proposals = (input_categories.to_a + output_categories.to_a).filter_map do |category|
+          label = "#{where}, #{self.class.rocketjob_category_label(category)}"
+          next category.schema_proposal(label) unless category.is_a?(RocketJob::Category::Input)
+
+          # A job keeps the count of the records that it uploaded, which a scheduled job's next run does not copy.
+          defined = self.class.rocketjob_defined_category(category) || RocketJob::Category::Input.new(name: category.name)
+          category.schema_proposal(label, defined: defined, uploaded: record_count.to_i.positive?)
+        end
+        return proposals if queued? || proposals.empty?
+
+        [
+          RocketJob::SchemaProposal.new(
+            where: where,
+            notes: ["It holds deprecated category options, with which it has already uploaded its input. Let it " \
+                    "finish, or abort it, before upgrading to Rocket Job 8, rather than change it."]
+          )
+        ]
+      end
+
+      # Sets the supplied properties of each input category on it, such as those that a Dirmon entry or an
+      # UploadFileJob holds, and reports a deprecation warning for a deprecated option among them, see
+      # Category::Base.warn_deprecated_options.
       def merge_input_categories(categories)
         return if categories.blank?
 
         categories.each do |properties|
           category_name = (properties["name"] || properties[:name] || :main).to_sym
           category      = input_category(category_name)
-          properties.each { |key, value| category.public_send(:"#{key}=", value) }
+          rocketjob_categories_merge(category, properties)
         end
       end
 
+      # Sets the supplied properties of each output category on it, see #merge_input_categories.
       def merge_output_categories(categories)
         return if categories.blank?
 
         categories.each do |properties|
           category_name = (properties["name"] || properties[:name] || :main).to_sym
           category      = output_category(category_name)
-          properties.each { |key, value| category.public_send(:"#{key}=", value) }
+          rocketjob_categories_merge(category, properties)
         end
       end
 
       private
+
+      # Sets the supplied properties on the category, after reporting a deprecation warning for a deprecated option
+      # among them, which includes the category's schema, since an input category's columns are not deprecated with one.
+      def rocketjob_categories_merge(category, properties)
+        category.class.warn_deprecated_options(category.attributes.slice("schema").merge(properties.to_h.stringify_keys))
+        properties.each { |key, value| category.public_send(:"#{key}=", value) }
+      end
 
       def rocketjob_categories_assign
         # Input categories defaults to :main if none was set in the class
@@ -180,18 +280,9 @@ module RocketJob
         return if row.nil?
 
         category = input_category
-        return row if category.nil? || !category.tabular?
-        return nil if row.blank?
+        return row if category.nil?
 
-        tabular = category.tabular
-
-        # Return the row as-is if the required header has not yet been set.
-        if tabular.header?
-          raise(ArgumentError,
-                "The tabular header columns _must_ be set before attempting to parse data that requires it.")
-        end
-
-        tabular.record_parse(row)
+        category.parse(row)
       end
 
       def rocketjob_categories_output_render_row(row)

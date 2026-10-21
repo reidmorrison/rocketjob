@@ -3,6 +3,83 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [7.1.0] Unreleased
+
+7.1 prepares applications for Rocket Job 8: it adds the settings that replace those that v8 removes, and reports a
+deprecation warning where an application uses one of those, so that it can move to them before it upgrades. It changes
+no existing behavior: a job that does not use what is new reads and writes its files as in v7.0.
+
+Upgrade one version at a time: move to 7.1, fix each deprecation warning that it reports, and only then upgrade to 8.
+See [Upgrading to v7.1](https://rocketjob.reidmorrison.com/upgrading.html#upgrading-to-v71).
+
+### Changed
+
+- Require IOStreams 2.2, which adds the schemas that describe the files of a category, and reports deprecation
+  warnings for what IOStreams 3.0 removes. Rocket Job 7.0 also runs on IOStreams 2.2 unchanged.
+- An upload of a path whose streams the application set with `#stream`, such as
+  `IOStreams.path("data").stream(:gz)`, into a category with a format reads the file. Previously the encode stream
+  that removes non-printable characters was applied to the bytes as they are stored, before the other streams, so the
+  upload raised, such as `Zlib::GzipFile::Error`, or read the wrong text.
+- Rocket Job no longer uses what IOStreams 2.2 deprecates, so it reports no IOStreams deprecation warning of its own:
+  tabular uploads remove non-printable characters with `#encoding` rather than `option(:encode)`, with the same
+  results, `CopyFileJob` reads and writes a file as it is stored with `#raw` rather than `stream(:none)`, which its
+  `source_streams` and `target_streams` still default to, and a category checks its `format` against
+  `IOStreams.tabular_formats`.
+
+### New features
+
+- A category's `schema` describes the fields of its files, and the type of each one, as a
+  [Frictionless Table Schema](https://datapackage.org/standard/table-schema/), as a Hash, or as the path or url of a
+  JSON file, which is read when the category is first used. Records are read as typed values, such as an Integer, a
+  BigDecimal or a Date, keyed by the names of the fields, and written in the text form of each type, for every tabular
+  format. The schema gives the width of each field of a fixed width file, describes a file without a header row with
+  `"header": false`, and says which columns a file can have with `fieldsMatch`, and must have with
+  `constraints: {required: true}`. The columns of a header row are matched to the fields whatever their case, spaces
+  and punctuation, and a header row that does not match raises `IOStreams::Errors::InvalidHeader` during the upload.
+  An input category with a schema reads the text of its files as UTF-8, keeping letters that are not ASCII, and raises
+  `IOStreams::Errors::InvalidEncoding` for text that is not valid UTF-8. It uploads the lines of the file in the `:line`
+  and `:hash` modes, which the workers parse, so that `perform` receives a `date` as a Date, and in `:hash` mode it also
+  parses every line during the upload. Its `columns` hold the header row of the file uploaded, as it is in the file,
+  read again by each upload, such as that of a job scheduled again. A category with a schema needs a `format`, and
+  cannot be set with the options that it replaces: `format_options`, the `columns` of an output category, and the
+  `allowed_columns`, `required_columns`, `skip_unknown`, `header_cleanser` and `:array` mode of an input category.
+  Without a schema, files are read and written as before. See "Typed values with a schema" in the batch guide.
+- `RocketJob::SchemaProposal.report` proposes the schema that replaces the deprecated options of each category of the
+  job classes that are loaded, the saved jobs that can still run, and the Dirmon entries and `UploadFileJob`s whose
+  properties hold them, and changes nothing. Each proposal reads the files as the options did in 7.0, which is not
+  always what they say: options that 7.0 never applied, such as `allowed_columns` for JSON records, are removed
+  rather than described in the schema. It says what to check, such as a name that 7.0 cleansed without its non-ASCII
+  letters, and what it cannot translate. `#dry_run` reads the first records of a recent file with the category as it
+  is, and with the proposal, and lists what differs. See "Propose the schema of each category" in the upgrade guide.
+
+### Deprecated
+
+These still work as in 7.0, and will be removed in Rocket Job 8. Rocket Job reports a Ruby deprecation warning, at
+the line of the application, for each one that a job class defines a category with, that a Dirmon entry or an
+`UploadFileJob` builds a job with, or that is passed to `upload`. The warnings are only reported while Ruby's
+deprecation warnings are on, such as in tests run by Minitest, so production stays quiet. A job read back from the
+database does not report one. See the upgrade guide.
+
+- A category's `format_options`, replaced by its `schema`, which gives the width of each field of a fixed width file.
+- The options that describe the columns of a file, replaced by the category's `schema`: an input category's
+  `allowed_columns`, `required_columns`, `skip_unknown` and `header_cleanser`, and the `columns` of a file without a
+  header row, or of an output category. The same options passed to `upload`, such as `allowed_columns:`, are
+  deprecated too. With a schema, an input category's `columns` hold the header row read from the file, which is not
+  deprecated.
+- An input category's `mode: :array`, and the `stream_mode: :array` of `upload`. Use the default `:line` mode, or,
+  with a schema, `:hash` to also parse every line when the file is uploaded. Without a schema, a category whose files
+  have a header row, such as CSV, cannot be uploaded in the `:hash` mode.
+
+### Fixes
+
+- An upload of a tabular file that starts with blank lines, such as a CSV file, skips them and reads the header row
+  after them, as IOStreams does when it reads the header row itself. Previously the first blank line was taken as the
+  header row, so the header row was uploaded as a record, and every slice then failed, since the job had no columns.
+  The `on_first` lambda is called with the header row.
+- An input category with `format: :auto` uploads the first record of a JSON or fixed width file. Previously it was
+  dropped, as though it were a header row, since the upload checked for a header row before it took the format from
+  the file name, so `record_count` was one short.
+
 ## [7.0.0] 2026-09-05
 
 ### Breaking changes

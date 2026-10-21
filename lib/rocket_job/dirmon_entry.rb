@@ -215,6 +215,16 @@ module RocketJob
       end
     end
 
+    # Returns [Array<RocketJob::SchemaProposal>] the schemas proposed to replace the deprecated category options in the
+    # properties of this entry, which its job class proposes, see
+    # RocketJob::Batch::Categories::ClassMethods#property_schema_proposals. None when its job class is not loaded.
+    def schema_proposals
+      klass = job_class
+      return [] unless klass && properties.is_a?(Hash)
+
+      klass.property_schema_proposals(properties, "Dirmon entry #{name.inspect} #{id}")
+    end
+
     # Returns the Job to be created.
     def job_class
       return if job_class_name.nil?

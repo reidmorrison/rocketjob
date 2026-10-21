@@ -425,17 +425,158 @@ TabularJob.new.tap { |j| j.upload("really_big.xlsx") }.save!
 TabularJob.new.tap { |j| j.upload("really_big.json") }.save!
 ~~~
 
-### Validating columns
+### Typed values with a schema
 
-When a tabular `input_category` has `allowed_columns`, `required_columns`, or `skip_unknown` set,
-Rocket Job validates the header during upload, so a malformed file is rejected before any worker runs:
+Set `schema` on a category to read each value as its type, instead of as text. A schema is a
+[Frictionless Table Schema](https://datapackage.org/standard/table-schema/) that lists each field and
+its type, such as `integer`, `number` (a `BigDecimal`), `date`, `datetime` or `boolean`. IOStreams
+reads and writes it, see [Schema](https://iostreams.reidmorrison.com/formats.html#schema). Schemas
+are new in Rocket Job 7.1, and are how Rocket Job 8 describes every tabular file.
 
 ~~~ruby
+class PeopleJob < RocketJob::Job
+  include RocketJob::Batch
+
+  input_category format: :csv,
+                 schema: {
+                   "fields" => [
+                     {"name" => "name", "type" => "string"},
+                     {"name" => "age", "type" => "integer"},
+                     {"name" => "balance", "type" => "number"},
+                     {"name" => "joined", "type" => "date"}
+                   ]
+                 }
+
+  def perform(record)
+    # record is a Hash of typed values, for example:
+    # { "name" => "Jack", "age" => 21, "balance" => BigDecimal("12.5"), "joined" => Date.new(2026, 10, 13) }
+  end
+end
+~~~
+
+A category with a schema needs a `format`, such as `:csv`, or `:auto` to take it from the file name.
+A value that is not of its type, such as `N/A` in an `integer` field, fails its record with
+`IOStreams::Errors::InvalidValue`.
+
+The text of a file with a schema is read as UTF-8, so letters that are not ASCII, such as `José`, are
+kept, and text that is not valid UTF-8 raises `IOStreams::Errors::InvalidEncoding` during the
+upload, which then uploads nothing. An encoding set on the path that is uploaded is used instead.
+Without a schema, a tabular upload removes non-printable characters, and every character that is not
+ASCII, as before.
+
+The schema also describes the file:
+
+* **Fixed width files** give the `width` of each field in the schema:
+
+  ~~~ruby
+  input_category format: :fixed,
+                 schema: {
+                   "fields" => [
+                     {"name" => "name", "type" => "string", "width" => 10},
+                     {"name" => "zip", "type" => "integer", "width" => 5}
+                   ]
+                 }
+  ~~~
+
+* **A file without a header row** is described with `"header" => false`: its columns are the fields,
+  in order.
+* **A schema kept in a file** is set as the path or url of its JSON, such as
+  `schema: "s3://bucket/schemas/people.json"`. It is read when the category is first used, so the file
+  must be available to every server that runs the job.
+
+With a schema the upload stores the lines of the file, which the workers parse, so `perform` receives
+each value as its type, such as a `Date`. In the `:hash` mode each line is also parsed during the
+upload, so that a file with a value that is not valid is rejected before any worker runs. The
+`:array` mode cannot be used with a schema.
+
+### Matching columns to the fields of a schema
+
+The schema also says which columns a file can have and must have. Each column of the header row is
+matched to a field by its name, or one of its `aliases`, whatever its case, spaces and punctuation,
+so `First Name`, `first_name` and `FIRST.NAME` are the same column. The keys of each record are the
+names of the fields, however the file names its columns.
+
+`fieldsMatch` says which columns a file can have:
+
+| `fieldsMatch` | The columns of the file
+|:--------------|:-----------------------
+| `"exact"`     | Are the fields, in the same order. The default.
+| `"equal"`     | Are the fields, in any order.
+| `"subset"`    | Include every field. Other columns are skipped.
+| `"superset"`  | Are all fields, but a field can be missing.
+| `"partial"`   | Include at least one field. Other columns are skipped.
+
+A field with `"constraints" => {"required" => true}` must be one of the columns, whatever the
+`fieldsMatch`, and must have a value in every record, unless it also has `"allowBlank" => true`:
+
+~~~ruby
+input_category format: :csv,
+               schema: {
+                 "fieldsMatch" => "partial",
+                 "fields"      => [
+                   {"name" => "login", "constraints" => {"required" => true}},
+                   {"name" => "last_login", "type" => "datetime"},
+                   {"name" => "name"},
+                   {"name" => "state", "aliases" => ["Province", "Region"]}
+                 ]
+               }
+~~~
+
+A header row is checked during the upload, so a file whose columns do not match the schema raises
+`IOStreams::Errors::InvalidHeader` and uploads nothing, before any worker runs. Each upload reads the
+header row of its own file, which the input category holds in its `columns`, as it is in the file.
+
+### Validating columns
+
+A schema validates the columns of a file during upload, see
+[Matching columns to the fields of a schema](#matching-columns-to-the-fields-of-a-schema), so a
+malformed file is rejected before any worker runs.
+
+Before 7.1 the columns of an input category were validated with the options below. They are
+deprecated in 7.1, and will be removed in Rocket Job 8: they still work without a schema, a category
+cannot set them with one, and a job class that defines a category with one reports a deprecation
+warning, see the [upgrade guide](upgrading.html#upgrading-to-v71).
+
+~~~ruby
+# Deprecated
 input_category format:           :csv,
                allowed_columns:  %w[login last_login name state],
                required_columns: %w[login],
                skip_unknown:     true
 ~~~
+
+The schema property that replaces each one:
+
+| Option                                      | With a schema
+|:--------------------------------------------|:-------------
+| `header_cleanser: :default`, the default    | `"keyType" => "cleansed"`, so that the keys of each record are cleansed, as before.
+| `allowed_columns`                           | `"fieldsMatch" => "superset"`, which accepts a file without some of the fields, as `allowed_columns` does, or `"equal"` when `required_columns` lists every allowed column.
+| `allowed_columns` with `skip_unknown: true` | `"fieldsMatch" => "partial"`, which accepts a file without some of the fields, as `allowed_columns` does, or `"subset"` when `required_columns` lists every allowed column.
+| `required_columns` with `allowed_columns`   | `"constraints" => {"required" => true}` with `"allowBlank" => true` on each required field, which needs the column but not a value, as `required_columns` did. Without `allowBlank`, a blank value raises too.
+| `required_columns` alone                    | A field for each of them, with `"constraints" => {"required" => true}` and `"allowBlank" => true`, and `"fieldsMatch" => "subset"` with `"extraColumns" => "keep"`, which keeps the other columns of the file, after the fields, as `required_columns` did.
+| `header_cleanser: :none`                    | `"fieldsMatch" => "subset"`, `"extraColumns" => "keep"` and `"fields" => []`, which keeps every column, named as it is in the file, without `keyType`.
+| `columns`, for a file without a header row  | `"header" => false`, with a field for each column, in order, named as the column was, without `keyType`. A `nil` column is a field with `"skip" => true`, which holds its place.
+| `format_options` with a fixed width layout  | The `width` of each field, and `"keyType" => "symbol"` when the keys of the layout are Symbols.
+
+7.0 did not apply `allowed_columns`, `required_columns` or `skip_unknown` in three cases, so leave them
+out of the schema there, rather than describe them, or the schema starts rejecting or dropping columns
+that 7.0 kept:
+
+* to JSON records, which keep every key, as they are named,
+* to `columns` supplied for a file without a header row, and
+* with `header_cleanser: :none`.
+
+With `format: :auto` they applied to a CSV or PSV file but not to a JSON file, which one schema cannot
+do, so choose what each kind of file needs.
+
+Without a schema, the restrictions are compared to the column names after they are cleansed, and the
+keys of each record are the cleansed column names. So to keep the keys that a job reads, name each
+field as the column was cleansed, which is how `allowed_columns` and `required_columns` already name
+them, such as `last_login` for the column `Last Login`: the schema matches the column to that field.
+A schema cleanses a column whose name has letters that are not ASCII differently: 7.0 removed them, so
+`Prénom` was `prnom`, while a schema keeps them, `prénom`. A field named `prnom` no longer matches that
+column, and `"partial"`, `"subset"` and `"superset"` then skip it without an error, so rename such a
+field, `prnom` to `prénom`, and read a recent file with the schema before using it.
 
 ## Writing tabular files
 
@@ -473,32 +614,73 @@ jbloggs,2019-02-11 05:43:20
 kadams,2019-01-12 01:20:20
 ~~~
 
+`columns` is deprecated in 7.1, and will be removed in Rocket Job 8. With a schema instead, each
+value is written in the text form of its type, and the header row is the names of the fields:
+
+~~~ruby
+output_category format: :csv,
+                schema: {
+                  "fields" => [
+                    {"name" => "login"},
+                    {"name" => "last_login", "type" => "datetime"}
+                  ]
+                }
+~~~
+
+~~~csv
+login,last_login
+jbloggs,2019-02-11T05:43:20Z
+kadams,2019-01-12T01:20:20Z
+~~~
+
+By default a key of the hash that is not a field of the schema raises
+`IOStreams::Errors::InvalidHeader`, so a misspelled key is not silently left out. With
+`"fieldsMatch" => "subset"` the other keys are skipped instead.
+
 ### Filtering output columns
 
-Rocket Job only writes the columns listed in `columns`, so `perform` can return a full attribute
-hash and let the category select which columns to export. The same job can then export different
-columns on different runs:
+With `"fieldsMatch" => "subset"` Rocket Job only writes the fields of the schema, so `perform` can
+return a full attribute hash and let the category select which fields to export. The same job can then
+export different fields on different runs:
 
 ~~~ruby
 class ExportUsersJob < RocketJob::Job
   include RocketJob::Batch
 
-  output_category format: :csv, columns: ["login", "last_login"]
+  output_category format: :csv,
+                  schema: {
+                    "fieldsMatch" => "subset",
+                    "fields"      => [
+                      {"name" => "login"},
+                      {"name" => "last_login", "type" => "datetime"}
+                    ]
+                  }
 
   def perform(login)
-    # Return all attributes; only the configured columns are written
+    # Return all attributes; only the fields of the schema are written
     User.find_by(login: login).attributes
   end
 end
 ~~~
 
-Override the columns per instance to widen or narrow the export:
+Override the schema per instance to widen or narrow the export:
 
 ~~~ruby
 job = ExportUsersJob.new
-job.output_category.columns = ["login", "last_login", "name", "state"]
+job.output_category.schema = {
+  "fieldsMatch" => "subset",
+  "fields"      => [
+    {"name" => "login"},
+    {"name" => "last_login", "type" => "datetime"},
+    {"name" => "name"},
+    {"name" => "state"}
+  ]
+}
 job.save!
 ~~~
+
+Before 7.1 the columns to write were listed in the deprecated `columns`, such as
+`output_category format: :csv, columns: ["login", "last_login"]`, which still works without a schema.
 
 ### Single output file via after_batch
 

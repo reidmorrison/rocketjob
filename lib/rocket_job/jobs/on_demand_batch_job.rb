@@ -108,6 +108,27 @@ module RocketJob
         output_categories << RocketJob::Category::Output.new(**args)
       end
 
+      # The names of the deprecated category and upload options, see RocketJob::Category::Base#schema, which its code
+      # can set, see #schema_proposals.
+      DEPRECATED_CODE =
+        /\b(format_options|allowed_columns|required_columns|skip_unknown|header_cleanser|cleanse_header)\b|mode:\s*:array/
+      private_constant :DEPRECATED_CODE
+
+      # Returns [Array<RocketJob::SchemaProposal>] the schemas proposed for this job's categories, see
+      # RocketJob::Batch::Categories#schema_proposals, and a note when its code names a deprecated option, which a
+      # proposal cannot translate.
+      def schema_proposals
+        proposals = super
+        names     = %w[code before_code after_code].select { |name| public_send(name).to_s.match?(DEPRECATED_CODE) }
+        return proposals if names.empty?
+
+        proposals << RocketJob::SchemaProposal.new(
+          where: "#{self.class.name} #{id} (#{state})",
+          notes: ["Its #{names.join(', ')} #{names.size == 1 ? 'names' : 'name'} a deprecated category or upload " \
+                  "option, which needs to be changed by hand."]
+        )
+      end
+
       private
 
       def load_perform_code

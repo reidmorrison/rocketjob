@@ -47,6 +47,16 @@ module RocketJob
         raise(e)
       end
 
+      # Returns [Array<RocketJob::SchemaProposal>] the schemas proposed to replace the deprecated category options in
+      # the properties of the job that this job creates, which that job class proposes, see
+      # RocketJob::Batch::Categories::ClassMethods#property_schema_proposals. None when its job class is not loaded.
+      def schema_proposals
+        klass = job_class
+        return [] unless klass && properties.is_a?(Hash)
+
+        klass.property_schema_proposals(properties, "UploadFileJob #{id} (#{state})")
+      end
+
       private
 
       def job_class
