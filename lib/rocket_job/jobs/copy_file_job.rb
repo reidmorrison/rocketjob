@@ -51,6 +51,8 @@ module RocketJob
       validates_presence_of :source_url, unless: :source_data
       validates_presence_of :target_url
       validates_presence_of :source_data, unless: :source_url
+      validate :source_path_is_valid, if: -> { source_url && path_changed?(:source) }
+      validate :target_path_is_valid, if: -> { target_url && path_changed?(:target) }
 
       before_save :set_description
 
@@ -76,7 +78,66 @@ module RocketJob
         target
       end
 
+      # Returns [Hash] the attributes to show, see RocketJob::Plugins::Job::Model#display_attributes, with the secrets
+      # in the arguments and streams of the source and target replaced, such as an SFTP password or a PGP passphrase.
+      # IOStreams decides which are secret, from the kind of path of each url.
+      def display_attributes
+        attrs = super
+        %w[source target].each do |side|
+          args    = attrs["#{side}_args"]
+          streams = attrs["#{side}_streams"]
+          attrs["#{side}_args"]    = IOStreams.redact_path_options(self["#{side}_url"].to_s, args) if args.is_a?(Hash)
+          attrs["#{side}_streams"] = IOStreams.redact_stream_options(streams) if streams.is_a?(Hash)
+        end
+        attrs
+      end
+
       private
+
+      def source_path_is_valid
+        validate_path(:source)
+      end
+
+      def target_path_is_valid
+        validate_path(:target)
+      end
+
+      # Whether the url, arguments or streams of the source or target are new or changed, so that a job whose path
+      # was valid when it was created, can still be saved, for example when it fails.
+      def path_changed?(side)
+        new_record? || %w[url args streams].any? { |name| attribute_changed?("#{side}_#{name}") }
+      end
+
+      # Builds the path of the source or target, so that IOStreams checks its url, the names of its arguments and its
+      # streams. Encrypted arguments are not decrypted, nor secrets fetched, since their values are not used.
+      # The url is not included in an error message, since it can include credentials.
+      def validate_path(side)
+        url = public_send("#{side}_url")
+        begin
+          path = IOStreams.path(url)
+        rescue StandardError
+          errors.add(:"#{side}_url", "is not a valid url")
+          return
+        end
+
+        begin
+          path = IOStreams.path(url, **arg_names(public_send("#{side}_args")))
+        rescue ArgumentError => e
+          errors.add(:"#{side}_args", e.message)
+          return
+        end
+
+        public_send("#{side}_streams").each_pair do |stream, args|
+          path.stream(stream.to_sym, **(args.nil? ? {} : arg_names(args)))
+        end
+      rescue ArgumentError => e
+        errors.add(:"#{side}_streams", e.message)
+      end
+
+      # Returns [Hash] the arguments with the names that #decode_args supplies to IOStreams, and their values as stored.
+      def arg_names(args)
+        args.to_h { |key, value| [key.to_s.sub(/\A(encrypted|secret_config)_/, "").to_sym, value] }
+      end
 
       def set_description
         return if description || target_url.nil?
