@@ -53,6 +53,21 @@ class DeprecationTest < Minitest::Test
       end
     end
 
+    describe ".enabled?" do
+      it "says whether deprecation warnings are on" do
+        previous             = Warning[:deprecated]
+        Warning[:deprecated] = true
+
+        assert_predicate RocketJob::Deprecation, :enabled?
+
+        Warning[:deprecated] = false
+
+        refute_predicate RocketJob::Deprecation, :enabled?
+      ensure
+        Warning[:deprecated] = previous
+      end
+    end
+
     describe "a category defined with a deprecated option" do
       it "warns at the line of the job class that defines it" do
         line     = __LINE__ + 2
