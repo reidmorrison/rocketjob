@@ -49,9 +49,14 @@ class RocketJobTest < Minitest::Test
         assert_equal "sftp://sftp.example.org/in/file.csv", RocketJob.path_display_name(path)
       end
 
+      it "leaves out a password that holds an @" do
+        assert_equal "sftp://sftp.example.org/in/file.csv",
+                     RocketJob.path_display_name("sftp://user:p@ss@sftp.example.org/in/file.csv")
+      end
+
       it "leaves out a path that is not valid, since its credentials cannot be found" do
         assert_equal RocketJob::INVALID_PATH_DISPLAY_NAME,
-                     RocketJob.path_display_name("sftp://user:p@ss@sftp.example.org/in/file.csv")
+                     RocketJob.path_display_name("sftp://user:secret@sftp.example.org:port/in/file.csv")
       end
 
       it "leaves out a path that needs a gem that is not installed" do
