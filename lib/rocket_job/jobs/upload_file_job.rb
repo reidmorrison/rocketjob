@@ -57,6 +57,15 @@ module RocketJob
         klass.property_schema_proposals(properties, "UploadFileJob #{id} (#{state})")
       end
 
+      # Returns [Hash] the attributes to show, see RocketJob::Plugins::Job::Model#display_attributes, with the paths
+      # in the properties shown without any credentials. The job class decides which of its properties are paths.
+      def display_attributes
+        attrs = super
+        klass = job_class
+        attrs["properties"] = klass.display_properties(attrs["properties"]) if klass && attrs["properties"].is_a?(Hash)
+        attrs
+      end
+
       private
 
       def job_class
