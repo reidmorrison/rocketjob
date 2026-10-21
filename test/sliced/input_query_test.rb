@@ -105,8 +105,13 @@ module Sliced
       end
 
       describe "#upload_arel" do
+        # Whether the tests read the batches of a relation, which any database reads, rather than a streamed query.
+        def batches?
+          false
+        end
+
         before do
-          skip(QUERY_STREAMS_SKIP) unless QUERY_STREAMS
+          skip(QUERY_STREAMS_SKIP) unless QUERY_STREAMS || batches?
           @alice = InputQueryPerson.create!(name: "Alice", age: 30)
           @bob   = InputQueryPerson.create!(name: "Bob", age: 40)
         end
@@ -193,6 +198,10 @@ module Sliced
         end
 
         describe "the batches of a relation" do
+          def batches?
+            true
+          end
+
           it "uploads the primary key of each row" do
             assert_equal 2, input.upload_arel(InputQueryPerson.in_batches(of: 1))
             assert_equal [@alice.id, @bob.id], input.collect(&:to_a).flatten.sort
