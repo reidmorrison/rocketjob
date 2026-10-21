@@ -51,6 +51,16 @@ See [Upgrading to v7.1](https://rocketjob.reidmorrison.com/upgrading.html#upgrad
   rather than described in the schema. It says what to check, such as a name that 7.0 cleansed without its non-ASCII
   letters, and what it cannot translate. `#dry_run` reads the first records of a recent file with the category as it
   is, and with the proposal, and lists what differs. See "Propose the schema of each category" in the upgrade guide.
+- `RocketJob.path_display_name` returns a path or url to show, for example in Rocket Job Mission Control,
+  without the user name, password or query of a url. A value that is not a valid path, or that needs a gem
+  that is not installed, such as an S3 url with options in its query, is shown as `(not a valid path)`.
+- `RocketJob::DirmonEntry#pattern_display_name` and `#archive_directory_display_name` return the pattern
+  and archive directory to show, see `RocketJob.path_display_name`.
+- `RocketJob::Job#display_attributes` returns the attributes of a job to show, with each path or url field
+  shown without its credentials. A field is a path when it is declared with `path: true`, such as the
+  `source_url` and `target_url` of `CopyFileJob`, or has the type `IOStreams::Path`. `.path_fields` lists them.
+- `RocketJob::DirmonEntry#replicate` returns a new, pending entry with the settings of an entry, such as
+  its job class and properties, overridden by the supplied attributes. Its state and exception are not copied.
 
 ### Deprecated
 

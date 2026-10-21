@@ -33,6 +33,39 @@ class RocketJobTest < Minitest::Test
       end
     end
 
+    describe ".path_display_name" do
+      it "returns a local path as is" do
+        assert_equal "/var/sftp/in/file.csv", RocketJob.path_display_name("/var/sftp/in/file.csv")
+      end
+
+      it "leaves out the credentials of a url" do
+        assert_equal "sftp://sftp.example.org/in/file.csv",
+                     RocketJob.path_display_name("sftp://user:secret@sftp.example.org/in/file.csv?password=other")
+      end
+
+      it "accepts an IOStreams::Path" do
+        path = IOStreams.path("sftp://user:secret@sftp.example.org/in/file.csv")
+
+        assert_equal "sftp://sftp.example.org/in/file.csv", RocketJob.path_display_name(path)
+      end
+
+      it "leaves out a path that is not valid, since its credentials cannot be found" do
+        assert_equal RocketJob::INVALID_PATH_DISPLAY_NAME,
+                     RocketJob.path_display_name("sftp://user:p@ss@sftp.example.org/in/file.csv")
+      end
+
+      it "leaves out a path that needs a gem that is not installed" do
+        IOStreams.stub(:path, ->(_path) { raise LoadError, "cannot load such file -- aws-sdk-s3" }) do
+          assert_equal RocketJob::INVALID_PATH_DISPLAY_NAME, RocketJob.path_display_name("s3://bucket/in/file.csv")
+        end
+      end
+
+      it "returns a blank path as is" do
+        assert_nil RocketJob.path_display_name(nil)
+        assert_equal "", RocketJob.path_display_name("")
+      end
+    end
+
     describe "process flags" do
       before do
         @server = RocketJob.instance_variable_get(:@server)

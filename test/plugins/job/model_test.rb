@@ -9,6 +9,15 @@ module Plugins
         end
       end
 
+      class PathJob < RocketJob::Job
+        field :url, type: String, path: true
+        field :file_name, type: IOStreams::Path
+        field :note, type: String
+
+        def perform
+        end
+      end
+
       class TwoArgumentJob < RocketJob::Job
         self.priority = 53
 
@@ -165,6 +174,36 @@ module Plugins
 
             assert job.worker_on_server?("server:1")
             refute job.worker_on_server?("other")
+          end
+        end
+
+        describe ".path_fields" do
+          it "includes fields declared as paths, and fields of type IOStreams::Path" do
+            assert_equal %i[url file_name], PathJob.path_fields
+          end
+
+          it "is empty without any paths" do
+            assert_empty SimpleJob.path_fields
+          end
+        end
+
+        describe "#display_attributes" do
+          it "shows paths without their credentials" do
+            job = PathJob.new(
+              url:       "sftp://user:secret@sftp.example.org/in/file.csv",
+              file_name: "sftp://user:secret@sftp.example.org/in/other.csv",
+              note:      "sftp://user:secret@not.a.path"
+            )
+            attrs = job.display_attributes
+
+            assert_equal "sftp://sftp.example.org/in/file.csv", attrs["url"]
+            assert_equal "sftp://sftp.example.org/in/other.csv", attrs["file_name"]
+            assert_equal "sftp://user:secret@not.a.path", attrs["note"]
+            assert_equal "sftp://user:secret@sftp.example.org/in/file.csv", job.url
+          end
+
+          it "leaves out paths that are not set" do
+            refute PathJob.new.display_attributes.key?("url")
           end
         end
 
