@@ -2680,12 +2680,30 @@ only that column:
 job.upload(User.where(country_code: "US"))
 ~~~
 
-Supply column names to upload those columns instead, as an Array per row, or the value itself for a
-single column. Only those columns are selected, as `pluck` selects them, whatever the query selects:
+Supply column names to upload those columns instead: the value itself for a single column, or for
+several, a Hash of the columns by name. Only those columns are selected, as `pluck` selects them,
+whatever the query selects:
 
 ~~~ruby
-job.upload(User.where(country_code: "US"), columns: %i[user_name zip_code])
+job.upload(User.where(country_code: "US"), columns: %i[user_name zip_code born_on])
 ~~~
+
+`#perform` receives each value of several columns as the type of its column, such as a `Date`,
+which MongoDB would otherwise store as a time, since the input category keeps the
+[schema](#typed-values-with-a-schema) of the columns, which the query describes:
+
+~~~ruby
+def perform(user)
+  user["born_on"]
+  # => Sat, 03 Feb 1990
+end
+~~~
+
+An input category with a schema of its own reads the rows by it instead, so its fields must match
+the columns, as they must match the header row of a file, otherwise `upload` raises
+`IOStreams::Errors::InvalidHeader` before any row is read. So does a second upload of other columns
+into the same input category, which keeps the schema of the first. The next run of a scheduled job
+reads the schema of its own query.
 
 Each value is read as `pluck` reads it: the value that the column holds, as its attribute casts it,
 such as the name of an enum's value, or a decrypted attribute. A reader that the model overrides is
@@ -2783,6 +2801,9 @@ job.upload(User.where(state: "FL"))
 
 # Upload a field instead
 job.upload(User.where(state: "FL"), columns: [:zip_code])
+
+# Upload several fields, as a Hash of the fields by name, such as {"name" => "Jack", "zip_code" => "33101"}
+job.upload(User.where(state: "FL"), columns: %i[name zip_code])
 ~~~
 
 When a block is supplied it receives each document and returns the record to upload. The returned
@@ -6076,6 +6097,27 @@ With or without a block:
   `def name = super.upcase`, or `def nickname = super || "none"`, no longer changes what is
   uploaded. v7.1 warns for a column whose reader returned another value. Do what the reader did in
   `#perform` instead, or in the query, such as with `COALESCE`.
+* Without a block, several columns are uploaded as a Hash of the columns by name, rather than an
+  Array, which `#perform` receives with the type of each column, such as
+  `{"name" => "Jack", "born_on" => Date.new(1990, 2, 3)}`, since the input category keeps the schema
+  of the columns. So are several fields of a Mongoid query, without their types. Read each value by
+  the name of its column, rather than its position, and finish the jobs whose input v7 uploaded as
+  Arrays before changing their `#perform`. v7.1 warns for an upload of several columns.
+
+  ~~~ruby
+  job.upload(User.where(country_code: "US"), columns: %i[name zip_code])
+
+  # Before
+  def perform(record)
+    name, zip_code = record
+  end
+
+  # After
+  def perform(record)
+    name     = record["name"]
+    zip_code = record["zip_code"]
+  end
+  ~~~
 * Without a block, the default column is the primary key of the model, so a model whose primary
   key is not `id` uploads it, where v7 raised.
 * The query is read on a connection of its own, so it uploads only the rows that were committed.
