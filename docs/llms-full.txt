@@ -6383,6 +6383,37 @@ job.upload(User.select(:id, :nickname)) do |row|
 end
 ~~~
 
+### Call upload with a query or a range
+
+`upload_arel`, `upload_mongo_query`, `upload_integer_range` and
+`upload_integer_range_in_reverse_order`, deprecated since v6, report a deprecation warning, since v8
+removes them. Call `upload` with the relation, the criteria or the range instead, which v7.1 and v8
+both accept, also with a block:
+
+~~~ruby
+# Before (deprecated)
+job.upload_arel(User.where(country_code: "US"), :zip_code)
+job.upload_mongo_query(User.where(state: "FL"), :zip_code)
+job.upload_integer_range(1, 1_000_000)
+job.upload_integer_range_in_reverse_order(1, 1_000_000)
+
+# After
+job.upload(User.where(country_code: "US"), columns: [:zip_code])
+job.upload(User.where(state: "FL"), columns: [:zip_code])
+job.upload(1..1_000_000)
+job.upload(1_000_000..1)
+~~~
+
+A range is uploaded in the direction that it is written. `upload_integer_range(first, last)`
+uploaded nothing when `last` was less than `first`, while `upload(first..last)` uploads that range
+from its last id, so where the bounds are computed, check for that first. A range that excludes its
+end, such as `1...100`, uploads its end in v7.1, but not in v8, so write it as `1..99`.
+
+The `before_code` of an `OnDemandBatchJob` that calls one of them, as its documentation showed,
+reports the warning when the job runs, and raises `NoMethodError` in v8: change it to call `upload`,
+including in the jobs that are already saved, such as a scheduled one, which copies its
+`before_code` to its next run.
+
 ### Find the deprecated options that you use
 
 Rocket Job reports a Ruby deprecation warning for each deprecated category option that it is given,
