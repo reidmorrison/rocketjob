@@ -70,8 +70,8 @@ class DirmonEntryTest < Minitest::Test
           ],
           "output_categories" => [
             {
-              "format"  => "csv",
-              "columns" => %w[first_name last_name]
+              "format" => "csv",
+              "schema" => {"fields" => [{"name" => "first_name"}, {"name" => "last_name"}]}
             }
           ]
         },

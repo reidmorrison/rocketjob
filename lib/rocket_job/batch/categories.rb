@@ -31,20 +31,20 @@ module RocketJob
       module ClassMethods
         # Define a new input category, or replace the input category with the same name.
         # A subclass that defines a category does not change the categories of its parent class.
+        # Raises ArgumentError for an option that Rocket Job v8 removed, see RocketJob::Category::Base.supported_properties.
         # @see RocketJob::Category::Input
         def input_category(**args)
-          RocketJob::Category::Input.warn_deprecated_options(args)
-          category                      = RocketJob::Category::Input.new(**args)
+          category                      = RocketJob::Category::Input.new(**RocketJob::Category::Input.supported_properties(args))
           self.defined_input_categories = rocketjob_categories_with(defined_input_categories, category)
           category
         end
 
         # Define a new output category, or replace the output category with the same name.
         # A subclass that defines a category does not change the categories of its parent class.
+        # Raises ArgumentError for an option that Rocket Job v8 removed, see RocketJob::Category::Base.supported_properties.
         # @see RocketJob::Category::Output
         def output_category(**args)
-          RocketJob::Category::Output.warn_deprecated_options(args)
-          category                       = RocketJob::Category::Output.new(**args)
+          category                       = RocketJob::Category::Output.new(**RocketJob::Category::Output.supported_properties(args))
           self.defined_output_categories = rocketjob_categories_with(defined_output_categories, category)
           category
         end
@@ -77,32 +77,6 @@ module RocketJob
             errors.concat(rocketjob_category_property_errors(key.to_sym, categories))
           end
           errors
-        end
-
-        # Returns [Hash<String, Array<String>>] the names of the deprecated options that the supplied properties of a
-        # job of this class set for its categories, by category, such as `{"input category main" => ["allowed_columns"]}`.
-        # Each category class decides, see RocketJob::Category::Base.deprecated_option_names. None when the properties
-        # are not a Hash.
-        def deprecated_options(properties)
-          return {} unless properties.is_a?(Hash)
-
-          properties = properties.stringify_keys
-          CATEGORY_PROPERTIES.each_with_object({}) do |(key, category_class), found|
-            categories = properties[key.to_s]
-            next unless categories.is_a?(Array)
-
-            categories.each do |category|
-              next unless category.is_a?(Hash)
-
-              names = category_class.deprecated_option_names(category)
-              found[rocketjob_category_label(category_class, category_class.name_in(category))] = names unless names.empty?
-            end
-          end
-        end
-
-        # Returns [String] how the category of the supplied class and name is named, such as "input category main".
-        def rocketjob_category_label(category_class, name)
-          "#{category_class.name.demodulize.downcase} category #{name}"
         end
 
         # Returns [Array<RocketJob::Category::Input|RocketJob::Category::Output>] new copies of the categories that a
@@ -199,16 +173,6 @@ module RocketJob
 
       def output_category?(category_name)
         !rocketjob_category_named(output_categories, category_name).nil?
-      end
-
-      # Returns [Hash<String, Array<String>>] the names of the deprecated options that the categories of this job hold,
-      # by category, such as `{"input category main" => ["allowed_columns"]}`, which each category decides, see
-      # RocketJob::Category::Base#deprecated_option_names.
-      def deprecated_options
-        (input_categories.to_a + output_categories.to_a).each_with_object({}) do |category, found|
-          names = category.deprecated_option_names
-          found[self.class.rocketjob_category_label(category.class, category.name)] = names unless names.empty?
-        end
       end
 
       def merge_input_categories(categories)

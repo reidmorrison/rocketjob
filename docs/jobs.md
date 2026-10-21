@@ -132,12 +132,19 @@ job.output_category.file_name = "data.json"
 job.save!
 ~~~
 
-Convert JSON to PSV and compress the output with GZip:
+Convert JSON to PSV and compress the output with GZip. A CSV, PSV or fixed width output file is
+written by the `schema` of the output category, whose fields are its columns, in order:
 
 ~~~ruby
 job = RocketJob::Jobs::ConversionJob.new
 job.input_category.file_name  = "data.json"
 job.output_category.file_name = "data.psv.gz"
+job.output_category.schema    = {
+  "fields" => [
+    {"name" => "name"},
+    {"name" => "city"}
+  ]
+}
 job.save!
 ~~~
 

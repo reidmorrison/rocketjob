@@ -70,8 +70,8 @@ module Batch
         end
 
         it "names a property whose value cannot be set, without the value" do
-          RocketJob::Category::Input.stub_any_instance(:columns=, ->(_) { raise TypeError, "secret" }) do
-            assert_equal ["Columns is not valid"], category.property_errors("columns" => "secret")
+          RocketJob::Category::Input.stub_any_instance(:encoding=, ->(_) { raise TypeError, "secret" }) do
+            assert_equal ["Encoding is not valid"], category.property_errors("encoding" => "secret")
           end
         end
 
@@ -147,84 +147,84 @@ module Batch
         end
       end
 
-      describe "#format_options" do
+      describe "format_options, which v8 removed" do
         let(:layout) { {layout: [{size: 10, key: :name}, {size: 5, key: :zip, type: :integer}]} }
-
-        it "reads records with the keys of the layout, as before v8" do
-          category = RocketJob::Category::Input.new(format: :fixed, format_options: layout)
-
-          assert_equal({name: "Jack", zip: 12_345}, category.parse_record("Jack      12345"))
-          assert_nil category.schema
+        let(:removed_message) do
+          "format_options was removed in Rocket Job v8, describe the columns of the file with the category's schema " \
+            "instead, see #{RocketJob::Category::Base::REMOVED_OPTIONS_GUIDE}"
         end
 
-        it "narrows the records to the input columns, as before v8" do
-          category = RocketJob::Category::Input.new(format: :fixed, format_options: layout, columns: %w[name])
-
-          assert_equal({"name" => "Jack"}, category.parse_record("Jack      12345"))
+        it "is not a field" do
+          refute_respond_to RocketJob::Category::Input.new, :format_options
+          refute_respond_to RocketJob::Category::Output.new, :format_options=
         end
 
-        it "renders an Array result by the output columns, as before v8" do
-          layout   = {layout: [{size: 10, key: "name"}, {size: 5, key: "zip"}]}
-          category = RocketJob::Category::Output.new(format: :fixed, format_options: layout, columns: %w[zip name])
-
-          assert_predicate category, :valid?
-          assert_equal "Jack      12345", category.render(%w[12345 Jack])
+        it "is named when it is set" do
+          assert_equal %w[format_options], RocketJob::Category::Input.removed_options(format_options: layout)
+          assert_equal %w[format_options], RocketJob::Category::Output.removed_options("format_options" => layout)
+          assert_empty RocketJob::Category::Input.removed_options("format_options" => {})
+          assert_empty RocketJob::Category::Input.removed_options("format_options" => nil, "slice_size" => 10)
         end
 
-        it "can be set with skip_unknown, which does not change the records" do
-          category = RocketJob::Category::Input.new(format: :fixed, format_options: layout, skip_unknown: true)
+        it "raises when a category is defined with it" do
+          error = assert_raises(ArgumentError) do
+            Class.new(RocketJob::Job) do
+              include RocketJob::Batch
 
-          assert_predicate category, :valid?
-          assert_equal({name: "Jack", zip: 12_345}, category.parse_record("Jack      12345"))
-        end
-
-        it "cannot be set with a schema" do
-          category = RocketJob::Category::Input.new(format: :fixed, format_options: layout,
-                                                    schema: {"fields" => [{"name" => "name", "width" => 10}]})
-
-          refute_predicate category, :valid?
-          assert_equal ["Schema replaces format_options, which cannot be set with it"], category.errors.full_messages
-        end
-
-        it "does nothing when blank" do
-          category = RocketJob::Category::Input.new(format: :fixed, format_options: {})
-
-          assert_nil category.schema
-          assert_predicate category, :valid?
-        end
-
-        it "raises when the layout is not valid" do
-          assert_raises(IOStreams::Errors::InvalidLayout) do
-            RocketJob::Category::Input.new(format_options: {layout: [{key: "name"}]})
+              input_category format: :fixed, format_options: {layout: [{size: 10, key: :name}]}
+            end
           end
+
+          assert_equal removed_message, error.message
         end
 
-        it "raises for an option other than the layout" do
-          assert_raises(ArgumentError) do
-            RocketJob::Category::Input.new(format_options: {layout: [{size: 10, key: :name}], skip_unknown: true})
-          end
+        it "is left out when it is blank, which had no effect" do
+          properties = {"format_options" => {}, "slice_size" => 10}
+
+          assert_equal({"slice_size" => 10}, RocketJob::Category::Input.supported_properties(properties))
         end
 
-        it "is a property of a category for a Dirmon entry or an UploadFileJob" do
+        it "is reported as an error of the properties of a Dirmon entry or an UploadFileJob" do
           category = RocketJob::Category::Input.new(format: :fixed)
 
-          assert_empty category.property_errors("format_options" => {"layout" => [{"size" => 10, "key" => "name"}]})
-          assert_equal ["Format options is not valid"], category.property_errors("format_options" => {"layout" => [{}]})
+          assert_equal [removed_message], category.property_errors("format_options" => {"layout" => [{"size" => 10}]})
+          assert_empty category.property_errors("format_options" => nil, "slice_size" => 10)
         end
-      end
 
-      describe "saved before v8" do
-        it "keeps its format_options, and reads its records with them" do
-          category = RocketJob::Category::Input.instantiate(
+        it "raises when merged into a category" do
+          error = assert_raises(ArgumentError) do
+            RocketJob::Category::Output.new.merge_properties(format_options: layout)
+          end
+
+          assert_equal removed_message, error.message
+        end
+
+        it "raises when a category saved with it reads or writes its records" do
+          input = RocketJob::Category::Input.instantiate(
             "_id"            => BSON::ObjectId.new,
             "format"         => "fixed",
             "format_options" => {"layout" => [{"size" => 10, "key" => "name"}, {"size" => 5, "key" => "zip"}]}
           )
+          output = RocketJob::Category::Output.instantiate(
+            "_id"            => BSON::ObjectId.new,
+            "name"           => "other",
+            "format"         => "fixed",
+            "format_options" => {"layout" => [{"size" => 10, "key" => "name"}]}
+          )
 
-          assert_nil category.schema
-          assert_equal({"layout" => [{"size" => 10, "key" => "name"}, {"size" => 5, "key" => "zip"}]},
-                       category.format_options)
-          assert_equal({"name" => "Jack", "zip" => "12345"}, category.parse_record("Jack      12345"))
+          error = assert_raises(ArgumentError) { input.parse("Jack      12345") }
+          assert_equal "Input category main: #{removed_message}", error.message
+          error = assert_raises(ArgumentError) { output.render({"name" => "Jack"}) }
+          assert_equal "Output category other: #{removed_message}", error.message
+        end
+
+        it "does nothing when a category saved with it has no format" do
+          category = RocketJob::Category::Input.instantiate(
+            "_id"            => BSON::ObjectId.new,
+            "format_options" => {"layout" => [{"size" => 10, "key" => "name"}]}
+          )
+
+          assert_equal "Jack", category.parse("Jack")
         end
       end
 
@@ -240,13 +240,6 @@ module Batch
           assert_kind_of IOStreams::Tabular::Parser::Fixed, tabular.parser, tabular.parser.class.name
           # The schema reads each line into the values of its fields, by their types.
           assert_equal({"action" => "A", "date" => Date.new(2026, 10, 13)}, tabular.record_parse("A2026-10-13rest"))
-        end
-
-        it "names the columns with the deprecated columns, without a schema" do
-          category = RocketJob::Category::Output.new(format: :csv, columns: %w[abc def])
-
-          assert_equal %w[abc def], category.tabular.header.columns
-          assert_equal "1,2", category.tabular.render({"def" => 2, "abc" => 1, "other" => 3})
         end
 
         it "writes the fields of the schema, in order" do

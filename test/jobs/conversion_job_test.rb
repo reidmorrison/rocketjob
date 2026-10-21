@@ -15,12 +15,29 @@ module Jobs
             job.input_category.file_name  = source.to_s
             job.input_category.encoding   = "Windows-1252"
             job.output_category.file_name = target.to_s
-            job.output_category.columns   = %w[name city]
+            job.output_category.schema    = {"fields" => [{"name" => "name"}, {"name" => "city"}]}
             job.save!
             job.perform_now
 
             assert_predicate job, :completed?
             assert_equal "name|city\nJosé|Zürich\n", ::File.read(target.to_s)
+          end
+        end
+      end
+
+      it "converts JSON to PSV by the schema of its output category" do
+        IOStreams.temp_file("conversion_job_test", ".json") do |source|
+          IOStreams.temp_file("conversion_job_test", ".psv") do |target|
+            ::File.write(source.to_s, %({"city":"Paris","name":"Jack"}\n{"name":"Jill","city":"Rome"}\n))
+            job                           = RocketJob::Jobs::ConversionJob.new
+            job.input_category.file_name  = source.to_s
+            job.output_category.file_name = target.to_s
+            job.output_category.schema    = {"fields" => [{"name" => "name"}, {"name" => "city"}]}
+            job.save!
+            job.perform_now
+
+            assert_predicate job, :completed?
+            assert_equal "name|city\nJack|Paris\nJill|Rome\n", ::File.read(target.to_s)
           end
         end
       end

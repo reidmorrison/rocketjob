@@ -52,15 +52,13 @@ module RocketJob
       #       Searches for the first "\r\n" or "\n" and then uses that as the
       #       delimiter for all subsequent records
       #
-      #   stream_mode: [:line | :array | :hash]
+      #   stream_mode: [:line | :hash]
       #     :line
       #       Uploads the file a line (String) at a time for processing by workers.
-      #     :array
-      #       Deprecated, use :line, or :hash to parse the whole file when it is uploaded.
-      #       Parses each line from the file as an Array and uploads each array for processing by workers.
       #     :hash
       #       Parses each line from the file into a Hash and uploads each hash for processing by workers.
       #     Default: The input category's `mode`, which defaults to :line.
+      #     Raises ArgumentError for another mode, such as :array, which Rocket Job v8 removed.
       #     See IOStreams::Stream#each.
       #
       #   category [Symbol|RocketJob::Category::Input]
@@ -164,6 +162,7 @@ module RocketJob
 
           category           = input_category(category)
           category.file_name = file_name if file_name
+          category.upload_mode
 
           count =
             if category.slices?
@@ -200,9 +199,9 @@ module RocketJob
           else
             raise(ArgumentError, "Unknown keyword argument :columns when uploading a file") if columns
 
-            rocketjob_warn_deprecated_upload_options(stream_mode, args)
+            rocketjob_check_upload_file_options(args)
             category = input_category(category)
-            mode     = stream_mode || category.mode
+            mode     = category.upload_mode(stream_mode)
 
             # Sets the format first when it is :auto, since the format determines whether there is a header line.
             path = category.upload_path(object, original_file_name: file_name)
@@ -391,21 +390,15 @@ module RocketJob
         object.is_a?(Mongoid::Criteria) || (defined?(ActiveRecord::Relation) && object.is_a?(ActiveRecord::Relation))
       end
 
-      # Reports a deprecation warning, see RocketJob::Deprecation, at the line of the application that uploads a file
-      # with the :array `stream_mode`, or with options that describe the columns of the file, which the schema of the
-      # input category replaces: those that IOStreams deprecates, see `IOStreams::Tabular.deprecated_option_names`,
-      # which, as IOStreams does, are ignored when nil.
-      def rocketjob_warn_deprecated_upload_options(stream_mode, args)
-        Category::Input.warn_array_mode(:stream_mode) if stream_mode.to_s == "array"
-
-        names = args.compact.keys & IOStreams::Tabular.deprecated_option_names
+      # Raises ArgumentError for the options that describe the columns of the file, which Rocket Job v8 removed, since
+      # the schema of the input category replaces them: those that IOStreams deprecates, see
+      # `IOStreams::Tabular.deprecated_option_names`, also when nil, since IOStreams reads a nil `cleanse_header:` as
+      # false.
+      def rocketjob_check_upload_file_options(args)
+        names = args.keys & IOStreams::Tabular.deprecated_option_names
         return if names.empty?
 
-        RocketJob::Deprecation.warn(
-          "#{names.collect { |name| "#{name}:" }.join(', ')} #{names.size == 1 ? 'is' : 'are'} deprecated, describe " \
-          "the columns of the file with the schema: of the input category instead, see " \
-          "#{RocketJob::Deprecation::UPGRADE_GUIDE}"
-        )
+        raise(ArgumentError, Category::Input.removed_options_message(names.collect { |name| "#{name}:" }))
       end
 
       # Uploads the file that the supplied path reads into the supplied input category, which has a schema, in the slices

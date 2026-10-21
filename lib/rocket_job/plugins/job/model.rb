@@ -236,15 +236,6 @@ module RocketJob
             end
           end
 
-          # Returns [Hash<String, Array<String>>] the names of the deprecated options that the supplied properties of a
-          # job of this class set, by where they are set, such as `{"input category main" => ["allowed_columns"]}`,
-          # see RocketJob::Deprecation.saved_options. None for a job without categories. Overridden by batch.
-          #
-          # For example, the properties that a Dirmon entry or an UploadFileJob holds for this job class.
-          def deprecated_options(_properties)
-            {}
-          end
-
           # Returns [Hash] the supplied attributes or properties of this job class to show to people, with the value
           # of each field that holds a path or url shown by its display name, without any credentials,
           # see `path_fields`. Overridden by batch to also show the paths in its categories.
@@ -320,14 +311,6 @@ module RocketJob
         # with each path or url shown by its display name, without any credentials, see `.display_properties`.
         def display_attributes
           self.class.display_properties(attributes)
-        end
-
-        # Returns [Hash<String, Array<String>>] the names of the deprecated options that this saved job holds, by where
-        # they are set, see `.deprecated_options`, which a job reads without a warning. None for a job without
-        # categories. Overridden by batch, and by a job that holds the properties of another job, such as an
-        # UploadFileJob, which returns nil when the class of that job cannot be loaded.
-        def deprecated_options
-          {}
         end
 
         # Returns [Hash] status of this job

@@ -6,10 +6,12 @@
 #   job.output_category.file_name = "data.json"
 #   job.save!
 #
-# Example, Convert JSON file to PSV and compress it with GZip.
+# Example, Convert JSON file to PSV and compress it with GZip. The schema of the output category names the columns of
+# the PSV file, in order.
 #   job = RocketJob::Jobs::ConversionJob.new
 #   job.input_category.file_name  = "data.json"
 #   job.output_category.file_name = "data.psv.gz"
+#   job.output_category.schema    = {"fields" => [{"name" => "name"}, {"name" => "city"}]}
 #   job.save!
 #
 # Example, Read a CSV file that has been zipped from a remote website and the convert it to a GZipped json file.

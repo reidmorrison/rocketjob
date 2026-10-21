@@ -319,7 +319,7 @@ module Batch
 
         it "writes the header line in the output category's encoding" do
           job.output_category.format   = :csv
-          job.output_category.columns  = %w[name city]
+          job.output_category.schema   = {"fields" => [{"name" => "name"}, {"name" => "city"}]}
           job.output_category.encoding = "ISO-8859-1"
           job.output << ["José,Zürich"]
 
@@ -329,15 +329,15 @@ module Batch
         it "writes the header line of output written by the encrypted_bz2 serializer" do
           job.output_category.serializer = :encrypted_bz2
           job.output_category.format     = :csv
-          job.output_category.columns    = %w[name city]
+          job.output_category.schema     = {"fields" => [{"name" => "name"}, {"name" => "city"}]}
           job.output << ["Jack,Paris"]
 
           assert_equal "name,city\nJack,Paris\n".b, download_bz2
         end
 
         it "writes the output category's encoding when it changes after the output collection is created" do
-          job.output_category.format  = :csv
-          job.output_category.columns = %w[name city]
+          job.output_category.format = :csv
+          job.output_category.schema = {"fields" => [{"name" => "name"}, {"name" => "city"}]}
           job.output.count
           job.output_category.encoding = "ISO-8859-1"
           job.output << ["José,Zürich"]

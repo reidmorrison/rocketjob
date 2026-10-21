@@ -73,14 +73,6 @@ module RocketJob
         attrs
       end
 
-      # Returns [Hash<String, Array<String>>] the names of the deprecated options that the properties of the job that
-      # this UploadFileJob creates set, by where they are set, which its job class decides, see
-      # RocketJob::Plugins::Job::Model.deprecated_options, see RocketJob::Deprecation.saved_options.
-      # Returns nil when its job class cannot be loaded in this process, so that its properties cannot be read.
-      def deprecated_options
-        job_class&.deprecated_options(properties)
-      end
-
       private
 
       def job_class

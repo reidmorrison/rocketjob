@@ -239,7 +239,7 @@ classDiagram
     %% ===== Categories =====
     class CategoryBase["Category::Base"] {
         <<concern>>
-        +name +serializer +columns +format
+        +name +serializer +format +schema
     }
     class CategoryInput["Category::Input"]
     class CategoryOutput["Category::Output"]

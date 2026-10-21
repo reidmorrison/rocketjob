@@ -26,14 +26,6 @@ module RocketJob
         # Whether to compress, encrypt, or use the bzip2 serialization for data in this category.
         field :serializer, type: ::Mongoid::StringifiedSymbol, default: :compress
 
-        # The header columns when the file does not include a header row.
-        # Note:
-        # - All column names must be strings so that it can be serialized into MongoDB.
-        # - Deprecated, use `schema`, whose fields are the columns, with `"header": false` for a file without a
-        #   header row. It cannot be set with a schema: each slice of a file uploaded into an input category with
-        #   one holds its header row instead, see RocketJob::Category::Input#each_slice.
-        field :columns, type: Array
-
         # On an input collection `format` specifies the format of the input data so that it can be
         # transformed into a Hash when passed into the `#perform` method.
         #
@@ -60,25 +52,13 @@ module RocketJob
         #   {"fields" => [{"name" => "name", "type" => "string", "width" => 10},
         #                 {"name" => "zip", "type" => "integer", "width" => 5}]}
         #
-        # Replaces `columns`, and on an input category `allowed_columns`, `required_columns`, `skip_unknown` and
-        # `header_cleanser`, which are deprecated, and cannot be set with it.
+        # Replaces the options that Rocket Job v8 removed, see .removed_option_names: `format_options`, the layout of a
+        # fixed width file, the `columns` of a file without a header row, or of an output file, and on an input
+        # category `allowed_columns`, `required_columns`, `skip_unknown` and `header_cleanser`.
         #
         # Default: nil, which reads and writes each value as text.
         field :schema
         validate :schema_valid
-        validate :schema_replaces_fields
-
-        # Deprecated: use `schema`, which gives the width of each field of a fixed width file.
-        #
-        # The layout of a fixed width file, as `layout:` and `truncate:`, such as
-        #   {layout: [{size: 10, key: :name}, {size: 5, key: :zip, type: :integer}]}
-        # which IOStreams reads as it did before v8: the keys of each record are the keys of the layout, such as
-        # "name", since a saved job holds them as Strings, and the column options, such as `columns`, apply to its
-        # records. It cannot be set with a
-        # schema. `IOStreams::Schema.from_layout` returns the schema of a layout.
-        #
-        # Raises IOStreams::Errors::InvalidLayout when it is set to a layout that is not valid.
-        field :format_options, type: Hash
 
         # When `:format` is not supplied the file name can be used to infer the required format.
         # Optional.
@@ -98,7 +78,7 @@ module RocketJob
         validates_with EncodingValidator, attributes: [:encoding]
 
         # Setting a field that the tabular is built from builds it again when it is next used, see #tabular.
-        %i[format file_name columns].each do |name|
+        %i[format file_name].each do |name|
           define_method(:"#{name}=") do |value|
             @tabular = nil
             super(value)
@@ -109,14 +89,6 @@ module RocketJob
         define_method(:schema=) do |value|
           @tabular           = nil
           @schema_descriptor = nil
-          super(value)
-        end
-
-        # Checks the layout when it is set, see #format_options, so that a job class, a Dirmon entry or an
-        # UploadFileJob with one that is not valid fails at once, rather than when a file is read.
-        define_method(:format_options=) do |value|
-          IOStreams::Schema.from_layout(**value.to_h.deep_symbolize_keys) if value.present?
-          @tabular = nil
           super(value)
         end
       end
@@ -138,64 +110,71 @@ module RocketJob
           (properties["name"] || properties[:name] || :main).to_s.to_sym
         end
 
-        # Returns [Array<String>] the names of the deprecated options in the supplied properties of a category, with
-        # String keys, that its schema replaces, see #schema: its `columns`. Overridden by the input category.
-        def deprecated_column_options(properties)
-          properties["columns"].present? ? ["columns"] : []
+        # Returns [Array<String>] the names of the options of this kind of category that Rocket Job v8 removed, since
+        # its schema replaces them, see #schema, such as `format_options`, the layout of a fixed width file. Overridden
+        # by the input and output categories.
+        def removed_option_names
+          %w[format_options]
         end
 
-        # Returns [Array<String>] the names of the deprecated options that the supplied properties of a category set,
-        # with String or Symbol keys, such as the attributes of a saved category, or the properties of a category that
-        # a Dirmon entry or an UploadFileJob holds: the column options that its schema replaces, see
-        # .deprecated_column_options, and `format_options`. Overridden by the input category.
-        def deprecated_option_names(properties)
+        # Returns [Array<String>] the names of the removed options, see .removed_option_names, that the supplied
+        # properties of a category, with String or Symbol keys, set, such as the properties that a Dirmon entry holds, or
+        # the attributes of a category that was saved before v8. One that is blank, or at its default, is left out, see
+        # .removed_option_set?, since it had no effect.
+        def removed_options(properties)
           properties = properties.to_h.stringify_keys
-          names      = deprecated_column_options(properties)
-          names << "format_options" if properties["format_options"].present?
-          names
+          removed_option_names.select { |name| removed_option_set?(name, properties[name]) }
         end
 
-        # Reports a deprecation warning, see RocketJob::Deprecation, for the deprecated options in the supplied
-        # properties of a category, such as those that a job class defines it with, or that a Dirmon entry holds.
-        def warn_deprecated_options(properties)
-          properties = properties.to_h.stringify_keys
-          names      = deprecated_column_options(properties)
-          unless names.empty?
-            options = names.collect { |name| "#{name}:" }.join(", ")
-            RocketJob::Deprecation.warn(
-              "#{options} #{names.size == 1 ? 'is' : 'are'} deprecated, describe the columns of the file with schema: " \
-              "instead, see #{RocketJob::Deprecation::UPGRADE_GUIDE}"
-            )
-          end
-          return if properties["format_options"].blank?
+        # Returns [Hash] the supplied properties of a category, such as those that a job class defines it with, or that
+        # a Dirmon entry holds, without the options that Rocket Job v8 removed, see .removed_option_names, which are only
+        # left out when they are blank, or at their default, see .removed_options. An option that is still a field, such
+        # as an input category's `mode`, is kept, since only some of its values were removed.
+        #
+        # Raises ArgumentError, which names the removed options that are set, see .removed_options.
+        def supported_properties(properties)
+          removed = removed_options(properties)
+          raise(ArgumentError, removed_options_message(removed)) unless removed.empty?
 
-          RocketJob::Deprecation.warn(
-            "format_options: is deprecated, use schema: instead, which gives the width of each field of a fixed width " \
-            "file, see #{RocketJob::Deprecation::UPGRADE_GUIDE}"
-          )
+          left_out = removed_option_names - fields.keys
+          properties.reject { |key, _| left_out.include?(key.to_s) }
+        end
+
+        # Returns [String] the message that says that the supplied options were removed, and what replaces them.
+        def removed_options_message(names)
+          "#{names.join(', ')} #{names.size == 1 ? 'was' : 'were'} removed in Rocket Job v8, describe the columns of " \
+            "the file with the category's schema instead, see #{REMOVED_OPTIONS_GUIDE}"
+        end
+
+        private
+
+        # Returns [true|false] whether the supplied value of the named removed option is set, rather than blank, or at
+        # its default, which had no effect, see .removed_options. Overridden by the input category.
+        def removed_option_set?(_name, value)
+          value.present?
         end
       end
 
+      # Where the upgrade guide says what replaces each option that Rocket Job v8 removed, see .removed_option_names.
+      REMOVED_OPTIONS_GUIDE = "https://rocketjob.reidmorrison.com/upgrading.html#the-deprecated-category-options-are-removed".freeze
+
       # Sets the supplied properties on this category, such as `{"encoding" => "Windows-1252"}`, as a Dirmon entry or
-      # an UploadFileJob holds them for a job. Raises NoMethodError for a property that a category does not have.
-      # Reports a deprecation warning for a deprecated option, see .warn_deprecated_options.
+      # an UploadFileJob holds them for a job. Raises NoMethodError for a property that a category does not have, and
+      # ArgumentError for an option that Rocket Job v8 removed, see .supported_properties.
       def merge_properties(properties)
-        self.class.warn_deprecated_options(properties)
-        properties.each_pair { |key, value| public_send(:"#{key}=", value) }
+        self.class.supported_properties(properties).each_pair { |key, value| public_send(:"#{key}=", value) }
         self
       end
 
-      # Returns [Array<String>] the names of the deprecated options that this category holds, which its class decides,
-      # see .deprecated_option_names.
-      def deprecated_option_names
-        self.class.deprecated_option_names(attributes)
-      end
-
       # Returns [Array<String>] why the supplied properties cannot be merged into this category, see
-      # #merge_properties, such as a property that a category does not have, or a value that is not valid, such as
-      # its encoding. Empty when they can. This category is not changed.
+      # #merge_properties, such as an option that Rocket Job v8 removed, a property that a category does not have, or a
+      # value that is not valid, such as its encoding. Empty when they can. This category is not changed.
       def property_errors(properties)
-        unknown = properties.keys.reject { |key| self.class.public_method_defined?(:"#{key}=") }
+        removed = self.class.removed_options(properties)
+        return [self.class.removed_options_message(removed)] unless removed.empty?
+
+        properties = self.class.supported_properties(properties)
+        unknown    = properties.keys.reject { |key| self.class.public_method_defined?(:"#{key}=") }
         return unknown.map { |key| "Unknown property: #{key}" } unless unknown.empty?
 
         category = deep_dup
@@ -230,7 +209,7 @@ module RocketJob
       end
 
       # Returns [IOStreams::Tabular] that reads or writes the records of this category in its format, by its schema,
-      # see #schema. It is built again after one of the fields that it is built from is set, such as #columns.
+      # see #schema. It is built again after one of the fields that it is built from is set, such as #format.
       def tabular
         @tabular ||= build_tabular
       end
@@ -255,22 +234,24 @@ module RocketJob
       private
 
       def build_tabular
-        IOStreams::Tabular.new(format: tabular_format, file_name: file_name, **tabular_columns)
+        check_removed_options
+        IOStreams::Tabular.new(format: tabular_format, file_name: file_name, schema: tabular_schema)
+      end
+
+      # Raises ArgumentError when this category was saved before Rocket Job v8 with an option that v8 removed, which
+      # IOStreams no longer reads, so that its records are not read or written as though it had none, see
+      # .removed_options. Mongoid keeps such an option among the attributes of a saved category, but not as a field.
+      def check_removed_options
+        removed = self.class.removed_options(attributes.except(*self.class.fields.keys))
+        return if removed.empty?
+
+        raise(ArgumentError, "#{self.class.name.demodulize} category #{name}: #{self.class.removed_options_message(removed)}")
       end
 
       # Returns [Symbol] the format to read and write this category's files in, or nil to take it from the file name,
       # when its format is :auto.
       def tabular_format
         format == :auto ? nil : format
-      end
-
-      # Returns [Hash] the options of IOStreams::Tabular that describe the columns of this category's files: its
-      # schema, see #schema, otherwise the deprecated fields that it replaces, when they are set, such as the layout
-      # of #format_options, which IOStreams reads as it did before v8.
-      def tabular_columns
-        return {schema: tabular_schema} if schema.present?
-
-        {columns: columns.presence, format_options: format_options.presence&.to_h&.deep_symbolize_keys}.compact
       end
 
       # Returns [IOStreams::Schema] this category's schema, see #schema, read once, see #schema_descriptor, or nil when
@@ -299,21 +280,6 @@ module RocketJob
         descriptor
       rescue JSON::ParserError, ArgumentError => e
         raise(ArgumentError, "Invalid schema in #{RocketJob.path_display_name(schema)}: #{e.message}")
-      end
-
-      # Returns [Array<Symbol>] the deprecated fields of this category that are set, which its schema replaces, see
-      # #schema.
-      def fields_replaced_by_schema
-        format_options.present? ? [:format_options] : []
-      end
-
-      # The deprecated fields that the schema replaces cannot be set with it, since IOStreams rejects them with a
-      # schema, rather than apply one and ignore the other.
-      def schema_replaces_fields
-        return if schema.blank?
-
-        replaced = fields_replaced_by_schema
-        errors.add(:schema, "replaces #{replaced.to_sentence}, which cannot be set with it") unless replaced.empty?
       end
 
       # Checks the schema without reading a file that holds it, since its store may not be available yet.
