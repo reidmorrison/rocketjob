@@ -5328,11 +5328,12 @@ running one or more of these processes and pointing them at your MongoDB.
 
 You scale by running more servers. There is no central coordinator to install: every server claims
 work directly from MongoDB using atomic operations, so you can start and stop servers freely. To
-deploy new code, build a new image (or pull new code) and restart the servers.
+deploy new code, build a new image (or pull new code), stop every server, and start them again on
+the new code, see [Deploying a new version](#deploying-a-new-version).
 
-This guide covers the two common ways to run servers, how to make MongoDB highly available, and the
-one-time steps to perform after the first deployment. It assumes you have already configured
-`config/mongoid.yml` as described in the [Installation Guide](installation.html#configure-mongodb).
+This guide covers the two common ways to run servers, how to deploy a new version, how to make
+MongoDB highly available, and the one-time steps to perform after the first deployment. It assumes
+you have already configured `config/mongoid.yml` as described in the [Installation Guide](installation.html#configure-mongodb).
 
 
 
@@ -5469,6 +5470,32 @@ The `--include` flag above restricts a server to job classes matching a regular 
 can dedicate a pool of servers to a heavy or latency-sensitive job class while another pool handles
 everything else. The companion `--exclude` and `--where` flags are documented in the
 [Programmer's Guide](guide.html#limiting-which-jobs-a-server-runs).
+
+## Deploying a new version
+
+Run every server on the same code. A server only runs the job classes in its own code, so a server
+still on the old code fails a job of a class that the new code adds. A major release of Rocket Job,
+such as v8, can also change how jobs store their data, in a way that servers on the previous release
+cannot read. So never let servers on the old code and the new code run at the same time, as a
+rolling deployment does when it replaces a few servers at a time.
+
+Instead, stop every server, then start them all again on the new code:
+
+1. Build and publish the new image, or pull the new code onto each host.
+2. Stop every server: click **Stop All** on the Servers page of
+   [Mission Control](mission_control.html#managing-servers), or run:
+
+   ~~~bash
+   bin/rocketjob --stop
+   ~~~
+
+   Each server stops taking new work, lets each of its workers finish what it is working on, such
+   as the slice of a batch job, and then exits.
+3. Start the servers on the new code. A platform that restarts each container when it exits, from
+   the new image, does this step on its own.
+
+No work is lost while the servers are stopped: queued jobs wait, and a running batch job keeps the
+slices that are left, which the new servers process from where the old ones stopped.
 
 ## High-availability MongoDB
 
@@ -5850,7 +5877,9 @@ upgrade to the next version:
 3. Change the saved documents that still hold a deprecated option, such as Dirmon entries, scheduled
    jobs and `UploadFileJob`s, since reading one back reports no warning, see
    [Propose the schema of each category](#propose-the-schema-of-each-category).
-4. Deploy, and only then upgrade to the next version.
+4. Deploy, stopping every server on the old version before any server starts on the new one, see
+   [Deploying a new version](deployment.html#deploying-a-new-version), and only then upgrade to the
+   next version.
 
 A minor release, such as v7.1, adds what replaces the options that the next major release removes,
 and deprecates them, so that each change can be made, and tested, while the old option still works.

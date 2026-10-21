@@ -28,7 +28,9 @@ upgrade to the next version:
 3. Change the saved documents that still hold a deprecated option, such as Dirmon entries, scheduled
    jobs and `UploadFileJob`s, since reading one back reports no warning, see
    [Propose the schema of each category](#propose-the-schema-of-each-category).
-4. Deploy, and only then upgrade to the next version.
+4. Deploy, stopping every server on the old version before any server starts on the new one, see
+   [Deploying a new version](deployment.html#deploying-a-new-version), and only then upgrade to the
+   next version.
 
 A minor release, such as v7.1, adds what replaces the options that the next major release removes,
 and deprecates them, so that each change can be made, and tested, while the old option still works.
