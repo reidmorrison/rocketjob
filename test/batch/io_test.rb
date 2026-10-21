@@ -71,7 +71,7 @@ module Batch
             IOStreams.temp_file("csv_test", ".csv") do |file_name|
               job.input_category.format     = :auto
               job.output_category.format    = :auto
-              job.output_category.columns   = csv_columns
+              job.output_category.schema    = {"fields" => csv_columns.collect { |column| {"name" => column} }}
               job.output_category.file_name = file_name
 
               assert_equal 3, job.upload(csv_file)

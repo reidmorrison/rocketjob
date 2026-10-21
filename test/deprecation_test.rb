@@ -71,88 +71,6 @@ class DeprecationTest < Minitest::Test
       end
     end
 
-    describe "a category defined with a deprecated option" do
-      it "warns at the line of the job class that defines it" do
-        line     = __LINE__ + 2
-        warnings = deprecation_warnings do
-          Class.new(DeprecatedCategoryJob) { input_category format: :csv, allowed_columns: %w[name], skip_unknown: true }
-        end
-
-        assert_equal 1, warnings.size
-        assert warnings.first.start_with?("#{__FILE__}:#{line}: warning: Rocket Job: "), warnings.first
-        assert_includes warnings.first, "allowed_columns:, skip_unknown: are deprecated"
-      end
-
-      it "warns for each deprecated option of an input category" do
-        options = {
-          "columns"          => %w[name],
-          "allowed_columns"  => %w[name],
-          "required_columns" => %w[name],
-          "skip_unknown"     => true,
-          "header_cleanser"  => "none"
-        }
-
-        assert_equal options.keys, RocketJob::Category::Input.deprecated_column_options(options)
-      end
-
-      it "does not warn for the default values" do
-        options = {
-          "schema"          => {"fields" => [{"name" => "name"}]},
-          "skip_unknown"    => false,
-          "header_cleanser" => "default"
-        }
-
-        assert_empty RocketJob::Category::Input.deprecated_column_options(options)
-      end
-
-      it "warns for an input category's columns, with or without a schema" do
-        assert_equal ["columns"], RocketJob::Category::Input.deprecated_column_options("columns" => %w[Name])
-        assert_equal ["columns"], RocketJob::Category::Input.deprecated_column_options(
-          "columns" => %w[Name], "schema" => {"fields" => [{"name" => "name"}]}
-        )
-      end
-
-      it "warns for the columns of an output category" do
-        warnings = deprecation_warnings { Class.new(DeprecatedCategoryJob) { output_category format: :csv, columns: %w[a] } }
-
-        assert_equal 1, warnings.size
-        assert_includes warnings.first, "columns: is deprecated, describe the columns of the file with schema: instead"
-      end
-
-      it "does not warn for a category defined with a schema" do
-        warnings = deprecation_warnings do
-          Class.new(DeprecatedCategoryJob) do
-            input_category format: :csv, schema: {"fields" => [{"name" => "name"}]}
-            output_category format: :csv, schema: {"fields" => [{"name" => "name"}]}
-          end
-        end
-
-        assert_empty warnings
-      end
-
-      it "does not warn again for each job of the class" do
-        job_class = nil
-        warnings  = deprecation_warnings do
-          job_class = Class.new(DeprecatedCategoryJob) { input_category format: :csv, allowed_columns: %w[a] }
-        end
-
-        assert_equal 1, warnings.size
-        assert_empty(deprecation_warnings { job_class.new })
-      end
-
-      it "does not warn for a category saved before v8 that is read back" do
-        warnings = deprecation_warnings do
-          RocketJob::Category::Input.instantiate(
-            "_id"             => BSON::ObjectId.new,
-            "format"          => "csv",
-            "allowed_columns" => %w[name]
-          )
-        end
-
-        assert_empty warnings
-      end
-    end
-
     describe "the :array upload mode" do
       it "warns at the line of the job class that defines an input category with it" do
         line     = __LINE__ + 1
@@ -174,6 +92,24 @@ class DeprecationTest < Minitest::Test
         assert_empty warnings
       end
 
+      it "does not warn again for each job of the class" do
+        job_class = nil
+        warnings  = deprecation_warnings do
+          job_class = Class.new(DeprecatedCategoryJob) { input_category format: :csv, mode: :array }
+        end
+
+        assert_equal 1, warnings.size
+        assert_empty(deprecation_warnings { job_class.new })
+      end
+
+      it "does not warn for a category saved before v8 that is read back" do
+        warnings = deprecation_warnings do
+          RocketJob::Category::Input.instantiate("_id" => BSON::ObjectId.new, "format" => "csv", "mode" => "array")
+        end
+
+        assert_empty warnings
+      end
+
       it "warns at the line that uploads a file with it" do
         job      = Class.new(DeprecatedCategoryJob) { input_category format: :csv }.new
         line     = __LINE__ + 2
@@ -188,48 +124,20 @@ class DeprecationTest < Minitest::Test
       end
     end
 
-    describe "upload options that describe the columns" do
-      it "warns at the line that uploads a file with them" do
-        job      = Class.new(DeprecatedCategoryJob) { input_category format: :csv }.new
-        line     = __LINE__ + 2
-        warnings = deprecation_warnings do
-          job.upload(StringIO.new("name\nJack\n"), file_name: "people.csv", stream_mode: :hash, allowed_columns: %w[name])
-        end
-        rocket_job = warnings.grep(/Rocket Job:/)
-
-        assert_equal 1, rocket_job.size, warnings.inspect
-        assert rocket_job.first.start_with?("#{__FILE__}:#{line}: warning: Rocket Job: allowed_columns: is deprecated"),
-               rocket_job.first
-      ensure
-        job&.cleanup!
-      end
-
-      it "does not warn for an option that is nil, which IOStreams ignores" do
-        job      = Class.new(DeprecatedCategoryJob) { input_category format: :csv }.new
-        warnings = deprecation_warnings do
-          job.upload(StringIO.new("name\nJack\n"), file_name: "people.csv", stream_mode: :hash, allowed_columns: nil)
-        end
-
-        assert_empty warnings.grep(/Rocket Job:/), warnings.inspect
-      ensure
-        job&.cleanup!
-      end
-    end
-
     describe "properties with a deprecated option" do
       it "warns when they build a job" do
         warnings = deprecation_warnings do
           DeprecatedCategoryJob.from_properties(
-            "input_categories" => [{"name" => "main", "format" => "csv", "allowed_columns" => %w[name]}]
+            "input_categories" => [{"name" => "main", "format" => "csv", "mode" => "array"}]
           )
         end
 
         assert_equal 1, warnings.size
-        assert_includes warnings.first, "allowed_columns: is deprecated"
+        assert_includes warnings.first, "mode: :array is deprecated"
       end
 
       it "does not warn when they are validated" do
-        properties = {"input_categories" => [{"name" => "main", "format" => "csv", "allowed_columns" => %w[name]}]}
+        properties = {"input_categories" => [{"name" => "main", "format" => "csv", "mode" => "array"}]}
 
         assert_empty(deprecation_warnings { DeprecatedCategoryJob.property_errors(properties) })
       end
@@ -237,22 +145,20 @@ class DeprecationTest < Minitest::Test
 
     describe "the deprecated options of saved properties" do
       it "are named by each category class, whether the keys are Strings or Symbols" do
-        assert_equal %w[allowed_columns mode],
-                     RocketJob::Category::Input.deprecated_option_names(
-                       allowed_columns: %w[name], mode: :array, skip_unknown: false
-                     )
-        assert_equal %w[columns], RocketJob::Category::Output.deprecated_option_names("columns" => %w[name])
-        assert_equal %w[allowed_columns], RocketJob::Category::Input.new(allowed_columns: %w[name]).deprecated_option_names
-        assert_empty RocketJob::Category::Input.deprecated_option_names("mode" => "line", "header_cleanser" => "default")
+        assert_equal %w[mode], RocketJob::Category::Input.deprecated_option_names(mode: :array)
+        assert_equal %w[mode], RocketJob::Category::Input.deprecated_option_names("mode" => "array")
+        assert_equal %w[mode], RocketJob::Category::Input.new(mode: :array).deprecated_option_names
+        assert_empty RocketJob::Category::Input.deprecated_option_names("mode" => "line")
+        assert_empty RocketJob::Category::Output.deprecated_option_names("format" => "csv")
       end
 
       it "are found by a batch job class in the properties of each of its categories" do
         properties = {
-          input_categories:  [{name: :main, required_columns: %w[name]}],
+          input_categories:  [{name: :main, mode: :array}],
           output_categories: [{"name" => "main"}]
         }
 
-        assert_equal({"input category main" => %w[required_columns]}, SavedOptionsJob.deprecated_options(properties))
+        assert_equal({"input category main" => %w[mode]}, SavedOptionsJob.deprecated_options(properties))
         assert_empty RocketJob::Jobs::SimpleJob.deprecated_options({})
       end
     end
@@ -278,19 +184,6 @@ class DeprecationTest < Minitest::Test
       end
 
       it "lists each category of a job that can still run that holds a deprecated option" do
-        job = saved_job do |saved|
-          saved.input_category.allowed_columns = %w[name]
-          saved.input_category.skip_unknown    = true
-          saved.output_category.columns        = %w[name]
-        end
-
-        assert_equal [
-          "#{job_class_name} #{job.id} (queued): input category main: allowed_columns, skip_unknown",
-          "#{job_class_name} #{job.id} (queued): output category main: columns"
-        ], RocketJob::Deprecation.saved_options
-      end
-
-      it "lists the :array mode" do
         job = saved_job(state: :paused) do |saved|
           saved.input_category.mode = :array
         end
@@ -301,16 +194,7 @@ class DeprecationTest < Minitest::Test
 
       it "leaves out a job that cannot run again" do
         saved_job(state: :completed) do |saved|
-          saved.input_category.allowed_columns = %w[name]
-        end
-
-        assert_empty RocketJob::Deprecation.saved_options
-      end
-
-      it "leaves out the header row that an upload read from a file" do
-        saved_job do |saved|
-          saved.input_category.columns         = %w[name]
-          saved.input_category.header_uploaded = true
+          saved.input_category.mode = :array
         end
 
         assert_empty RocketJob::Deprecation.saved_options
@@ -318,13 +202,13 @@ class DeprecationTest < Minitest::Test
 
       it "lists the deprecated options of the job that a Dirmon entry creates" do
         entry = RocketJob::DirmonEntry.create!(
-          name:           "Old columns",
+          name:           "Old mode",
           pattern:        "deprecation_test/*.csv",
           job_class_name: job_class_name,
-          properties:     {input_categories: [{name: "main", allowed_columns: %w[name]}]}
+          properties:     {input_categories: [{name: "main", mode: "array"}]}
         )
 
-        assert_equal ["Dirmon entry \"Old columns\" #{entry.id}: input category main: allowed_columns"],
+        assert_equal ["Dirmon entry \"Old mode\" #{entry.id}: input category main: mode"],
                      RocketJob::Deprecation.saved_options
       end
 
@@ -332,10 +216,10 @@ class DeprecationTest < Minitest::Test
         upload_job = RocketJob::Jobs::UploadFileJob.create!(
           job_class_name:   job_class_name,
           upload_file_name: __FILE__,
-          properties:       {input_categories: [{name: "main", header_cleanser: "none"}]}
+          properties:       {input_categories: [{name: "main", mode: "array"}]}
         )
 
-        assert_equal ["RocketJob::Jobs::UploadFileJob #{upload_job.id} (queued): input category main: header_cleanser"],
+        assert_equal ["RocketJob::Jobs::UploadFileJob #{upload_job.id} (queued): input category main: mode"],
                      RocketJob::Deprecation.saved_options
       end
 
@@ -352,7 +236,7 @@ class DeprecationTest < Minitest::Test
           name:           "Renamed",
           pattern:        "deprecation_test/renamed/*.csv",
           job_class_name: job_class_name,
-          properties:     {input_categories: [{name: "main", allowed_columns: %w[name]}]}
+          properties:     {input_categories: [{name: "main", mode: "array"}]}
         )
         RocketJob::DirmonEntry.collection.update_one({_id: entry.id}, {"$set" => {"job_class_name" => "NoSuchJob"}})
 
@@ -374,13 +258,13 @@ class DeprecationTest < Minitest::Test
       it "lists a job that raises when it is read with its error, and still lists the others" do
         broken = BrokenCallbackJob.create!(broken: true)
         job    = saved_job do |saved|
-          saved.input_category.allowed_columns = %w[name]
+          saved.input_category.mode = :array
         end
         lines = RocketJob::Deprecation.saved_options
 
         assert_equal 2, lines.size
         assert lines.first.start_with?("Job #{broken.id}: cannot be read: NoMethodError: "), lines.first
-        assert_equal "#{job_class_name} #{job.id} (queued): input category main: allowed_columns", lines.last
+        assert_equal "#{job_class_name} #{job.id} (queued): input category main: mode", lines.last
       end
 
       it "lists nothing for a job with a schema" do

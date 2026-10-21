@@ -82,7 +82,7 @@ module RocketJob
         end
 
         # Returns [Hash<String, Array<String>>] the names of the deprecated options that the supplied properties of a
-        # job of this class set for its categories, by category, such as `{"input category main" => ["allowed_columns"]}`.
+        # job of this class set for its categories, by category, such as `{"input category main" => ["mode"]}`.
         # Each category class decides, see RocketJob::Category::Base.deprecated_option_names. None when the properties
         # are not a Hash.
         def deprecated_options(properties)
@@ -204,7 +204,7 @@ module RocketJob
       end
 
       # Returns [Hash<String, Array<String>>] the names of the deprecated options that the categories of this job hold,
-      # by category, such as `{"input category main" => ["allowed_columns"]}`, which each category decides, see
+      # by category, such as `{"input category main" => ["mode"]}`, which each category decides, see
       # RocketJob::Category::Base#deprecated_option_names.
       def deprecated_options
         (input_categories.to_a + output_categories.to_a).each_with_object({}) do |category, found|

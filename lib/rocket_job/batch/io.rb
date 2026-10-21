@@ -200,7 +200,7 @@ module RocketJob
           else
             raise(ArgumentError, "Unknown keyword argument :columns when uploading a file") if columns
 
-            rocketjob_warn_deprecated_upload_options(stream_mode, args)
+            rocketjob_check_upload_file_options(stream_mode, args)
             category = input_category(category)
             mode     = stream_mode || category.mode
 
@@ -392,20 +392,19 @@ module RocketJob
       end
 
       # Reports a deprecation warning, see RocketJob::Deprecation, at the line of the application that uploads a file
-      # with the :array `stream_mode`, or with options that describe the columns of the file, which the schema of the
-      # input category replaces: those that IOStreams deprecates, see `IOStreams::Tabular.deprecated_option_names`,
-      # which, as IOStreams does, are ignored when nil.
-      def rocketjob_warn_deprecated_upload_options(stream_mode, args)
+      # with the :array `stream_mode`.
+      #
+      # Raises ArgumentError for the options that describe the columns of the file, which Rocket Job v8 removed, since
+      # the schema of the input category replaces them: those that IOStreams deprecates, see
+      # `IOStreams::Tabular.deprecated_option_names`, also when nil, since IOStreams reads a nil `cleanse_header:` as
+      # false.
+      def rocketjob_check_upload_file_options(stream_mode, args)
         Category::Input.warn_array_mode(:stream_mode) if stream_mode.to_s == "array"
 
-        names = args.compact.keys & IOStreams::Tabular.deprecated_option_names
+        names = args.keys & IOStreams::Tabular.deprecated_option_names
         return if names.empty?
 
-        RocketJob::Deprecation.warn(
-          "#{names.collect { |name| "#{name}:" }.join(', ')} #{names.size == 1 ? 'is' : 'are'} deprecated, describe " \
-          "the columns of the file with the schema: of the input category instead, see " \
-          "#{RocketJob::Deprecation::UPGRADE_GUIDE}"
-        )
+        raise(ArgumentError, Category::Input.removed_options_message(names.collect { |name| "#{name}:" }))
       end
 
       # Uploads the file that the supplied path reads into the supplied input category, which has a schema, in the slices

@@ -70,8 +70,8 @@ module Batch
         end
 
         it "names a property whose value cannot be set, without the value" do
-          RocketJob::Category::Input.stub_any_instance(:columns=, ->(_) { raise TypeError, "secret" }) do
-            assert_equal ["Columns is not valid"], category.property_errors("columns" => "secret")
+          RocketJob::Category::Input.stub_any_instance(:encoding=, ->(_) { raise TypeError, "secret" }) do
+            assert_equal ["Encoding is not valid"], category.property_errors("encoding" => "secret")
           end
         end
 
@@ -240,13 +240,6 @@ module Batch
           assert_kind_of IOStreams::Tabular::Parser::Fixed, tabular.parser, tabular.parser.class.name
           # The schema reads each line into the values of its fields, by their types.
           assert_equal({"action" => "A", "date" => Date.new(2026, 10, 13)}, tabular.record_parse("A2026-10-13rest"))
-        end
-
-        it "names the columns with the deprecated columns, without a schema" do
-          category = RocketJob::Category::Output.new(format: :csv, columns: %w[abc def])
-
-          assert_equal %w[abc def], category.tabular.header.columns
-          assert_equal "1,2", category.tabular.render({"def" => 2, "abc" => 1, "other" => 3})
         end
 
         it "writes the fields of the schema, in order" do

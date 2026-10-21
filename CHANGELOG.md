@@ -10,13 +10,22 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Removed the category options that Rocket Job 7.1 deprecates, since a category's `schema` replaces them:
   - `format_options`, the layout of a fixed width file. A category with `format: :fixed` needs a schema, with the
     `width` of each field, without which IOStreams 3.0 raises `ArgumentError`.
+  - An input category's `allowed_columns`, `required_columns`, `skip_unknown` and `header_cleanser`, and an output
+    category's `columns`. The same options supplied to `upload`, such as `allowed_columns:` or `cleanse_header:`,
+    raise `ArgumentError`. A `:csv`, `:psv` or `:fixed` output category needs a schema, whose fields are the columns
+    that it writes.
+  - An input category's `columns`, for a file without a header row: they only hold the header row that `upload` read
+    from a file without a schema. Uploading a file into a category whose `columns` no upload read raises
+    `ArgumentError`, rather than reading the file by them, as does reading the records of a category saved with
+    columns that were not cleansed. Also removed `#cleanse_header!` of an input category, which cleansed
+    them.
 
   A job class that defines a category with one raises `ArgumentError` when it is loaded, naming it, and so does a
   Dirmon entry or an `UploadFileJob` whose properties hold one when it builds its job, which also fails validation
   when it is saved. A category that was saved with one, such as that of a scheduled job, raises `ArgumentError` when it
-  reads or writes its records, rather than reading them as though the option were not set. An option set to a value
-  that had no effect, such as a blank `format_options`, is ignored. Upgrade to 7.1 first, and replace each one there,
-  see the upgrade guide.
+  reads or writes its records, rather than reading them as though the option were not set. An option that is blank, or
+  at its default, such as a blank `format_options`, or `skip_unknown: false`, which Rocket Job 7 saved with every
+  input category, is ignored. Upgrade to 7.1 first, and replace each one there, see the upgrade guide.
 - Removed `RocketJob::Plugins::Restart`, deprecated in v6, use `RocketJob::Plugins::Cron`; `RocketJob::LookupCollection`,
   which was unused, and whose `upload` always raised `ArgumentError`; and `#work_first_slice` of a batch job,
   deprecated in v6. A batch job saved by v5, and never saved since, is no longer translated into v6 categories when
@@ -84,16 +93,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   ~~~ruby
   job.upload(IOStreams.path("file.csv").encoding("US-ASCII"))
   ~~~
-- An input category's `allowed_columns`, `required_columns` and `skip_unknown` now apply to every
-  tabular input. Previously they only applied to a header row read from the file, and only when it
-  was cleansed, so they were ignored for JSON records, for columns supplied with `columns`, and with
-  `header_cleanser: :none`. JSON keys are now cleansed like a header row when either is set, for
-  example `"Name"` becomes `"name"`, and a record with an unknown key, or without a required column,
-  raises `IOStreams::Errors::InvalidHeader` when it is processed, unless `skip_unknown` is true.
-  A job that accepted such data before will now fail it. While such a job is changed, set
-  `IOStreams.enforce_column_restrictions = false` to keep the previous behavior, which IOStreams 3.0 deprecates.
-  To fix the job, describe its columns with a schema, or remove the options that never applied to it, such as
-  from a job that reads JSON. See the upgrade guide.
 - Fixed width uploads are read as ASCII, which IOStreams 3.0 uses for the fixed width format, so a file
   with any other character raises `IOStreams::Errors::InvalidEncoding` and nothing is uploaded.
   Previously each byte of a character that is not ASCII became a space. Set the file's encoding on the
@@ -125,9 +124,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - A header row is cleansed as IOStreams 3.0 cleanses it, which keeps the letters and digits that are not ASCII, and
   treats whitespace that is not ASCII, such as a no-break space, as a space. So the column `Prénom` is `prénom`,
   where it was `prnom`, and `First Name` with a no-break space is `first_name`, where it was `firstname`, which
-  changes the keys of the records that `#perform` receives. Rename any `allowed_columns`, `required_columns` or
-  `columns` written to match the previous names, such as `prnom`, since a column that they no longer name is
-  rejected, or skipped with `skip_unknown`.
+  changes the keys of the records that `#perform` receives, without a schema.
 - A Dirmon entry, and an `UploadFileJob`, check the category properties that they hold for a batch job when
   they are saved, so an entry, or an `UploadFileJob`, that was saved before can now fail validation and
   must be corrected before it can be saved again:
@@ -155,7 +152,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   with the same characters, so the whitelisted `/data/in` also admitted the files of `/data/inbox` and
   `/data/in_other`.
 - With `format: :auto`, renaming an upload from `.csv` to `.json` bypassed `allowed_columns` and
-  `required_columns`. They now apply to JSON records too, see above.
+  `required_columns`, which are removed, see above. The schema that replaces them also applies to the keys of
+  JSON records.
 - Dirmon's log messages, the original file name that it records on each `UploadFileJob`, and its list
   of the files waiting to stabilize, no longer include the user name, password or query of a url, such
   as `sftp://user:password@host/file.csv`, and neither does the description of a `CopyFileJob`. They
@@ -268,10 +266,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Deprecated
 
-- An input category's `allowed_columns`, `required_columns`, `skip_unknown`, `header_cleanser` and `columns`, and an
-  output category's `columns`, since IOStreams 3.0 deprecates the options that they set, and the schema replaces them.
-  They still work without a schema, and cannot be set with one, so a category that sets both is not valid. See the
-  upgrade guide.
 - The `:array` upload mode, an input category's `mode: :array` and the `stream_mode: :array` of `upload`, since each
   row that it uploads only makes sense with the header row that the category keeps. Use `:line`, or `:hash` to parse
   the whole file when it is uploaded. See the upgrade guide.
@@ -300,12 +294,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   `on_first` lambda is called with the header row.
 - An input category with `format: :auto` uploads the first record of a JSON file. Previously it was dropped, as
   though it were a header row, so `record_count` was one short.
-- A Hash that a job returns supplies the value of each column of an output category whose name only matches one of
-  its keys once both are cleansed, such as the key `"First Name"` for the column `first_name`, as IOStreams 3.0 writes
-  them. Previously such a field was written blank.
-- A worker that parses the records of a tabular input category without a schema, such as CSV, gives IOStreams the
-  header row that the upload read without its deprecated `columns:` option, so a category that sets no deprecated
-  option no longer reports `IOStreams: columns: is deprecated` while deprecation warnings are on, such as in tests.
 - A category accepts a `format` that the application registers with IOStreams after Rocket Job is loaded, see
   `IOStreams.tabular_formats`. Previously the formats were read when Rocket Job was loaded, so such a format failed
   validation.
@@ -321,7 +309,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - The `--pidfile` option of the `rocketjob` command writes the id of the process. Previously the file was empty
   unless a gem that the application loaded had required Ruby's `English` library.
 - A category reads and writes its records with a field that is set after it was first used, such as an output
-  category's `columns` or `format`. Previously it kept using the values that it had when it first read or wrote a
+  category's `schema` or `format`. Previously it kept using the values that it had when it first read or wrote a
   record, so for example the header row of a download did not change.
 - A batch job in the `after` sub-state that a worker works on, such as one processed with `#perform_now`, runs its
   `after_batch` callbacks and completes. Previously the worker skipped them, so the job stayed running.
@@ -376,7 +364,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - A batch job that restarts, such as the next run of a scheduled job with `cron_after_start: false`, reads the
   header row of its own upload. Previously it kept the header row that the previous run's upload read, so the next
   file's header row was stored as a record, and its lines were read with the previous file's columns. A job saved by
-  v7 keeps that header row until it is cleared, see the upgrade guide.
+  v7 keeps that header row, so the upload of its next run raises `ArgumentError` until it is cleared, see the upgrade
+  guide.
 - A Dirmon entry whose job class cannot receive a file, since it is not a batch job and has neither an
   `upload_file_name` nor a `full_file_name` field, is not valid, as the Dirmon guide says. Previously it
   was saved, then the first file that it found was archived, the `UploadFileJob` for it was rejected, so

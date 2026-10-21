@@ -19,7 +19,7 @@ module RocketJob
     RUNNABLE_JOB_STATES = %w[queued running paused failed].freeze
 
     # Returns [Array<String>] a line for each saved job, Dirmon entry and UploadFileJob that holds a deprecated
-    # option, such as an input category's `allowed_columns`, which no warning reports, since reading a saved document
+    # option, such as an input category's :array `mode`, which no warning reports, since reading a saved document
     # does not warn, so that they can be changed before upgrading to a release that removes the option. Each document
     # decides which of its options are deprecated, see RocketJob::Plugins::Job::Model#deprecated_options and
     # RocketJob::DirmonEntry#deprecated_options.
@@ -31,7 +31,7 @@ module RocketJob
     #
     # Example:
     #   puts RocketJob::Deprecation.saved_options
-    #   # ImportJob 6512f1c0a1b2c3d4e5f60718 (queued): input category main: allowed_columns, skip_unknown
+    #   # ImportJob 6512f1c0a1b2c3d4e5f60718 (queued): input category main: mode
     #   # Dirmon entry "Daily orders" 6512f1c0a1b2c3d4e5f60719: input category main: mode
     def self.saved_options
       jobs = RocketJob::Job.where(:state.in => RUNNABLE_JOB_STATES).pluck(:id).flat_map do |id|

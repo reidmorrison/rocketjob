@@ -1,8 +1,7 @@
 require_relative "../test_helper"
 
 module Batch
-  # How tabular input is read during upload, in each mode, and parsed by the workers, with the column restrictions
-  # `allowed_columns`, `required_columns` and `skip_unknown`.
+  # How tabular input is read during upload, in each mode, and parsed by the workers, with and without a schema.
   class TabularInputTest < Minitest::Test
     class TabularJob < RocketJob::Job
       include RocketJob::Batch
@@ -101,15 +100,6 @@ module Batch
           assert_equal [%w[Jack 21 x], %w[Jill 22 y]], input_records
         end
 
-        it "uploads arrays with supplied columns in :array mode" do
-          job.input_category.mode    = :array
-          job.input_category.columns = %w[name age extra]
-
-          assert_equal 1, upload(".csv", "Jack,21,x\n")
-
-          assert_equal [{"name" => "Jack", "age" => "21", "extra" => "x"}], output_records
-        end
-
         it "reads the header row of arrays written to a block in :array mode" do
           job.input_category.mode = :array
           job.upload do |records|
@@ -182,13 +172,12 @@ module Batch
                        input_records
         end
 
-        it "is uploaded into a category whose columns are set for files without a header row" do
-          job.input_category.columns = %w[name age extra]
-          upload(".csv", "Jack,21,x\n")
-          upload(".csv", "Jill,22,y\n")
+        it "without a header row is uploaded into a category whose schema describes its columns" do
+          job.input_category.schema = {"header" => false, "fields" => [{"name" => "name"}, {"name" => "age"}]}
+          upload(".csv", "Jack,21\n")
+          upload(".csv", "Jill,22\n")
 
-          assert_equal ["Jack,21,x", "Jill,22,y"], input_records
-          refute job.input_category.header_uploaded
+          assert_equal [{"name" => "Jack", "age" => "21"}, {"name" => "Jill", "age" => "22"}], output_records
         end
 
         it "is not uploaded in :hash mode into a category that holds the header row of the first" do
@@ -197,17 +186,6 @@ module Batch
 
           assert_includes error.message, "already holds the header row of an uploaded file"
           assert_equal ["Jack,21,x", "Jill,22,y"], input_records
-        end
-
-        it "is uploaded after columns that were set are cleansed" do
-          job.input_category.columns = ["First Name", "Age"]
-          job.input_category.cleanse_header!
-          upload(".csv", "Jack,21\n")
-          upload(".csv", "Jill,22\n")
-
-          assert_equal %w[first_name age], job.input_category.columns
-          assert_equal ["Jack,21", "Jill,22"], input_records
-          refute job.input_category.header_uploaded
         end
 
         it "of JSON is uploaded in :line mode" do
@@ -240,17 +218,13 @@ module Batch
           assert_equal %w[name age extra], job.input_category.columns
         end
 
-        it "restores the columns that were set for a file without a header row" do
-          job.input_category.columns = ["First Name", "Age"]
-          assert_raises(RuntimeError) do
-            job.upload do |io|
-              io << "Jack,21"
-              raise "upload failed"
-            end
-          end
+        it "restores the columns of the header row that an earlier run read, which a retry can upload again" do
+          job.input_category.columns         = %w[name age]
+          job.input_category.header_uploaded = true
+          assert_raises(ArgumentError) { upload(".csv", csv) }
 
-          assert_equal ["First Name", "Age"], job.input_category.columns
-          refute job.input_category.header_uploaded
+          assert_equal %w[name age], job.input_category.columns
+          assert job.input_category.header_uploaded
         end
       end
 
@@ -670,107 +644,93 @@ module Batch
         end
       end
 
-      describe "column restrictions" do
-        before do
-          job.input_category.allowed_columns = %w[name age]
+      describe "the column options, which v8 removed" do
+        let(:removed_message) do
+          "were removed in Rocket Job v8, describe the columns of the file with the category's schema instead, see " \
+            "#{RocketJob::Category::Base::REMOVED_OPTIONS_GUIDE}"
         end
 
-        describe "csv" do
-          it "rejects unknown columns" do
-            assert_raises(IOStreams::Errors::InvalidHeader) { upload(".csv", csv) }
+        it "raise when they are supplied to upload" do
+          error = assert_raises(ArgumentError) do
+            upload(".csv", csv, allowed_columns: %w[name age], cleanse_header: false)
           end
 
-          it "skips unknown columns" do
-            job.input_category.skip_unknown = true
-            upload(".csv", csv)
-
-            assert_equal [{"name" => "Jack", "age" => "21"}, {"name" => "Jill", "age" => "22"}], output_records
-          end
-
-          it "applies them to a header row that is not cleansed" do
-            job.input_category.header_cleanser = :none
-            job.input_category.allowed_columns = %w[Name Age]
-            job.input_category.skip_unknown    = true
-            upload(".csv", csv)
-
-            assert_equal %w[Name Age __rejected__Extra], job.input_category.columns
-            assert_equal [{"Name" => "Jack", "Age" => "21"}, {"Name" => "Jill", "Age" => "22"}], output_records
-          end
-
-          it "applies them to supplied columns" do
-            job.input_category.columns      = %w[name age extra]
-            job.input_category.skip_unknown = true
-            upload(".csv", "Jack,21,x\n")
-
-            assert_equal [{"name" => "Jack", "age" => "21"}], output_records
-          end
-
-          it "rejects unknown supplied columns" do
-            job.input_category.columns = %w[name age extra]
-
-            assert_raises(IOStreams::Errors::InvalidHeader) { upload(".csv", "Jack,21,x\n") }
-          end
-
-          it "skips unknown columns in :hash mode" do
-            job.input_category.mode         = :hash
-            job.input_category.skip_unknown = true
-            upload(".csv", csv)
-
-            assert_equal [{"name" => "Jack", "age" => "21"}, {"name" => "Jill", "age" => "22"}], input_records
-          end
-
-          it "rejects unknown columns in :hash mode" do
-            job.input_category.mode = :hash
-
-            assert_raises(IOStreams::Errors::InvalidHeader) { upload(".csv", csv) }
-          end
+          assert_equal "allowed_columns:, cleanse_header: #{removed_message}", error.message
+          assert_equal 0, job.input.count
         end
 
-        describe "json" do
+        it "raise when they are nil, since IOStreams reads a nil cleanse_header as false" do
+          error = assert_raises(ArgumentError) do
+            upload(".csv", csv, stream_mode: :hash, cleanse_header: nil, skip_unknown: nil)
+          end
+
+          assert_equal "cleanse_header:, skip_unknown: #{removed_message}", error.message
+          assert_equal 0, job.input.count
+        end
+
+        it "raise in :hash mode, in which IOStreams would read the file with them" do
+          error = assert_raises(ArgumentError) do
+            upload(".csv", csv, stream_mode: :hash, required_columns: %w[name])
+          end
+
+          assert_match(/\Arequired_columns: was removed/, error.message)
+        end
+
+        describe "columns that no upload read" do
           before do
-            job.input_category.format = :json
+            job.input_category.columns = %w[name age extra]
           end
 
-          it "skips unknown keys, and cleanses the others" do
-            job.input_category.skip_unknown = true
-            upload(".json", json)
+          it "raise before a file is read by them, in each mode" do
+            [nil, :hash].each do |stream_mode|
+              error = assert_raises(ArgumentError) { upload(".csv", "Jack,21,x\n", stream_mode: stream_mode) }
 
-            assert_equal [{"name" => "Jack", "age" => 21}, {"name" => "Jill", "age" => 22}], output_records
+              assert_includes error.message, "Input category main holds columns that no upload read from a file. " \
+                                             "Clear them when Rocket Job 7 copied them from an earlier run of a " \
+                                             "scheduled job."
+            end
+            assert_equal 0, job.input.count
+            assert_equal %w[name age extra], job.input_category.columns
           end
 
-          it "rejects unknown keys" do
-            upload(".json", json)
-
-            assert_raises(IOStreams::Errors::InvalidHeader) { output_records }
+          it "raise before the lines written to a block are read by them" do
+            assert_raises(ArgumentError) do
+              job.upload do |records|
+                records << "Jack,21,x"
+              end
+            end
+            assert_equal 0, job.input.count
           end
 
-          it "rejects a record without a required column" do
-            job.input_category.allowed_columns  = nil
-            job.input_category.required_columns = %w[extra]
-            upload(".json", json)
+          it "are read from the file once they are cleared" do
+            job.input_category.columns = nil
+            upload(".csv", csv)
 
-            assert_raises(IOStreams::Errors::InvalidHeader) { output_records }
+            assert_equal %w[name age extra], job.input_category.columns
           end
+        end
+      end
 
-          it "applies them when the format is detected from the file name" do
-            job.input_category.format = :auto
-            upload(".json", json)
+      describe "a schema in place of the column options" do
+        it "rejects a file without a required field, as required_columns did" do
+          job.input_category.schema = {
+            "fieldsMatch" => "partial",
+            "fields"      => [{"name" => "name"}, {"name" => "zip", "constraints" => {"required" => true}}]
+          }
 
-            assert_equal :json, job.input_category.format
-            assert_raises(IOStreams::Errors::InvalidHeader) { output_records }
-          end
+          assert_raises(IOStreams::Errors::InvalidHeader) { upload(".csv", csv) }
+          assert_equal 0, job.input.count
+        end
 
-          it "are not applied when IOStreams.enforce_column_restrictions is false" do
-            IOStreams.enforce_column_restrictions = false
-            upload(".json", json)
+        it "reads the keys of JSON that it lists, whatever their case, and skips the others" do
+          job.input_category.format = :json
+          job.input_category.schema = {
+            "fieldsMatch" => "partial",
+            "fields"      => [{"name" => "name"}, {"name" => "age", "type" => "integer"}]
+          }
+          upload(".json", json)
 
-            assert_equal [
-              {"Name" => "Jack", "age" => 21, "extra" => "x"},
-              {"name" => "Jill", "age" => 22}
-            ], output_records
-          ensure
-            IOStreams.enforce_column_restrictions = true
-          end
+          assert_equal [{"name" => "Jack", "age" => 21}, {"name" => "Jill", "age" => 22}], output_records
         end
       end
     end

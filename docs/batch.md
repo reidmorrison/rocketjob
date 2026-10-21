@@ -314,12 +314,12 @@ Input category options:
 | `encoding`         | `nil`       | The encoding of the files, such as `"Windows-1252"`, which is converted to UTF-8. `nil` reads UTF-8, or the format's own encoding, such as ASCII for `:fixed`. Name the byte order of UTF-16 or UTF-32, such as `"UTF-16LE"`. See [Files](#files).
 | `invalid_characters` | `nil`     | What to do with a character that is not valid in the file's encoding: `:remove`, `:replace` with U+FFFD, or `:raise`. `nil` removes them from tabular formats, such as CSV, and raises for `:fixed` and lines.
 | `mode`             | `:line`     | How a file is uploaded: `:line`, `:hash`, or the deprecated `:array`.
-| `columns`          | `nil`       | Set by `upload` without a `schema`: the header row read from the file, so that the workers read each line by it. It cannot be set with a `schema`, since each slice holds the header row of its file instead.
+| `columns`          | `nil`       | Set by `upload` without a `schema`: the header row read from the file, so that the workers read each line by it. Not set with a `schema`, since each slice holds the header row of its file instead.
 | `header_uploaded`  | `false`     | Set by `upload` without a `schema`: whether `columns` hold the header row read from the file, see [More than one file](#more-than-one-file).
 
 The options `allowed_columns`, `required_columns`, `skip_unknown` and `header_cleanser`, and setting
-`columns` for a file without a header row, are deprecated, since a `schema` replaces them, see
-[Deprecated column options](#deprecated-column-options).
+`columns` for a file without a header row, were removed in v8, since a `schema` replaces them, see
+[Column options before v8](#column-options-before-v8).
 
 The `mode` option controls how a file is read during upload:
 
@@ -352,8 +352,8 @@ file, which the workers read each of its lines by. So uploading a second file wi
 category raises `ArgumentError`, in any mode, rather than storing that file's header row as a record
 and reading its lines with the first file's columns. Upload each such file into its own input
 category, or upload every file in the `:hash` mode, in which each record keeps the columns of its
-own file. Files without a header row, such as CSV files whose `columns` are set, or JSON in the
-`:line` mode, can be uploaded one after another. In the deprecated `:array` mode JSON is read by the
+own file. Files without a header row, such as JSON in the `:line` mode, can be uploaded one after
+another. In the deprecated `:array` mode JSON is read by the
 keys of its first record, which act as a header row.
 
 When an upload fails, such as when the file cannot be read to its end, its records are not kept,
@@ -435,8 +435,9 @@ The `output_category` class method accepts these options:
 | `encoding`       | `nil`       | The encoding to write the file in, such as `"ISO-8859-1"`. `nil` writes UTF-8, or the format's own encoding, such as ASCII for `:fixed`. Name the byte order of UTF-16 or UTF-32, such as `"UTF-16LE"`.
 | `nils`           | `false`     | When `true`, store `nil` results too; when `false`, skip them.
 
-The `columns` option, which listed the columns to write, is deprecated, since a `schema` replaces it,
-see [Filtering output columns](#filtering-output-columns).
+A `:csv`, `:psv` or `:fixed` output category needs a `schema`, whose fields are the columns that it
+writes, in order. The `columns` option, which listed the columns to write, was removed in v8, since
+the `schema` replaces it, see [Filtering output columns](#filtering-output-columns).
 
 ### Multiple output files
 
@@ -644,11 +645,11 @@ Columns that do not match the schema raise `IOStreams::Errors::InvalidHeader`:
 * A column that could be either of two fields, or two columns that are the same field, such as `id`
   and `ID`, also raise, rather than one value silently replacing the other.
 
-#### Deprecated column options
+#### Column options before v8
 
-Before v8 the columns of an input category were described with the options below. They are
-deprecated: they still work without a schema, and none of them can be set with one. The schema
-property that replaces each one:
+Before v8 the columns of an input category were described with the options below, which v7.1
+deprecates, and v8 removed, see [Upgrading to v8](upgrading.html#the-deprecated-category-options-are-removed).
+The schema property that replaces each one:
 
 | Option                                      | With a schema
 |:--------------------------------------------|:-------------
@@ -658,16 +659,11 @@ property that replaces each one:
 | `required_columns`                          | `"constraints" => {"required" => true}` with `"allowBlank" => true` on each field, which needs the column but not a value, as `required_columns` did. Without `allowBlank`, a blank value raises too.
 | `header_cleanser`                           | Not needed: the keys of each record are the names of the fields, which the columns are matched to.
 
-Without a schema, the restrictions are compared to the column names after they are cleansed, or as
-they are with `header_cleanser: :none`, and the keys of each record are the cleansed column names.
-So to keep the keys that a job reads, name each field as the column was cleansed, which is how
-`allowed_columns` and `required_columns` already name them, such as `last_login` for the column
-`Last Login`: the schema matches the column to that field.
-
-`IOStreams.enforce_column_restrictions = false` applies them only to a cleansed header row, as
-earlier versions did. IOStreams 3.0 deprecates it, since it only applies to these options, so use it
-only while changing a job that relied on them being ignored: describe the columns with a schema
-instead, or remove the options from a job whose input they never applied to, such as JSON records.
+The restrictions were compared to the column names after they were cleansed, or as they were with
+`header_cleanser: :none`, and the keys of each record were the cleansed column names. So to keep the
+keys that a job reads, name each field as the column was cleansed, which is how `allowed_columns` and
+`required_columns` already named them, such as `last_login` for the column `Last Login`: the schema
+matches the column to that field.
 
 ## Writing tabular files
 
@@ -758,8 +754,8 @@ job.output_category.schema = {
 job.save!
 ~~~
 
-An output category's `columns`, which listed the columns to write before v8, are deprecated. They
-still work without a schema, and cannot be set with one.
+An output category's `columns`, which listed the columns to write before v8, were removed in v8: name
+those columns as the fields of its schema instead.
 
 ### Single output file via after_batch
 

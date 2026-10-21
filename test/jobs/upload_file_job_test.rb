@@ -72,8 +72,8 @@ module Jobs
             ],
             "output_categories" => [
               {
-                "format"  => "csv",
-                "columns" => %w[first_name last_name]
+                "format" => "csv",
+                "schema" => {"fields" => [{"name" => "first_name"}, {"name" => "last_name"}]}
               }
             ]
           }
@@ -239,7 +239,8 @@ module Jobs
           assert created_job = UploadFileJobTest::BatchTestJob.first
           assert_equal :csv, created_job.input_category.format
           assert_equal :csv, created_job.output_category.format
-          assert_equal %w[first_name last_name], created_job.output_category.columns
+          assert_equal({"fields" => [{"name" => "first_name"}, {"name" => "last_name"}]},
+                       created_job.output_category.schema)
         end
 
         it "uploads the file in the encoding that its properties set on the input category, as a Dirmon entry can" do

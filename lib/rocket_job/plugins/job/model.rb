@@ -237,7 +237,7 @@ module RocketJob
           end
 
           # Returns [Hash<String, Array<String>>] the names of the deprecated options that the supplied properties of a
-          # job of this class set, by where they are set, such as `{"input category main" => ["allowed_columns"]}`,
+          # job of this class set, by where they are set, such as `{"input category main" => ["mode"]}`,
           # see RocketJob::Deprecation.saved_options. None for a job without categories. Overridden by batch.
           #
           # For example, the properties that a Dirmon entry or an UploadFileJob holds for this job class.

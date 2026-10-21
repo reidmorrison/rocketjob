@@ -2786,12 +2786,12 @@ Input category options:
 | `encoding`         | `nil`       | The encoding of the files, such as `"Windows-1252"`, which is converted to UTF-8. `nil` reads UTF-8, or the format's own encoding, such as ASCII for `:fixed`. Name the byte order of UTF-16 or UTF-32, such as `"UTF-16LE"`. See [Files](#files).
 | `invalid_characters` | `nil`     | What to do with a character that is not valid in the file's encoding: `:remove`, `:replace` with U+FFFD, or `:raise`. `nil` removes them from tabular formats, such as CSV, and raises for `:fixed` and lines.
 | `mode`             | `:line`     | How a file is uploaded: `:line`, `:hash`, or the deprecated `:array`.
-| `columns`          | `nil`       | Set by `upload` without a `schema`: the header row read from the file, so that the workers read each line by it. It cannot be set with a `schema`, since each slice holds the header row of its file instead.
+| `columns`          | `nil`       | Set by `upload` without a `schema`: the header row read from the file, so that the workers read each line by it. Not set with a `schema`, since each slice holds the header row of its file instead.
 | `header_uploaded`  | `false`     | Set by `upload` without a `schema`: whether `columns` hold the header row read from the file, see [More than one file](#more-than-one-file).
 
 The options `allowed_columns`, `required_columns`, `skip_unknown` and `header_cleanser`, and setting
-`columns` for a file without a header row, are deprecated, since a `schema` replaces them, see
-[Deprecated column options](#deprecated-column-options).
+`columns` for a file without a header row, were removed in v8, since a `schema` replaces them, see
+[Column options before v8](#column-options-before-v8).
 
 The `mode` option controls how a file is read during upload:
 
@@ -2824,8 +2824,8 @@ file, which the workers read each of its lines by. So uploading a second file wi
 category raises `ArgumentError`, in any mode, rather than storing that file's header row as a record
 and reading its lines with the first file's columns. Upload each such file into its own input
 category, or upload every file in the `:hash` mode, in which each record keeps the columns of its
-own file. Files without a header row, such as CSV files whose `columns` are set, or JSON in the
-`:line` mode, can be uploaded one after another. In the deprecated `:array` mode JSON is read by the
+own file. Files without a header row, such as JSON in the `:line` mode, can be uploaded one after
+another. In the deprecated `:array` mode JSON is read by the
 keys of its first record, which act as a header row.
 
 When an upload fails, such as when the file cannot be read to its end, its records are not kept,
@@ -2907,8 +2907,9 @@ The `output_category` class method accepts these options:
 | `encoding`       | `nil`       | The encoding to write the file in, such as `"ISO-8859-1"`. `nil` writes UTF-8, or the format's own encoding, such as ASCII for `:fixed`. Name the byte order of UTF-16 or UTF-32, such as `"UTF-16LE"`.
 | `nils`           | `false`     | When `true`, store `nil` results too; when `false`, skip them.
 
-The `columns` option, which listed the columns to write, is deprecated, since a `schema` replaces it,
-see [Filtering output columns](#filtering-output-columns).
+A `:csv`, `:psv` or `:fixed` output category needs a `schema`, whose fields are the columns that it
+writes, in order. The `columns` option, which listed the columns to write, was removed in v8, since
+the `schema` replaces it, see [Filtering output columns](#filtering-output-columns).
 
 ### Multiple output files
 
@@ -3116,11 +3117,11 @@ Columns that do not match the schema raise `IOStreams::Errors::InvalidHeader`:
 * A column that could be either of two fields, or two columns that are the same field, such as `id`
   and `ID`, also raise, rather than one value silently replacing the other.
 
-#### Deprecated column options
+#### Column options before v8
 
-Before v8 the columns of an input category were described with the options below. They are
-deprecated: they still work without a schema, and none of them can be set with one. The schema
-property that replaces each one:
+Before v8 the columns of an input category were described with the options below, which v7.1
+deprecates, and v8 removed, see [Upgrading to v8](upgrading.html#the-deprecated-category-options-are-removed).
+The schema property that replaces each one:
 
 | Option                                      | With a schema
 |:--------------------------------------------|:-------------
@@ -3130,16 +3131,11 @@ property that replaces each one:
 | `required_columns`                          | `"constraints" => {"required" => true}` with `"allowBlank" => true` on each field, which needs the column but not a value, as `required_columns` did. Without `allowBlank`, a blank value raises too.
 | `header_cleanser`                           | Not needed: the keys of each record are the names of the fields, which the columns are matched to.
 
-Without a schema, the restrictions are compared to the column names after they are cleansed, or as
-they are with `header_cleanser: :none`, and the keys of each record are the cleansed column names.
-So to keep the keys that a job reads, name each field as the column was cleansed, which is how
-`allowed_columns` and `required_columns` already name them, such as `last_login` for the column
-`Last Login`: the schema matches the column to that field.
-
-`IOStreams.enforce_column_restrictions = false` applies them only to a cleansed header row, as
-earlier versions did. IOStreams 3.0 deprecates it, since it only applies to these options, so use it
-only while changing a job that relied on them being ignored: describe the columns with a schema
-instead, or remove the options from a job whose input they never applied to, such as JSON records.
+The restrictions were compared to the column names after they were cleansed, or as they were with
+`header_cleanser: :none`, and the keys of each record were the cleansed column names. So to keep the
+keys that a job reads, name each field as the column was cleansed, which is how `allowed_columns` and
+`required_columns` already named them, such as `last_login` for the column `Last Login`: the schema
+matches the column to that field.
 
 ## Writing tabular files
 
@@ -3230,8 +3226,8 @@ job.output_category.schema = {
 job.save!
 ~~~
 
-An output category's `columns`, which listed the columns to write before v8, are deprecated. They
-still work without a schema, and cannot be set with one.
+An output category's `columns`, which listed the columns to write before v8, were removed in v8: name
+those columns as the fields of its schema instead.
 
 ### Single output file via after_batch
 
@@ -3958,12 +3954,19 @@ job.output_category.file_name = "data.json"
 job.save!
 ~~~
 
-Convert JSON to PSV and compress the output with GZip:
+Convert JSON to PSV and compress the output with GZip. A CSV, PSV or fixed width output file is
+written by the `schema` of the output category, whose fields are its columns, in order:
 
 ~~~ruby
 job = RocketJob::Jobs::ConversionJob.new
 job.input_category.file_name  = "data.json"
 job.output_category.file_name = "data.psv.gz"
+job.output_category.schema    = {
+  "fields" => [
+    {"name" => "name"},
+    {"name" => "city"}
+  ]
+}
 job.save!
 ~~~
 
@@ -5755,7 +5758,7 @@ classDiagram
     %% ===== Categories =====
     class CategoryBase["Category::Base"] {
         <<concern>>
-        +name +serializer +columns +format
+        +name +serializer +format +schema
     }
     class CategoryInput["Category::Input"]
     class CategoryOutput["Category::Output"]
@@ -5879,6 +5882,12 @@ Replace each one while v7.1 still reads it, as its upgrade steps describe:
   [Replace format_options with a schema](#replace-format_options-with-a-schema). A category with
   `format: :fixed` needs a schema, which gives the width of each field, so without one IOStreams 3.0
   raises `ArgumentError` when the category reads or writes a record.
+* An input category's `allowed_columns`, `required_columns`, `skip_unknown` and `header_cleanser`,
+  the `columns` of a file without a header row, and an output category's `columns`, see
+  [Replace the column options with a schema](#replace-the-column-options-with-a-schema). The same
+  options supplied to `upload`, such as `allowed_columns:` or `cleanse_header:`, raise
+  `ArgumentError`. A `:csv`, `:psv` or `:fixed` output category needs a schema, whose fields are the
+  columns that it writes, in order.
 
 Code or a saved document that still sets one fails, naming the option, rather than reading or
 writing the records of the category as though it were not set:
@@ -5890,77 +5899,26 @@ writing the records of the category as though it were not set:
 * A job saved before v8 whose category holds one, such as a scheduled job, raises `ArgumentError`
   when that category reads or writes its records, such as when its file is uploaded, or a worker
   processes one of its slices.
+* An input category's `columns` are only set by `upload`, to the header row of a file uploaded
+  without a schema. Uploading a file into a category whose `columns` no upload read, such as those
+  set for a file without a header row, raises `ArgumentError`, rather than reading the file by them.
+  So does reading the records of a category saved with columns that reading them as a header row
+  would change, such as columns that were not cleansed, see
+  [An input category holds the header row of one file](#an-input-category-holds-the-header-row-of-one-file).
 
-An option set to a value that had no effect, such as a blank `format_options`, is ignored.
+An option that is blank, or at its default, is ignored, such as a blank `format_options`, or
+`skip_unknown: false` and `header_cleanser: :default`, which Rocket Job 7 saved with every input
+category, and which Mission Control can save in the properties of a Dirmon entry. Any other value
+fails, even where Rocket Job 7 did not apply it, such as `skip_unknown: true` without
+`allowed_columns`.
 
-### Column options are replaced by schema
+### A header row is cleansed as IOStreams 3.0 cleanses it
 
-The schema also describes the columns of a file, so the options that described them are deprecated,
-as IOStreams 3.0 deprecates the options that they set: an input category's `allowed_columns`,
-`required_columns`, `skip_unknown` and `header_cleanser`, and the `columns` of a file without a header
-row, or of the output to write. See [Validating columns](batch.html#validating-columns) and
-[Filtering output columns](batch.html#filtering-output-columns).
-
-~~~ruby
-# Before (deprecated)
-input_category  format:           :csv,
-                allowed_columns:  %w[login last_login name state],
-                required_columns: %w[login],
-                skip_unknown:     true
-output_category format: :csv, columns: %w[login last_login]
-
-# After
-input_category  format: :csv,
-                schema: {
-                  "fieldsMatch" => "partial",
-                  "fields"      => [
-                    {"name" => "login", "constraints" => {"required" => true}, "allowBlank" => true},
-                    {"name" => "last_login"},
-                    {"name" => "name"},
-                    {"name" => "state"}
-                  ]
-                }
-output_category format: :csv,
-                schema: {
-                  "fieldsMatch" => "subset",
-                  "fields"      => [
-                    {"name" => "login"},
-                    {"name" => "last_login"}
-                  ]
-                }
-~~~
-
-`"allowBlank" => true` keeps a record whose `login` is blank, as `required_columns` did, which only
-checked that the file had the column. Leave it out to reject such a record too.
-
-With a schema, the keys of each record are the names of its fields, and the columns of the header row
-are matched to them whatever their case, spaces and punctuation, rather than cleansed. So a field
-named `last_login` reads the column `Last Login`, and a field named `Last Login` keeps that key.
-`fieldsMatch` defaults to `"exact"`: the columns must be the fields, in order, and a column that is not
-a field raises `IOStreams::Errors::InvalidHeader`. Use `"subset"` or `"partial"` to skip the other
-columns, as `skip_unknown: true` did.
-
-Existing jobs and settings keep working:
-
-* The deprecated options still work without a schema, as they did in v7, and will be removed. Two
-  changes in the [changelog](https://github.com/reidmorrison/rocketjob/blob/main/CHANGELOG.md) apply
-  to them too: `allowed_columns`, `required_columns` and `skip_unknown` now apply to every tabular
-  input, such as JSON records, and a header row is cleansed as IOStreams 3.0 cleanses it, which keeps
-  the letters that are not ASCII, so a column `Prénom` is `prénom` rather than `prnom`.
-* v7 ignored `allowed_columns`, `required_columns` and `skip_unknown` for JSON records, for `columns`
-  supplied for a file without a header row, and with `header_cleanser: :none`, so a job that relied on
-  that may now fail records that it accepted. To get the v7 behavior back while such a job is changed,
-  set `IOStreams.enforce_column_restrictions = false`, such as in an initializer. IOStreams 3.0
-  deprecates it, and reports a deprecation warning when it is set while Ruby's deprecation warnings
-  are on. To fix the job, describe its
-  columns with a schema, or remove the options from it, since they never applied to its input.
-* They cannot be set with a schema, and a category that sets both is not valid, since IOStreams would
-  reject them rather than apply one and ignore the other. An input category's `columns` can still be
-  set with a schema: `upload` sets them to the header row read from the file, as it is in the file,
-  which the workers match to the fields.
-* A job class that defines a category with one of them, and a Dirmon entry or an `UploadFileJob` that
-  builds a job from properties that hold one, report a deprecation warning, see
-  [Finding the deprecated options](#finding-the-deprecated-options).
+Without a schema, the columns of a header row are cleansed as IOStreams 3.0 cleanses them, which keeps
+the letters that are not ASCII, and treats whitespace that is not ASCII, such as a no-break space, as a
+space. So the column `Prénom` is `prénom`, where it was `prnom`, which changes the keys of the records
+that `#perform` receives. With a schema, the keys of each record are the names of its fields, which
+the columns are matched to whatever their case, spaces and punctuation.
 
 ### The :array upload mode is deprecated
 
@@ -5997,13 +5955,13 @@ holds its header row instead, so neither case below applies. Without one, two ca
   file, such as one with `cron_after_start: false`, whose next run is created when it completes or
   fails, reads the header row of its own upload. v7 copied the header row that the upload read into
   the next run, so each later run stored its file's header row as a record. A job saved by v7 does
-  not record that its columns came from a file, so clear them once after upgrading, for each such
-  scheduled job class, and again once the jobs of that class that were running when you upgraded
-  have finished, since their next runs are copied from them:
+  not record that its columns came from a file, so the upload of its next run raises `ArgumentError`
+  rather than reading the file by them. Clear them once after upgrading, for each such scheduled job
+  class, and again once the jobs of that class that were running when you upgraded have finished,
+  since their next runs are copied from them:
 
   ~~~ruby
   MyScheduledJob.where(:state.in => %w[queued paused]).each do |job|
-    # Skip an input category whose columns are set for a file without a header row.
     job.input_categories.each do |category|
       category.columns = nil
     end
@@ -6030,12 +5988,12 @@ end
 
 ### Finding the deprecated options
 
-Rocket Job reports a Ruby deprecation warning for each deprecated category option that it is given,
-naming the line of the job class that defines the category, or of the call to `upload` that supplies
-one, such as `stream_mode: :array` or `allowed_columns:`, for example:
+Rocket Job reports a Ruby deprecation warning for the deprecated `:array` upload mode, naming the
+line of the job class that defines the category with it, or of the call to `upload` that supplies
+`stream_mode: :array`, for example:
 
 ~~~
-app/jobs/import_job.rb:5: warning: Rocket Job: allowed_columns:, skip_unknown: are deprecated, describe the columns of the file with schema: instead, see https://rocketjob.reidmorrison.com/upgrading.html
+app/jobs/import_job.rb:5: warning: Rocket Job: mode: :array is deprecated, use :line, the default, which the workers parse, or :hash to parse the whole file when it is uploaded, see https://rocketjob.reidmorrison.com/upgrading.html
 ~~~
 
 The warnings are only reported while Ruby's deprecation warnings are on, which they are in tests run
@@ -6053,15 +6011,13 @@ puts RocketJob::Deprecation.saved_options
 Each line names the document and the category, and the options that it sets, for example:
 
 ~~~
-ImportJob 6512f1c0a1b2c3d4e5f60718 (queued): input category main: allowed_columns, skip_unknown
+ImportJob 6512f1c0a1b2c3d4e5f60718 (queued): input category main: mode
 Dirmon entry "Daily orders" 6512f1c0a1b2c3d4e5f60719: input category main: mode
 ~~~
 
 It reads the jobs that can still run, queued, which includes scheduled, running, paused and failed,
 and every Dirmon entry, each on its own, so a document that cannot be read, such as a job whose class
-the console does not load, is listed with why. The `columns` of an input category that an upload read
-from a file are not listed, but a scheduled job saved by v7 does not record that its columns came from
-a file, so its columns are listed, see [An input category holds the header row of one file](#an-input-category-holds-the-header-row-of-one-file).
+the console does not load, is listed with why.
 
 ### Removed
 

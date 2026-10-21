@@ -23,8 +23,12 @@ module Batch
     class CallbackCategoriesJob < RocketJob::Job
       include RocketJob::Batch
 
-      input_category format: :csv, columns: %w[name zip]
-      output_category format: :csv, columns: %w[name zip]
+      input_category format: :csv,
+                     schema: {
+                       "header" => false,
+                       "fields" => [{"name" => "name"}, {"name" => "zip"}]
+                     }
+      output_category format: :csv, schema: {"fields" => [{"name" => "name"}, {"name" => "zip"}]}
 
       field :seen, type: Array, default: []
 
