@@ -61,6 +61,19 @@ class InputQueryDoc
   field :age, type: Integer
 end
 
+# Whether IOStreams streams a query on the test database. It cannot on JRuby, whose SQLite adapter is not the sqlite3
+# gem, where a relation raises ArgumentError, and only its batches can be uploaded.
+QUERY_STREAMS =
+  begin
+    IOStreams.stream(InputQueryPerson.limit(0)).each(:array) { nil }
+    true
+  rescue ArgumentError
+    false
+  end
+
+# Why a test of a streamed query is skipped, see QUERY_STREAMS.
+QUERY_STREAMS_SKIP = "IOStreams cannot stream a query on this database, such as SQLite on JRuby".freeze
+
 module Sliced
   class InputQueryTest < Minitest::Test
     class QueryUploadJob < RocketJob::Job
@@ -92,6 +105,7 @@ module Sliced
 
       describe "#upload_arel" do
         before do
+          skip(QUERY_STREAMS_SKIP) unless QUERY_STREAMS
           @alice = InputQueryPerson.create!(name: "Alice", age: 30)
           @bob   = InputQueryPerson.create!(name: "Bob", age: 40)
         end
@@ -238,6 +252,8 @@ module Sliced
       end
 
       it "uploads the columns of an Active Record relation" do
+        skip(QUERY_STREAMS_SKIP) unless QUERY_STREAMS
+
         assert_equal 2, job.upload(InputQueryPerson.all, columns: %i[name age])
         assert_equal 2, job.record_count
         assert_equal [["Alice", 30], ["Bob", 40]], job.input.collect(&:to_a).flatten(1).sort
