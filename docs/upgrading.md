@@ -243,9 +243,10 @@ These were deprecated or unused, and are removed in v8:
 ## Upgrading to v7.1
 
 v7.1 prepares an application for v8. It adds a category's `schema`, which replaces the options that
-v8 removes, and reports a deprecation warning wherever the application uses one of those. Nothing
-else changes: a job that does not use a schema reads and writes its files as it did in v7.0, and the
-deprecated options keep working. The other pages of this site describe the latest release; the pages
+v8 removes, and reports a deprecation warning wherever the application uses one of those, or uploads
+a query that v8 uploads differently, see [Uploading a query](#uploading-a-query). Nothing else
+changes: a job that does not use a schema reads and writes its files as it did in v7.0, the
+deprecated options keep working, and a query uploads the same records. The other pages of this site describe the latest release; the pages
 for v7.1 are on its [v7 branch](https://github.com/reidmorrison/rocketjob/tree/v7/docs).
 
 v7.1 requires IOStreams 2.2, which `bundle update rocketjob` installs. IOStreams 2.2 reports its own
@@ -408,6 +409,120 @@ ASCII, such as `José`, are kept, and text that is not valid UTF-8 raises
 removes every character that is not ASCII, as in v7.0, so moving a job to a schema keeps letters that
 it used to lose. An encoding set on the path that is uploaded is used instead.
 
+### Uploading a query
+
+v8 uploads an Active Record relation in one streamed query, read with IOStreams 3.0 rather than
+`find_each`, and builds no models, so that uploading millions of rows does not build a model for
+each one. Each value is cast as `pluck` casts it. That changes four things. v7.1 reports a
+deprecation warning, at the line that uploads the query, for each one that an upload depends on, and
+still uploads the same records as v7.0.
+
+**A block receives a Hash of each row.** A block passed with a relation receives each row as a Hash
+of the columns that the relation selects, by name with String keys, such as
+`{"id" => 1, "email" => "jack@example.com"}`, rather than a model:
+
+~~~ruby
+# Before (deprecated)
+job.upload_arel(User.where(country_code: "US")) do |user|
+  user.email.downcase
+end
+
+# After
+job.upload(User.where(country_code: "US")) do |row|
+  row["email"].downcase
+end
+~~~
+
+v7.1 accepts a block with a query in `upload`, as v8 does, rather than only in `upload_arel`, which
+v8 removes, so pass it to `upload`. `row["email"]` also reads the column of a model, so the block
+works in v7.1, which still warns, since it cannot tell what a block reads. Use a String:
+`row[:email]` reads a model too, but returns `nil` from a Hash with String keys, without an error. A
+block that calls a method or an association of the model must read columns instead: select the
+columns that it needs, joining other tables with `joins`, or upload the ids, the default, and do the
+work in `perform`. In v7, a relation that selects its columns must also select `id`, which
+`find_each` needs. A block passed with a Mongoid criteria is unchanged: it already receives each
+document as it is stored.
+
+**Eager loading raises.** A relation that uses `includes`, `preload` or `eager_load` raises
+`ArgumentError` in v8, with or without a block, since there are no models to load associations
+into. Join the tables with `joins` and select their columns instead, which reads every row in one
+query, rather than a query for each association of each batch:
+
+~~~ruby
+# Before (deprecated)
+job.upload_arel(User.includes(:company)) do |user|
+  user.company.name
+end
+
+# After
+users = User.joins(:company).select(:id, "companies.name AS company_name")
+job.upload(users) do |row|
+  row["company_name"]
+end
+~~~
+
+To upload the rows that have an association, join it, with `distinct` so that each row is uploaded
+once, or use a subquery. Both upload the same ids as v7:
+
+~~~ruby
+# Before (deprecated)
+job.upload(User.includes(:posts).where(posts: {published: true}))
+
+# After
+job.upload(User.joins(:posts).where(posts: {published: true}).distinct)
+# Or
+job.upload(User.where(id: Post.where(published: true).select(:user_id)))
+~~~
+
+**Several columns upload a Hash.** Without a block, several `columns:`, of a relation or of a
+Mongoid criteria, upload each record as a Hash of the columns by name, with String keys, such as
+`{"name" => "Jack", "zip_code" => "12345"}`, rather than an Array, so `perform` receives a Hash:
+
+~~~ruby
+job.upload(User.where(country_code: "US"), columns: %i[name zip_code])
+
+# Before (deprecated)
+def perform(record)
+  name, zip_code = record
+  # ...
+end
+
+# After
+def perform(record)
+  name     = record["name"]
+  zip_code = record["zip_code"]
+  # ...
+end
+~~~
+
+One column still uploads its value, the id by default. Change `perform` when upgrading to v8, once
+the jobs whose input v7 uploaded as Arrays have finished, or have it read both until then, such as
+with `record.is_a?(Hash)`.
+
+**A column is uploaded without its reader.** Without a block, v8 uploads the value that each column
+holds, as `pluck` and `read_attribute` return it, rather than calling the reader of the model. They
+differ only where the model overrides the reader. `normalizes`, `enum`, `serialize` and
+`alias_attribute` give the same value both ways. While deprecation warnings are on, v7.1 compares
+them for each row until they differ, and names the model and the column, never the values. To keep
+the reader's value, pass a block, which in v8 receives the row as a Hash, and apply the reader's
+logic in it, or in `perform`:
+
+~~~ruby
+class User < ActiveRecord::Base
+  def nickname
+    super || "none"
+  end
+end
+
+# Before (deprecated), uploads "none" for a user without a nickname
+job.upload(User.all, columns: [:nickname])
+
+# After
+job.upload(User.select(:id, :nickname)) do |row|
+  row["nickname"] || "none"
+end
+~~~
+
 ### Find the deprecated options that you use
 
 Rocket Job reports a Ruby deprecation warning for each deprecated category option that it is given,
@@ -421,8 +536,16 @@ app/jobs/import_job.rb:5: warning: Rocket Job: allowed_columns:, skip_unknown: a
 A Dirmon entry or an `UploadFileJob` whose properties hold a deprecated option reports one when it
 builds its job, without the line of a job class.
 
+An upload of a query that v8 uploads differently reports one at the line that uploads it, once for
+each change, see [Uploading a query](#uploading-a-query), for example:
+
+~~~
+app/jobs/export_job.rb:12: warning: Rocket Job: User#nickname returns a value other than the one that its column holds, which Rocket Job 8 uploads instead, as pluck returns it, rather than calling the reader: to keep the reader's value, pass a block, which in Rocket Job 8 receives each row as a Hash of the columns, and apply the reader's logic in it, or in perform, see https://rocketjob.reidmorrison.com/upgrading.html#upgrading-to-v71
+~~~
+
 The warnings are only reported while Ruby's deprecation warnings are on, which they are in tests run
-by Minitest, or with `ruby -W:deprecated` or `RUBYOPT=-W:deprecated`, so production stays quiet. A job
+by Minitest, or with `ruby -W:deprecated` or `RUBYOPT=-W:deprecated`, so production stays quiet, and
+does not compare the reader of each column of a query that it uploads. A job
 that was saved with a deprecated option, and is read back, does not report one. IOStreams reports its
 own deprecation warnings, prefixed `IOStreams:`, for the methods and options that the application
 calls on it.
