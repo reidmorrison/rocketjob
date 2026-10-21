@@ -238,12 +238,11 @@ module Jobs
       end
 
       def create_temp_file(size)
-        file      = Tempfile.new("check_file")
-        file_name = file.path
-        File.binwrite(file_name, "*" * size)
+        path = IOStreams.path(directory, "abc", "check_file")
+        create_file(path, size)
 
-        assert_equal size, File.size(file_name)
-        file
+        assert_equal size, path.size
+        path
       end
     end
   end

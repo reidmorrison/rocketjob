@@ -76,12 +76,12 @@ module Jobs
           assert_includes job.errors[:target_args].first, "passwrd"
         end
 
-        it "rejects a stream option that the stream does not accept" do
+        it "rejects a stream that IOStreams does not know" do
           job = RocketJob::Jobs::CopyFileJob.new(source_url: "/tmp/source.csv", target_url: "/tmp/target.csv",
-                                                 target_streams: {pgp: {recepient: "a@b.org"}})
+                                                 target_streams: {pgpp: {recipient: "a@b.org"}})
 
           refute_predicate job, :valid?
-          assert_includes job.errors[:target_streams].first, "recepient"
+          assert_includes job.errors[:target_streams].first, "pgpp"
         end
 
         it "rejects a url that is not valid, without including it in the message" do
@@ -143,10 +143,12 @@ module Jobs
           assert_equal "Copying to https://example.org/uploads/source.csv", job.description
         end
 
-        it "names an S3 target without loading the AWS SDK" do
-          job = create_job("s3://bucket/uploads/source.csv")
+        it "leaves out a target that needs a gem that is not installed in this process" do
+          job = IOStreams.stub(:path, ->(*) { raise LoadError, "cannot load such file -- aws-sdk-s3" }) do
+            create_job("s3://bucket/uploads/source.csv")
+          end
 
-          assert_equal "Copying to s3://bucket/uploads/source.csv", job.description
+          assert_equal "Copying file", job.description
         end
 
         it "leaves out a target whose url is not valid, such as a job saved without validation" do

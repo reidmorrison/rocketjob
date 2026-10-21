@@ -69,9 +69,9 @@ See [Upgrading to v7.1](https://rocketjob.reidmorrison.com/upgrading.html#upgrad
   `source_streams` and `target_streams`, such as an SFTP password or a PGP passphrase, as decided by
   `IOStreams.redact_path_options` and `IOStreams.redact_stream_options`.
 - A `CopyFileJob` checks its source and target when it is created, or when their url, arguments or
-  streams change, by building each path, so a url that is not valid, or an argument or stream option that
-  the path does not accept, such as a misspelled `passwrd:`, fails validation instead of failing the job
-  when it runs. Encrypted arguments are not decrypted to check them. A value of the wrong type is reported
+  streams change, by building each path, so a url that is not valid, an argument that the path does not
+  accept, such as a misspelled `passwrd:`, or a stream that IOStreams does not know, fails validation instead
+  of failing the job when it runs. The options of each stream are still checked when the job runs. Encrypted arguments are not decrypted to check them. A value of the wrong type is reported
   without including it in the message, since it could be a secret.
 - `RocketJob::DirmonEntry#replicate` returns a new, pending entry with the settings of an entry, such as
   its job class and properties, overridden by the supplied attributes. Only its name, pattern, job class,

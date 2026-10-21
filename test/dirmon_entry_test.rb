@@ -193,10 +193,10 @@ class DirmonEntryTest < Minitest::Test
         assert_equal "sftp://sftp.example.org/in/*.csv", dirmon_entry.pattern_display_name
       end
 
-      it "does not show a url pattern with a query, which could hold a secret" do
+      it "leaves out the query of a url pattern, which holds ssh options" do
         dirmon_entry.pattern = "sftp://user:secret@sftp.example.org/in/*.csv?password=other"
 
-        assert_equal "(not a valid path)", dirmon_entry.pattern_display_name
+        assert_equal "sftp://sftp.example.org/in/*.csv", dirmon_entry.pattern_display_name
       end
 
       it "does not show a pattern with a query after pattern characters that a url cannot hold" do
@@ -295,7 +295,7 @@ class DirmonEntryTest < Minitest::Test
       end
 
       it "copies only the settings of the entry" do
-        dirmon_entry.unavailable_at = Time.now
+        dirmon_entry.fail("worker", "Storage unavailable")
         entry = dirmon_entry.replicate
 
         assert_equal %w[_id archive_directory job_class_name name pattern properties state],

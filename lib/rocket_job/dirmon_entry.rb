@@ -233,18 +233,17 @@ module RocketJob
     # the same way that IOStreams.each_child splits it.
     #
     # Unless the pattern within the directory has a `?`, which cannot be told apart from the query of a url, such as
-    # `sftp://host/in/*.csv?password=secret`, which could hold a secret, since a url once held ssh options there.
-    # IOStreams rejects a url with a query, so such a pattern is not shown.
+    # `sftp://host/in/*.{csv,txt}?password=secret`, where the query holds ssh options, which could hold a secret.
     def pattern_display_name
       display_name = RocketJob.path_display_name(pattern)
       return display_name unless display_name == RocketJob::INVALID_PATH_DISPLAY_NAME
 
-      matcher = IOStreams::Paths::Matcher.new(pattern)
-      return display_name if matcher.directory.empty? || matcher.pattern.include?("?")
+      matcher = IOStreams::Paths::Matcher.new(nil, pattern)
+      return display_name if matcher.pattern.nil? || matcher.pattern == pattern || matcher.pattern.include?("?")
 
-      directory = RocketJob.path_display_name(matcher.directory)
-      directory == RocketJob::INVALID_PATH_DISPLAY_NAME ? directory : "#{directory}/#{matcher.pattern}"
-    rescue ArgumentError
+      "#{matcher.path.display_name}/#{matcher.pattern}"
+    rescue StandardError, LoadError
+      # The directory is not a valid path, or needs a gem that is not installed in this process.
       RocketJob::INVALID_PATH_DISPLAY_NAME
     end
 

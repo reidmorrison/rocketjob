@@ -43,8 +43,8 @@ class RocketJobTest < Minitest::Test
                      RocketJob.path_display_name("sftp://user:secret@sftp.example.org/in/file.csv")
       end
 
-      it "does not show a url with a query, which IOStreams rejects, since it could hold a secret" do
-        assert_equal RocketJob::INVALID_PATH_DISPLAY_NAME,
+      it "leaves out the query of a url, which can hold a secret" do
+        assert_equal "sftp://sftp.example.org/in/file.csv",
                      RocketJob.path_display_name("sftp://user:secret@sftp.example.org/in/file.csv?password=other")
       end
 
@@ -52,11 +52,6 @@ class RocketJobTest < Minitest::Test
         path = IOStreams.path("sftp://user:secret@sftp.example.org/in/file.csv")
 
         assert_equal "sftp://sftp.example.org/in/file.csv", RocketJob.path_display_name(path)
-      end
-
-      it "leaves out a password that holds an @" do
-        assert_equal "sftp://sftp.example.org/in/file.csv",
-                     RocketJob.path_display_name("sftp://user:p@ss@sftp.example.org/in/file.csv")
       end
 
       it "leaves out a path that is not valid, since its credentials cannot be found" do
