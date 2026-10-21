@@ -164,7 +164,17 @@ block:
   `ActiveRecord::ConnectionTimeoutError` once the `checkout_timeout` of the pool has passed.
 * It needs Active Record 7.2 or later, and a database whose driver streams a query: PostgreSQL,
   MySQL with `mysql2`, or SQLite with `sqlite3`. Any other raises `ArgumentError`, such as MySQL with
-  `trilogy`, SQL Server, or SQLite on JRuby.
+  `trilogy`, SQL Server, or SQLite on JRuby. Upload the batches of the relation there instead, see
+  [In batches](batch.html#in-batches), selecting the columns that are uploaded:
+
+  ~~~ruby
+  # Before
+  job.upload(User.where(country_code: "US"), columns: %i[name zip_code])
+
+  # After, on a database whose driver cannot stream a query
+  users = User.where(country_code: "US").select(:name, :zip_code)
+  job.upload(users.in_batches(of: 10_000), columns: %i[name zip_code])
+  ~~~
 * A relation that loads associations with `includes`, `preload` or `eager_load` raises
   `ArgumentError`, since no models are built. Join their tables with `joins`, and select their
   columns, instead:

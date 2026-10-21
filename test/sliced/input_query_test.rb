@@ -28,6 +28,7 @@ end
 # ActiveRecord source for upload_arel.
 class InputQueryPerson < ActiveRecord::Base
   has_many :input_query_pets
+  alias_attribute :full_name, :name
 end
 
 class InputQueryPet < ActiveRecord::Base
@@ -191,6 +192,57 @@ module Sliced
           assert_equal %w[Alice Bob], input.collect(&:to_a).flatten.sort
         end
 
+        describe "the batches of a relation" do
+          it "uploads the primary key of each row" do
+            assert_equal 2, input.upload_arel(InputQueryPerson.in_batches(of: 1))
+            assert_equal [@alice.id, @bob.id], input.collect(&:to_a).flatten.sort
+          end
+
+          it "uploads the named columns of each row, as arrays" do
+            input.upload_arel(InputQueryPerson.in_batches(of: 1), columns: %i[name age])
+
+            assert_equal [["Alice", 30], ["Bob", 40]], input.collect(&:to_a).flatten(1).sort
+          end
+
+          it "uploads the columns that the relation selects before in_batches" do
+            input.upload_arel(InputQueryPerson.select(:id, :age).in_batches(of: 1), columns: [:age])
+
+            assert_equal [30, 40], input.collect(&:to_a).flatten.sort
+          end
+
+          it "finds a column by the name of the attribute that aliases it" do
+            input.upload_arel(InputQueryPerson.in_batches(of: 1), columns: [:full_name])
+
+            assert_equal %w[Alice Bob], input.collect(&:to_a).flatten.sort
+          end
+
+          it "raises before any batch is read for a column that the relation does not select" do
+            error = assert_raises(ArgumentError) do
+              input.upload_arel(InputQueryPerson.select(:id).in_batches(of: 1), columns: [:name])
+            end
+
+            assert_equal "The batches of the InputQueryPerson query do not select the column name, which is " \
+                         "uploaded: select it before `in_batches`, or upload the relation instead", error.message
+            assert_equal 0, input.count
+          end
+
+          it "uploads the rows that an open transaction of the caller wrote, since it reads on that connection" do
+            InputQueryPerson.transaction do
+              InputQueryPerson.create!(name: "Carol", age: 50)
+              input.upload_arel(InputQueryPerson.in_batches(of: 1), columns: [:name])
+              raise(ActiveRecord::Rollback)
+            end
+
+            assert_equal %w[Alice Bob Carol], input.collect(&:to_a).flatten.sort
+          end
+
+          it "uploads what the block returns for each model" do
+            input.upload_arel(InputQueryPerson.in_batches(of: 1)) { |model| model.name.upcase }
+
+            assert_equal %w[ALICE BOB], input.collect(&:to_a).flatten.sort
+          end
+        end
+
         it "raises for a relation that loads associations, and uploads nothing" do
           error = assert_raises(ArgumentError) { input.upload_arel(InputQueryPerson.includes(:input_query_pets)) }
 
@@ -263,6 +315,12 @@ module Sliced
         assert_equal(2, job.upload(InputQueryPerson.all) { |model| model.name.upcase })
         assert_equal 2, job.record_count
         assert_equal %w[ALICE BOB], job.input.collect(&:to_a).flatten.sort
+      end
+
+      it "uploads the columns of the batches of an Active Record relation" do
+        assert_equal 2, job.upload(InputQueryPerson.select(:name).in_batches(of: 1), columns: [:name])
+        assert_equal 2, job.record_count
+        assert_equal %w[Alice Bob], job.input.collect(&:to_a).flatten.sort
       end
 
       it "uploads what the block returns for each document of a Mongoid query" do

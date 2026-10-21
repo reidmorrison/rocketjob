@@ -49,8 +49,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   rather than `id`. The query is read on a connection of its own, so it uploads the rows that were committed, rather
   than those that an open transaction of the caller wrote, and the pool of the model needs a connection free besides
   that of the caller. It needs Active Record 7.2 or later, and PostgreSQL, MySQL with `mysql2`, or SQLite with
-  `sqlite3`: any other database raises `ArgumentError`, as does a relation that loads associations with `includes`,
-  `preload` or `eager_load`. A block still receives each model, read with `find_each`. See the upgrade guide.
+  `sqlite3`: any other database raises `ArgumentError`, where the batches of the relation can be uploaded instead, and
+  so does a relation that loads associations with `includes`, `preload` or `eager_load`. A block still receives each
+  model, read with `find_each`. See the upgrade guide.
 - `.from_properties(nil)` of a batch job builds a job with the defaults, as it does for a job that is not a batch
   job. Previously it raised `NoMethodError`, such as when Mission Control saved a Dirmon entry for a batch job
   without changing its properties.
@@ -178,6 +179,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### New features
 
+- `upload` accepts the batches of an Active Record relation, which `relation.in_batches(...)` returns, and reads them
+  in those batches, as Rails reads them, on any database, such as MySQL with `trilogy`, whose driver cannot stream a
+  query. `columns:` names the columns to upload, as for a relation, which each batch reads by name, so select them
+  before `in_batches` to read only them. See the Batch Guide.
 - A batch job parses each record in its input category, and renders each result in its output category, in the
   loop that processes its slices, rather than in perform callbacks. So a batch job without perform callbacks of its
   own skips running them for each record, which doubled the records per second of a job whose `#perform` does no

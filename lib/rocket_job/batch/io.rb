@@ -135,6 +135,10 @@ module RocketJob
       # Example: Upload the user_name and zip_code of each user, as an Array, see `columns:`
       #   job.upload(User.where(country_code: "US"), columns: %i[user_name zip_code])
       #
+      # Example: Upload the id of each user in batches of 10,000, on a database whose driver cannot stream a query, such
+      #   as MySQL with trilogy, selecting only the id
+      #   job.upload(User.where(country_code: "US").select(:id).in_batches(of: 10_000))
+      #
       # Example: Upload the zip_code of each document that a Mongoid query returns
       #   job.upload(User.where(state: "FL"), columns: [:zip_code])
       #
@@ -149,7 +153,9 @@ module RocketJob
       #   limit, without building a model for each row, so each column is read as `pluck` reads it, see
       #   Sliced::QueryUpload. It reads the query on a connection of its own, so it uploads the rows that were
       #   committed, rather than those that an open transaction of the caller wrote, and the pool of the model needs
-      #   a connection free besides that of the caller.
+      #   a connection free besides that of the caller. The batches of a relation, `relation.in_batches(...)`, are read
+      #   in those batches instead, on the connection of the caller, so that any database can be read: select the
+      #   columns that are uploaded before `in_batches`, since each batch selects what the relation selects.
       # * The number that is returned and added to `record_count` is the number of records uploaded, which for a
       #   range is the number of integers in it, although each slice holds one `[first_id, last_id]` record.
       # * If an exception is raised while uploading, the records that this upload stored are removed, so that if the
@@ -198,8 +204,8 @@ module RocketJob
             rocketjob_check_upload_options("a Mongoid::Criteria", file_name, stream_mode, on_first, args)
             input_collection.upload_mongo_query(object, columns: columns, slice_batch_size: slice_batch_size,
                                                         upload_id: rocketjob_upload_id, &block)
-          when defined?(ActiveRecord::Relation) ? ActiveRecord::Relation : false
-            rocketjob_check_upload_options("an ActiveRecord::Relation", file_name, stream_mode, on_first, args)
+          when ->(query) { Sliced::QueryUpload.query?(query) }
+            rocketjob_check_upload_options("an Active Record query", file_name, stream_mode, on_first, args)
             input_collection.upload_arel(object, columns: columns, slice_batch_size: slice_batch_size,
                                                  upload_id: rocketjob_upload_id, &block)
           else
@@ -396,9 +402,10 @@ module RocketJob
       end
 
       # Returns [true|false] whether the supplied object is a query that #upload uploads the records of, whose models
-      # or documents a block can transform: a Mongoid::Criteria, or an ActiveRecord::Relation.
+      # or documents a block can transform: a Mongoid::Criteria, or an Active Record relation, or the batches of one,
+      # see Sliced::QueryUpload.query?.
       def rocketjob_query?(object)
-        object.is_a?(Mongoid::Criteria) || (defined?(ActiveRecord::Relation) && object.is_a?(ActiveRecord::Relation))
+        object.is_a?(Mongoid::Criteria) || Sliced::QueryUpload.query?(object)
       end
 
       # Raises ArgumentError for the options that describe the columns of the file, which Rocket Job v8 removed, see
