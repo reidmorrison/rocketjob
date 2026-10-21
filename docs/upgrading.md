@@ -26,7 +26,8 @@ upgrade to the next version:
    [Find the deprecated options that you use](#find-the-deprecated-options-that-you-use), and
    change each line that a warning names, until none are left.
 3. Change the saved documents that still hold a deprecated option, such as Dirmon entries, scheduled
-   jobs and `UploadFileJob`s, since reading one back reports no warning.
+   jobs and `UploadFileJob`s, since reading one back reports no warning, see
+   [Propose the schema of each category](#propose-the-schema-of-each-category).
 4. Deploy, and only then upgrade to the next version.
 
 A minor release, such as v7.1, adds what replaces the options that the next major release removes,
@@ -220,6 +221,49 @@ by Minitest, or with `ruby -W:deprecated` or `RUBYOPT=-W:deprecated`, so product
 that was saved with a deprecated option, and is read back, does not report one. IOStreams reports its
 own deprecation warnings, prefixed `IOStreams:`, for the methods and options that the application
 calls on it.
+
+### Propose the schema of each category
+
+The warnings name the lines of code, but not the saved documents that hold a deprecated option, such
+as scheduled jobs, Dirmon entries and `UploadFileJob`s, since reading one back does not report a
+warning. `RocketJob::SchemaProposal` proposes the schema that replaces the deprecated options of each
+category, for both, and changes nothing. Run it from a console of the application, once its job
+classes are loaded, such as with `Rails.application.eager_load!`:
+
+~~~ruby
+puts RocketJob::SchemaProposal.report
+~~~
+
+It lists each job class that defines a category with a deprecated option, each saved job that can
+still run, and each Dirmon entry and `UploadFileJob` whose properties hold one, for example:
+
+~~~
+ImportJob, input category main
+  Set: allowed_columns: remove, skip_unknown: false
+  Set schema: {"fieldsMatch" => "partial", "fields" => [{"name" => "first_name"}, {"name" => "zip_code"}], "keyType" => "cleansed"}
+  Check: A name that 7.0 cleansed from a column with letters that are not ASCII lost them, ...
+~~~
+
+Each proposal reads the files as the options did in 7.0, which is not always what they say: options
+that 7.0 never applied, such as `allowed_columns` for JSON records, are removed rather than described
+in the schema, and the proposal says so. It also says what to check, and when it cannot translate a
+category, such as a layout with two columns that have one key, or a job that is already running, which
+should finish first. Columns that a scheduled job copied from the header row of an earlier upload are
+removed, rather than read as the columns of a file without a header row.
+
+Before applying a proposal, read a recent file of the job with it. `#dry_run` reads the first records
+of a file both ways, and lists what differs, such as a key that is no longer read:
+
+~~~ruby
+proposal = ImportJob.schema_proposals.first
+proposal.dry_run("/data/in/orders_20261020.csv")
+# => ["Record 1: keys no longer read: [\"prnom\"]"]
+~~~
+
+Then apply it by hand: in the job class, replace the deprecated options with the schema, and for a
+saved job, Dirmon entry or `UploadFileJob`, set the same in its category, or its properties. Mission
+Control 7.0 cannot show or set a schema, and saving a Dirmon entry in it rebuilds the entry's
+properties without one, so set the schema on the job class where you can, or from a console.
 
 ## Upgrading to v6
 

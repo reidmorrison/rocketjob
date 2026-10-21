@@ -44,6 +44,13 @@ See [Upgrading to v7.1](https://rocketjob.reidmorrison.com/upgrading.html#upgrad
   cannot be set with the options that it replaces: `format_options`, the `columns` of an output category, and the
   `allowed_columns`, `required_columns`, `skip_unknown`, `header_cleanser` and `:array` mode of an input category.
   Without a schema, files are read and written as before. See "Typed values with a schema" in the batch guide.
+- `RocketJob::SchemaProposal.report` proposes the schema that replaces the deprecated options of each category of the
+  job classes that are loaded, the saved jobs that can still run, and the Dirmon entries and `UploadFileJob`s whose
+  properties hold them, and changes nothing. Each proposal reads the files as the options did in 7.0, which is not
+  always what they say: options that 7.0 never applied, such as `allowed_columns` for JSON records, are removed
+  rather than described in the schema. It says what to check, such as a name that 7.0 cleansed without its non-ASCII
+  letters, and what it cannot translate. `#dry_run` reads the first records of a recent file with the category as it
+  is, and with the proposal, and lists what differs. See "Propose the schema of each category" in the upgrade guide.
 
 ### Deprecated
 

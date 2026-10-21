@@ -5,6 +5,7 @@ module RocketJob
       include SemanticLogger::Loggable
       include Plugins::Document
       include Category::Base
+      include Category::InputSchemaProposal
 
       embedded_in :job, class_name: "RocketJob::Job", inverse_of: :input_categories
 
@@ -191,6 +192,43 @@ module RocketJob
           path.encoding("UTF-8", cleaner: :printable, replace: replace)
         end
         path
+      end
+
+      # Returns the supplied record of an upload as `#perform` receives it: parsed in this category's format, or as it is
+      # when the category has no format. A blank record of a tabular format is nil.
+      #
+      # Raises ArgumentError when the format needs a header row that has not been read yet.
+      def parse(record)
+        return record unless tabular?
+        return if record.blank?
+
+        if tabular.header?
+          raise(ArgumentError,
+                "The tabular header columns _must_ be set before attempting to parse data that requires it.")
+        end
+
+        tabular.record_parse(record)
+      end
+
+      # Returns [Array] the first records of the supplied file, or stream, as `#perform` would receive them if the file
+      # were uploaded into this category, see RocketJob::Batch::IO#upload. A copy of this category reads the file, so
+      # nothing is stored, and this category is not changed. Raises what the upload, or a worker parsing a record,
+      # would raise.
+      def preview(stream, limit: 100)
+        copy    = deep_dup
+        # A copy of a path, so that the encoding that an upload sets on it does not change the caller's.
+        path    = copy.upload_path(stream.is_a?(IOStreams::Stream) ? stream.dup : stream)
+        header  = copy.extract_header_callback(nil)
+        records = []
+        copy.each_record(path) do |record|
+          if header
+            header = nil if header.call(record)
+            next
+          end
+          records << copy.parse(record)
+          break if records.size >= limit
+        end
+        records
       end
 
       # Yields each record read from the supplied path for an upload, see RocketJob::Batch::IO#upload, in the supplied

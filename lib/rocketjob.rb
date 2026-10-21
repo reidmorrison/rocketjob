@@ -32,6 +32,7 @@ module RocketJob
   autoload :LookupCollection,        "rocket_job/lookup_collection"
   autoload :Worker,                  "rocket_job/worker"
   autoload :Performance,             "rocket_job/performance"
+  autoload :SchemaProposal,          "rocket_job/schema_proposal"
   autoload :Server,                  "rocket_job/server"
   autoload :Sliced,                  "rocket_job/sliced"
   autoload :Subscriber,              "rocket_job/subscriber"
@@ -44,6 +45,7 @@ module RocketJob
   module Category
     autoload :Base,                  "rocket_job/category/base"
     autoload :Input,                 "rocket_job/category/input"
+    autoload :InputSchemaProposal,   "rocket_job/category/input_schema_proposal"
     autoload :Output,                "rocket_job/category/output"
   end
 
