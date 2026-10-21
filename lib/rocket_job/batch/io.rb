@@ -135,6 +135,17 @@ module RocketJob
       # Example: Upload the user_name and zip_code of each user, as an Array, see `columns:`
       #   job.upload(User.where(country_code: "US"), columns: %i[user_name zip_code])
       #
+      # Example: Upload the id of each user in batches of 10,000, for a database that cannot stream a query, such as
+      #   MySQL with trilogy, selecting the columns before `in_batches`
+      #   job.upload(User.where(country_code: "US").select(:id).in_batches(of: 10_000))
+      #
+      # Example: Upload what a block computes for each user, by writing the records in the block
+      #   job.upload do |records|
+      #     User.where(country_code: "US").find_each do |user|
+      #       records << user.email.downcase
+      #     end
+      #   end
+      #
       # Example: Upload the zip_code of each document that a Mongoid query returns
       #   job.upload(User.where(state: "FL"), columns: [:zip_code])
       #
@@ -143,7 +154,12 @@ module RocketJob
       #   job.upload(200..421)
       #
       # Notes for a query or a range:
-      # * `columns:` is only for a query: the columns, or fields, to upload. Default: the id.
+      # * `columns:` is only for a query: the columns, or fields, to upload. Default: the id. The batches of a relation
+      #   upload the columns that the relation selects instead, and raise ArgumentError for `columns:`.
+      # * IOStreams reads an Active Record relation as one query that the database streams, without building a model
+      #   for each row, so the rows are uploaded in the order of the relation and within its limit, and each column is
+      #   read as `pluck` reads it. It reads the query on a connection of its own, so the pool of the model needs a
+      #   connection free besides that of the caller. See `IOStreams.stream`.
       # * The number that is returned and added to `record_count` is the number of records uploaded, which for a
       #   range is the number of integers in it, although each slice holds one `[first_id, last_id]` record.
       # * If an exception is raised while uploading, the records that this upload stored are removed, so that if the
@@ -152,8 +168,7 @@ module RocketJob
                  slice_batch_size: nil, **args, &block)
         input_collection = input(category)
 
-        # A block uploads the records that it writes, unless it transforms the models or documents of a query.
-        if block && !rocketjob_query?(object)
+        if block
           raise(ArgumentError, "Cannot supply both an object to upload, and a block.") if object
           if stream_mode || columns || slice_batch_size || args.size.positive?
             raise(ArgumentError,
@@ -191,11 +206,11 @@ module RocketJob
           when Mongoid::Criteria
             rocketjob_check_upload_options("a Mongoid::Criteria", file_name, stream_mode, on_first, args)
             input_collection.upload_mongo_query(object, columns: columns, slice_batch_size: slice_batch_size,
-                                                        upload_id: rocketjob_upload_id, &block)
-          when defined?(ActiveRecord::Relation) ? ActiveRecord::Relation : false
+                                                        upload_id: rocketjob_upload_id)
+          when ->(query) { rocketjob_active_record_query?(query) }
             rocketjob_check_upload_options("an ActiveRecord::Relation", file_name, stream_mode, on_first, args)
             input_collection.upload_arel(object, columns: columns, slice_batch_size: slice_batch_size,
-                                                 upload_id: rocketjob_upload_id, &block)
+                                                 upload_id: rocketjob_upload_id)
           else
             raise(ArgumentError, "Unknown keyword argument :columns when uploading a file") if columns
 
@@ -389,10 +404,12 @@ module RocketJob
         count
       end
 
-      # Returns [true|false] whether the supplied object is a query that #upload uploads the records of, whose models
-      # or documents a block can transform: a Mongoid::Criteria, or an ActiveRecord::Relation.
-      def rocketjob_query?(object)
-        object.is_a?(Mongoid::Criteria) || (defined?(ActiveRecord::Relation) && object.is_a?(ActiveRecord::Relation))
+      # Returns [true|false] whether the supplied object is an Active Record query that #upload uploads the rows of: a
+      # relation, or the batches of one that `relation.in_batches` returns without a block.
+      def rocketjob_active_record_query?(object)
+        return false unless defined?(ActiveRecord::Relation)
+
+        object.is_a?(ActiveRecord::Relation) || object.is_a?(ActiveRecord::Batches::BatchEnumerator)
       end
 
       # Raises ArgumentError for the options that describe the columns of the file, which Rocket Job v8 removed, see

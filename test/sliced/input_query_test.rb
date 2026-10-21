@@ -15,6 +15,19 @@ end
 class InputQueryPerson < ActiveRecord::Base
 end
 
+# Whether IOStreams streams a query on the test database. It cannot on JRuby, whose SQLite adapter is not the sqlite3
+# gem, where a relation raises ArgumentError, and only its batches can be uploaded.
+QUERY_STREAMS =
+  begin
+    IOStreams.stream(InputQueryPerson.limit(0)).each(:array) { nil }
+    true
+  rescue ArgumentError
+    false
+  end
+
+# Why a test of a streamed query is skipped, see QUERY_STREAMS.
+QUERY_STREAMS_SKIP = "IOStreams cannot stream a query on this database, such as SQLite on JRuby".freeze
+
 # Mongoid source for upload_mongo_query.
 class InputQueryDoc
   include Mongoid::Document
@@ -61,6 +74,8 @@ module Sliced
         end
 
         it "uploads the id of each record by default" do
+          skip(QUERY_STREAMS_SKIP) unless QUERY_STREAMS
+
           count = input.upload_arel(InputQueryPerson.all)
 
           assert_equal 2, count
@@ -68,6 +83,8 @@ module Sliced
         end
 
         it "uploads a single named column" do
+          skip(QUERY_STREAMS_SKIP) unless QUERY_STREAMS
+
           count = input.upload_arel(InputQueryPerson.all, columns: [:name])
 
           assert_equal 2, count
@@ -75,16 +92,40 @@ module Sliced
         end
 
         it "uploads multiple columns as arrays" do
+          skip(QUERY_STREAMS_SKIP) unless QUERY_STREAMS
+
           input.upload_arel(InputQueryPerson.all, columns: %i[name age])
           rows = input.collect(&:to_a).flatten(1).sort
 
           assert_equal [["Alice", 30], ["Bob", 40]], rows
         end
 
-        it "honors a supplied block" do
-          input.upload_arel(InputQueryPerson.all) { |model| model.name.upcase }
+        it "uploads the rows in the order of the relation, and within its limit" do
+          skip(QUERY_STREAMS_SKIP) unless QUERY_STREAMS
 
-          assert_equal %w[ALICE BOB], input.collect(&:to_a).flatten.sort
+          assert_equal 1, input.upload_arel(InputQueryPerson.order(age: :desc).limit(1), columns: [:name])
+          assert_equal ["Bob"], input.collect(&:to_a).flatten
+        end
+
+        it "uploads the columns that the batches of a relation select" do
+          count = input.upload_arel(InputQueryPerson.select(:name, :age).in_batches(of: 1))
+
+          assert_equal 2, count
+          assert_equal [["Alice", 30], ["Bob", 40]], input.collect(&:to_a).flatten(1).sort
+        end
+
+        it "uploads the value of the one column that the batches of a relation select" do
+          input.upload_arel(InputQueryPerson.select(:name).in_batches(of: 1))
+
+          assert_equal %w[Alice Bob], input.collect(&:to_a).flatten.sort
+        end
+
+        it "rejects columns for the batches of a relation" do
+          error = assert_raises(ArgumentError) do
+            input.upload_arel(InputQueryPerson.in_batches(of: 1), columns: [:name])
+          end
+
+          assert_equal "Select the columns to upload before `in_batches`, rather than with `columns:`", error.message
         end
       end
 
@@ -113,12 +154,6 @@ module Sliced
 
           assert_equal [["Alice", 30], ["Bob", 40]], rows
         end
-
-        it "honors a supplied block" do
-          input.upload_mongo_query(InputQueryDoc.all) { |document| document["name"].downcase }
-
-          assert_equal %w[alice bob], input.collect(&:to_a).flatten.sort
-        end
       end
     end
 
@@ -141,20 +176,29 @@ module Sliced
       end
 
       it "uploads the columns of an Active Record relation" do
+        skip(QUERY_STREAMS_SKIP) unless QUERY_STREAMS
+
         assert_equal 2, job.upload(InputQueryPerson.all, columns: %i[name age])
         assert_equal 2, job.record_count
         assert_equal [["Alice", 30], ["Bob", 40]], job.input.collect(&:to_a).flatten(1).sort
       end
 
-      it "uploads what the block returns for each model of an Active Record relation" do
-        assert_equal(2, job.upload(InputQueryPerson.all) { |model| model.name.upcase })
+      it "uploads the batches of an Active Record relation" do
+        assert_equal 2, job.upload(InputQueryPerson.select(:id).in_batches(of: 1))
         assert_equal 2, job.record_count
-        assert_equal %w[ALICE BOB], job.input.collect(&:to_a).flatten.sort
+        assert_equal InputQueryPerson.ids.sort, job.input.collect(&:to_a).flatten.sort
       end
 
-      it "uploads what the block returns for each document of a Mongoid query" do
-        assert_equal(2, job.upload(InputQueryDoc.all) { |document| document["name"].downcase })
-        assert_equal %w[alice bob], job.input.collect(&:to_a).flatten.sort
+      it "rejects a block for an Active Record relation" do
+        error = assert_raises(ArgumentError) { job.upload(InputQueryPerson.all, &:name) }
+
+        assert_equal "Cannot supply both an object to upload, and a block.", error.message
+      end
+
+      it "rejects a block for a Mongoid query" do
+        error = assert_raises(ArgumentError) { job.upload(InputQueryDoc.all) { |document| document["name"] } }
+
+        assert_equal "Cannot supply both an object to upload, and a block.", error.message
       end
 
       it "rejects a file option for a query" do

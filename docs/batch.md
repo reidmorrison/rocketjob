@@ -197,8 +197,9 @@ For the full list of supported file types and transformations, see
 
 ### Active Record queries
 
-`upload` uploads the result of an Active Record query. By default it uploads only the `:id` of
-each row, adding it to the select list to reduce overhead:
+`upload` uploads the result of an Active Record query, which
+[IOStreams](https://iostreams.reidmorrison.com/queries) reads as one query that the database
+streams, without building a model for each row. By default it uploads only the `:id` of each row:
 
 ~~~ruby
 # Upload the ids of all US users
@@ -212,11 +213,27 @@ itself for a single column:
 job.upload(User.where(country_code: "US"), columns: %i[user_name zip_code])
 ~~~
 
-Pass a block to transform each model into the record to upload:
+The rows are uploaded in the order of the relation, and within its limit, and each column is read as
+`pluck` reads it. The query is read on a connection of its own, so the pool of the model needs a
+connection free besides that of the caller.
+
+A database whose driver cannot stream a query, such as MySQL with `trilogy`, raises
+`ArgumentError`. Upload the batches of the relation instead, which are read on the connection of the
+caller. The batches upload the columns that the relation selects, so select them before
+`in_batches`:
 
 ~~~ruby
-job.upload(User.where(country_code: "US")) do |user|
-  user.email
+job.upload(User.where(country_code: "US").select(:id).in_batches(of: 10_000))
+~~~
+
+To upload something other than the values of columns, such as what a method of the model returns,
+write the records in a block, see [A block](#a-block):
+
+~~~ruby
+job.upload do |records|
+  User.where(country_code: "US").find_each do |user|
+    records << user.email.downcase
+  end
 end
 ~~~
 
@@ -233,9 +250,6 @@ job.upload(User.where(state: "FL"))
 job.upload(User.where(state: "FL"), columns: [:zip_code])
 ~~~
 
-When a block is supplied it receives each document and returns the record to upload. The returned
-value must serialize to BSON (`Hash`, `Array`, `String`, `Integer`, `Float`, `Symbol`, `Regexp`,
-`Time`; not `Date`). With a `Hash`, keys must be strings, not symbols.
 
 ### Integer ranges
 
@@ -266,6 +280,9 @@ job.upload do |writer|
   end
 end
 ~~~
+
+Each record must serialize to BSON (`Hash`, `Array`, `String`, `Integer`, `Float`, `Symbol`,
+`Regexp`, `Time`; not `Date`). With a `Hash`, keys must be strings, not symbols.
 
 For an input category with a `schema`, the block writes the lines of a file: its header row first,
 when the file has one, then its rows. They are read as the lines of a file are, in slices that each

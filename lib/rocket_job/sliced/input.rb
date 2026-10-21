@@ -21,54 +21,44 @@ module RocketJob
         where(upload_id: upload_id).delete_all
       end
 
-      def upload_mongo_query(criteria, columns: [], slice_batch_size: nil, upload_id: nil, &block)
+      # Uploads the documents of the supplied Mongoid criteria, read with the driver of MongoDB without building a model
+      # for each one: the value of the field of each document when one field is uploaded, by default its `_id`,
+      # otherwise an Array of the values of the fields. Returns how many it uploaded.
+      def upload_mongo_query(criteria, columns: [], slice_batch_size: nil, upload_id: nil)
+        columns = columns.blank? ? ["_id"] : columns.collect(&:to_s)
         options = criteria.options
-
-        # Without a block extract the fields from the supplied criteria
-        if block
-          # Criteria is returning old school :fields instead of :projections
-          options[:projection] = options.delete(:fields) if options.key?(:fields)
-        else
-          columns = columns.blank? ? ["_id"] : columns.collect(&:to_s)
-          fields  = options.delete(:fields) || {}
-          columns.each { |col| fields[col] = 1 }
-          options[:projection] = fields
-
-          block =
-            if columns.size == 1
-              column = columns.first
-              ->(document) { document[column] }
-            else
-              ->(document) { columns.collect { |c| document[c] } }
-            end
-        end
+        fields  = options.delete(:fields) || {}
+        columns.each { |col| fields[col] = 1 }
+        options[:projection] = fields
 
         upload(slice_batch_size: slice_batch_size, upload_id: upload_id) do |records|
           # Drop down to the mongo driver level to avoid constructing a Model for each document returned
           criteria.klass.collection.find(criteria.selector, options).each do |document|
-            records << block.call(document)
+            records << (columns.size == 1 ? document[columns.first] : columns.collect { |c| document[c] })
           end
         end
       end
 
-      def upload_arel(arel, columns: nil, slice_batch_size: nil, upload_id: nil, &block)
-        unless block
-          columns = columns.blank? ? [:id] : columns.collect(&:to_sym)
-
-          block =
-            if columns.size == 1
-              column = columns.first
-              ->(model) { model.public_send(column) }
-            else
-              ->(model) { columns.collect { |c| model.public_send(c) } }
-            end
-          # find_each requires the :id column in the query
-          selection = columns.include?(:id) ? columns : columns + [:id]
-          arel      = arel.select(selection)
+      # Uploads the rows of the supplied Active Record relation, which IOStreams reads as one query that the database
+      # streams, without building a model for each row, see `IOStreams.stream`, or the rows of the batches that
+      # `relation.in_batches(...)` returns, which IOStreams reads in those batches, for a database that cannot stream a
+      # query: the value of each row when it has one column, otherwise an Array of its values. A relation reads the
+      # supplied columns, by default the id, and batches read the columns that their relation selects. Returns how many
+      # it uploaded.
+      #
+      # Raises ArgumentError for columns supplied with batches, whose relation selects the columns instead.
+      def upload_arel(query, columns: nil, slice_batch_size: nil, upload_id: nil)
+        if query.is_a?(ActiveRecord::Batches::BatchEnumerator)
+          if columns.present?
+            raise(ArgumentError, "Select the columns to upload before `in_batches`, rather than with `columns:`")
+          end
+        else
+          query = query.reselect(*(columns.presence || [:id]))
         end
 
+        stream = IOStreams.stream(query)
         upload(slice_batch_size: slice_batch_size, upload_id: upload_id) do |records|
-          arel.find_each { |model| records << block.call(model) }
+          stream.each(:hash) { |row| records << (row.size == 1 ? row.values.first : row.values) }
         end
       end
 
