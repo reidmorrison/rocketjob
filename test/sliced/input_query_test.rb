@@ -222,7 +222,7 @@ module Sliced
           it "warns once, at the line that uploads it, that the block receives a Hash of each row" do
             line     = __LINE__ + 2
             warnings = deprecation_warnings do
-              job.upload_arel(InputQueryMember.all) { |member| member.name.upcase }
+              job.upload(InputQueryMember.all) { |member| member.name.upcase }
             end
 
             assert_equal %w[JACK JILL], records
@@ -236,7 +236,7 @@ module Sliced
           end
 
           it "does not warn for a Mongoid criteria, whose block already receives each document" do
-            warnings = deprecation_warnings { job.upload_mongo_query(InputQueryDoc.all) { |document| document["name"] } }
+            warnings = deprecation_warnings { job.upload(InputQueryDoc.all) { |document| document["name"] } }
 
             assert_equal %w[Alice Bob], records.sort
             assert_empty warnings
@@ -264,7 +264,7 @@ module Sliced
 
           it "also warns for the block" do
             warnings = deprecation_warnings do
-              job.upload_arel(InputQueryMember.includes(:input_query_posts)) { |member| member.input_query_posts.size }
+              job.upload(InputQueryMember.includes(:input_query_posts)) { |member| member.input_query_posts.size }
             end
 
             assert_equal [1, 0], records
@@ -293,12 +293,26 @@ module Sliced
             assert_includes warnings.first, "columns: with several names uploads each record as an Array"
           end
 
-          it "warns through the upload_arel of a job" do
+          it "warns through the upload_mongo_query of a job, which also warns that Rocket Job 8 removes it" do
+            line     = __LINE__ + 1
+            warnings = deprecation_warnings { job.upload_mongo_query(InputQueryDoc.all, :name, :age) }
+
+            assert_equal [["Alice", 30], ["Bob", 40]], records.sort
+            assert_equal 2, warnings.size, warnings.inspect
+            assert_equal "#{__FILE__}:#{line}: warning: Rocket Job: upload_mongo_query is deprecated, and removed in " \
+                         "Rocket Job 8: call upload with the criteria, with the fields to upload as columns:, such as " \
+                         "upload(User.where(state: \"FL\"), columns: [:zip_code]), see " \
+                         "#{RocketJob::Deprecation::UPGRADE_GUIDE}\n", warnings.first
+            assert_includes warnings.last, "columns: with several names"
+          end
+
+          it "warns through the upload_arel of a job, which also warns that Rocket Job 8 removes it" do
             warnings = deprecation_warnings { job.upload_arel(InputQueryMember.all, :name, :status) }
 
             assert_equal [%w[Jack active], %w[Jill inactive]], records
-            assert_equal 1, warnings.size, warnings.inspect
-            assert_includes warnings.first, "columns: with several names"
+            assert_equal 2, warnings.size, warnings.inspect
+            assert_includes warnings.first, "upload_arel is deprecated, and removed in Rocket Job 8"
+            assert_includes warnings.last, "columns: with several names"
           end
         end
 
@@ -381,11 +395,12 @@ module Sliced
           it "reports nothing" do
             warnings = deprecation_warnings(enabled: false) do
               job.upload_arel(InputQueryMember.includes(:input_query_posts)) { |member| member.name.upcase }
+              job.upload_mongo_query(InputQueryDoc.all, :name, :age)
               job.upload(InputQueryMember.all, columns: %i[name nickname])
               job.upload(InputQueryDoc.all, columns: %i[name age])
             end
 
-            assert_equal 6, job.record_count
+            assert_equal 8, job.record_count
             assert_empty warnings
           end
 
