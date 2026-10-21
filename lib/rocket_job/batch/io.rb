@@ -135,6 +135,12 @@ module RocketJob
       # Example: Upload the user_name and zip_code of each user, as an Array, see `columns:`
       #   job.upload(User.where(country_code: "US"), columns: %i[user_name zip_code])
       #
+      # Example: Upload what the block returns for each row of an Active Record relation, which it receives as a Hash
+      #   of the columns that the relation selects, by name, without building a model
+      #   job.upload(User.where(country_code: "US").select(:id, :email)) do |row|
+      #     row["email"].downcase
+      #   end
+      #
       # Example: Upload the id of each user in batches of 10,000, on a database whose driver cannot stream a query, such
       #   as MySQL with trilogy, selecting only the id
       #   job.upload(User.where(country_code: "US").select(:id).in_batches(of: 10_000))
@@ -164,7 +170,7 @@ module RocketJob
                  slice_batch_size: nil, **args, &block)
         input_collection = input(category)
 
-        # A block uploads the records that it writes, unless it transforms the models or documents of a query.
+        # A block uploads the records that it writes, unless it transforms the rows or documents of a query.
         if block && !rocketjob_query?(object)
           raise(ArgumentError, "Cannot supply both an object to upload, and a block.") if object
           if stream_mode || columns || slice_batch_size || args.size.positive?
@@ -401,8 +407,8 @@ module RocketJob
         count
       end
 
-      # Returns [true|false] whether the supplied object is a query that #upload uploads the records of, whose models
-      # or documents a block can transform: a Mongoid::Criteria, or an Active Record relation, or the batches of one,
+      # Returns [true|false] whether the supplied object is a query that #upload uploads the records of, whose rows or
+      # documents a block can transform: a Mongoid::Criteria, or an Active Record relation, or the batches of one,
       # see Sliced::QueryUpload.query?.
       def rocketjob_query?(object)
         object.is_a?(Mongoid::Criteria) || Sliced::QueryUpload.query?(object)

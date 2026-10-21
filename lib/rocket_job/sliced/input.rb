@@ -55,13 +55,13 @@ module RocketJob
       # of each row's column when one column is uploaded, by default the primary key, otherwise an Array of the values
       # of its columns. Returns how many it uploaded.
       #
-      # With a block, uploads what the block returns for each model of the query, see QueryUpload#each_model, so
-      # `columns` are not used.
+      # With a block, uploads what the block returns for each row of the query, which it receives as a Hash of its
+      # columns by name, see QueryUpload#each_row, without building a model.
       def upload_arel(arel, columns: nil, slice_batch_size: nil, upload_id: nil, &block)
         query = QueryUpload.new(arel, columns: columns)
         upload(slice_batch_size: slice_batch_size, upload_id: upload_id) do |records|
           if block
-            query.each_model { |model| records << block.call(model) }
+            query.each_row { |row| records << block.call(row) }
           else
             query.each_record { |record| records << record }
           end

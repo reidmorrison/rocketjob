@@ -246,17 +246,30 @@ Server, or SQLite on JRuby, `upload` raises `ArgumentError`: upload the relation
 [Exporting Queries](https://iostreams.reidmorrison.com/queries.html#each-database) for how each
 database is read.
 
-Without a block no models are built, so a relation that loads associations with `includes`,
-`preload` or `eager_load` raises `ArgumentError`. Join their tables with `joins` instead, and select their
-columns, so that the database returns every row in one query.
-
-Pass a block to transform each model into the record to upload. A block reads the relation with
-`find_each`, as Rocket Job 7 did: in the order of the primary key, on the connection of the caller:
+Pass a block to transform each row into the record to upload. The block receives each row as a
+Hash of its columns by name, as Strings, cast as `pluck` casts them: the columns that `columns:`
+names, otherwise those that the relation selects, which is every column of its table unless it says
+otherwise:
 
 ~~~ruby
-job.upload(User.where(country_code: "US")) do |user|
-  user.email
+job.upload(User.where(country_code: "US").select(:id, :email)) do |user|
+  user["email"].downcase
 end
+~~~
+
+Read each value by the String name of its column, such as `user["email"]`, since `user[:email]`
+returns `nil`. The block receives no model, so that a query of millions of rows does not build a
+model for each one. To do work that needs a model, such as calling its methods or associations,
+upload the ids, and load each model in `#perform`, where the workers do that work in parallel.
+
+No models are built, so a relation that loads associations with `includes`, `preload` or
+`eager_load` raises `ArgumentError`. Join their tables with `joins` instead, and select their
+columns, so that the database returns every row in one query, rather than a query for each
+association:
+
+~~~ruby
+# Upload the id of each user who has a paid order
+job.upload(User.joins(:orders).where(orders: {paid: true}).distinct)
 ~~~
 
 #### In batches

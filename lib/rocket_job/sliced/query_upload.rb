@@ -6,9 +6,10 @@ module RocketJob
     # grouped query runs once. The batches of a relation, which `relation.in_batches(...)` returns, are read in those
     # batches instead, as Rails reads them, so that a database whose driver cannot stream a query can be read.
     #
-    # It knows the columns that are uploaded: those that `columns:` names, otherwise the primary key of the model of the
-    # relation, and how to read only them, whether it was given a relation or its batches. Each value is cast as `pluck`
-    # casts it, rather than read with a reader of the model.
+    # It knows the columns that are read: those that `columns:` names, otherwise the primary key of the model of the
+    # relation for a record, see #each_record, or the columns that the relation selects for a row, see #each_row, and
+    # how to read only them, whether it was given a relation or its batches. Each value is cast as `pluck` casts it,
+    # rather than read with a reader of the model.
     class QueryUpload
       # The number of rows that are read from IOStreams at a time, see #each_record, which has no effect on how many
       # rows the database returns at a time, or on the size of a slice.
@@ -29,14 +30,16 @@ module RocketJob
       #     The relation whose rows are uploaded, or the batches of one, which `relation.in_batches(...)` returns.
       #
       #   columns: [Array<Symbol|String>]
-      #     The columns to upload.
-      #     Default: the primary key of the model of the relation, such as `[:id]`.
+      #     The columns to read.
+      #     Default: the primary key of the model of the relation, such as `[:id]`, for a record, see #each_record, or
+      #     the columns that the relation selects for a row, see #each_row.
       #
       # Raises ArgumentError when no columns are supplied, and the model has no primary key.
       def initialize(query, columns: nil)
         @batches  = query if query.is_a?(ActiveRecord::Batches::BatchEnumerator)
         @relation = @batches ? @batches.relation : query
-        @columns  = columns.blank? ? primary_key_columns(@relation.klass) : columns.collect(&:to_sym)
+        @columns  = columns.collect(&:to_sym) if columns.present?
+        @record_columns = @columns || primary_key_columns(@relation.klass)
       end
 
       # Yields the record of each row of the query: the value of its column when one column is uploaded, otherwise an
@@ -50,44 +53,51 @@ module RocketJob
       # loads the associations of its models with `includes`, or a relation on a database whose driver cannot stream a
       # query, or for batches that do not select a column that is uploaded, see #column_indexes.
       def each_record
-        single = @columns.size == 1
-        each_values { |values| yield(single ? values.first : values) }
+        single = @record_columns.size == 1
+        each_values(@record_columns) { |_names, values| yield(single ? values.first : values) }
       end
 
-      # Yields each model of the query, which `find_each` reads for a relation, in the order of its primary key, and
-      # `each_record` of its batches, see `ActiveRecord::Batches::BatchEnumerator#each_record`.
-      def each_model(&)
-        @batches ? @batches.each_record(&) : @relation.find_each(&)
+      # Yields [Hash] each row of the query, by the names of its columns, as Strings, such as
+      # `{"id" => 1, "email" => "jack@example.com"}`, without building a model: the columns that `columns:` names,
+      # otherwise those that the relation selects, which is every column of its table unless it says otherwise.
+      #
+      # It is read as #each_record reads the query, and raises as it does.
+      def each_row
+        each_values(@columns) { |names, values| yield(names.zip(values).to_h) }
       end
 
       private
 
-      # Yields [Array] the values of the columns that are uploaded of each row, in the order of the columns. A relation
-      # selects only them, as `pluck` does, see `ActiveRecord::QueryMethods#reselect`. The batches of a relation each
+      # Yields [Array<String>, Array] the names of the supplied columns, or of every column that the query selects when
+      # none are supplied, and the values of those columns of each row, in the same order. A relation selects only the
+      # supplied columns, as `pluck` does, see `ActiveRecord::QueryMethods#reselect`. The batches of a relation each
       # select what the relation selects, which Rocket Job cannot change without losing their settings, such as their
       # `cursor:`, so the values are taken from each row by the names of the columns, see #column_indexes.
-      def each_values
-        stream  = IOStreams.stream(@batches || @relation.reselect(*@columns))
-        indexes = column_indexes(stream) if @batches
+      def each_values(columns)
+        query   = @batches || (columns ? @relation.reselect(*columns) : @relation)
+        stream  = IOStreams.stream(query)
+        indexes = column_indexes(stream, columns) if @batches && columns
+        names   = nil
         stream.each(:slice, size: READ_SIZE) do |slice|
-          slice.each { |row| yield(indexes ? row.values_at(*indexes) : row) }
+          names ||= indexes ? slice.header.values_at(*indexes) : slice.header
+          slice.each { |row| yield(names, indexes ? row.values_at(*indexes) : row) }
         end
       end
 
-      # Returns [Array<Integer>] the position of each column that is uploaded among the columns that the supplied stream
+      # Returns [Array<Integer>] the position of each of the supplied columns among the columns that the supplied stream
       # of the batches of a relation reads, which a query of no rows describes, see `IOStreams::Query#columns`, so that
       # a column that the relation does not select raises before any batch is read. A column of the model that another
       # name aliases, see `alias_attribute`, is found by the name of its column.
       #
       # Raises ArgumentError for a column that the relation does not select.
-      def column_indexes(stream)
+      def column_indexes(stream, columns)
         model = @relation.klass
         names = stream.schema.fetch(:fields).collect { |field| field.fetch(:name) }
-        @columns.collect do |column|
+        columns.collect do |column|
           name = model.attribute_alias?(column) ? model.attribute_alias(column) : column.to_s
           names.index(name) ||
             raise(ArgumentError, "The batches of the #{model.name} query do not select the column #{column}, which " \
-                                 "is uploaded: select it before `in_batches`, or upload the relation instead")
+                                 "is read: select it before `in_batches`, or upload the relation instead")
         end
       end
 

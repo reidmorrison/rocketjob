@@ -137,10 +137,47 @@ module Sliced
           assert_equal [["Alice", 30], ["Bob", 40]], rows
         end
 
-        it "honors a supplied block" do
-          input.upload_arel(InputQueryPerson.all) { |model| model.name.upcase }
+        it "uploads what the block returns for each row" do
+          input.upload_arel(InputQueryPerson.all) { |row| row["name"].upcase }
 
           assert_equal %w[ALICE BOB], input.collect(&:to_a).flatten.sort
+        end
+
+        it "yields each row to the block as a Hash of the columns that the relation selects, by name" do
+          rows = []
+          input.upload_arel(InputQueryPerson.select(:name, :age).order(:age)) do |row|
+            rows << row
+            row["name"]
+          end
+
+          assert_equal [{"name" => "Alice", "age" => 30}, {"name" => "Bob", "age" => 40}], rows
+        end
+
+        it "yields every column of the table when the relation selects none" do
+          rows = []
+          input.upload_arel(InputQueryPerson.where(name: "Alice")) { |row| rows << row }
+
+          assert_equal [{"id" => @alice.id, "name" => "Alice", "age" => 30}], rows
+        end
+
+        it "yields only the named columns to the block" do
+          rows = []
+          input.upload_arel(InputQueryPerson.order(:age), columns: [:name]) { |row| rows << row }
+
+          assert_equal [{"name" => "Alice"}, {"name" => "Bob"}], rows
+        end
+
+        it "yields the rows to the block in the order of the relation" do
+          input.upload_arel(InputQueryPerson.order(age: :desc)) { |row| row["name"] }
+
+          assert_equal %w[Bob Alice], input.collect(&:to_a).flatten
+        end
+
+        it "raises for a relation that loads associations, also with a block" do
+          assert_raises(ArgumentError) do
+            input.upload_arel(InputQueryPerson.preload(:input_query_pets)) { |row| row["name"] }
+          end
+          assert_equal 0, input.count
         end
 
         it "uploads the rows in the order of the relation" do
@@ -231,7 +268,7 @@ module Sliced
             end
 
             assert_equal "The batches of the InputQueryPerson query do not select the column name, which is " \
-                         "uploaded: select it before `in_batches`, or upload the relation instead", error.message
+                         "read: select it before `in_batches`, or upload the relation instead", error.message
             assert_equal 0, input.count
           end
 
@@ -245,10 +282,19 @@ module Sliced
             assert_equal %w[Alice Bob Carol], input.collect(&:to_a).flatten.sort
           end
 
-          it "uploads what the block returns for each model" do
-            input.upload_arel(InputQueryPerson.in_batches(of: 1)) { |model| model.name.upcase }
+          it "uploads what the block returns for each row" do
+            input.upload_arel(InputQueryPerson.in_batches(of: 1)) { |row| row["name"].upcase }
 
             assert_equal %w[ALICE BOB], input.collect(&:to_a).flatten.sort
+          end
+
+          it "yields only the named columns of each row to the block" do
+            rows = []
+            input.upload_arel(InputQueryPerson.in_batches(of: 1), columns: %i[full_name age]) { |row| rows << row }
+
+            expected = [{"name" => "Alice", "age" => 30}, {"name" => "Bob", "age" => 40}]
+
+            assert_equal(expected, rows.sort_by { |row| row["age"] })
           end
         end
 
@@ -320,8 +366,8 @@ module Sliced
         assert_equal [["Alice", 30], ["Bob", 40]], job.input.collect(&:to_a).flatten(1).sort
       end
 
-      it "uploads what the block returns for each model of an Active Record relation" do
-        assert_equal(2, job.upload(InputQueryPerson.all) { |model| model.name.upcase })
+      it "uploads what the block returns for each row of an Active Record relation" do
+        assert_equal(2, job.upload(InputQueryPerson.all) { |row| row["name"].upcase })
         assert_equal 2, job.record_count
         assert_equal %w[ALICE BOB], job.input.collect(&:to_a).flatten.sort
       end

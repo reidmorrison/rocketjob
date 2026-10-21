@@ -144,8 +144,27 @@ row instead, so neither case below applies. Without one, two cases changed, see
 `upload` reads an Active Record relation with IOStreams 3.0, as one query that the database
 streams, rather than with `find_each`, which built a model for each row, see
 [Active Record queries](batch.html#active-record-queries). v7.1 reports a deprecation warning for
-each change that needs code to change, see [Uploading a query](#uploading-a-query). Without a
-block:
+each change that needs code to change, see [Uploading a query](#uploading-a-query).
+
+A block receives each row as a Hash of its columns by name, as Strings, rather than a model: the
+columns that `columns:` names, otherwise those that the relation selects, which is every column of
+its table unless it says otherwise. Read each value by the String name of its column, since
+`row[:email]` returns `nil`. Work that needs a model, such as calling its methods or associations,
+moves into `#perform`, which loads the model by its id:
+
+~~~ruby
+# Before
+job.upload(User.where(country_code: "US")) do |user|
+  user.email.downcase
+end
+
+# After
+job.upload(User.where(country_code: "US").select(:email)) do |row|
+  row["email"].downcase
+end
+~~~
+
+With or without a block:
 
 * The rows are uploaded in the order of the relation, and within its limit. v7 uploaded them in the
   order of their ids, so `User.order(created_at: :desc).limit(100)` uploaded the first 100 users by
@@ -155,8 +174,8 @@ block:
   `def name = super.upcase`, or `def nickname = super || "none"`, no longer changes what is
   uploaded. v7.1 warns for a column whose reader returned another value. Do what the reader did in
   `#perform` instead, or in the query, such as with `COALESCE`.
-* The default column is the primary key of the model, so a model whose primary key is not `id`
-  uploads it, where v7 raised.
+* Without a block, the default column is the primary key of the model, so a model whose primary
+  key is not `id` uploads it, where v7 raised.
 * The query is read on a connection of its own, so it uploads only the rows that were committed.
   v7 also uploaded the rows that an open transaction of the caller wrote: upload them once that
   transaction commits. The pool of the model needs a connection free besides the one of the caller,
