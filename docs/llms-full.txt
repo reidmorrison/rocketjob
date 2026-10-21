@@ -2713,7 +2713,8 @@ handled on its own:
 
 PostgreSQL, MySQL with the `mysql2` gem, and SQLite with the `sqlite3` gem stream the rows of a
 query, with Active Record 7.2 or later. On any other database, such as MySQL with `trilogy`, SQL
-Server, or SQLite on JRuby, `upload` raises `ArgumentError`. See
+Server, or SQLite on JRuby, `upload` raises `ArgumentError`: upload the relation
+[in batches](#in-batches) instead. See
 [Exporting Queries](https://iostreams.reidmorrison.com/queries.html#each-database) for how each
 database is read.
 
@@ -2729,6 +2730,34 @@ job.upload(User.where(country_code: "US")) do |user|
   user.email
 end
 ~~~
+
+#### In batches
+
+`upload` also uploads the batches of a relation, which `in_batches` returns, and Rails reads a batch
+at a time, on any database:
+
+~~~ruby
+# On a database whose driver cannot stream a query, such as MySQL with trilogy
+job.upload(User.where(country_code: "US").select(:id).in_batches(of: 10_000))
+~~~
+
+`columns:` names the columns to upload, as it does for a relation, by default the primary key. Each
+batch selects what the relation selects, which is every column unless the relation says otherwise,
+so select the columns that are uploaded before `in_batches`, to read only them. A column that the
+relation does not select raises `ArgumentError` before any batch is read.
+
+Batches are only read when the relation is supplied in batches, so that its query runs once for each
+batch only when that is the choice:
+
+* Rails runs two queries for each batch, so the database filters, and sorts, the rows again for each
+  one. A scan of a table in the order of its primary key costs little, while a sorted query costs
+  more with each batch, see
+  [One query or batches](https://iostreams.reidmorrison.com/queries.html#one-query-or-batches).
+* The order of the relation is ignored: the rows of each batch are in the order of the primary key.
+* A grouped or distinct relation, or one with an offset, raises `ArgumentError`, since each batch
+  would aggregate, or be distinct, only within its own rows.
+* The batches are read on the connection of the caller, each batch whole, so they include the rows
+  that an open transaction of the caller wrote, and need no connection of their own.
 
 ### Mongoid queries
 
@@ -6024,7 +6053,17 @@ block:
   `ActiveRecord::ConnectionTimeoutError` once the `checkout_timeout` of the pool has passed.
 * It needs Active Record 7.2 or later, and a database whose driver streams a query: PostgreSQL,
   MySQL with `mysql2`, or SQLite with `sqlite3`. Any other raises `ArgumentError`, such as MySQL with
-  `trilogy`, SQL Server, or SQLite on JRuby.
+  `trilogy`, SQL Server, or SQLite on JRuby. Upload the batches of the relation there instead, see
+  [In batches](batch.html#in-batches), selecting the columns that are uploaded:
+
+  ~~~ruby
+  # Before
+  job.upload(User.where(country_code: "US"), columns: %i[name zip_code])
+
+  # After, on a database whose driver cannot stream a query
+  users = User.where(country_code: "US").select(:name, :zip_code)
+  job.upload(users.in_batches(of: 10_000), columns: %i[name zip_code])
+  ~~~
 * A relation that loads associations with `includes`, `preload` or `eager_load` raises
   `ArgumentError`, since no models are built. Join their tables with `joins`, and select their
   columns, instead:
