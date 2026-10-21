@@ -30,7 +30,7 @@ module RocketJob
   # such as the user name and password of `sftp://user:password@host/file.csv`, see IOStreams::Path#display_name.
   #
   # A path that is not valid is shown as INVALID_PATH_DISPLAY_NAME, as is one that needs a gem that is not installed
-  # in this process, such as an S3 url with options in its query, which IOStreams checks with the AWS SDK.
+  # in this process.
   def self.path_display_name(path)
     return path if path.blank?
 

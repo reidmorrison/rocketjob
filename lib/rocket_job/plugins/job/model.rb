@@ -216,6 +216,17 @@ module RocketJob
           def property_schema_proposals(_properties, _where)
             []
           end
+
+          # Returns [Hash] the supplied attributes or properties of this job class to show to people, with the value
+          # of each field that holds a path or url shown by its display name, without any credentials,
+          # see `path_fields`. Overridden by batch to also show the paths in its categories.
+          #
+          # For example, the properties that a Dirmon entry or an UploadFileJob holds for this job class.
+          def display_properties(properties)
+            properties.to_h do |key, value|
+              [key, path_fields.include?(key.to_sym) ? RocketJob.path_display_name(value) : value]
+            end
+          end
         end
 
         # Returns [Array<RocketJob::SchemaProposal>] the schemas proposed to replace the deprecated category options
@@ -285,14 +296,9 @@ module RocketJob
         end
 
         # Returns [Hash] the attributes of this job to show to people, for example in Rocket Job Mission Control,
-        # with each path or url shown by its display name, without any credentials, see `path_fields`.
+        # with each path or url shown by its display name, without any credentials, see `.display_properties`.
         def display_attributes
-          attrs = attributes.dup
-          self.class.path_fields.each do |name|
-            key        = name.to_s
-            attrs[key] = RocketJob.path_display_name(attrs[key]) if attrs.key?(key)
-          end
-          attrs
+          self.class.display_properties(attributes)
         end
 
         # Returns [Hash] status of this job
