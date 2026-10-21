@@ -11,7 +11,7 @@
 #   CODE
 #   job  = RocketJob::Jobs::OnDemandBatchJob.new(code: code, description: 'cleanse users')
 #   arel = User.unscoped.all.order('updated_at DESC')
-#   job.upload_arel(arel)
+#   job.upload(arel)
 #   job.save!
 #
 # Console Testing:
@@ -25,7 +25,7 @@
 #
 #   # Run against a sub-set using a limit
 #   arel = User.unscoped.all.order('updated_at DESC').limit(100)
-#   job.upload_arel(arel)
+#   job.upload(arel)
 #
 #   # Run the subset directly within the console
 #   job.perform_now
@@ -46,7 +46,7 @@
 # Example: Move the upload operation into a before_batch.
 #   upload_code = <<-CODE
 #     arel = User.unscoped.all.order('updated_at DESC')
-#     upload_arel(arel)
+#     upload(arel)
 #   CODE
 #
 #   code = <<-CODE

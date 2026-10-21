@@ -40,7 +40,7 @@ FROM ruby:3.4
 WORKDIR /opt/rocketjob
 
 # Optional: database client libraries. Only needed when jobs read directly
-# from MySQL or PostgreSQL (for example a Batch job using upload_arel).
+# from MySQL or PostgreSQL (for example a Batch job that uploads an Active Record query).
 # Remove this block if your jobs do not touch a relational database.
 RUN set -ex \
     && apt-get update \

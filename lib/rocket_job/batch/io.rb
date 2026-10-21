@@ -345,29 +345,45 @@ module RocketJob
         count
       end
 
-      # @deprecated
+      # @deprecated Removed in Rocket Job 8: call #upload with the relation instead.
       def upload_arel(arel, *column_names, category: :main, &)
+        rocketjob_warn_removed_upload_method(
+          "upload_arel", "the relation, with the columns to upload as columns:, such as " \
+                         "upload(User.where(country_code: \"US\"), columns: %i[name zip_code])"
+        )
         count             = input(category).upload_arel(arel, columns: column_names, &)
         self.record_count = (record_count || 0) + count
         count
       end
 
-      # @deprecated
+      # @deprecated Removed in Rocket Job 8: call #upload with the criteria instead.
       def upload_mongo_query(criteria, *column_names, category: :main, &)
+        rocketjob_warn_removed_upload_method(
+          "upload_mongo_query", "the criteria, with the fields to upload as columns:, such as " \
+                                "upload(User.where(state: \"FL\"), columns: [:zip_code])"
+        )
         count             = input(category).upload_mongo_query(criteria, columns: column_names, &)
         self.record_count = (record_count || 0) + count
         count
       end
 
-      # @deprecated
+      # @deprecated Removed in Rocket Job 8: call #upload with the range instead.
       def upload_integer_range(start_id, last_id, category: :main, slice_batch_size: 1_000)
+        rocketjob_warn_removed_upload_method(
+          "upload_integer_range", "the range, such as upload(1..1_000_000) for upload_integer_range(1, 1_000_000)"
+        )
         count             = input(category).upload_integer_range(start_id, last_id, slice_batch_size: slice_batch_size)
         self.record_count = (record_count || 0) + count
         count
       end
 
-      # @deprecated
+      # @deprecated Removed in Rocket Job 8: call #upload with the range from its last id instead.
       def upload_integer_range_in_reverse_order(start_id, last_id, category: :main, slice_batch_size: 1_000)
+        rocketjob_warn_removed_upload_method(
+          "upload_integer_range_in_reverse_order",
+          "the range from its last id, such as upload(1_000_000..1) for " \
+          "upload_integer_range_in_reverse_order(1, 1_000_000)"
+        )
         count             = input(category).upload_integer_range_in_reverse_order(start_id, last_id,
                                                                                   slice_batch_size: slice_batch_size)
         self.record_count = (record_count || 0) + count
@@ -491,6 +507,15 @@ module RocketJob
       end
 
       private
+
+      # Reports a deprecation warning, see RocketJob::Deprecation, at the line of the application that calls the named
+      # upload method, which Rocket Job 8 removes, saying what to call #upload with instead.
+      def rocketjob_warn_removed_upload_method(name, replacement)
+        RocketJob::Deprecation.warn(
+          "#{name} is deprecated, and removed in Rocket Job 8: call upload with #{replacement}, see " \
+          "#{RocketJob::Deprecation::UPGRADE_GUIDE}"
+        )
+      end
 
       # Returns [true|false] whether the supplied object is a query that #upload uploads the records of, whose models
       # or documents a block can transform: a Mongoid::Criteria, or an ActiveRecord::Relation.

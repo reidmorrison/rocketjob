@@ -117,6 +117,12 @@ production stays quiet. A job read back from the database does not report one. S
   Job 8 uploads the value that the column holds, as `pluck` returns it. While deprecation warnings are on, the upload
   compares the reader with `read_attribute` for each row until they differ, and names the model and the column, but
   not the values. `normalizes`, `enum`, `serialize` and `alias_attribute` give the same value both ways.
+- The batch job methods `upload_arel`, `upload_mongo_query`, `upload_integer_range` and
+  `upload_integer_range_in_reverse_order`, deprecated since v6, which Rocket Job 8 removes. Call `upload` with the
+  relation, the criteria or the range instead, such as `upload(User.where(country_code: "US"), columns: [:zip_code])`
+  or `upload(1..1_000_000)`, also with a block. A range is uploaded in the direction that it is written, so
+  `upload(first..last)` uploads a range whose `last` is less than its `first` from its last id, where
+  `upload_integer_range(first, last)` uploaded nothing.
 
 ### Fixes
 
