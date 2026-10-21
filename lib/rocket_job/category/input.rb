@@ -289,10 +289,10 @@ module RocketJob
       # it instead, so the columns must match its fields, as the header row of a file does.
       #
       # Raises IOStreams::Errors::InvalidHeader, before any row is read, when the columns do not match the fields of
-      # this category's schema.
+      # this category's schema, see Sliced::QueryUpload#check_schema.
       def each_query_slice(query, &)
         if schema.present?
-          IOStreams::Tabular.new(format: :array, schema: tabular_schema).read_header(query.column_names)
+          query.check_schema(schema_descriptor)
           return query.each_slice(size: slice_size, &)
         end
 

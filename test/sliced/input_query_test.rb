@@ -433,6 +433,25 @@ module Sliced
                      query.schema)
       end
 
+      it "checks the columns against a schema, and raises for columns that do not match its fields" do
+        schema = {"fields" => [{"name" => "name", "type" => "string"}, {"name" => "age", "type" => "number"}]}
+
+        RocketJob::Sliced::QueryUpload.new(InputQueryPerson.all, columns: %i[full_name age]).check_schema(schema)
+        assert_raises(IOStreams::Errors::InvalidHeader) do
+          RocketJob::Sliced::QueryUpload.new(InputQueryPerson.all, columns: %i[name born_on]).check_schema(schema)
+        end
+      end
+
+      it "checks the columns that the batches of a relation are narrowed to against a schema" do
+        schema = {"fields" => [{"name" => "name", "type" => "string"}, {"name" => "age", "type" => "number"}]}
+
+        batches = InputQueryPerson.in_batches(of: 1)
+        RocketJob::Sliced::QueryUpload.new(batches, columns: %i[name age]).check_schema(schema)
+        assert_raises(IOStreams::Errors::InvalidHeader) do
+          RocketJob::Sliced::QueryUpload.new(batches, columns: %i[name born_on]).check_schema(schema)
+        end
+      end
+
       it "uploads one column as its value, and several in slices" do
         assert_predicate RocketJob::Sliced::QueryUpload.new(InputQueryPerson.all), :single_column?
         refute_predicate RocketJob::Sliced::QueryUpload.new(InputQueryPerson.all, columns: %i[name age]), :single_column?
@@ -521,6 +540,13 @@ module Sliced
       it "raises before any row is read for columns that do not match the schema of the input category" do
         assert_raises(IOStreams::Errors::InvalidHeader) do
           schema_job.upload(InputQueryPerson.all, columns: %i[name born_on])
+        end
+        assert_equal 0, schema_job.input.count
+      end
+
+      it "raises before any batch is read for columns of the batches that do not match the schema" do
+        assert_raises(IOStreams::Errors::InvalidHeader) do
+          schema_job.upload(InputQueryPerson.in_batches(of: 1), columns: %i[name born_on])
         end
         assert_equal 0, schema_job.input.count
       end

@@ -91,6 +91,19 @@ module RocketJob
         stream_of(record_columns).schema.merge(fields: fields_of(record_columns)).deep_stringify_keys
       end
 
+      # Checks that the rows of the columns that are uploaded can be read by the supplied schema, see #each_slice, as
+      # IOStreams reads the header row of each of their slices by it, see `IOStreams.stream`: from a slice of no rows,
+      # whose header row names the columns, see #column_names, so that a query whose batches are narrowed to the columns
+      # is checked too, before any row is read.
+      #
+      # Raises IOStreams::Errors::InvalidHeader when the columns do not match the fields of the schema.
+      def check_schema(schema)
+        slice = IOStreams::Slice.new(header: column_names, format: :array)
+        IOStreams.stream(slice).schema(schema).each(:hash) do
+          # A slice of no rows has no records: only its header row is read.
+        end
+      end
+
       # Yields [Hash] each row of the query, by the names of its columns, as Strings, such as
       # `{"id" => 1, "email" => "jack@example.com"}`, without building a model: the columns that `columns:` names,
       # otherwise those that the relation selects, which is every column of its table unless it says otherwise.
