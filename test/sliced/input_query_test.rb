@@ -167,6 +167,14 @@ module Sliced
           assert_equal [{"name" => "Alice"}, {"name" => "Bob"}], rows
         end
 
+        it "yields the rows of a model without a primary key to the block" do
+          InputQueryEvent.create!(name: "start")
+          upload_count = input.upload_arel(InputQueryEvent.all) { |row| row["name"] }
+
+          assert_equal 1, upload_count
+          assert_equal %w[start], input.collect(&:to_a).flatten
+        end
+
         it "yields the rows to the block in the order of the relation" do
           input.upload_arel(InputQueryPerson.order(age: :desc)) { |row| row["name"] }
 

@@ -34,16 +34,16 @@ module RocketJob
       #     Default: the primary key of the model of the relation, such as `[:id]`, for a record, see #each_record, or
       #     the columns that the relation selects for a row, see #each_row.
       #
-      # Raises ArgumentError when no columns are supplied, and the model has no primary key.
       def initialize(query, columns: nil)
         @batches  = query if query.is_a?(ActiveRecord::Batches::BatchEnumerator)
         @relation = @batches ? @batches.relation : query
         @columns  = columns.collect(&:to_sym) if columns.present?
-        @record_columns = @columns || primary_key_columns(@relation.klass)
       end
 
       # Yields the record of each row of the query: the value of its column when one column is uploaded, otherwise an
       # Array of the values of its columns, in the order of the columns.
+      #
+      # Raises ArgumentError when no columns were supplied, and the model has no primary key.
       #
       # A relation is read on a connection of its own, see `IOStreams::Query#open`, so its rows are those that were
       # committed, rather than those that an open transaction of the caller wrote. Its batches are read on the
@@ -53,8 +53,8 @@ module RocketJob
       # loads the associations of its models with `includes`, or a relation on a database whose driver cannot stream a
       # query, or for batches that do not select a column that is uploaded, see #column_indexes.
       def each_record
-        single = @record_columns.size == 1
-        each_values(@record_columns) { |_names, values| yield(single ? values.first : values) }
+        single = record_columns.size == 1
+        each_values(record_columns) { |_names, values| yield(single ? values.first : values) }
       end
 
       # Yields [Hash] each row of the query, by the names of its columns, as Strings, such as
@@ -67,6 +67,13 @@ module RocketJob
       end
 
       private
+
+      # Returns [Array<Symbol>] the columns of the records that are uploaded, see #each_record: those that `columns:`
+      # names, otherwise the primary key of the model, which is only looked for here, since the rows that a block
+      # receives need none, see #each_row.
+      def record_columns
+        @record_columns ||= @columns || primary_key_columns(@relation.klass)
+      end
 
       # Yields [Array<String>, Array] the names of the supplied columns, or of every column that the query selects when
       # none are supplied, and the values of those columns of each row, in the same order. A relation selects only the
