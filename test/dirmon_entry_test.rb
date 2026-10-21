@@ -188,9 +188,21 @@ class DirmonEntryTest < Minitest::Test
       end
 
       it "leaves out the credentials of a url" do
-        dirmon_entry.pattern = "sftp://user:secret@sftp.example.org/in/*.csv?password=other"
+        dirmon_entry.pattern = "sftp://user:secret@sftp.example.org/in/*.csv"
 
         assert_equal "sftp://sftp.example.org/in/*.csv", dirmon_entry.pattern_display_name
+      end
+
+      it "does not show a url pattern with a query, which could hold a secret" do
+        dirmon_entry.pattern = "sftp://user:secret@sftp.example.org/in/*.csv?password=other"
+
+        assert_equal "(not a valid path)", dirmon_entry.pattern_display_name
+      end
+
+      it "does not show a pattern with a query after pattern characters that a url cannot hold" do
+        dirmon_entry.pattern = "sftp://user:secret@sftp.example.org/in/*.{csv,txt}?password=other"
+
+        assert_equal "(not a valid path)", dirmon_entry.pattern_display_name
       end
 
       it "leaves out a pattern that is not a valid path, since its credentials cannot be found" do
