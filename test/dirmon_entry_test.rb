@@ -28,6 +28,8 @@ class DirmonEntryTest < Minitest::Test
   end
 
   describe RocketJob::DirmonEntry do
+    include SemanticLogger::Test::Minitest
+
     let :archive_directory do
       "/tmp/archive_directory"
     end
@@ -177,6 +179,134 @@ class DirmonEntryTest < Minitest::Test
         assert_equal path, RocketJob::DirmonEntry.add_whitelist_path("test/files")
         assert_equal path, RocketJob::DirmonEntry.add_whitelist_path(path)
         assert_equal [path], RocketJob::DirmonEntry.whitelist_paths
+      end
+    end
+
+    describe "#pattern_display_name" do
+      it "returns a local pattern as is" do
+        assert_equal "test/files/**", dirmon_entry.pattern_display_name
+      end
+
+      it "leaves out the credentials of a url" do
+        dirmon_entry.pattern = "sftp://user:secret@sftp.example.org/in/*.csv"
+
+        assert_equal "sftp://sftp.example.org/in/*.csv", dirmon_entry.pattern_display_name
+      end
+
+      it "leaves out the query of a url pattern, which holds ssh options" do
+        dirmon_entry.pattern = "sftp://user:secret@sftp.example.org/in/*.csv?password=other"
+
+        assert_equal "sftp://sftp.example.org/in/*.csv", dirmon_entry.pattern_display_name
+      end
+
+      it "does not show a pattern with a query after pattern characters that a url cannot hold" do
+        dirmon_entry.pattern = "sftp://user:secret@sftp.example.org/in/*.{csv,txt}?password=other"
+
+        assert_equal "(not a valid path)", dirmon_entry.pattern_display_name
+      end
+
+      it "leaves out a pattern that is not a valid path, since its credentials cannot be found" do
+        dirmon_entry.pattern = "sftp://user:secret@sftp.example.org:port/in/*.csv"
+
+        assert_equal "(not a valid path)", dirmon_entry.pattern_display_name
+      end
+
+      it "returns nil without a pattern" do
+        assert_nil RocketJob::DirmonEntry.new.pattern_display_name
+      end
+
+      it "leaves out the credentials of a url with pattern characters that a url cannot hold" do
+        dirmon_entry.pattern = "sftp://user:secret@sftp.example.org/in/*.{csv,txt}"
+
+        assert_equal "sftp://sftp.example.org/in/*.{csv,txt}", dirmon_entry.pattern_display_name
+      end
+
+      it "shows a url with a character class" do
+        dirmon_entry.pattern = "sftp://sftp.example.org/in/[ab]*.csv"
+
+        assert_equal "sftp://sftp.example.org/in/[ab]*.csv", dirmon_entry.pattern_display_name
+      end
+    end
+
+    describe "#display_properties" do
+      it "shows the paths in the properties without their credentials" do
+        dirmon_entry.properties = {"user_id" => 341, "upload_file_name" => "sftp://user:secret@sftp.example.org/in.csv"}
+
+        assert_equal({"user_id" => 341, "upload_file_name" => "sftp://sftp.example.org/in.csv"}, dirmon_entry.display_properties)
+      end
+
+      it "shows the paths in the categories of a batch job without their credentials" do
+        batch_dirmon_entry.properties = {"input_categories" => [{"file_name" => "sftp://user:secret@sftp.example.org/in.csv"}]}
+
+        assert_equal(
+          {"input_categories" => [{"file_name" => "sftp://sftp.example.org/in.csv"}]},
+          batch_dirmon_entry.display_properties
+        )
+      end
+
+      it "shows the properties as stored when the job class is not defined" do
+        dirmon_entry.job_class_name = "NoSuchJob"
+
+        assert_equal dirmon_entry.properties, dirmon_entry.display_properties
+      end
+    end
+
+    describe "#archive_directory_display_name" do
+      it "returns a local directory as is" do
+        assert_equal archive_directory, dirmon_entry.archive_directory_display_name
+      end
+
+      it "leaves out the credentials of a url" do
+        dirmon_entry.archive_directory = "sftp://user:secret@sftp.example.org/archive"
+
+        assert_equal "sftp://sftp.example.org/archive", dirmon_entry.archive_directory_display_name
+      end
+    end
+
+    describe "#replicate" do
+      it "copies the settings, overridden by the supplied attributes" do
+        entry = dirmon_entry.replicate(name: "Copy", pattern: "test/other/**")
+
+        assert_predicate entry, :new_record?
+        refute_equal dirmon_entry.id, entry.id
+        assert_equal "Copy", entry.name
+        assert_equal "test/other/**", entry.pattern
+        assert_equal dirmon_entry.job_class_name, entry.job_class_name
+        assert_equal dirmon_entry.archive_directory, entry.archive_directory
+        assert_equal dirmon_entry.properties, entry.properties
+        assert entry.save, entry.errors.messages.ai
+      end
+
+      it "does not copy what happened to the entry" do
+        dirmon_entry.fail!("worker", "Storage unavailable")
+        entry = dirmon_entry.replicate(name: "Copy", pattern: "test/other/**")
+
+        assert_predicate entry, :pending?
+        assert_nil entry.exception
+      end
+
+      it "is not valid until its name and pattern are changed, since each must be unique" do
+        dirmon_entry.save!
+        entry = dirmon_entry.replicate
+
+        refute entry.save
+        assert_includes entry.errors[:name], "has already been taken"
+        assert_includes entry.errors[:pattern], "has already been taken"
+      end
+
+      it "copies only the settings of the entry" do
+        dirmon_entry.fail("worker", "Storage unavailable")
+        entry = dirmon_entry.replicate
+
+        assert_equal %w[_id archive_directory job_class_name name pattern properties state],
+                     entry.attributes.compact.keys.sort
+      end
+
+      it "does not share its properties with the entry" do
+        entry = dirmon_entry.replicate
+        entry.properties[:user_id] = 42
+
+        assert_equal 341, dirmon_entry.properties[:user_id]
       end
     end
 
@@ -348,6 +478,20 @@ class DirmonEntryTest < Minitest::Test
           assert_nil dirmon_entry.archive_directory
           assert_equal 0, files.count
         end
+
+        it "logs a file outside of the whitelist without the credentials in its url" do
+          sftp   = IOStreams.path("sftp://jack:secret@sftp.example.org/files/data.csv")
+          events = semantic_logger_events do
+            IOStreams.stub(:each_child, ->(_pattern, &block) { block.call(sftp) }) do
+              dirmon_entry.stub(:whitelist_paths, ["/var/sftp"]) do
+                dirmon_entry.each { |_path| flunk("Must skip a file outside of the whitelist") }
+              end
+            end
+          end
+
+          assert(events.any? { |event| event.message.include?("sftp://sftp.example.org/files/data.csv") })
+          refute(events.any? { |event| "#{event.message}#{event.payload}".include?("secret") })
+        end
       end
 
       describe "#later" do
@@ -368,8 +512,22 @@ class DirmonEntryTest < Minitest::Test
           assert_equal dirmon_entry.properties, job.properties
           assert_equal upload_file_name, job.upload_file_name.to_s
           assert_equal "#{dirmon_entry.name}: #{iopath.basename}", job.description
-          assert_equal iopath.to_s, job.original_file_name
+          assert_equal iopath.display_name, job.original_file_name
           assert job.job_id
+        end
+
+        it "records and logs the original file name without the credentials in its url" do
+          sftp = IOStreams.path("sftp://jack:secret@sftp.example.org/files/data.csv")
+          sftp.define_singleton_method(:move_to) do |target|
+            target.write("data")
+            target
+          end
+
+          job    = nil
+          events = semantic_logger_events { job = dirmon_entry.later(sftp) }
+
+          assert_equal "sftp://sftp.example.org/files/data.csv", job.original_file_name
+          refute(events.any? { |event| "#{event.message}#{event.payload}".include?("secret") })
         end
 
         it "enqueues batch job" do
@@ -389,7 +547,7 @@ class DirmonEntryTest < Minitest::Test
           assert_equal batch_dirmon_entry.properties, job.properties
           assert_equal upload_file_name, job.upload_file_name.to_s
           assert_equal "#{batch_dirmon_entry.name}: #{iopath.basename}", job.description
-          assert_equal iopath.to_s, job.original_file_name
+          assert_equal iopath.display_name, job.original_file_name
           assert job.job_id
         end
       end

@@ -100,6 +100,16 @@ module RocketJob
             "file, see #{RocketJob::Deprecation::UPGRADE_GUIDE}"
           )
         end
+
+        # Returns [Hash] the supplied attributes or properties of a category to show to people, with its file name, and
+        # its schema when that is the path or url of a JSON file, shown by their display names, without any
+        # credentials, see RocketJob.path_display_name.
+        def display_properties(properties)
+          properties.to_h do |key, value|
+            path = key.to_s == "file_name" || (key.to_s == "schema" && value.is_a?(String))
+            [key, path ? RocketJob.path_display_name(value) : value]
+          end
+        end
       end
 
       # Return which slice serializer class to use that matches the current options.

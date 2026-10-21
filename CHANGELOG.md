@@ -51,6 +51,36 @@ See [Upgrading to v7.1](https://rocketjob.reidmorrison.com/upgrading.html#upgrad
   rather than described in the schema. It says what to check, such as a name that 7.0 cleansed without its non-ASCII
   letters, and what it cannot translate. `#dry_run` reads the first records of a recent file with the category as it
   is, and with the proposal, and lists what differs. See "Propose the schema of each category" in the upgrade guide.
+- `RocketJob.path_display_name` returns a path or url to show, for example in Rocket Job Mission Control,
+  without the user name, password or query of a url. A value that is not a valid path, or that needs a gem
+  that is not installed, is shown as `(not a valid path)`.
+- `RocketJob::DirmonEntry#pattern_display_name` and `#archive_directory_display_name` return the pattern
+  and archive directory to show, see `RocketJob.path_display_name`. A remote pattern with characters that
+  a url cannot hold, such as `sftp://host/in/*.{csv,txt}`, is shown as the directory it scans followed by
+  the pattern within it. `#display_properties` returns its properties with the paths in them, as declared
+  by its job class, shown without credentials.
+- `RocketJob::Job#display_attributes` returns the attributes of a job to show, with each path or url field
+  shown without its credentials. A field is a path when it is declared with `path: true`, such as the
+  `source_url` and `target_url` of `CopyFileJob`, or has the type `IOStreams::Path`. `.path_fields` lists them.
+  The `file_name` of each input and output category of a batch job is also shown without its credentials,
+  and so are the paths in the `properties` of an `UploadFileJob`. `.display_properties` does the same for
+  a hash of properties for a job class, such as those of a Dirmon entry.
+- `CopyFileJob#display_attributes` also replaces the secrets in `source_args`, `target_args`,
+  `source_streams` and `target_streams`, such as an SFTP password or a PGP passphrase, as decided by
+  `IOStreams.redact_path_options` and `IOStreams.redact_stream_options`.
+- A `CopyFileJob` checks its source and target when it is created, or when their url, arguments or
+  streams change, by building each path, so a url that is not valid, an argument that the path does not
+  accept, such as a misspelled `passwrd:`, or a stream that IOStreams does not know, fails validation instead
+  of failing the job when it runs. The options of each stream are still checked when the job runs. Encrypted arguments are not decrypted to check them. A value of the wrong type is reported
+  without including it in the message, since it could be a secret.
+- `RocketJob::DirmonEntry#replicate` returns a new, pending entry with the settings of an entry, such as
+  its job class and properties, overridden by the supplied attributes. Only its name, pattern, job class,
+  properties and archive directory are copied. Since the name and pattern must each be unique, the new
+  entry is not valid until both are changed.
+- `RocketJob::Job.display_properties`, `RocketJob::Jobs::UploadFileJob#display_attributes` and
+  `RocketJob::Category::Base.display_properties` show the paths in the properties of a job, such as those that
+  a Dirmon entry or an `UploadFileJob` holds, without credentials: each path field of the job class, and the
+  `file_name` of each category, and its `schema` when that is the path or url of a JSON file.
 
 ### Deprecated
 
@@ -79,6 +109,20 @@ database does not report one. See the upgrade guide.
 - An input category with `format: :auto` uploads the first record of a JSON or fixed width file. Previously it was
   dropped, as though it were a header row, since the upload checked for a header row before it took the format from
   the file name, so `record_count` was one short.
+- On Mongoid 8, a change to a category of a batch job read from the database is saved. Previously reading the job
+  marked its whole `input_categories` as changed, so MongoDB rejected the save as a conflict, such as
+  "Updating the path 'input_categories.0.schema' would create a conflict at 'input_categories'".
+- A `CopyFileJob` fetches its `secret_config_` arguments from Secret Config even when Symmetric Encryption
+  is not loaded. Previously they were passed to IOStreams under their stored names, which failed the job.
+
+### Security
+
+- Dirmon's log messages, the original file name that it records on each `UploadFileJob`, and its list
+  of the files waiting to stabilize, no longer include the user name, password or query of a url, such
+  as `sftp://user:password@host/file.csv`, and neither does the description of a `CopyFileJob`. They
+  use the display name of the path, see `IOStreams::Path#display_name`. A file that is waiting to
+  stabilize when Dirmon is upgraded is picked up one scan later, since that list is now also keyed by
+  the entry.
 
 ## [7.0.0] 2026-09-05
 

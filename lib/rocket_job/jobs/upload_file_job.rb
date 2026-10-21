@@ -21,7 +21,7 @@ module RocketJob
       # File to upload
       field :upload_file_name, type: IOStreams::Path, user_editable: true
 
-      # The original Input file name.
+      # The original Input file name, without any credentials, see IOStreams::Path#display_name.
       # Used by #upload to extract the IOStreams when present.
       field :original_file_name, type: String, user_editable: true
 
@@ -55,6 +55,15 @@ module RocketJob
         return [] unless klass && properties.is_a?(Hash)
 
         klass.property_schema_proposals(properties, "UploadFileJob #{id} (#{state})")
+      end
+
+      # Returns [Hash] the attributes to show, see RocketJob::Plugins::Job::Model#display_attributes, with the paths
+      # in the properties shown without any credentials. The job class decides which of its properties are paths.
+      def display_attributes
+        attrs = super
+        klass = job_class
+        attrs["properties"] = klass.display_properties(attrs["properties"]) if klass && attrs["properties"].is_a?(Hash)
+        attrs
       end
 
       private
@@ -122,7 +131,7 @@ module RocketJob
 
         return if upload_file_name.exist?
 
-        errors.add(:upload_file_name, "Upload file: #{upload_file_name} does not exist.")
+        errors.add(:upload_file_name, "Upload file: #{upload_file_name.display_name} does not exist.")
       rescue NotImplementedError
         nil
       end

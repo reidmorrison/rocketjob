@@ -186,7 +186,7 @@ module RocketJob
 
           # Security check?
           if whitelist_paths.size.positive? && whitelist_paths.none? { |whitepath| path.to_s.start_with?(whitepath) }
-            logger.warn "Skipping file: #{path} since it is not in any of the whitelisted paths: #{whitelist_paths.join(', ')}"
+            logger.warn "Skipping file: #{path.display_name} since it is not in any of the whitelisted paths: #{whitelist_paths.join(', ')}"
             next
           end
 
@@ -225,6 +225,55 @@ module RocketJob
       klass.property_schema_proposals(properties, "Dirmon entry #{name.inspect} #{id}")
     end
 
+    # Returns [String] the pattern to show, for example in a web interface, which leaves out any credentials,
+    # such as the user name and password of `sftp://user:password@host/in/*.csv`, see IOStreams::Path#display_name.
+    #
+    # A url cannot hold some pattern characters, such as the braces of `sftp://host/in/*.{csv,txt}`. Such a pattern
+    # is shown as the display name of the directory that is scanned, followed by the pattern within it,
+    # the same way that IOStreams.each_child splits it.
+    #
+    # Unless the pattern within the directory has a `?`, which cannot be told apart from the query of a url, such as
+    # `sftp://host/in/*.{csv,txt}?password=secret`, where the query holds ssh options, which could hold a secret.
+    def pattern_display_name
+      display_name = RocketJob.path_display_name(pattern)
+      return display_name unless display_name == RocketJob::INVALID_PATH_DISPLAY_NAME
+
+      matcher = IOStreams::Paths::Matcher.new(nil, pattern)
+      return display_name if matcher.pattern.nil? || matcher.pattern == pattern || matcher.pattern.include?("?")
+
+      "#{matcher.path.display_name}/#{matcher.pattern}"
+    rescue StandardError, LoadError
+      # The directory is not a valid path, or needs a gem that is not installed in this process.
+      RocketJob::INVALID_PATH_DISPLAY_NAME
+    end
+
+    # Returns [String] the archive directory to show, without any credentials, see #pattern_display_name.
+    def archive_directory_display_name
+      RocketJob.path_display_name(archive_directory)
+    end
+
+    # Returns [Hash] the properties to show, with each path or url that the job class holds in them shown without
+    # any credentials, see RocketJob::Plugins::Job::Model.display_properties. The properties are shown as stored when
+    # the job class is not defined, since then it cannot say which of them are paths.
+    def display_properties
+      klass = job_class
+      klass ? klass.display_properties(properties) : properties
+    end
+
+    # Returns [RocketJob::DirmonEntry] a new, unsaved, pending entry with the settings of this entry, such as its
+    # job class and properties, overridden by the supplied attributes, which usually include a new name and pattern.
+    #
+    # Only the settings in REPLICATED_ATTRIBUTES are copied, not what happened to this entry, such as its state,
+    # or why it failed.
+    #
+    # The name and pattern must each be unique, so the replica is not valid until both are changed. They are copied
+    # so that, for example, a web interface can show them to be edited.
+    def replicate(**attributes)
+      entry = self.class.new(self.attributes.slice(*REPLICATED_ATTRIBUTES).deep_dup)
+      entry.assign_attributes(attributes)
+      entry
+    end
+
     # Returns the Job to be created.
     def job_class
       return if job_class_name.nil?
@@ -245,7 +294,7 @@ module RocketJob
         properties:         properties,
         description:        "#{name}: #{iopath.basename}",
         upload_file_name:   archive_path,
-        original_file_name: iopath.to_s,
+        original_file_name: iopath.display_name,
         job_id:             job_id
       )
 
@@ -253,8 +302,8 @@ module RocketJob
         message: "Created RocketJob::Jobs::UploadFileJob",
         payload: {
           dirmon_entry_name:  name,
-          upload_file_name:   archive_path,
-          original_file_name: iopath.to_s,
+          upload_file_name:   archive_path.display_name,
+          original_file_name: iopath.display_name,
           job_class_name:     job_class_name,
           job_id:             job_id.to_s,
           upload_job_id:      job.id.to_s
@@ -264,6 +313,10 @@ module RocketJob
     end
 
     private
+
+    # The settings of an entry, which #replicate copies. A new field is not copied unless it is added here.
+    REPLICATED_ATTRIBUTES = %w[name pattern job_class_name properties archive_directory].freeze
+    private_constant :REPLICATED_ATTRIBUTES
 
     # strip whitespaces from all variables that reference paths or patterns
     def strip_whitespace

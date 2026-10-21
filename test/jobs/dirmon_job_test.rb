@@ -9,6 +9,8 @@ module Jobs
     end
 
     describe RocketJob::Jobs::DirmonJob do
+      include SemanticLogger::Test::Minitest
+
       let :dirmon_job do
         RocketJob::Jobs::DirmonJob.new
       end
@@ -143,6 +145,24 @@ module Jobs
         end
       end
 
+      describe "#check_entry" do
+        it "tracks and logs a file without the credentials in its url" do
+          path       = IOStreams.path("sftp://jack:secret@sftp.example.org/abc/file.csv")
+          file_names = {}
+          events     = semantic_logger_events do
+            path.stub(:size, 5) do
+              dirmon_entry.stub(:each, ->(&block) { block.call(path) }) do
+                dirmon_job.send(:check_entry, dirmon_entry, file_names)
+              end
+            end
+          end
+
+          assert_equal({"#{dirmon_entry.id}:sftp://sftp_example_org/abc/file_csv" => 5}, file_names)
+          assert_includes events.map(&:message), "Found file: sftp://sftp.example.org/abc/file.csv. File size: 5"
+          refute(events.any? { |event| "#{event.message}#{event.payload}".include?("secret") })
+        end
+      end
+
       describe "#perform" do
         it "check directories and reschedule" do
           previous_file_names = {
@@ -218,12 +238,11 @@ module Jobs
       end
 
       def create_temp_file(size)
-        file      = Tempfile.new("check_file")
-        file_name = file.path
-        File.binwrite(file_name, "*" * size)
+        path = IOStreams.path(directory, "abc", "check_file")
+        create_file(path, size)
 
-        assert_equal size, File.size(file_name)
-        file
+        assert_equal size, path.size
+        path
       end
     end
   end
