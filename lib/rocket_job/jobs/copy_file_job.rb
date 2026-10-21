@@ -29,8 +29,8 @@ module RocketJob
       self.priority = 30
 
       # File names in IOStreams URL format.
-      field :source_url, type: String, user_editable: true
-      field :target_url, type: String, user_editable: true
+      field :source_url, type: String, user_editable: true, path: true
+      field :target_url, type: String, user_editable: true, path: true
 
       # Any optional arguments to pass through to the IOStreams source and/or target.
       field :source_args, type: Hash, default: -> { {} }, user_editable: true
