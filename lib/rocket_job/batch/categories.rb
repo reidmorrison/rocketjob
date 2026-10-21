@@ -31,20 +31,22 @@ module RocketJob
       module ClassMethods
         # Define a new input category, or replace the input category with the same name.
         # A subclass that defines a category does not change the categories of its parent class.
+        # Raises ArgumentError for an option that Rocket Job v8 removed, see RocketJob::Category::Base.supported_properties.
         # @see RocketJob::Category::Input
         def input_category(**args)
           RocketJob::Category::Input.warn_deprecated_options(args)
-          category                      = RocketJob::Category::Input.new(**args)
+          category                      = RocketJob::Category::Input.new(**RocketJob::Category::Input.supported_properties(args))
           self.defined_input_categories = rocketjob_categories_with(defined_input_categories, category)
           category
         end
 
         # Define a new output category, or replace the output category with the same name.
         # A subclass that defines a category does not change the categories of its parent class.
+        # Raises ArgumentError for an option that Rocket Job v8 removed, see RocketJob::Category::Base.supported_properties.
         # @see RocketJob::Category::Output
         def output_category(**args)
           RocketJob::Category::Output.warn_deprecated_options(args)
-          category                       = RocketJob::Category::Output.new(**args)
+          category                       = RocketJob::Category::Output.new(**RocketJob::Category::Output.supported_properties(args))
           self.defined_output_categories = rocketjob_categories_with(defined_output_categories, category)
           category
         end

@@ -277,13 +277,11 @@ module RocketJob
           # The fields of the records, and the position of each field of a fixed width file, so that IOStreams matches
           # the header row to the fields, and reads typed values in their columns, see #each_slice and #each_record. The
           # schema is read once, see #schema_descriptor, for the workers too, which read each slice with it, see
-          # #parse_records, so that another schema cannot be set on the supplied path. Without a schema, a schema or a
-          # layout set on the supplied path is kept.
+          # #parse_records, so that another schema cannot be set on the supplied path. Without a schema, a schema set on
+          # the supplied path is kept.
           if schema.present?
             check_path_schema(path)
             path.schema(schema_descriptor)
-          elsif path.schema.nil? && format_options.present?
-            path.format_options(format_options.to_h.deep_symbolize_keys)
           end
           # Replace the non-printable characters of a fixed width file, such as NUL padding, so that the columns stay
           # in place, and remove those of any other tabular format.
@@ -415,8 +413,8 @@ module RocketJob
       INVALID_CHARACTER_REPLACEMENTS = {remove: "", replace: "�"}.freeze
       private_constant :INVALID_CHARACTER_REPLACEMENTS
 
-      # Raises ArgumentError when the supplied path has a schema, or a layout, other than this category's, which the
-      # workers read each slice of the file with, see #parse_records.
+      # Raises ArgumentError when the supplied path has a schema other than this category's, which the workers read each
+      # slice of the file with, see #parse_records.
       def check_path_schema(path)
         return if path.schema.nil? || path.schema == schema
 
@@ -448,8 +446,7 @@ module RocketJob
       # keep them as they are, such as columns that the application set without cleansing them, which the deprecated
       # option then keeps.
       def header_row_tabular
-        return unless schema.blank? && format_options.blank? && columns.present? && column_restrictions.empty? &&
-                      cleanse_header?
+        return unless schema.blank? && columns.present? && column_restrictions.empty? && cleanse_header?
 
         tabular = IOStreams::Tabular.new(format: tabular_format, file_name: file_name)
         return unless tabular.header?

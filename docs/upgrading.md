@@ -38,73 +38,39 @@ stops working.
 
 Upgrade to v7.1 first, and fix every deprecation warning that it reports, see
 [Upgrading to v7.1](#upgrading-to-v71). v7.1 deprecates the category options that a schema replaces,
-and runs on IOStreams 2.2 and Ruby 3.2, so those changes can be made, and tested, before v8 changes
-Ruby, IOStreams and how files are read.
+which v8 removes, and runs on IOStreams 2.2 and Ruby 3.2, so those changes can be made, and tested,
+before v8 changes Ruby, IOStreams and how files are read.
 
 Rocket Job v8 requires IOStreams 3.0, and so Ruby 3.3 or later, which IOStreams 3.0 requires. On
 JRuby that is JRuby 10.0 or later. Upgrade Ruby before upgrading Rocket Job.
 
 Upgrade every server that runs workers at the same time, rather than running v7 and v8 workers
-together. A v7 worker reads the jobs that v8 saves with the options that v7 has, such as
-`format_options`, but ignores those that v8 adds, such as a category's `schema` or `encoding`. A
-file that v8 uploads into an input category with a `schema` is stored in slices that a v7 worker
+together. A v7 worker reads the jobs that v8 saves, but ignores the options that v8 adds, such as a
+category's `schema` or `encoding`. A file that v8 uploads into an input category with a `schema` is stored in slices that a v7 worker
 cannot read, so it fails each one, and they can be retried once every worker runs v8.
 
-### format_options is replaced by schema
+### The deprecated category options are removed
 
-A category's `format_options` is replaced by its `schema`, which IOStreams uses for every tabular
-format, see [Typed values with a schema](batch.html#typed-values-with-a-schema). A fixed width
-layout becomes a schema with the `width` of each field:
+v8 removes the category options that v7.1 deprecates, since a category's `schema` replaces them.
+Replace each one while v7.1 still reads it, as its upgrade steps describe:
 
-~~~ruby
-# Before (deprecated)
-input_category format:         :fixed,
-               format_options: {
-                 layout: [
-                   {size: 10, key: "name"},
-                   {size: 5, key: "zip", type: :integer}
-                 ]
-               }
+* A category's `format_options`, the layout of a fixed width file, see
+  [Replace format_options with a schema](#replace-format_options-with-a-schema). A category with
+  `format: :fixed` needs a schema, which gives the width of each field, so without one IOStreams 3.0
+  raises `ArgumentError` when the category reads or writes a record.
 
-# After
-input_category format: :fixed,
-               schema: {
-                 "fieldsMatch" => "subset",
-                 "fields"      => [
-                   {"name" => "name", "type" => "string", "width" => 10, "truncate" => true},
-                   {"name" => "zip", "type" => "integer", "width" => 5}
-                 ]
-               }
-~~~
+Code or a saved document that still sets one fails, naming the option, rather than reading or
+writing the records of the category as though it were not set:
 
-`IOStreams::Schema.from_layout(layout: ...)` returns the schema of a layout, with
-`"fieldsMatch" => "subset"`, so that writing skips the keys of a record that the layout does not
-list, as a layout did. Leave it out to raise `IOStreams::Errors::InvalidHeader` for such a key
-instead, so that a misspelled key is not silently left out.
+* A job class that defines a category with one raises `ArgumentError` when it is loaded.
+* A Dirmon entry or an `UploadFileJob` whose properties hold one fails validation when it is saved,
+  and one that was saved before raises `ArgumentError` when it builds its job, such as when Dirmon
+  finds a file.
+* A job saved before v8 whose category holds one, such as a scheduled job, raises `ArgumentError`
+  when that category reads or writes its records, such as when its file is uploaded, or a worker
+  processes one of its slices.
 
-Check these when moving a layout to a schema:
-
-* The keys of the records are the names of the fields, which are Strings, since MongoDB does not
-  store Symbols. A layout with Symbol keys, such as `key: :name`, is saved with String keys, so a job
-  that a worker reads back already gave records with String keys. Only a job that was not saved,
-  such as one run with `perform_now`, gave records with Symbol keys, so change `record[:name]` to
-  `record["name"]` in `#perform` if it reads them.
-* The column options, such as `columns`, cannot be set with a schema. An input category's `columns`
-  that narrowed the records of a layout to some of its keys become the fields of the schema. An
-  output category's `columns` that named the values of an Array result are not needed when they
-  are in the order of the fields, since an Array is written by the position of each field.
-
-Existing jobs and settings keep working:
-
-* `format_options` still works as it did before v8, since IOStreams reads a layout as it did,
-  and the column options with it. It is deprecated, and will be removed.
-* A job saved before v8 is read with its `format_options`, which are not changed when it is saved
-  again, so its slices can still be processed by a v7 worker while servers are upgraded.
-* A layout cannot be set with a schema, and one that is not valid raises
-  `IOStreams::Errors::InvalidLayout` when it is set, rather than when a file is read.
-* A job class that defines a category with `format_options`, and a Dirmon entry or an `UploadFileJob`
-  that builds a job from properties that hold it, report a deprecation warning, see
-  [Finding the deprecated options](#finding-the-deprecated-options).
+An option set to a value that had no effect, such as a blank `format_options`, is ignored.
 
 ### Column options are replaced by schema
 
@@ -267,7 +233,7 @@ Each line names the document and the category, and the options that it sets, for
 
 ~~~
 ImportJob 6512f1c0a1b2c3d4e5f60718 (queued): input category main: allowed_columns, skip_unknown
-Dirmon entry "Daily orders" 6512f1c0a1b2c3d4e5f60719: input category main: format_options
+Dirmon entry "Daily orders" 6512f1c0a1b2c3d4e5f60719: input category main: mode
 ~~~
 
 It reads the jobs that can still run, queued, which includes scheduled, running, paused and failed,

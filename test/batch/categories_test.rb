@@ -301,7 +301,7 @@ module Batch
       end
 
       describe "a job saved before v8" do
-        it "keeps the format_options of its categories when it is saved, so that a v7 worker can still read it" do
+        it "raises for the format_options of a category, which v8 removed, when it reads its records" do
           job = CategoriesJob.create!
           layout = {"layout" => [{"size" => 10, "key" => "name"}, {"size" => 5, "key" => "zip"}]}
           CategoriesJob.collection.update_one(
@@ -309,17 +309,12 @@ module Batch
             {"$set" => {"input_categories.0.format" => "fixed", "input_categories.0.format_options" => layout}}
           )
 
-          job = CategoriesJob.find(job.id)
+          job   = CategoriesJob.find(job.id)
+          error = assert_raises(ArgumentError) { job.input_category.parse("Jack      12345") }
 
-          assert_equal layout, job.input_category.format_options
-          assert_nil job.input_category.schema
-
-          job.description = "Saved again"
-          job.save!
-          category = CategoriesJob.collection.find(_id: job.id).first["input_categories"].first
-
-          assert_equal layout, category["format_options"]
-          refute category.key?("schema")
+          assert_equal "Input category main: format_options was removed in Rocket Job v8, describe the columns of the " \
+                       "file with the category's schema instead, see " \
+                       "#{RocketJob::Category::Base::REMOVED_OPTIONS_GUIDE}", error.message
         end
       end
 

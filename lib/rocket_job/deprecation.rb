@@ -32,7 +32,7 @@ module RocketJob
     # Example:
     #   puts RocketJob::Deprecation.saved_options
     #   # ImportJob 6512f1c0a1b2c3d4e5f60718 (queued): input category main: allowed_columns, skip_unknown
-    #   # Dirmon entry "Daily orders" 6512f1c0a1b2c3d4e5f60719: input category main: format_options
+    #   # Dirmon entry "Daily orders" 6512f1c0a1b2c3d4e5f60719: input category main: mode
     def self.saved_options
       jobs = RocketJob::Job.where(:state.in => RUNNABLE_JOB_STATES).pluck(:id).flat_map do |id|
         saved_document_options(RocketJob::Job, "Job", id) { |job| "#{job.class.name} #{job.id} (#{job.state})" }

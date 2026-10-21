@@ -70,16 +70,19 @@ module Batch
       end
     end
 
-    class FixedLayoutColumnsJob < RocketJob::Job
+    class FixedSchemaArrayJob < RocketJob::Job
       include RocketJob::Batch
 
-      output_category format:         :fixed,
-                      columns:        %w[zip name],
-                      format_options: {layout: [{size: 10, key: "name"}, {size: 5, key: "zip"}]}
+      output_category format: :fixed,
+                      schema: {
+                        "fields" => [
+                          {"name" => "name", "width" => 10},
+                          {"name" => "zip", "width" => 5}
+                        ]
+                      }
 
       def perform(record)
-        name, zip = record.split(",")
-        [zip, name]
+        record.split(",")
       end
     end
 
@@ -88,9 +91,9 @@ module Batch
         @job.destroy if @job && !@job.new_record?
       end
 
-      describe "fixed width layout with output columns" do
-        it "writes each Array result by the columns, as before v8" do
-          @job = FixedLayoutColumnsJob.new
+      describe "fixed width schema" do
+        it "writes each Array result by the position of each field" do
+          @job = FixedSchemaArrayJob.new
           @job.upload_slice(["Jack,12345", "Jill,54321"])
           @job.perform_now
           io = StringIO.new

@@ -119,17 +119,6 @@ class DeprecationTest < Minitest::Test
         assert_includes warnings.first, "columns: is deprecated, describe the columns of the file with schema: instead"
       end
 
-      it "warns for format_options" do
-        warnings = deprecation_warnings do
-          Class.new(DeprecatedCategoryJob) do
-            input_category format: :fixed, format_options: {layout: [{size: 10, key: :name}]}
-          end
-        end
-
-        assert_equal 1, warnings.size
-        assert_includes warnings.first, "format_options: is deprecated, use schema: instead"
-      end
-
       it "does not warn for a category defined with a schema" do
         warnings = deprecation_warnings do
           Class.new(DeprecatedCategoryJob) do
@@ -155,8 +144,7 @@ class DeprecationTest < Minitest::Test
         warnings = deprecation_warnings do
           RocketJob::Category::Input.instantiate(
             "_id"             => BSON::ObjectId.new,
-            "format"          => "fixed",
-            "format_options"  => {"layout" => [{"size" => 10, "key" => "name"}]},
+            "format"          => "csv",
             "allowed_columns" => %w[name]
           )
         end
@@ -249,9 +237,9 @@ class DeprecationTest < Minitest::Test
 
     describe "the deprecated options of saved properties" do
       it "are named by each category class, whether the keys are Strings or Symbols" do
-        assert_equal %w[allowed_columns format_options mode],
+        assert_equal %w[allowed_columns mode],
                      RocketJob::Category::Input.deprecated_option_names(
-                       allowed_columns: %w[name], format_options: {layout: []}, mode: :array, skip_unknown: false
+                       allowed_columns: %w[name], mode: :array, skip_unknown: false
                      )
         assert_equal %w[columns], RocketJob::Category::Output.deprecated_option_names("columns" => %w[name])
         assert_equal %w[allowed_columns], RocketJob::Category::Input.new(allowed_columns: %w[name]).deprecated_option_names
@@ -302,13 +290,12 @@ class DeprecationTest < Minitest::Test
         ], RocketJob::Deprecation.saved_options
       end
 
-      it "lists the :array mode and format_options" do
+      it "lists the :array mode" do
         job = saved_job(state: :paused) do |saved|
-          saved.input_category.mode           = :array
-          saved.input_category.format_options = {layout: [{size: 5, key: "name"}]}
+          saved.input_category.mode = :array
         end
 
-        assert_equal ["#{job_class_name} #{job.id} (paused): input category main: format_options, mode"],
+        assert_equal ["#{job_class_name} #{job.id} (paused): input category main: mode"],
                      RocketJob::Deprecation.saved_options
       end
 

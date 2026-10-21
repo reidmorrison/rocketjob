@@ -7,6 +7,16 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Breaking changes
 
+- Removed the category options that Rocket Job 7.1 deprecates, since a category's `schema` replaces them:
+  - `format_options`, the layout of a fixed width file. A category with `format: :fixed` needs a schema, with the
+    `width` of each field, without which IOStreams 3.0 raises `ArgumentError`.
+
+  A job class that defines a category with one raises `ArgumentError` when it is loaded, naming it, and so does a
+  Dirmon entry or an `UploadFileJob` whose properties hold one when it builds its job, which also fails validation
+  when it is saved. A category that was saved with one, such as that of a scheduled job, raises `ArgumentError` when it
+  reads or writes its records, rather than reading them as though the option were not set. An option set to a value
+  that had no effect, such as a blank `format_options`, is ignored. Upgrade to 7.1 first, and replace each one there,
+  see the upgrade guide.
 - Removed `RocketJob::Plugins::Restart`, deprecated in v6, use `RocketJob::Plugins::Cron`; `RocketJob::LookupCollection`,
   which was unused, and whose `upload` always raised `ArgumentError`; and `#work_first_slice` of a batch job,
   deprecated in v6. A batch job saved by v5, and never saved since, is no longer translated into v6 categories when
@@ -258,12 +268,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Deprecated
 
-- A category's `format_options`, the layout of a fixed width file, since the `schema` replaces it, see below. It
-  still works as before: IOStreams reads it as it did, so the keys of each record are the keys of the layout, which
-  are Strings once the job is saved, and the column options, such as `columns`, still apply to its records. A job saved with it is not
-  changed. It cannot be set with a schema, and a layout that is not valid raises
-  `IOStreams::Errors::InvalidLayout` when it is set. `IOStreams::Schema.from_layout` returns the schema of a layout.
-  See the upgrade guide.
 - An input category's `allowed_columns`, `required_columns`, `skip_unknown`, `header_cleanser` and `columns`, and an
   output category's `columns`, since IOStreams 3.0 deprecates the options that they set, and the schema replaces them.
   They still work without a schema, and cannot be set with one, so a category that sets both is not valid. See the
@@ -276,7 +280,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   category class decides which of its options are deprecated, see `RocketJob::Category::Base.deprecated_option_names`.
   Each document is read on its own, so one whose class, or whose job class, cannot be loaded, or that raises when it
   is read, is listed with why, and the others still are. See the upgrade guide.
-- Rocket Job reports a Ruby deprecation warning for each of these options, and for `format_options`, at the line
+- Rocket Job reports a Ruby deprecation warning for each of these options, at the line
   of the job class that defines a category with one, or of the call to `upload` that supplies one, and when a Dirmon
   entry or an `UploadFileJob` builds a job from properties that hold one. They are only reported while Ruby's
   deprecation warnings are on, such as in tests, see `RocketJob::Deprecation`.
@@ -297,10 +301,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - An input category with `format: :auto` uploads the first record of a JSON file. Previously it was dropped, as
   though it were a header row, so `record_count` was one short.
 - A Hash that a job returns supplies the value of each column of an output category whose name only matches one of
-  its keys once both are cleansed, such as the key `"First Name"` for the column `first_name`, or a String key for
-  the Symbol key of a fixed width layout, as IOStreams 3.0 writes them. Previously such a field was written blank.
-  An Array returned to a fixed width output category without `columns` is written by the position of each field of
-  its layout, where it raised `IOStreams::Errors::InvalidHeader`.
+  its keys once both are cleansed, such as the key `"First Name"` for the column `first_name`, as IOStreams 3.0 writes
+  them. Previously such a field was written blank.
 - A worker that parses the records of a tabular input category without a schema, such as CSV, gives IOStreams the
   header row that the upload read without its deprecated `columns:` option, so a category that sets no deprecated
   option no longer reports `IOStreams: columns: is deprecated` while deprecation warnings are on, such as in tests.
@@ -344,8 +346,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   correctly from the names of its workers when it has no colon, such as `RocketJob::Config.server_name = "worker1"`,
   so `HousekeepingJob` no longer requeues the jobs that the workers of such a running server are processing.
 - An upload in the `:array` or `:hash` mode of a tabular input category reads with IOStreams 3.0. The
-  category sets its format, and the layout of a fixed width file, on the path that it reads, since
-  IOStreams no longer accepts them for each read.
+  category sets its format on the path that it reads, since IOStreams no longer accepts it for each read.
 - A category's `encoding`, and `CopyFileJob#source_encoding` and `#target_encoding`, can be `"UTF-8"`.
   Previously it was rejected as an encoding that Ruby cannot convert to and from UTF-8, since Ruby has no
   converter from UTF-8 to itself.
