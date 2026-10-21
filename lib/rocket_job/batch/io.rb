@@ -273,7 +273,10 @@ module RocketJob
                  slice_batch_size: nil, **args, &block)
         input_collection = input(category)
 
-        if block
+        # A block uploads the records that it writes, unless it transforms the models or documents of a query, as it does
+        # in Rocket Job 8, which passes each row of an Active Record relation to it as a Hash of its columns, see
+        # Sliced::Input#upload_arel.
+        if block && !rocketjob_query?(object)
           raise(ArgumentError, "Cannot supply both an object to upload, and a block.") if object
           if stream_mode || columns || slice_batch_size || args.size.positive?
             raise(ArgumentError,
@@ -488,6 +491,12 @@ module RocketJob
       end
 
       private
+
+      # Returns [true|false] whether the supplied object is a query that #upload uploads the records of, whose models
+      # or documents a block can transform: a Mongoid::Criteria, or an ActiveRecord::Relation.
+      def rocketjob_query?(object)
+        object.is_a?(Mongoid::Criteria) || (defined?(ActiveRecord::Relation) && object.is_a?(ActiveRecord::Relation))
+      end
 
       # Reports a deprecation warning, see RocketJob::Deprecation, at the line of the application that uploads a file
       # with the :array `stream_mode`, or with options that describe the columns of the file, which the schema of the

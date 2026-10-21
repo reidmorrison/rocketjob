@@ -194,9 +194,31 @@ module Sliced
           job.input.collect(&:to_a).flatten(1)
         end
 
-        # In 7.x, a block is passed with a query to the upload_arel or upload_mongo_query of a job, since upload does
-        # not accept one with a query.
         describe "with a block" do
+          it "passes the block to upload, as Rocket Job 8 does, which still receives each model, and warns" do
+            warnings = deprecation_warnings do
+              job.upload(InputQueryMember.all) { |member| member["name"].upcase }
+            end
+
+            assert_equal %w[JACK JILL], records
+            assert_equal 2, job.record_count
+            assert_equal 1, warnings.size, warnings.inspect
+            assert_includes warnings.first, "a block passed with an Active Record relation receives each model"
+          end
+
+          it "passes the block to upload for a Mongoid criteria, without a warning" do
+            warnings = deprecation_warnings { job.upload(InputQueryDoc.all) { |document| document["name"] } }
+
+            assert_equal %w[Alice Bob], records.sort
+            assert_empty warnings
+          end
+
+          it "still raises for a block with an object that is not a query" do
+            error = assert_raises(ArgumentError) { job.upload("data.csv") { |writer| writer << "a" } }
+
+            assert_equal "Cannot supply both an object to upload, and a block.", error.message
+          end
+
           it "warns once, at the line that uploads it, that the block receives a Hash of each row" do
             line     = __LINE__ + 2
             warnings = deprecation_warnings do

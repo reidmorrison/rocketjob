@@ -28,6 +28,10 @@ See [Upgrading to v7.1](https://rocketjob.reidmorrison.com/upgrading.html#upgrad
 
 ### New features
 
+- `upload` accepts a block with an Active Record relation or a Mongoid criteria, as Rocket Job 8 does, which returns
+  the record to upload for each model or document, as a block passed to `upload_arel` or `upload_mongo_query` does,
+  which Rocket Job 8 removes. Previously it raised `ArgumentError`. A block passed with a relation reports a
+  deprecation warning, since in Rocket Job 8 it receives each row as a Hash, see Deprecated.
 - A category's `schema` describes the fields of its files, and the type of each one, as a
   [Frictionless Table Schema](https://datapackage.org/standard/table-schema/), as a Hash, or as the path or url of a
   JSON file, which is read when the category is first used. Records are read as typed values, such as an Integer, a

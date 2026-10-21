@@ -5776,19 +5776,20 @@ job.upload_arel(User.where(country_code: "US")) do |user|
 end
 
 # After
-job.upload_arel(User.where(country_code: "US")) do |row|
+job.upload(User.where(country_code: "US")) do |row|
   row["email"].downcase
 end
 ~~~
 
-`row["email"]` also reads the column of a model, so the block works in v7.1, which still warns,
-since it cannot tell what a block reads. Use a String: `row[:email]` reads a model too, but returns
-`nil` from a Hash with String keys, without an error. A block that calls a method or an association
-of the model must read columns instead: select the columns that it needs, joining other tables with
-`joins`, or upload the ids, the default, and do the work in `perform`. In v7, a relation that selects
-its columns must also select `id`, which `find_each` needs. In v7 the block is passed to
-`upload_arel`, and in v8 to `upload`. A block passed with a Mongoid criteria is unchanged: it
-already receives each document as it is stored.
+v7.1 accepts a block with a query in `upload`, as v8 does, rather than only in `upload_arel`, which
+v8 removes, so pass it to `upload`. `row["email"]` also reads the column of a model, so the block
+works in v7.1, which still warns, since it cannot tell what a block reads. Use a String:
+`row[:email]` reads a model too, but returns `nil` from a Hash with String keys, without an error. A
+block that calls a method or an association of the model must read columns instead: select the
+columns that it needs, joining other tables with `joins`, or upload the ids, the default, and do the
+work in `perform`. In v7, a relation that selects its columns must also select `id`, which
+`find_each` needs. A block passed with a Mongoid criteria is unchanged: it already receives each
+document as it is stored.
 
 **Eager loading raises.** A relation that uses `includes`, `preload` or `eager_load` raises
 `ArgumentError` in v8, with or without a block, since there are no models to load associations
@@ -5798,13 +5799,13 @@ query, rather than a query for each association of each batch:
 ~~~ruby
 # Before (deprecated)
 job.upload_arel(User.includes(:company)) do |user|
-  [user.id, user.company.name]
+  user.company.name
 end
 
 # After
 users = User.joins(:company).select(:id, "companies.name AS company_name")
-job.upload_arel(users) do |row|
-  [row["id"], row["company_name"]]
+job.upload(users) do |row|
+  row["company_name"]
 end
 ~~~
 
@@ -5865,7 +5866,7 @@ end
 job.upload(User.all, columns: [:nickname])
 
 # After
-job.upload_arel(User.select(:id, :nickname)) do |row|
+job.upload(User.select(:id, :nickname)) do |row|
   row["nickname"] || "none"
 end
 ~~~
