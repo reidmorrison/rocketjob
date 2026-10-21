@@ -197,6 +197,23 @@ module Plugins
             RocketJob::Job.destroy_all
           end
 
+          it "creates the next run of a job that Rocket Job 7 saved with the :array mode, whose upload raises" do
+            job = PersistBatchJob.create!
+            PersistBatchJob.collection.update_one({_id: job.id}, {"$set" => {"input_categories.0.mode" => "array"}})
+            job = PersistBatchJob.find(job.id)
+            job.create_restart!
+
+            restarted = RocketJob::Job.where(:id.ne => job.id).first
+
+            assert_equal :array, restarted.input_category.mode
+            error = assert_raises(ArgumentError) do
+              restarted.upload(StringIO.new("name\nJill\n"), file_name: "b.csv")
+            end
+            assert_includes error.message, "mode: :array was removed in Rocket Job v8"
+          ensure
+            RocketJob::Job.destroy_all
+          end
+
           it "keeps columns that no upload read, such as those of a job that Rocket Job 7 saved, so its upload raises" do
             job                        = PersistBatchJob.new
             job.input_category.format  = :csv

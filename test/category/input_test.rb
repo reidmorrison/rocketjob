@@ -54,7 +54,7 @@ module Batch
           }
 
           assert_empty RocketJob::Category::Input.removed_options(properties)
-          assert_equal({"slice_size" => 10}, RocketJob::Category::Input.supported_properties(properties))
+          assert_equal({"columns" => nil, "slice_size" => 10}, RocketJob::Category::Input.supported_properties(properties))
           assert_empty RocketJob::Category::Input.new.property_errors(properties)
         end
 
@@ -117,6 +117,64 @@ module Batch
         end
       end
 
+      describe "#mode" do
+        let(:array_message) do
+          "mode: :array was removed in Rocket Job v8, use :line, which the workers parse, or :hash to parse the whole " \
+            "file when it is uploaded, see #{RocketJob::Category::Base::REMOVED_OPTIONS_GUIDE}"
+        end
+
+        it "is :line or :hash, or :array in a category saved before v8, so that its next run can still be created" do
+          assert_predicate RocketJob::Category::Input.new(mode: :hash), :valid?
+          refute_predicate RocketJob::Category::Input.new(mode: :lines), :valid?
+
+          category = Mongoid::Factory.from_db(RocketJob::Category::Input, {"name" => "main", "mode" => "array"})
+
+          assert_predicate category, :valid?
+          assert_predicate category.restart_copy, :valid?
+        end
+
+        it "raises for the :array mode when an input category is defined with it" do
+          error = assert_raises(ArgumentError) do
+            Class.new(RocketJob::Job) do
+              include RocketJob::Batch
+
+              input_category format: :csv, mode: :array
+            end
+          end
+
+          assert_equal array_message, error.message
+        end
+
+        it "reports the :array mode in the properties of a Dirmon entry or an UploadFileJob, and keeps the others" do
+          category = RocketJob::Category::Input.new
+
+          assert_equal [array_message], category.property_errors("mode" => "array")
+          assert_equal ["allowed_columns was removed in Rocket Job v8, describe the columns of the file with the " \
+                        "category's schema instead, see #{RocketJob::Category::Base::REMOVED_OPTIONS_GUIDE}. " \
+                        "#{array_message}"],
+                       category.property_errors("mode" => :array, "allowed_columns" => %w[name])
+          assert_equal({"mode" => "hash"}, RocketJob::Category::Input.supported_properties("mode" => "hash"))
+          assert_equal :hash, category.merge_properties("mode" => "hash").mode
+          assert_raises(ArgumentError) { category.merge_properties("mode" => "array") }
+        end
+
+        it "is the upload mode, unless another is supplied" do
+          category = RocketJob::Category::Input.new(mode: :hash)
+
+          assert_equal :hash, category.upload_mode
+          assert_equal :line, category.upload_mode("line")
+        end
+
+        it "raises for the :array mode, which a category saved before v8 can hold" do
+          category = Mongoid::Factory.from_db(RocketJob::Category::Input, {"name" => "main", "mode" => "array"})
+
+          error = assert_raises(ArgumentError) { category.upload_mode }
+          assert_equal "Input category main: #{array_message}", error.message
+          error = assert_raises(ArgumentError) { category.upload_mode(:lines) }
+          assert_equal "Input category main: the upload mode must be :line or :hash, not :lines", error.message
+        end
+      end
+
       describe "#tabular" do
         def deprecation_warnings(&)
           warnings = []
@@ -142,7 +200,7 @@ module Batch
           assert_equal({"first_name" => "Jack", "zip_code" => "12345"}, category.parse_record("Jack,12345"))
         end
 
-        it "reads the keys of the first JSON record that an :array upload read as the header row" do
+        it "reads the keys of the first JSON record that Rocket Job 7 read as the header row in the :array mode" do
           category = RocketJob::Category::Input.new(format: :json, columns: ["First Name", "zip"], header_uploaded: true)
 
           assert_equal({"First Name" => "Jack", "zip" => "12345"}, category.parse_record(%w[Jack 12345]))

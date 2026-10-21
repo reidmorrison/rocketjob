@@ -141,7 +141,7 @@ Useful `upload` keyword options:
 | Option         | Description
 |:---------------|:------------
 | `category`     | Which input category to load into. Default: `:main`.
-| `stream_mode`  | `:line` (default), `:hash`, or the deprecated `:array`. See [input categories](#input-categories).
+| `stream_mode`  | `:line` (default) or `:hash`. See [input categories](#input-categories).
 | `file_name`    | Override the file name used to infer format and streams.
 | `delimiter`    | Record delimiter. Default: auto-detect line endings.
 | `on_first`     | A lambda called with the first line, for example to capture a header. With a `schema`, it is called with a copy of the header row as an Array of its columns, or for a file without one, such as JSON or fixed width, with its first line, which is not uploaded.
@@ -313,7 +313,7 @@ Input category options:
 | `schema`           | `nil`       | The fields of each record and their types, and which columns a file can and must have. Also gives the position of each field of a `:fixed` file. See [Typed values with a schema](#typed-values-with-a-schema) and [Validating columns](#validating-columns).
 | `encoding`         | `nil`       | The encoding of the files, such as `"Windows-1252"`, which is converted to UTF-8. `nil` reads UTF-8, or the format's own encoding, such as ASCII for `:fixed`. Name the byte order of UTF-16 or UTF-32, such as `"UTF-16LE"`. See [Files](#files).
 | `invalid_characters` | `nil`     | What to do with a character that is not valid in the file's encoding: `:remove`, `:replace` with U+FFFD, or `:raise`. `nil` removes them from tabular formats, such as CSV, and raises for `:fixed` and lines.
-| `mode`             | `:line`     | How a file is uploaded: `:line`, `:hash`, or the deprecated `:array`.
+| `mode`             | `:line`     | How a file is uploaded: `:line` or `:hash`.
 | `columns`          | `nil`       | Set by `upload` without a `schema`: the header row read from the file, so that the workers read each line by it. Not set with a `schema`, since each slice holds the header row of its file instead.
 | `header_uploaded`  | `false`     | Set by `upload` without a `schema`: whether `columns` hold the header row read from the file, see [More than one file](#more-than-one-file).
 
@@ -328,17 +328,16 @@ The `mode` option controls how a file is read during upload:
 * `:hash` parses each line into a Hash before uploading. The whole file is parsed up front, so an
   invalid file is detected before processing starts. Not recommended for very large files. IOStreams
   reads the header row itself, so `on_first` is not called for a file with one.
-* `:array` parses each line into an Array before uploading, and is deprecated: use `:line`, or
-  `:hash` to parse the whole file up front. Its rows only make sense with the header row that the
-  category keeps, while each Hash names its own columns.
 
-The `stream_mode` option of `upload` overrides `mode` for that upload.
+The `stream_mode` option of `upload` overrides `mode` for that upload. The `:array` mode, which
+uploaded each row as an Array, was removed in v8, see
+[Upgrading to v8](upgrading.html#the-deprecated-category-options-are-removed).
 
 With a `schema`, every mode uploads the lines of a file as they are, in slices that each hold the
-header row of the file, and the workers read each line into the types of its fields. The `:hash` and
-`:array` modes also read each line while the file is uploaded, so that a file with a value that is
-not valid is rejected before processing starts. Since the workers read each slice with the category's
-`schema`, uploading a path that has another schema set on it raises `ArgumentError`.
+header row of the file, and the workers read each line into the types of its fields. The `:hash` mode
+also reads each line while the file is uploaded, so that a file with a value that is not valid is
+rejected before processing starts. Since the workers read each slice with the category's `schema`,
+uploading a path that has another schema set on it raises `ArgumentError`.
 
 ### More than one file
 
@@ -347,14 +346,13 @@ input category one after another, in any mode. The header row of each file is ma
 on its own, so with `"fieldsMatch" => "equal"` the files can even list their columns in different
 orders.
 
-Without a schema, in the `:line` and `:array` modes an input category holds the header row of one
-file, which the workers read each of its lines by. So uploading a second file with a header row into the same
+Without a schema, in the `:line` mode an input category holds the header row of one file, which the
+workers read each of its lines by. So uploading a second file with a header row into the same
 category raises `ArgumentError`, in any mode, rather than storing that file's header row as a record
 and reading its lines with the first file's columns. Upload each such file into its own input
 category, or upload every file in the `:hash` mode, in which each record keeps the columns of its
 own file. Files without a header row, such as JSON in the `:line` mode, can be uploaded one after
-another. In the deprecated `:array` mode JSON is read by the
-keys of its first record, which act as a header row.
+another.
 
 When an upload fails, such as when the file cannot be read to its end, its records are not kept,
 and neither is the header row that it read, so the job can upload the file again when it is

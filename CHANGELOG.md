@@ -19,13 +19,18 @@ This project adheres to [Semantic Versioning](http://semver.org/).
     `ArgumentError`, rather than reading the file by them, as does reading the records of a category saved with
     columns that were not cleansed. Also removed `#cleanse_header!` of an input category, which cleansed
     them.
+  - The `:array` upload mode, an input category's `mode: :array` and the `stream_mode: :array` of `upload`. An
+    upload raises `ArgumentError` for it, also for a category saved with it, which stays valid, so that the next run
+    of a scheduled job with it is still created. The Arrays of a file that Rocket Job 7 uploaded in the `:array` mode
+    are still processed.
 
   A job class that defines a category with one raises `ArgumentError` when it is loaded, naming it, and so does a
   Dirmon entry or an `UploadFileJob` whose properties hold one when it builds its job, which also fails validation
   when it is saved. A category that was saved with one, such as that of a scheduled job, raises `ArgumentError` when it
   reads or writes its records, rather than reading them as though the option were not set. An option that is blank, or
   at its default, such as a blank `format_options`, or `skip_unknown: false`, which Rocket Job 7 saved with every
-  input category, is ignored. Upgrade to 7.1 first, and replace each one there, see the upgrade guide.
+  input category, is ignored. Upgrade to 7.1 first, and replace each one there, since its deprecation warnings and
+  `RocketJob::SchemaProposal.report` find them, which v8 does not have, see the upgrade guide.
 - Removed `RocketJob::Plugins::Restart`, deprecated in v6, use `RocketJob::Plugins::Cron`; `RocketJob::LookupCollection`,
   which was unused, and whose `upload` always raised `ArgumentError`; and `#work_first_slice` of a batch job,
   deprecated in v6. A batch job saved by v5, and never saved since, is no longer translated into v6 categories when
@@ -46,7 +51,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   before the job started are kept. Each slice uploaded by `before_batch` records it in its new `upload_id`, and the
   job keeps what it restores in its new `before_batch_state` while the callbacks run.
 - Uploading a second file with a header row into an input category without a `schema`, which holds the header row of
-  an earlier upload, in the `:line` or `:array` mode, raises `ArgumentError` and uploads nothing. Previously the second file's header
+  an earlier upload, in the `:line` mode, raises `ArgumentError` and uploads nothing. Previously the second file's header
   row was stored as a record, and its lines were read with the first file's columns. A second file uploaded in the
   `:hash` mode also raises. Upload each file into its own input category, or upload every file in the `:hash` mode,
   in which each record keeps the columns of its own file. An input category records that its `columns` hold the
@@ -195,7 +200,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   it into slices itself: IOStreams reads up to `slice_size` rows at a time, after the header row, which it matches to
   the fields before any slice is uploaded, and each slice holds the header row of its file. So the category's
   `columns` are not set, and files whose columns are in another order can be uploaded into the same input category,
-  one after another. In the `:hash` and `:array` modes IOStreams also reads each row while the file is uploaded, so
+  one after another. In the `:hash` mode IOStreams also reads each row while the file is uploaded, so
   that a file with a value that is not valid uploads nothing, but the slices hold the lines as they are, and a `date`
   reaches `perform` as a `Date`. A row that cannot be read fails its record, and a retry processes the slice again
   from that record. `on_first` is called with a copy of the header row as an Array of its columns, or for a file
@@ -264,21 +269,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   properties and archive directory are copied. Since the name and pattern must each be unique, the new
   entry is not valid until both are changed.
 
-### Deprecated
-
-- The `:array` upload mode, an input category's `mode: :array` and the `stream_mode: :array` of `upload`, since each
-  row that it uploads only makes sense with the header row that the category keeps. Use `:line`, or `:hash` to parse
-  the whole file when it is uploaded. See the upgrade guide.
-- `RocketJob::Deprecation.saved_options` lists the saved jobs that can still run, the Dirmon entries and the
-  `UploadFileJob`s that hold one of these options, by category, since reading a saved document does not warn. Each
-  category class decides which of its options are deprecated, see `RocketJob::Category::Base.deprecated_option_names`.
-  Each document is read on its own, so one whose class, or whose job class, cannot be loaded, or that raises when it
-  is read, is listed with why, and the others still are. See the upgrade guide.
-- Rocket Job reports a Ruby deprecation warning for each of these options, at the line
-  of the job class that defines a category with one, or of the call to `upload` that supplies one, and when a Dirmon
-  entry or an `UploadFileJob` builds a job from properties that hold one. They are only reported while Ruby's
-  deprecation warnings are on, such as in tests, see `RocketJob::Deprecation`.
-
 ### Fixes
 
 - When an upload raises, only the slices that it stored are removed, so the slices of an earlier upload into the same
@@ -333,7 +323,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   those of every server, or none, depending on which worker started the job. The name of a server is also read back
   correctly from the names of its workers when it has no colon, such as `RocketJob::Config.server_name = "worker1"`,
   so `HousekeepingJob` no longer requeues the jobs that the workers of such a running server are processing.
-- An upload in the `:array` or `:hash` mode of a tabular input category reads with IOStreams 3.0. The
+- An upload in the `:hash` mode of a tabular input category reads with IOStreams 3.0. The
   category sets its format on the path that it reads, since IOStreams no longer accepts it for each read.
 - A category's `encoding`, and `CopyFileJob#source_encoding` and `#target_encoding`, can be `"UTF-8"`.
   Previously it was rejected as an encoding that Ruby cannot convert to and from UTF-8, since Ruby has no
@@ -387,11 +377,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - A tabular upload, such as CSV, uses the encoding set on the path, such as `encoding("Windows-1252:UTF-8")`.
   Previously it was always replaced with UTF-8, so the characters of a Windows-1252 file that are not
   ASCII were removed.
-- An input category's `mode` of `:array` or `:hash` is used by `upload`. Since v6.0.0 `upload` read
-  the file a line at a time unless `stream_mode` was supplied, and the category's `mode` only changed
-  how the header row was read: `:array` raised `NameError` or `NoMethodError`, and with `:hash` the
-  workers raised `ArgumentError` because the header columns were not set. The `stream_mode` of
-  `upload` still overrides it.
+- An input category's `mode` of `:hash` is used by `upload`. Since v6.0.0 `upload` read the file a line
+  at a time unless `stream_mode` was supplied, and the category's `mode` only changed how the header
+  row was read, so with `:hash` the workers raised `ArgumentError` because the header columns were not
+  set. The `stream_mode` of `upload` still overrides it.
 - Hashes uploaded with `mode: :hash`, or `stream_mode: :hash`, are no longer parsed again by the workers.
   Previously a worker tried to parse them again in the category's format, which raised for CSV.
 - Non-printable characters in a fixed width upload, such as NUL padding, are replaced with spaces.
@@ -399,8 +388,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   `IOStreams::Errors::InvalidLineLength`.
 - A quoted CSV value that contains a line break is uploaded as one record, whatever the file name.
   Previously, when the file name did not end in `.csv`, the line was split at the line break.
-- v5 jobs with a `tabular_input_mode` of `:row` or `:record` are migrated to the input category
-  `mode` of `:array` or `:hash`. Previously the v5 value was copied as is, and failed validation.
 - Dirmon skips a file that is removed after a scan finds it, instead of failing its entry.
   Previously a local file that was removed while it was being checked or archived failed its entry
   with `Errno::ENOENT`, as did a file removed from S3 while it was being archived. Dirmon rescues

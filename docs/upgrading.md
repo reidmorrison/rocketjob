@@ -26,7 +26,8 @@ upgrade to the next version:
    [Find the deprecated options that you use](#find-the-deprecated-options-that-you-use), and
    change each line that a warning names, until none are left.
 3. Change the saved documents that still hold a deprecated option, such as Dirmon entries, scheduled
-   jobs and `UploadFileJob`s, since reading one back reports no warning.
+   jobs and `UploadFileJob`s, since reading one back reports no warning, see
+   [Propose the schema of each category](#propose-the-schema-of-each-category).
 4. Deploy, and only then upgrade to the next version.
 
 A minor release, such as v7.1, adds what replaces the options that the next major release removes,
@@ -46,8 +47,9 @@ JRuby that is JRuby 10.0 or later. Upgrade Ruby before upgrading Rocket Job.
 
 Upgrade every server that runs workers at the same time, rather than running v7 and v8 workers
 together. A v7 worker reads the jobs that v8 saves, but ignores the options that v8 adds, such as a
-category's `schema` or `encoding`. A file that v8 uploads into an input category with a `schema` is stored in slices that a v7 worker
-cannot read, so it fails each one, and they can be retried once every worker runs v8.
+category's `schema` or `encoding`. A file that v8 uploads into an input category with a `schema` is
+stored in slices that a v7 worker cannot read, so it fails each one, and they can be retried once
+every worker runs v8.
 
 ### The deprecated category options are removed
 
@@ -64,6 +66,9 @@ Replace each one while v7.1 still reads it, as its upgrade steps describe:
   options supplied to `upload`, such as `allowed_columns:` or `cleanse_header:`, raise
   `ArgumentError`. A `:csv`, `:psv` or `:fixed` output category needs a schema, whose fields are the
   columns that it writes, in order.
+* An input category's `mode: :array`, and the `stream_mode: :array` of `upload`, see
+  [Replace the :array upload mode](#replace-the-array-upload-mode). A file that v7 uploaded in the
+  `:array` mode, whose slices hold an Array for each row, is still processed.
 
 Code or a saved document that still sets one fails, naming the option, rather than reading or
 writing the records of the category as though it were not set:
@@ -74,7 +79,8 @@ writing the records of the category as though it were not set:
   finds a file.
 * A job saved before v8 whose category holds one, such as a scheduled job, raises `ArgumentError`
   when that category reads or writes its records, such as when its file is uploaded, or a worker
-  processes one of its slices.
+  processes one of its slices. For the `:array` mode only an upload raises, since the Arrays that v7
+  uploaded are still processed, and the next run of a scheduled job with it is still created.
 * An input category's `columns` are only set by `upload`, to the header row of a file uploaded
   without a schema. Uploading a file into a category whose `columns` no upload read, such as those
   set for a file without a header row, raises `ArgumentError`, rather than reading the file by them.
@@ -88,6 +94,14 @@ category, and which Mission Control can save in the properties of a Dirmon entry
 fails, even where Rocket Job 7 did not apply it, such as `skip_unknown: true` without
 `allowed_columns`.
 
+v8 reports no deprecation warnings, and has no `RocketJob::SchemaProposal`, which v7.1 adds for the
+move to v8. So find the deprecated options with v7.1, before upgrading: its deprecation warnings name
+each line of code that uses one, see
+[Find the deprecated options that you use](#find-the-deprecated-options-that-you-use), and
+`RocketJob::SchemaProposal.report` lists each saved job, Dirmon entry and `UploadFileJob` that holds
+one, with the schema that replaces it, see
+[Propose the schema of each category](#propose-the-schema-of-each-category).
+
 ### A header row is cleansed as IOStreams 3.0 cleanses it
 
 Without a schema, the columns of a header row are cleansed as IOStreams 3.0 cleanses them, which keeps
@@ -96,31 +110,11 @@ space. So the column `Prénom` is `prénom`, where it was `prnom`, which changes
 that `#perform` receives. With a schema, the keys of each record are the names of its fields, which
 the columns are matched to whatever their case, spaces and punctuation.
 
-### The :array upload mode is deprecated
-
-An input category's `mode: :array`, and the `stream_mode: :array` of `upload`, are deprecated. Each
-row that they upload is an Array, which only makes sense with the header row that the category
-keeps. Use the default `:line` mode, in which each worker parses its lines, or `:hash`, which parses
-the whole file when it is uploaded, so that a file with a problem is found before it is processed,
-and uploads each record as a Hash that names its columns:
-
-~~~ruby
-# Before (deprecated)
-input_category format: :csv, mode: :array
-
-# After
-input_category format: :csv, mode: :hash
-~~~
-
-`#perform` receives each record as a Hash in either mode, when the category has a format. Without a
-format, `#perform` received each row as an Array, so set the category's format, such as `:csv`, and
-change `#perform` to read the Hash.
-
 ### An input category holds the header row of one file
 
-Without a schema, in the `:line` and `:array` modes an input category keeps the header row that
-`upload` read from a file, and its workers read each line by it. With a schema, each slice of a file
-holds its header row instead, so neither case below applies. Without one, two cases changed, see
+Without a schema, in the `:line` mode an input category keeps the header row that `upload` read from
+a file, and its workers read each line by it. With a schema, each slice of a file holds its header
+row instead, so neither case below applies. Without one, two cases changed, see
 [More than one file](batch.html#more-than-one-file):
 
 * Uploading a second file with a header row into the same input category raises `ArgumentError`, in
@@ -161,39 +155,6 @@ if active.size > 1
   end
 end
 ~~~
-
-### Finding the deprecated options
-
-Rocket Job reports a Ruby deprecation warning for the deprecated `:array` upload mode, naming the
-line of the job class that defines the category with it, or of the call to `upload` that supplies
-`stream_mode: :array`, for example:
-
-~~~
-app/jobs/import_job.rb:5: warning: Rocket Job: mode: :array is deprecated, use :line, the default, which the workers parse, or :hash to parse the whole file when it is uploaded, see https://rocketjob.reidmorrison.com/upgrading.html
-~~~
-
-The warnings are only reported while Ruby's deprecation warnings are on, which they are in tests run
-by Minitest, or with `ruby -W:deprecated` or `RUBYOPT=-W:deprecated`, so production stays quiet. A job
-that was saved with a deprecated option, and is read back, does not report one. IOStreams reports its
-own deprecation warnings for the options that it reads, which name a line of Rocket Job instead.
-
-To find the saved documents that still hold a deprecated option, such as a scheduled job, a Dirmon
-entry or an `UploadFileJob`, list them from a console of the application:
-
-~~~ruby
-puts RocketJob::Deprecation.saved_options
-~~~
-
-Each line names the document and the category, and the options that it sets, for example:
-
-~~~
-ImportJob 6512f1c0a1b2c3d4e5f60718 (queued): input category main: mode
-Dirmon entry "Daily orders" 6512f1c0a1b2c3d4e5f60719: input category main: mode
-~~~
-
-It reads the jobs that can still run, queued, which includes scheduled, running, paused and failed,
-and every Dirmon entry, each on its own, so a document that cannot be read, such as a job whose class
-the console does not load, is listed with why.
 
 ### Removed
 
@@ -427,6 +388,49 @@ by Minitest, or with `ruby -W:deprecated` or `RUBYOPT=-W:deprecated`, so product
 that was saved with a deprecated option, and is read back, does not report one. IOStreams reports its
 own deprecation warnings, prefixed `IOStreams:`, for the methods and options that the application
 calls on it.
+
+### Propose the schema of each category
+
+The warnings name the lines of code, but not the saved documents that hold a deprecated option, such
+as scheduled jobs, Dirmon entries and `UploadFileJob`s, since reading one back does not report a
+warning. `RocketJob::SchemaProposal` proposes the schema that replaces the deprecated options of each
+category, for both, and changes nothing. Run it from a console of the application, once its job
+classes are loaded, such as with `Rails.application.eager_load!`:
+
+~~~ruby
+puts RocketJob::SchemaProposal.report
+~~~
+
+It lists each job class that defines a category with a deprecated option, each saved job that can
+still run, and each Dirmon entry and `UploadFileJob` whose properties hold one, for example:
+
+~~~
+ImportJob, input category main
+  Set: allowed_columns: remove, skip_unknown: false
+  Set schema: {"fieldsMatch" => "partial", "fields" => [{"name" => "first_name"}, {"name" => "zip_code"}], "keyType" => "cleansed"}
+  Check: A name that 7.0 cleansed from a column with letters that are not ASCII lost them, ...
+~~~
+
+Each proposal reads the files as the options did in 7.0, which is not always what they say: options
+that 7.0 never applied, such as `allowed_columns` for JSON records, are removed rather than described
+in the schema, and the proposal says so. It also says what to check, and when it cannot translate a
+category, such as a layout with two columns that have one key, or a job that is already running, which
+should finish first. Columns that a scheduled job copied from the header row of an earlier upload are
+removed, rather than read as the columns of a file without a header row.
+
+Before applying a proposal, read a recent file of the job with it. `#dry_run` reads the first records
+of a file both ways, and lists what differs, such as a key that is no longer read:
+
+~~~ruby
+proposal = ImportJob.schema_proposals.first
+proposal.dry_run("/data/in/orders_20261020.csv")
+# => ["Record 1: keys no longer read: [\"prnom\"]"]
+~~~
+
+Then apply it by hand: in the job class, replace the deprecated options with the schema, and for a
+saved job, Dirmon entry or `UploadFileJob`, set the same in its category, or its properties. Mission
+Control 7.0 cannot show or set a schema, and saving a Dirmon entry in it rebuilds the entry's
+properties without one, so set the schema on the job class where you can, or from a console.
 
 ## Upgrading to v6
 

@@ -54,28 +54,36 @@ module Batch
           assert_equal ["Jack,21,x", "Jill,22,y"], input_records
         end
 
-        it "uploads arrays in :array mode" do
+        it "raises for the :array mode, which v8 removed, and uploads nothing" do
           job.input_category.mode = :array
 
-          assert_equal 2, upload(".csv", csv)
+          error = assert_raises(ArgumentError) { upload(".csv", csv) }
+          assert_equal "Input category main: mode: :array was removed in Rocket Job v8, use :line, which the workers " \
+                       "parse, or :hash to parse the whole file when it is uploaded, see " \
+                       "#{RocketJob::Category::Base::REMOVED_OPTIONS_GUIDE}", error.message
+          assert_raises(ArgumentError) do
+            job.upload do |records|
+              records << "Name,Age"
+            end
+          end
+          assert_equal 0, job.input.count
+        end
 
-          assert_equal %w[name age extra], job.input_category.columns
-          assert_equal [%w[Jack 21 x], %w[Jill 22 y]], input_records
+        it "raises for the :array stream_mode" do
+          job.input_category.mode = :hash
+
+          error = assert_raises(ArgumentError) { upload(".csv", csv, stream_mode: :array) }
+          assert_includes error.message, "Input category main: mode: :array was removed in Rocket Job v8"
+        end
+
+        it "processes the arrays of a file that Rocket Job 7 uploaded in :array mode" do
+          job.input_category.columns = %w[name age extra]
+          job.upload_slice([%w[Jack 21 x], %w[Jill 22 y]])
+
           assert_equal [
             {"name" => "Jack", "age" => "21", "extra" => "x"},
             {"name" => "Jill", "age" => "22", "extra" => "y"}
           ], output_records
-        end
-
-        it "reads the keys of the first record of a JSON file as the header row of its arrays in :array mode" do
-          job.input_category.format = :json
-          job.input_category.mode   = :array
-
-          assert_equal 2, upload(".json", %({"name":"Jack","age":21}\n{"age":22,"name":"Jill"}\n))
-
-          assert_equal %w[name age], job.input_category.columns
-          assert_equal [["Jack", 21], ["Jill", 22]], input_records
-          assert_equal [{"name" => "Jack", "age" => 21}, {"name" => "Jill", "age" => 22}], output_records
         end
 
         it "uploads hashes in :hash mode" do
@@ -95,28 +103,9 @@ module Batch
         it "uses stream_mode in place of the category's mode" do
           job.input_category.mode = :hash
 
-          assert_equal 2, upload(".csv", csv, stream_mode: :array)
+          assert_equal 2, upload(".csv", csv, stream_mode: :line)
 
-          assert_equal [%w[Jack 21 x], %w[Jill 22 y]], input_records
-        end
-
-        it "reads the header row of arrays written to a block in :array mode" do
-          job.input_category.mode = :array
-          job.upload do |records|
-            records << %w[Name Age]
-            records << %w[Jack 21]
-          end
-
-          assert_equal %w[name age], job.input_category.columns
-          assert_equal [{"name" => "Jack", "age" => "21"}], output_records
-        end
-
-        it "calls on_first with the header row in :array mode" do
-          job.input_category.mode = :array
-          header                  = nil
-          upload(".csv", csv, on_first: ->(row) { header = row })
-
-          assert_equal %w[Name Age Extra], header
+          assert_equal ["Jack,21,x", "Jill,22,y"], input_records
         end
 
         it "does not call on_first in :hash mode for a file with a header row, and uploads every record, as v7" do
@@ -246,15 +235,6 @@ module Batch
           assert_equal [{"name" => "Jack", "age" => "21"}], output_records
         end
 
-        it "skips them in :array mode" do
-          job.input_category.mode = :array
-
-          assert_equal 1, upload(".csv", csv)
-
-          assert_equal %w[name age], job.input_category.columns
-          assert_equal [{"name" => "Jack", "age" => "21"}], output_records
-        end
-
         it "skips them with a schema" do
           job.input_category.schema = {"fields" => [{"name" => "name"}, {"name" => "age", "type" => "integer"}]}
 
@@ -301,8 +281,8 @@ module Batch
           assert_equal [{"name" => "Jack", "zip" => "54321"}], output_records
         end
 
-        it "uploads each line in :array mode, which the workers read by the schema" do
-          job.input_category.mode = :array
+        it "uploads each line in :hash mode, which the workers read by the schema" do
+          job.input_category.mode = :hash
           upload(".txt", "Jack      54321\nJill      12345\n")
 
           assert_equal ["Jack      54321", "Jill      12345"], input_records
@@ -418,14 +398,6 @@ module Batch
           job.input_category.schema = schema.merge("fieldsMatch" => "subset")
           upload(".csv", "extra,joined,balance,age,name\nx,2026-10-13,12.50,21,Jack\n")
 
-          assert_equal [typed], output_records
-        end
-
-        it "uploads each line in :array mode, after parsing it" do
-          job.input_category.mode = :array
-          upload(".csv", "Name,AGE,Balance,Joined\nJack,21,12.50,2026-10-13\n")
-
-          assert_equal ["Jack,21,12.50,2026-10-13"], input_records
           assert_equal [typed], output_records
         end
 

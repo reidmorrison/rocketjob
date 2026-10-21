@@ -110,20 +110,6 @@ module RocketJob
           (properties["name"] || properties[:name] || :main).to_s.to_sym
         end
 
-        # Returns [Array<String>] the names of the deprecated options that the supplied properties of a category set,
-        # with String or Symbol keys, such as the attributes of a saved category, or the properties of a category that
-        # a Dirmon entry or an UploadFileJob holds. None, unless the input category's. Overridden by the input category.
-        def deprecated_option_names(_properties)
-          []
-        end
-
-        # Reports a deprecation warning, see RocketJob::Deprecation, for the deprecated options in the supplied
-        # properties of a category, such as those that a job class defines it with, or that a Dirmon entry holds. None,
-        # unless the input category's. Overridden by the input category.
-        def warn_deprecated_options(_properties)
-          nil
-        end
-
         # Returns [Array<String>] the names of the options of this kind of category that Rocket Job v8 removed, since
         # its schema replaces them, see #schema, such as `format_options`, the layout of a fixed width file. Overridden
         # by the input and output categories.
@@ -142,14 +128,16 @@ module RocketJob
 
         # Returns [Hash] the supplied properties of a category, such as those that a job class defines it with, or that
         # a Dirmon entry holds, without the options that Rocket Job v8 removed, see .removed_option_names, which are only
-        # left out when they are blank, or at their default, see .removed_options.
+        # left out when they are blank, or at their default, see .removed_options. An option that is still a field, such
+        # as an input category's `mode`, is kept, since only some of its values were removed.
         #
         # Raises ArgumentError, which names the removed options that are set, see .removed_options.
         def supported_properties(properties)
           removed = removed_options(properties)
           raise(ArgumentError, removed_options_message(removed)) unless removed.empty?
 
-          properties.reject { |key, _| removed_option_names.include?(key.to_s) }
+          left_out = removed_option_names - fields.keys
+          properties.reject { |key, _| left_out.include?(key.to_s) }
         end
 
         # Returns [String] the message that says that the supplied options were removed, and what replaces them.
@@ -172,18 +160,10 @@ module RocketJob
 
       # Sets the supplied properties on this category, such as `{"encoding" => "Windows-1252"}`, as a Dirmon entry or
       # an UploadFileJob holds them for a job. Raises NoMethodError for a property that a category does not have, and
-      # ArgumentError for an option that Rocket Job v8 removed, see .supported_properties. Reports a deprecation warning
-      # for a deprecated option, see .warn_deprecated_options.
+      # ArgumentError for an option that Rocket Job v8 removed, see .supported_properties.
       def merge_properties(properties)
-        self.class.warn_deprecated_options(properties)
         self.class.supported_properties(properties).each_pair { |key, value| public_send(:"#{key}=", value) }
         self
-      end
-
-      # Returns [Array<String>] the names of the deprecated options that this category holds, which its class decides,
-      # see .deprecated_option_names.
-      def deprecated_option_names
-        self.class.deprecated_option_names(attributes)
       end
 
       # Returns [Array<String>] why the supplied properties cannot be merged into this category, see

@@ -16,6 +16,9 @@ module RocketJob
       UPLOAD_FIELDS = %w[file_name format columns header_uploaded].freeze
       private_constant :UPLOAD_FIELDS
 
+      # The modes that a file can be uploaded in, see #mode.
+      MODES = %i[line hash].freeze
+
       # Replaces each non-printable character, other than line endings, with a space.
       FIXED_WIDTH_CLEANER = ->(data, _replace) { data.gsub(/[^[:print:]\r\n]/, " ") }
       private_constant :FIXED_WIDTH_CLEANER
@@ -38,24 +41,21 @@ module RocketJob
       #   Uploads the file a line (String) at a time for processing by workers.
       #   This is the default behavior and is the most performant since it leaves the parsing of each line
       #   up to the workers themselves.
-      # :array
-      #   Deprecated, use :line, or :hash to parse the whole file when it is uploaded.
-      #   Parses each line from the file as an Array and uploads each array for processing by workers.
-      #   Every line in the input file is parsed and converted into an array before uploading.
-      #   This approach ensures that the entire files is valid before starting to process it.
-      #   Ideal for when files may contain invalid lines.
-      #   Not recommended for large files since the CSV or other parsing is performed sequentially during the
-      #   upload process.
       # :hash
       #   Parses each line from the file into a Hash and uploads each hash for processing by workers.
-      #   Similar to :array above in that the entire file is parsed before processing is started.
-      #   Slightly less efficient than :array since it stores every record as a hash with both the key and value.
+      #   The entire file is parsed before processing is started, so that a file with an invalid line is found first.
+      #   Not recommended for large files since the CSV or other parsing is performed sequentially during the
+      #   upload process. With a schema, see #schema, the lines are uploaded as they are, once each one is parsed.
       #
       # Use :hash when the entire file must be parsed/validated before processing is started, and upload time is not
       # important.
       # See IOStreams#each for more details.
+      #
+      # Rocket Job v8 removed the :array mode, which uploaded each row as an Array, see .removed_option_names. A category
+      # saved with it before v8 stays valid, so that the next run of a scheduled job is still created, and its upload
+      # raises instead, see #upload_mode.
       field :mode, type: ::Mongoid::StringifiedSymbol, default: :line
-      validates_inclusion_of :mode, in: %i[line array hash]
+      validates_inclusion_of :mode, in: [*MODES, :array]
 
       # What `#upload` does with each character of a file that is not valid in the file's encoding, see #encoding:
       #   :remove
@@ -102,45 +102,35 @@ module RocketJob
         copy
       end
 
-      # Reports a deprecation warning, see RocketJob::Deprecation, for the deprecated options in the supplied
-      # properties of an input category, see Category::Base.warn_deprecated_options, and for its :array `mode`.
-      def self.warn_deprecated_options(properties)
-        super
-        warn_array_mode if properties.to_h.stringify_keys["mode"].to_s == "array"
-      end
-
-      # Reports a deprecation warning, see RocketJob::Deprecation, for the :array mode of an upload, see #mode, set as
-      # the supplied option, such as the `stream_mode:` of `upload`.
-      def self.warn_array_mode(option = :mode)
-        RocketJob::Deprecation.warn(
-          "#{option}: :array is deprecated, use :line, the default, which the workers parse, or :hash to parse the " \
-          "whole file when it is uploaded, see #{RocketJob::Deprecation::UPGRADE_GUIDE}"
-        )
-      end
-
-      # Returns [Array<String>] the names of the deprecated options that the supplied properties of an input category
-      # set, see Category::Base.deprecated_option_names: its `mode` when it is the deprecated :array.
-      def self.deprecated_option_names(properties)
-        properties.to_h.stringify_keys["mode"].to_s == "array" ? ["mode"] : []
-      end
-
       # Returns [Array<String>] the names of the options of an input category that Rocket Job v8 removed, see
       # Category::Base.removed_option_names: its column options, `allowed_columns`, `required_columns`, `skip_unknown`
-      # and `header_cleanser`, and the `columns` of a file without a header row, which an application can no longer
-      # set, see #columns.
+      # and `header_cleanser`, the `columns` of a file without a header row, which an application can no longer set,
+      # see #columns, and the :array `mode`, see #upload_mode.
       def self.removed_option_names
-        super + %w[allowed_columns required_columns skip_unknown header_cleanser columns]
+        super + %w[allowed_columns required_columns skip_unknown header_cleanser columns mode]
       end
 
-      # Returns [true|false] whether the supplied value of the named removed option had an effect before v8, see
-      # Category::Base.removed_options: `skip_unknown` when true, and `header_cleanser` when :none, rather than their
-      # defaults, otherwise when it is not blank.
+      # Returns [String] the message that says that the supplied options were removed, see
+      # Category::Base.removed_options_message, and for the :array `mode`, what to use instead.
+      def self.removed_options_message(names)
+        return super unless names.include?("mode")
+
+        mode = "mode: :array was removed in Rocket Job v8, use :line, which the workers parse, or :hash to parse the " \
+               "whole file when it is uploaded, see #{REMOVED_OPTIONS_GUIDE}"
+        names == ["mode"] ? mode : "#{super(names - ['mode'])}. #{mode}"
+      end
+
+      # Returns [true|false] whether the supplied value of the named removed option is set, rather than blank, or at its
+      # default, see Category::Base.removed_options: `skip_unknown` when true, `header_cleanser` when :none, and `mode`
+      # when :array, otherwise when it is not blank.
       def self.removed_option_set?(name, value)
         case name
         when "skip_unknown"
           [true, "true"].include?(value)
         when "header_cleanser"
           value.to_s == "none"
+        when "mode"
+          value.to_s == "array"
         else
           super
         end
@@ -252,8 +242,8 @@ module RocketJob
       # any slice. Each slice carries the header row of its file, so that more than one file can be uploaded into this
       # category, and the workers read each row by it, see #parse_records.
       #
-      # In the :hash and the deprecated :array modes, see #mode, IOStreams also parses each row as it reads it, so that a
-      # file with a value that is not valid raises before it is processed. Each slice still holds the rows as they are.
+      # In the :hash mode, see #mode, IOStreams also parses each row as it reads it, so that a file with a value that is
+      # not valid raises before it is processed. Each slice still holds the rows as they are.
       #
       # `on_first` is called with the header row, see UploadSlices.
       def each_slice(path, mode: self.mode, on_first: nil, **args, &)
@@ -278,7 +268,7 @@ module RocketJob
 
       # Yields each record read from the supplied path in the supplied mode, see #mode.
       #
-      # In :hash mode IOStreams reads the header row, since it is not yielded. In :array mode the header row is
+      # In :hash mode IOStreams reads the header row, since it is not yielded. In :line mode the header row is
       # yielded, and read by #extract_header_callback.
       def each_record(path, mode: self.mode, **args, &)
         path.each(mode, **args, &)
@@ -286,9 +276,9 @@ module RocketJob
 
       # Returns the lambda that the upload calls with each record before the first that it stores, instead of storing
       # it, until the lambda returns true, see `Sliced::Writer::Input`: it reads the header row, when the upload starts
-      # with one, see #header_first?, then calls the supplied `on_first` with it. Otherwise it calls `on_first` with the
-      # first record. Returns nil when there is neither. In :hash mode IOStreams reads the header row itself, so
-      # `on_first` is not called for a file with one, as in v7, and every record is uploaded.
+      # with one, such as CSV, see `IOStreams::Tabular#header?`, then calls the supplied `on_first` with it. Otherwise
+      # it calls `on_first` with the first record. Returns nil when there is neither. In :hash mode IOStreams reads the
+      # header row itself, so `on_first` is not called for a file with one, as in v7, and every record is uploaded.
       #
       # A blank line before the header row is skipped, as IOStreams skips it when it reads the header row itself, such
       # as in :hash mode, so that the header row is not stored as a record. A category with a schema uploads slices
@@ -312,7 +302,7 @@ module RocketJob
         check_columns_not_set
         # IOStreams reads the header row itself in :hash mode, see #each_record.
         return tabular.header? ? nil : first_record if mode == :hash
-        return first_record unless header_first?(mode)
+        return first_record unless tabular.header?
 
         lambda do |row|
           next false if row.blank?
@@ -323,6 +313,20 @@ module RocketJob
           on_first&.call(row)
           true
         end
+      end
+
+      # Returns [Symbol] the mode to upload a file in, see #mode: the supplied one, such as the `stream_mode` of an
+      # upload, otherwise this category's.
+      #
+      # Raises ArgumentError for a mode other than :line or :hash, such as the :array mode, which Rocket Job v8 removed,
+      # also when a category saved before v8 holds it.
+      def upload_mode(mode = nil)
+        mode = (mode || self.mode).to_sym
+        return mode if MODES.include?(mode)
+
+        message = "the upload mode must be :line or :hash, not #{mode.inspect}"
+        message = self.class.removed_options_message(%w[mode]) if mode == :array
+        raise(ArgumentError, "Input category #{name}: #{message}")
       end
 
       # Yields to upload a file into this category, see RocketJob::Batch::IO#upload. When the upload raises, its records
@@ -412,14 +416,6 @@ module RocketJob
               "Input category #{name} holds columns that no upload read from a file. Clear them when Rocket Job 7 " \
               "copied them from an earlier run of a scheduled job. Otherwise they are the columns of a file without a " \
               "header row: #{self.class.removed_options_message(%w[columns])}")
-      end
-
-      # Returns [true|false] whether the first record uploaded in the supplied mode is a header row: the header row of a
-      # file with one, such as CSV, or in :array mode, the header row that IOStreams yields before the rows of a file
-      # without one, which names their columns: the keys of the first record of JSON without a schema, or the names of
-      # the fields of a schema, such as of fixed width, see `IOStreams::Tabular#rows_header?`.
-      def header_first?(mode)
-        mode == :array ? tabular.rows_header? : tabular.header?
       end
 
       # Returns the lambda that calls the supplied `on_first` with the first record uploaded, which is not stored, see
