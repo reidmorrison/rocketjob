@@ -347,6 +347,11 @@ module RocketJob
       BEFORE_BATCH_UPLOAD = "before_batch".freeze
       private_constant :BEFORE_BATCH_UPLOAD
 
+      # The options of #upload that describe the columns of the file, which Rocket Job v8 removed, since the schema of the
+      # input category replaces them, see #rocketjob_check_upload_file_options.
+      REMOVED_UPLOAD_OPTION_NAMES = %i[allowed_columns required_columns skip_unknown cleanse_header].freeze
+      private_constant :REMOVED_UPLOAD_OPTION_NAMES
+
       # Returns [Hash] the `record_count` and the upload state of each input category, see
       # Category::Input#upload_state, which the before_batch callbacks start with, see #before_batch_state.
       def rocketjob_before_batch_state
@@ -390,12 +395,11 @@ module RocketJob
         object.is_a?(Mongoid::Criteria) || (defined?(ActiveRecord::Relation) && object.is_a?(ActiveRecord::Relation))
       end
 
-      # Raises ArgumentError for the options that describe the columns of the file, which Rocket Job v8 removed, since
-      # the schema of the input category replaces them: those that IOStreams deprecates, see
-      # `IOStreams::Tabular.deprecated_option_names`, also when nil, since IOStreams reads a nil `cleanse_header:` as
-      # false.
+      # Raises ArgumentError for the options that describe the columns of the file, which Rocket Job v8 removed, see
+      # REMOVED_UPLOAD_OPTION_NAMES, also when nil, naming the schema that replaces them, rather than leaving IOStreams
+      # to reject them as options that it does not take.
       def rocketjob_check_upload_file_options(args)
-        names = args.keys & IOStreams::Tabular.deprecated_option_names
+        names = args.keys & REMOVED_UPLOAD_OPTION_NAMES
         return if names.empty?
 
         raise(ArgumentError, Category::Input.removed_options_message(names.collect { |name| "#{name}:" }))
