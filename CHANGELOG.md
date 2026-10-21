@@ -59,8 +59,9 @@ database does not report one. See the upgrade guide.
   header row, or of an output category. The same options passed to `upload`, such as `allowed_columns:`, are
   deprecated too. With a schema, an input category's `columns` hold the header row read from the file, which is not
   deprecated.
-- An input category's `mode: :array`, and the `stream_mode: :array` of `upload`. Use the default `:line` mode, or
-  `:hash` to parse the whole file when it is uploaded.
+- An input category's `mode: :array`, and the `stream_mode: :array` of `upload`. Use the default `:line` mode, or,
+  with a schema, `:hash` to also parse every line when the file is uploaded. Without a schema, a category whose files
+  have a header row, such as CSV, cannot be uploaded in the `:hash` mode.
 
 ### Fixes
 

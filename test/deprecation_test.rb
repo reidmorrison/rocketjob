@@ -111,6 +111,7 @@ class DeprecationTest < Minitest::Test
 
         assert_equal 1, warnings.size
         assert_includes warnings.first, "mode: :array is deprecated, use :line, the default"
+        assert_includes warnings.first, "or with a schema :hash"
       end
 
       it "does not warn for a category defined with a schema, or in the :line or :hash mode" do

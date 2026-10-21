@@ -2992,17 +2992,34 @@ The schema property that replaces each one:
 
 | Option                                      | With a schema
 |:--------------------------------------------|:-------------
-| `columns`, for a file without a header row  | The fields are the columns, in order, with `"header" => false`.
+| `header_cleanser: :default`, the default    | `"keyType" => "cleansed"`, so that the keys of each record are cleansed, as before.
 | `allowed_columns`                           | `"fieldsMatch" => "superset"`, which accepts a file without some of the fields, as `allowed_columns` does, or `"equal"` when `required_columns` lists every allowed column.
 | `allowed_columns` with `skip_unknown: true` | `"fieldsMatch" => "partial"`, which accepts a file without some of the fields, as `allowed_columns` does, or `"subset"` when `required_columns` lists every allowed column.
-| `required_columns`                          | `"constraints" => {"required" => true}` with `"allowBlank" => true` on each field, which needs the column but not a value, as `required_columns` did. Without `allowBlank`, a blank value raises too.
-| `header_cleanser`                           | Not needed: the keys of each record are the names of the fields, which the columns are matched to.
-| `format_options` with a fixed width layout  | The `width` of each field.
+| `required_columns` with `allowed_columns`   | `"constraints" => {"required" => true}` with `"allowBlank" => true` on each required field, which needs the column but not a value, as `required_columns` did. Without `allowBlank`, a blank value raises too.
+| `required_columns` alone                    | A field for each of them, with `"constraints" => {"required" => true}` and `"allowBlank" => true`, and `"fieldsMatch" => "subset"` with `"extraColumns" => "keep"`, which keeps the other columns of the file, after the fields, as `required_columns` did.
+| `header_cleanser: :none`                    | `"fieldsMatch" => "subset"`, `"extraColumns" => "keep"` and `"fields" => []`, which keeps every column, named as it is in the file, without `keyType`.
+| `columns`, for a file without a header row  | `"header" => false`, with a field for each column, in order, named as the column was, without `keyType`. A `nil` column is a field with `"skip" => true`, which holds its place.
+| `format_options` with a fixed width layout  | The `width` of each field, and `"keyType" => "symbol"` when the keys of the layout are Symbols.
+
+7.0 did not apply `allowed_columns`, `required_columns` or `skip_unknown` in three cases, so leave them
+out of the schema there, rather than describe them, or the schema starts rejecting or dropping columns
+that 7.0 kept:
+
+* to JSON records, which keep every key, as they are named,
+* to `columns` supplied for a file without a header row, and
+* with `header_cleanser: :none`.
+
+With `format: :auto` they applied to a CSV or PSV file but not to a JSON file, which one schema cannot
+do, so choose what each kind of file needs.
 
 Without a schema, the restrictions are compared to the column names after they are cleansed, and the
 keys of each record are the cleansed column names. So to keep the keys that a job reads, name each
 field as the column was cleansed, which is how `allowed_columns` and `required_columns` already name
 them, such as `last_login` for the column `Last Login`: the schema matches the column to that field.
+A schema cleanses a column whose name has letters that are not ASCII differently: 7.0 removed them, so
+`Prénom` was `prnom`, while a schema keeps them, `prénom`. A field named `prnom` no longer matches that
+column, and `"partial"`, `"subset"` and `"superset"` then skip it without an error, so rename such a
+field, `prnom` to `prénom`, and read a recent file with the schema before using it.
 
 ## Writing tabular files
 
@@ -5623,11 +5640,10 @@ left out.
 
 A schema reads a fixed width file differently from a layout, so check each job as you move it:
 
-* The keys of the records are the names of the fields, which are Strings, since MongoDB does not
-  store Symbols. A layout with Symbol keys, such as `key: :name`, is saved with String keys, so a job
-  that a worker reads back already gave records with String keys. Only a job that was not saved,
-  such as one run with `perform_now`, gave records with Symbol keys, so change `record[:name]` to
-  `record["name"]` in `#perform` if it reads them.
+* The keys of the records are the names of the fields, which are Strings. A layout with Symbol keys,
+  such as `key: :name`, gave records with Symbol keys, also once a worker read the job back, so add
+  `"keyType" => "symbol"` to its schema to keep them, or change `record[:name]` to `record["name"]`
+  in `#perform`.
 * A value that is not of the type of its field, such as letters in an `integer` field, fails its
   record with `IOStreams::Errors::InvalidValue`.
 * The text is read as UTF-8, see [Text is read as UTF-8 with a schema](#text-is-read-as-utf-8-with-a-schema).
@@ -5677,6 +5693,27 @@ output_category format: :csv,
 `"allowBlank" => true` keeps a record whose `login` is blank, as `required_columns` did, which only
 checked that the file had the column. Leave it out to reject such a record too.
 
+The table in [Validating columns](batch.html#validating-columns) gives the schema that replaces each
+option, and each combination of them. In particular:
+
+* `"keyType" => "cleansed"` keeps the keys of each record cleansed, as `header_cleanser: :default`,
+  the default, did. A column that is not a field, which `"extraColumns" => "keep"` keeps, is keyed
+  the same way.
+* `required_columns` alone kept every column of the file, so its schema needs `"fieldsMatch" =>
+  "subset"` and `"extraColumns" => "keep"`, which keeps them after the fields.
+* `header_cleanser: :none` alone becomes `"fieldsMatch" => "subset"`, `"extraColumns" => "keep"` and
+  `"fields" => []`, which keeps every column, named as it is in the file.
+* A `nil` in the `columns` of a file without a header row becomes a field with `"skip" => true`.
+* 7.0 did not apply `allowed_columns`, `required_columns` or `skip_unknown` to JSON records, to the
+  `columns` of a file without a header row, or with `header_cleanser: :none`, so leave them out of
+  the schema there. With `format: :auto` they applied to CSV and PSV files, but not to JSON files.
+* A schema keeps the letters that are not ASCII in a column's name, where 7.0 removed them, so rename
+  a field such as `prnom`, for the column `Prénom`, to `prénom`. Otherwise `"partial"`, `"subset"`
+  and `"superset"` skip that column without an error.
+
+Before applying a schema to a job, read a recent file of the job with it, and compare the records
+with those that the job receives now.
+
 With a schema, the keys of each record are the names of its fields, and the columns of the header row
 are matched to them whatever their case, spaces and punctuation, rather than cleansed. So a field
 named `last_login` reads the column `Last Login`, and a field named `Last Login` keeps that key.
@@ -5693,17 +5730,19 @@ fields.
 ### Replace the :array upload mode
 
 An input category's `mode: :array`, and the `stream_mode: :array` of `upload`, are deprecated, and
-cannot be used with a schema. Use the default `:line` mode, in which each worker parses its lines, or
-`:hash`, which parses the whole file when it is uploaded, so that a file with a problem is found before
-it is processed:
+cannot be used with a schema. Use the default `:line` mode, in which each worker parses its lines:
 
 ~~~ruby
 # Before (deprecated)
 input_category format: :csv, mode: :array
 
 # After
-input_category format: :csv, mode: :hash
+input_category format: :csv
 ~~~
+
+To also parse every line when the file is uploaded, so that a file with a problem is found before it
+is processed, give the category a schema and use `:hash`. Without a schema, a category whose files
+have a header row, such as CSV, cannot be uploaded in the `:hash` mode in 7.x.
 
 With a schema, both modes upload the lines of the file, so that `#perform` receives each value as its
 type, such as a `Date`.

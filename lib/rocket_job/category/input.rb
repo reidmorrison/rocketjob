@@ -55,7 +55,7 @@ module RocketJob
       #   This is the default behavior and is the most performant since it leaves the parsing of each line
       #   up to the workers themselves.
       # :array
-      #   Deprecated, use :line, or :hash to parse the whole file when it is uploaded.
+      #   Deprecated, use :line, or with a schema :hash, which also parses every line when the file is uploaded.
       #   Parses each line from the file as an Array and uploads each array for processing by workers.
       #   Every line in the input file is parsed and converted into an array before uploading.
       #   This approach ensures that the entire files is valid before starting to process it.
@@ -67,8 +67,9 @@ module RocketJob
       #   Similar to :array above in that the entire file is parsed before processing is started.
       #   Slightly less efficient than :array since it stores every record as a hash with both the key and value.
       #
-      # Use :hash when the entire file must be parsed/validated before processing is started, and upload time is not
-      # important.
+      # Use :hash with a schema when the entire file must be parsed/validated before processing is started, and upload
+      # time is not important. Without a schema, a category with a format whose files have a header row, such as CSV,
+      # cannot be uploaded in the :hash mode.
       # See IOStreams#each for more details.
       #
       # With a schema, see #schema, the lines of the file are uploaded in the :line and :hash modes, which the workers
@@ -110,8 +111,8 @@ module RocketJob
       # the supplied option, such as the `stream_mode:` of `upload`.
       def self.warn_array_mode(option = :mode)
         RocketJob::Deprecation.warn(
-          "#{option}: :array is deprecated, use :line, the default, which the workers parse, or :hash to parse the " \
-          "whole file when it is uploaded, see #{RocketJob::Deprecation::UPGRADE_GUIDE}"
+          "#{option}: :array is deprecated, use :line, the default, which the workers parse, or with a schema :hash, " \
+          "which also parses every line when the file is uploaded, see #{RocketJob::Deprecation::UPGRADE_GUIDE}"
         )
       end
 
