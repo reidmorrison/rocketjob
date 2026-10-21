@@ -375,6 +375,8 @@ module Sliced
       end
 
       it "uploads what the block returns for each row of an Active Record relation" do
+        skip(QUERY_STREAMS_SKIP) unless QUERY_STREAMS
+
         assert_equal(2, job.upload(InputQueryPerson.all) { |row| row["name"].upcase })
         assert_equal 2, job.record_count
         assert_equal %w[ALICE BOB], job.input.collect(&:to_a).flatten.sort
