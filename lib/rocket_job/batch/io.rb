@@ -143,7 +143,13 @@ module RocketJob
       #   job.upload(200..421)
       #
       # Notes for a query or a range:
-      # * `columns:` is only for a query: the columns, or fields, to upload. Default: the id.
+      # * `columns:` is only for a query: the columns, or fields, to upload. Default: the primary key of the model of
+      #   an Active Record relation, or the `_id` of a Mongoid document.
+      # * IOStreams reads an Active Record relation as one query, streamed, in the order of the relation and within its
+      #   limit, without building a model for each row, so each column is read as `pluck` reads it, see
+      #   Sliced::QueryUpload. It reads the query on a connection of its own, so it uploads the rows that were
+      #   committed, rather than those that an open transaction of the caller wrote, and the pool of the model needs
+      #   a connection free besides that of the caller.
       # * The number that is returned and added to `record_count` is the number of records uploaded, which for a
       #   range is the number of integers in it, although each slice holds one `[first_id, last_id]` record.
       # * If an exception is raised while uploading, the records that this upload stored are removed, so that if the

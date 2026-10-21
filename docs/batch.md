@@ -197,22 +197,60 @@ For the full list of supported file types and transformations, see
 
 ### Active Record queries
 
-`upload` uploads the result of an Active Record query. By default it uploads only the `:id` of
-each row, adding it to the select list to reduce overhead:
+`upload` uploads the rows of an Active Record query, which
+[IOStreams](https://iostreams.reidmorrison.com/queries.html) reads from the database as one query,
+streamed, without building a model for each row, so that a query of millions of rows uploads at the
+speed that the database returns them. By default it uploads the primary key of each row, and selects
+only that column:
 
 ~~~ruby
 # Upload the ids of all US users
 job.upload(User.where(country_code: "US"))
 ~~~
 
-Supply column names to upload those columns instead of the id, as an Array per row, or the value
-itself for a single column:
+Supply column names to upload those columns instead, as an Array per row, or the value itself for a
+single column. Only those columns are selected, as `pluck` selects them, whatever the query selects:
 
 ~~~ruby
 job.upload(User.where(country_code: "US"), columns: %i[user_name zip_code])
 ~~~
 
-Pass a block to transform each model into the record to upload:
+Each value is read as `pluck` reads it: the value that the column holds, as its attribute casts it,
+such as the name of an enum's value, or a decrypted attribute. A reader that the model overrides is
+not called, since no model is built.
+
+The rows are uploaded in the order of the query, and within its limit, so a sorted, grouped or
+limited query uploads the rows that it returns:
+
+~~~ruby
+# Upload the ids of the 100 users who signed in most recently
+job.upload(User.order(last_sign_in_at: :desc).limit(100))
+~~~
+
+The query is read on a connection of its own, which IOStreams checks out of the pool of the model
+for the length of the upload, and checks back in when it ends, so that a failure of the read is
+handled on its own:
+
+* It uploads the rows that were committed. The rows that an open transaction of the caller wrote are
+  not uploaded, so upload them once that transaction commits. In the transactional tests of Rails,
+  which share one connection, the upload reads on that connection, so it uploads what the test wrote.
+* The pool needs a connection free besides the one of the caller, otherwise the upload waits for the
+  `checkout_timeout` of the pool, and raises `ActiveRecord::ConnectionTimeoutError`. Give the pool one
+  connection more than the threads that use it, for each thread that can upload at the same time,
+  such as the worker threads of a server whose `before_batch` callbacks upload a query.
+
+PostgreSQL, MySQL with the `mysql2` gem, and SQLite with the `sqlite3` gem stream the rows of a
+query, with Active Record 7.2 or later. On any other database, such as MySQL with `trilogy`, SQL
+Server, or SQLite on JRuby, `upload` raises `ArgumentError`. See
+[Exporting Queries](https://iostreams.reidmorrison.com/queries.html#each-database) for how each
+database is read.
+
+Without a block no models are built, so a relation that loads associations with `includes`,
+`preload` or `eager_load` raises `ArgumentError`. Join their tables with `joins` instead, and select their
+columns, so that the database returns every row in one query.
+
+Pass a block to transform each model into the record to upload. A block reads the relation with
+`find_each`, as Rocket Job 7 did: in the order of the primary key, on the connection of the caller:
 
 ~~~ruby
 job.upload(User.where(country_code: "US")) do |user|

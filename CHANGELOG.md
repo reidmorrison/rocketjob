@@ -41,6 +41,16 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   the `before_code` of an `OnDemandBatchJob`, whose documentation showed `upload_arel`. Also removed
   `upload_file_name` and `upload_file_name=` of a batch job, deprecated in v6, which read and set the `file_name` of
   its input category: use `input_category.file_name` instead. See the upgrade guide.
+- `upload` of an Active Record relation reads it with IOStreams 3.0, as one query that the database streams, rather
+  than with `find_each`, without building a model for each row, which halved the time to upload 500,000 rows from
+  PostgreSQL. The rows are uploaded in the order of the relation, and within its limit, where Rocket Job 7 uploaded
+  them in the order of their ids, so a sorted and limited relation uploaded other rows. Each column is read as `pluck`
+  reads it, so a reader that the model overrides is not called. The default column is the primary key of the model,
+  rather than `id`. The query is read on a connection of its own, so it uploads the rows that were committed, rather
+  than those that an open transaction of the caller wrote, and the pool of the model needs a connection free besides
+  that of the caller. It needs Active Record 7.2 or later, and PostgreSQL, MySQL with `mysql2`, or SQLite with
+  `sqlite3`: any other database raises `ArgumentError`, as does a relation that loads associations with `includes`,
+  `preload` or `eager_load`. A block still receives each model, read with `find_each`. See the upgrade guide.
 - `.from_properties(nil)` of a batch job builds a job with the defaults, as it does for a job that is not a batch
   job. Previously it raised `NoMethodError`, such as when Mission Control saved a Dirmon entry for a batch job
   without changing its properties.

@@ -139,6 +139,44 @@ row instead, so neither case below applies. Without one, two cases changed, see
   end
   ~~~
 
+### An Active Record query is streamed
+
+`upload` reads an Active Record relation with IOStreams 3.0, as one query that the database
+streams, rather than with `find_each`, which built a model for each row, see
+[Active Record queries](batch.html#active-record-queries). v7.1 reports a deprecation warning for
+each change that needs code to change, see [Uploading a query](#uploading-a-query). Without a
+block:
+
+* The rows are uploaded in the order of the relation, and within its limit. v7 uploaded them in the
+  order of their ids, so `User.order(created_at: :desc).limit(100)` uploaded the first 100 users by
+  id, rather than the 100 most recent. A grouped query also works on PostgreSQL, where v7 raised.
+* Each column is read as `pluck` reads it, which is the value that the column holds, as its
+  attribute casts it. A reader that the model overrides is not called, so
+  `def name = super.upcase`, or `def nickname = super || "none"`, no longer changes what is
+  uploaded. v7.1 warns for a column whose reader returned another value. Do what the reader did in
+  `#perform` instead, or in the query, such as with `COALESCE`.
+* The default column is the primary key of the model, so a model whose primary key is not `id`
+  uploads it, where v7 raised.
+* The query is read on a connection of its own, so it uploads only the rows that were committed.
+  v7 also uploaded the rows that an open transaction of the caller wrote: upload them once that
+  transaction commits. The pool of the model needs a connection free besides the one of the caller,
+  for each thread that uploads at the same time, otherwise the upload raises
+  `ActiveRecord::ConnectionTimeoutError` once the `checkout_timeout` of the pool has passed.
+* It needs Active Record 7.2 or later, and a database whose driver streams a query: PostgreSQL,
+  MySQL with `mysql2`, or SQLite with `sqlite3`. Any other raises `ArgumentError`, such as MySQL with
+  `trilogy`, SQL Server, or SQLite on JRuby.
+* A relation that loads associations with `includes`, `preload` or `eager_load` raises
+  `ArgumentError`, since no models are built. Join their tables with `joins`, and select their
+  columns, instead:
+
+  ~~~ruby
+  # Before
+  job.upload(User.includes(:orders).where(orders: {paid: true}))
+
+  # After
+  job.upload(User.joins(:orders).where(orders: {paid: true}).distinct)
+  ~~~
+
 ### A paused Singleton job is active
 
 A job that includes `RocketJob::Plugins::Singleton` is not valid while another job of its class is

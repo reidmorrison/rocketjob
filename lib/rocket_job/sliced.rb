@@ -8,6 +8,7 @@ module RocketJob
     autoload :Encryption, "rocket_job/sliced/encryption"
     autoload :Input, "rocket_job/sliced/input"
     autoload :Output, "rocket_job/sliced/output"
+    autoload :QueryUpload, "rocket_job/sliced/query_upload"
     autoload :Slice, "rocket_job/sliced/slice"
     autoload :Slices, "rocket_job/sliced/slices"
 

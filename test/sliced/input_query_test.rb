@@ -9,10 +9,46 @@ ActiveRecord::Schema.define version: 0 do
     t.string :name
     t.integer :age
   end
+
+  create_table :input_query_pets, force: true do |t|
+    t.integer :input_query_person_id
+    t.string :name
+  end
+
+  create_table :input_query_codes, id: false, force: true do |t|
+    t.string :code, primary_key: true
+    t.string :name
+  end
+
+  create_table :input_query_events, id: false, force: true do |t|
+    t.string :name
+  end
 end
 
 # ActiveRecord source for upload_arel.
 class InputQueryPerson < ActiveRecord::Base
+  has_many :input_query_pets
+end
+
+class InputQueryPet < ActiveRecord::Base
+end
+
+# A model whose reader returns another value than its column holds.
+class InputQueryShoutingPerson < ActiveRecord::Base
+  self.table_name = "input_query_people"
+
+  def name
+    super&.upcase
+  end
+end
+
+# A model whose primary key is not id.
+class InputQueryCode < ActiveRecord::Base
+  self.primary_key = "code"
+end
+
+# A model without a primary key.
+class InputQueryEvent < ActiveRecord::Base
 end
 
 # Mongoid source for upload_mongo_query.
@@ -50,7 +86,7 @@ module Sliced
 
       after do
         input.drop
-        InputQueryPerson.delete_all
+        [InputQueryPerson, InputQueryPet, InputQueryCode, InputQueryEvent].each(&:delete_all)
         InputQueryDoc.delete_all
       end
 
@@ -85,6 +121,67 @@ module Sliced
           input.upload_arel(InputQueryPerson.all) { |model| model.name.upcase }
 
           assert_equal %w[ALICE BOB], input.collect(&:to_a).flatten.sort
+        end
+
+        it "uploads the rows in the order of the relation" do
+          input.upload_arel(InputQueryPerson.order(age: :desc), columns: [:name])
+
+          assert_equal %w[Bob Alice], input.collect(&:to_a).flatten
+        end
+
+        it "uploads the rows within the limit of a sorted relation" do
+          count = input.upload_arel(InputQueryPerson.order(age: :desc).limit(1), columns: [:name])
+
+          assert_equal 1, count
+          assert_equal %w[Bob], input.collect(&:to_a).flatten
+        end
+
+        it "uploads the values that the columns hold, rather than what a reader of the model returns" do
+          input.upload_arel(InputQueryShoutingPerson.all, columns: [:name])
+
+          assert_equal %w[Alice Bob], input.collect(&:to_a).flatten.sort
+        end
+
+        it "uploads only the columns that it names, rather than those that the relation selects" do
+          input.upload_arel(InputQueryPerson.select(:id, :name), columns: [:age])
+
+          assert_equal [30, 40], input.collect(&:to_a).flatten.sort
+        end
+
+        it "uploads the primary key of a model whose primary key is not id" do
+          InputQueryCode.create!(code: "a1", name: "Alice")
+          InputQueryCode.create!(code: "b2", name: "Bob")
+
+          assert_equal 2, input.upload_arel(InputQueryCode.all)
+          assert_equal %w[a1 b2], input.collect(&:to_a).flatten.sort
+        end
+
+        it "raises for a model without a primary key, unless the columns are named" do
+          InputQueryEvent.create!(name: "start")
+          error = assert_raises(ArgumentError) { input.upload_arel(InputQueryEvent.all) }
+
+          assert_equal "InputQueryEvent has no primary key, so name the columns to upload with `columns:`", error.message
+          assert_equal 1, input.upload_arel(InputQueryEvent.all, columns: [:name])
+          assert_equal %w[start], input.collect(&:to_a).flatten
+        end
+
+        it "uploads only the rows that were committed, since it reads them on a connection of its own" do
+          uploaded = nil
+          InputQueryPerson.transaction do
+            InputQueryPerson.create!(name: "Carol", age: 50)
+            uploaded = input.upload_arel(InputQueryPerson.all, columns: [:name])
+            raise(ActiveRecord::Rollback)
+          end
+
+          assert_equal 2, uploaded
+          assert_equal %w[Alice Bob], input.collect(&:to_a).flatten.sort
+        end
+
+        it "raises for a relation that loads associations, and uploads nothing" do
+          error = assert_raises(ArgumentError) { input.upload_arel(InputQueryPerson.includes(:input_query_pets)) }
+
+          assert_includes error.message, "includes cannot be read as rows"
+          assert_equal 0, input.count
         end
       end
 

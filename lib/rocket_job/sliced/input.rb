@@ -51,24 +51,22 @@ module RocketJob
         end
       end
 
+      # Uploads the records of the supplied Active Record relation, see QueryUpload: the value of each row's column when
+      # one column is uploaded, by default the primary key, otherwise an Array of the values of its columns. Returns how
+      # many it uploaded.
+      #
+      # With a block, uploads what the block returns for each model of the relation, which `find_each` reads, in the
+      # order of the primary key, so `columns` are not used.
       def upload_arel(arel, columns: nil, slice_batch_size: nil, upload_id: nil, &block)
-        unless block
-          columns = columns.blank? ? [:id] : columns.collect(&:to_sym)
-
-          block =
-            if columns.size == 1
-              column = columns.first
-              ->(model) { model.public_send(column) }
-            else
-              ->(model) { columns.collect { |c| model.public_send(c) } }
-            end
-          # find_each requires the :id column in the query
-          selection = columns.include?(:id) ? columns : columns + [:id]
-          arel      = arel.select(selection)
+        if block
+          return upload(slice_batch_size: slice_batch_size, upload_id: upload_id) do |records|
+            arel.find_each { |model| records << block.call(model) }
+          end
         end
 
+        query = QueryUpload.new(arel, columns: columns)
         upload(slice_batch_size: slice_batch_size, upload_id: upload_id) do |records|
-          arel.find_each { |model| records << block.call(model) }
+          query.each_record { |record| records << record }
         end
       end
 
