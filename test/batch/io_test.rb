@@ -284,28 +284,6 @@ module Batch
         end
       end
 
-      describe "deprecated upload helpers" do
-        before do
-          job.input_category.slice_size = 10
-        end
-
-        it "#upload_integer_range" do
-          count = job.upload_integer_range(1, 10)
-
-          assert_equal 1, count
-          assert_equal 1, job.record_count
-          assert_equal [[[1, 10]]], job.input.collect(&:to_a)
-        end
-
-        it "#upload_integer_range_in_reverse_order" do
-          count = job.upload_integer_range_in_reverse_order(1, 11)
-
-          assert_equal 2, count
-          assert_equal 2, job.record_count
-          assert_equal [[[2, 11]], [[1, 1]]], job.input.collect(&:to_a)
-        end
-      end
-
       describe "#download" do
         it "raises when the job is still processing" do
           job.start

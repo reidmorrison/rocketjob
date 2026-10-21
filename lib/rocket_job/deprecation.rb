@@ -22,13 +22,20 @@ module RocketJob
     #
     # Returns nil.
     def self.warn(message)
-      return unless Warning[:deprecated]
+      return unless enabled?
 
       dirs    = library_dirs
       uplevel = caller_locations(1).index { |location| !library?(location, dirs) }
       # Kernel#warn counts its own caller, this method, as level 0.
       Kernel.warn("Rocket Job: #{message}", uplevel: uplevel && (uplevel + 1), category: :deprecated)
       nil
+    end
+
+    # Returns [true|false] whether deprecation warnings are on, see Warning[:deprecated], and so whether .warn reports
+    # them. A check that costs something to find a use of what is deprecated, such as one that compares every record
+    # of an upload, runs only while they are, so that production, where they are off, does not pay for it.
+    def self.enabled?
+      Warning[:deprecated]
     end
 
     # Returns [Array<String>] the directories whose lines are skipped when finding the line of the application: this

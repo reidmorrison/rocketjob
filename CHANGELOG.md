@@ -28,6 +28,10 @@ See [Upgrading to v7.1](https://rocketjob.reidmorrison.com/upgrading.html#upgrad
 
 ### New features
 
+- `upload` accepts a block with an Active Record relation or a Mongoid criteria, as Rocket Job 8 does, which returns
+  the record to upload for each model or document, as a block passed to `upload_arel` or `upload_mongo_query` does,
+  which Rocket Job 8 removes. Previously it raised `ArgumentError`. A block passed with a relation reports a
+  deprecation warning, since in Rocket Job 8 it receives each row as a Hash, see Deprecated.
 - A category's `schema` describes the fields of its files, and the type of each one, as a
   [Frictionless Table Schema](https://datapackage.org/standard/table-schema/), as a Hash, or as the path or url of a
   JSON file, which is read when the category is first used. Records are read as typed values, such as an Integer, a
@@ -84,11 +88,11 @@ See [Upgrading to v7.1](https://rocketjob.reidmorrison.com/upgrading.html#upgrad
 
 ### Deprecated
 
-These still work as in 7.0, and will be removed in Rocket Job 8. Rocket Job reports a Ruby deprecation warning, at
-the line of the application, for each one that a job class defines a category with, that a Dirmon entry or an
-`UploadFileJob` builds a job with, or that is passed to `upload`. The warnings are only reported while Ruby's
-deprecation warnings are on, such as in tests run by Minitest, so production stays quiet. A job read back from the
-database does not report one. See the upgrade guide.
+These still work as in 7.0, and will be removed, or work differently, in Rocket Job 8. Rocket Job reports a Ruby
+deprecation warning, at the line of the application, for each one that a job class defines a category with, that a
+Dirmon entry or an `UploadFileJob` builds a job with, that is passed to `upload`, or that an upload of a query depends
+on. The warnings are only reported while Ruby's deprecation warnings are on, such as in tests run by Minitest, so
+production stays quiet. A job read back from the database does not report one. See the upgrade guide.
 
 - A category's `format_options`, replaced by its `schema`, which gives the width of each field of a fixed width file.
 - The options that describe the columns of a file, replaced by the category's `schema`: an input category's
@@ -99,6 +103,26 @@ database does not report one. See the upgrade guide.
 - An input category's `mode: :array`, and the `stream_mode: :array` of `upload`. Use the default `:line` mode, or,
   with a schema, `:hash` to also parse every line when the file is uploaded. Without a schema, a category whose files
   have a header row, such as CSV, cannot be uploaded in the `:hash` mode.
+- A block passed with an Active Record relation, such as to `upload_arel`, which receives each model. Rocket Job 8
+  reads the relation in one streamed query and builds no models, so the block receives each row as a Hash of the
+  columns that the relation selects, by name with String keys, cast as `pluck` casts them. Read the columns from it,
+  such as `row["email"]`, which also reads a model, rather than `row[:email]`, which returns `nil` from the Hash. A
+  block passed with a Mongoid criteria is unchanged.
+- Uploading an Active Record relation that uses `includes`, `preload` or `eager_load`, which raises `ArgumentError` in
+  Rocket Job 8, with or without a block. Join the tables with `joins` and select their columns instead.
+- Uploading several `columns:` of an Active Record relation or a Mongoid criteria, without a block, which uploads each
+  record as an Array of their values. Rocket Job 8 uploads a Hash of the columns by name, with String keys, so
+  `perform` must read the record by name. One column still uploads its value.
+- Uploading a column, without a block, whose reader the model overrides, which uploads what the reader returns. Rocket
+  Job 8 uploads the value that the column holds, as `pluck` returns it. While deprecation warnings are on, the upload
+  compares the reader with `read_attribute` for each row until they differ, and names the model and the column, but
+  not the values. `normalizes`, `enum`, `serialize` and `alias_attribute` give the same value both ways.
+- The batch job methods `upload_arel`, `upload_mongo_query`, `upload_integer_range` and
+  `upload_integer_range_in_reverse_order`, deprecated since v6, which Rocket Job 8 removes. Call `upload` with the
+  relation, the criteria or the range instead, such as `upload(User.where(country_code: "US"), columns: [:zip_code])`
+  or `upload(1..1_000_000)`, also with a block. A range is uploaded in the direction that it is written, so
+  `upload(first..last)` uploads a range whose `last` is less than its `first` from its last id, where
+  `upload_integer_range(first, last)` uploaded nothing.
 
 ### Fixes
 

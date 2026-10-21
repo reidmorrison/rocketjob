@@ -53,6 +53,65 @@ class DeprecationTest < Minitest::Test
       end
     end
 
+    describe ".enabled?" do
+      it "says whether deprecation warnings are on" do
+        previous             = Warning[:deprecated]
+        Warning[:deprecated] = true
+
+        assert_predicate RocketJob::Deprecation, :enabled?
+
+        Warning[:deprecated] = false
+
+        refute_predicate RocketJob::Deprecation, :enabled?
+      ensure
+        Warning[:deprecated] = previous
+      end
+    end
+
+    describe "an upload method that Rocket Job 8 removes" do
+      let(:job) do
+        job = DeprecatedCategoryJob.new
+        job.input_category.slice_size = 10
+        job
+      end
+
+      after do
+        job.cleanup!
+      end
+
+      it "warns for upload_integer_range, at the line that calls it, and still uploads the range" do
+        count    = nil
+        line     = __LINE__ + 1
+        warnings = deprecation_warnings { count = job.upload_integer_range(1, 20) }
+
+        assert_equal 2, count
+        assert_equal 2, job.record_count
+        assert_equal [[[1, 10]], [[11, 20]]], job.input.collect(&:to_a)
+        assert_equal ["#{__FILE__}:#{line}: warning: Rocket Job: upload_integer_range is deprecated, and removed in " \
+                      "Rocket Job 8: call upload with the range, such as upload(1..1_000_000) for " \
+                      "upload_integer_range(1, 1_000_000), see #{RocketJob::Deprecation::UPGRADE_GUIDE}\n"], warnings
+      end
+
+      it "warns for upload_integer_range_in_reverse_order, and still uploads the range from its last id" do
+        count    = nil
+        warnings = deprecation_warnings { count = job.upload_integer_range_in_reverse_order(1, 20) }
+
+        assert_equal 2, count
+        assert_equal 2, job.record_count
+        assert_equal [[[11, 20]], [[1, 10]]], job.input.collect(&:to_a)
+        assert_equal 1, warnings.size, warnings.inspect
+        assert_includes warnings.first, "upload_integer_range_in_reverse_order is deprecated, and removed in Rocket " \
+                                        "Job 8: call upload with the range from its last id, such as upload(1_000_000..1)"
+      end
+
+      it "does not warn for upload of a range, which replaces them" do
+        warnings = deprecation_warnings { job.upload(20..1) }
+
+        assert_equal [[[11, 20]], [[1, 10]]], job.input.collect(&:to_a)
+        assert_empty warnings
+      end
+    end
+
     describe "a category defined with a deprecated option" do
       it "warns at the line of the job class that defines it" do
         line     = __LINE__ + 2
