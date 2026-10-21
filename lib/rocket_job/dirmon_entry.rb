@@ -225,6 +225,27 @@ module RocketJob
       klass.property_schema_proposals(properties, "Dirmon entry #{name.inspect} #{id}")
     end
 
+    # Returns [String] the pattern to show, for example in a web interface, which leaves out any credentials,
+    # such as the user name and password of `sftp://user:password@host/in/*.csv`, see IOStreams::Path#display_name.
+    def pattern_display_name
+      RocketJob.path_display_name(pattern)
+    end
+
+    # Returns [String] the archive directory to show, without any credentials, see #pattern_display_name.
+    def archive_directory_display_name
+      RocketJob.path_display_name(archive_directory)
+    end
+
+    # Returns [RocketJob::DirmonEntry] a new, unsaved, pending entry with the settings of this entry, such as its
+    # job class and properties, overridden by the supplied attributes, which usually include a new name and pattern.
+    #
+    # What happened to this entry is not copied: its state, or why it failed.
+    def replicate(**attributes)
+      entry = self.class.new(self.attributes.except(*REPLICATE_EXCLUDED_ATTRIBUTES).deep_dup)
+      entry.assign_attributes(attributes)
+      entry
+    end
+
     # Returns the Job to be created.
     def job_class
       return if job_class_name.nil?
@@ -264,6 +285,10 @@ module RocketJob
     end
 
     private
+
+    # Attributes that record what happened to an entry, rather than its settings, see #replicate.
+    REPLICATE_EXCLUDED_ATTRIBUTES = %w[_id state exception].freeze
+    private_constant :REPLICATE_EXCLUDED_ATTRIBUTES
 
     # strip whitespaces from all variables that reference paths or patterns
     def strip_whitespace
