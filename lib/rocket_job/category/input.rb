@@ -13,7 +13,7 @@ module RocketJob
       private_constant :UploadSlices, :WrittenLines
 
       # The fields that an upload sets, see #upload_state.
-      UPLOAD_FIELDS = %w[file_name format columns header_uploaded].freeze
+      UPLOAD_FIELDS = %w[file_name format columns header_uploaded schema schema_uploaded].freeze
       private_constant :UPLOAD_FIELDS
 
       # The modes that a file can be uploaded in, see #mode.
@@ -82,6 +82,13 @@ module RocketJob
       # earlier run, or columns set for a file without a header row, which v8 removed, see #check_columns_not_set.
       field :header_uploaded, type: ::Mongoid::Boolean, default: false
 
+      # Whether `schema` is the schema of the columns of an Active Record query that an upload read, see
+      # #each_query_slice, rather than one that the application set, so that the next run of a restarted job takes the
+      # schema of its own query, see #restart_copy.
+      #
+      # Default: false, which is also what a job saved before v8 reads.
+      field :schema_uploaded, type: ::Mongoid::Boolean, default: false
+
       validates_inclusion_of :serializer, in: %i[none compress encrypt]
 
       # Setting the columns builds the tabular again when it is next used, see #tabular.
@@ -92,13 +99,18 @@ module RocketJob
 
       # Returns [RocketJob::Category::Input] a copy of this category for the next run of its job, see
       # Category::Base#restart_copy, without the header row that an upload read from the file, see #header_uploaded, so
-      # that the next run reads the header row of its own file.
+      # that the next run reads the header row of its own file, nor the schema that an upload read from a query, see
+      # #schema_uploaded, so that the next run reads the schema of its own query.
       def restart_copy
         copy = super
-        return copy unless header_uploaded?
-
-        copy.columns         = nil
-        copy.header_uploaded = false
+        if header_uploaded?
+          copy.columns         = nil
+          copy.header_uploaded = false
+        end
+        if schema_uploaded?
+          copy.schema          = nil
+          copy.schema_uploaded = false
+        end
         copy
       end
 
@@ -266,6 +278,29 @@ module RocketJob
         WrittenLines.new(build_tabular, slices, size: slice_size, validate: mode != :line).write(block)
       end
 
+      # Yields each slice of the rows of the supplied query of Active Record, see Sliced::QueryUpload#each_slice, of up
+      # to `slice_size` rows, whose header row names the columns that are uploaded, so that the workers read each row
+      # as a Hash of those columns, by this category's schema, see #parse_records.
+      #
+      # A category without a schema keeps the schema of the columns once their slices are read, which the query
+      # describes with the type of each column, see Sliced::QueryUpload#schema, so that `#perform` receives each value
+      # as its type, such as a Date, which MongoDB would otherwise store as a Time, and records that an upload set it,
+      # see #schema_uploaded. A category with a schema, such as the one that an earlier upload kept, reads the rows by
+      # it instead, so the columns must match its fields, as the header row of a file does.
+      #
+      # Raises IOStreams::Errors::InvalidHeader, before any row is read, when the columns do not match the fields of
+      # this category's schema.
+      def each_query_slice(query, &)
+        if schema.present?
+          IOStreams::Tabular.new(format: :array, schema: tabular_schema).read_header(query.column_names)
+          return query.each_slice(size: slice_size, &)
+        end
+
+        query.each_slice(size: slice_size, &)
+        self.schema          = query.schema
+        self.schema_uploaded = true
+      end
+
       # Yields each record read from the supplied path in the supplied mode, see #mode.
       #
       # In :hash mode IOStreams reads the header row, since it is not yielded. In :line mode the header row is
@@ -341,7 +376,8 @@ module RocketJob
       end
 
       # Returns [Hash] the fields that an upload sets, see #restore_upload_state: the file name, the format that
-      # :auto is replaced with, and the columns of the header row that it reads, see #header_uploaded.
+      # :auto is replaced with, the columns of the header row that it reads, see #header_uploaded, and the schema of
+      # the columns of a query that it reads, see #schema_uploaded.
       def upload_state
         UPLOAD_FIELDS.to_h { |name| [name, attributes[name]] }
       end

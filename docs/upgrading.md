@@ -174,6 +174,27 @@ With or without a block:
   `def name = super.upcase`, or `def nickname = super || "none"`, no longer changes what is
   uploaded. v7.1 warns for a column whose reader returned another value. Do what the reader did in
   `#perform` instead, or in the query, such as with `COALESCE`.
+* Without a block, several columns are uploaded as a Hash of the columns by name, rather than an
+  Array, which `#perform` receives with the type of each column, such as
+  `{"name" => "Jack", "born_on" => Date.new(1990, 2, 3)}`, since the input category keeps the schema
+  of the columns. So are several fields of a Mongoid query, without their types. Read each value by
+  the name of its column, rather than its position, and finish the jobs whose input v7 uploaded as
+  Arrays before changing their `#perform`. v7.1 warns for an upload of several columns.
+
+  ~~~ruby
+  job.upload(User.where(country_code: "US"), columns: %i[name zip_code])
+
+  # Before
+  def perform(record)
+    name, zip_code = record
+  end
+
+  # After
+  def perform(record)
+    name     = record["name"]
+    zip_code = record["zip_code"]
+  end
+  ~~~
 * Without a block, the default column is the primary key of the model, so a model whose primary
   key is not `id` uploads it, where v7 raised.
 * The query is read on a connection of its own, so it uploads only the rows that were committed.

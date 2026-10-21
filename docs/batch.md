@@ -208,12 +208,30 @@ only that column:
 job.upload(User.where(country_code: "US"))
 ~~~
 
-Supply column names to upload those columns instead, as an Array per row, or the value itself for a
-single column. Only those columns are selected, as `pluck` selects them, whatever the query selects:
+Supply column names to upload those columns instead: the value itself for a single column, or for
+several, a Hash of the columns by name. Only those columns are selected, as `pluck` selects them,
+whatever the query selects:
 
 ~~~ruby
-job.upload(User.where(country_code: "US"), columns: %i[user_name zip_code])
+job.upload(User.where(country_code: "US"), columns: %i[user_name zip_code born_on])
 ~~~
+
+`#perform` receives each value of several columns as the type of its column, such as a `Date`,
+which MongoDB would otherwise store as a time, since the input category keeps the
+[schema](#typed-values-with-a-schema) of the columns, which the query describes:
+
+~~~ruby
+def perform(user)
+  user["born_on"]
+  # => Sat, 03 Feb 1990
+end
+~~~
+
+An input category with a schema of its own reads the rows by it instead, so its fields must match
+the columns, as they must match the header row of a file, otherwise `upload` raises
+`IOStreams::Errors::InvalidHeader` before any row is read. So does a second upload of other columns
+into the same input category, which keeps the schema of the first. The next run of a scheduled job
+reads the schema of its own query.
 
 Each value is read as `pluck` reads it: the value that the column holds, as its attribute casts it,
 such as the name of an enum's value, or a decrypted attribute. A reader that the model overrides is
@@ -311,6 +329,9 @@ job.upload(User.where(state: "FL"))
 
 # Upload a field instead
 job.upload(User.where(state: "FL"), columns: [:zip_code])
+
+# Upload several fields, as a Hash of the fields by name, such as {"name" => "Jack", "zip_code" => "33101"}
+job.upload(User.where(state: "FL"), columns: %i[name zip_code])
 ~~~
 
 When a block is supplied it receives each document and returns the record to upload. The returned

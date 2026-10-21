@@ -54,6 +54,16 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   block receives each row as a Hash of its columns by name, as Strings, rather than a model: those that `columns:`
   names, otherwise those that the relation selects, so `row[:email]` returns nil, where `user[:email]` read the model.
   See the upgrade guide.
+- `upload` of several columns of an Active Record relation, or of several fields of a Mongoid query, uploads each
+  record as a Hash of the columns by name, with String keys, such as `{"name" => "Jack", "zip_code" => "12345"}`,
+  rather than an Array, so that `#perform` reads each value by its name. The rows of a relation are uploaded in slices
+  that carry the names of their columns, and the input category keeps the schema of the columns, which the query
+  describes, so that `#perform` receives each value as the type of its column, such as a `Date`, which MongoDB would
+  otherwise store as a time. An input category with a schema of its own reads the rows by it, and raises
+  `IOStreams::Errors::InvalidHeader` before any row is read for columns that do not match it, as does a second upload
+  of other columns. The input category records that an upload set its schema in its new `schema_uploaded`, so that an
+  upload that fails restores it, and the next run of a scheduled job reads the schema of its own query. Finish the
+  jobs whose input Rocket Job 7 uploaded as Arrays before changing their `#perform`. See the upgrade guide.
 - `.from_properties(nil)` of a batch job builds a job with the defaults, as it does for a job that is not a batch
   job. Previously it raised `NoMethodError`, such as when Mission Control saved a Dirmon entry for a batch job
   without changing its properties.

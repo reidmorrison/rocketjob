@@ -132,7 +132,8 @@ module RocketJob
       # Example: Upload the id of each user that an Active Record relation returns
       #   job.upload(User.where(country_code: "US"))
       #
-      # Example: Upload the user_name and zip_code of each user, as an Array, see `columns:`
+      # Example: Upload the user_name and zip_code of each user, see `columns:`, which `#perform` receives as a Hash of
+      #   the columns by name, with the type of each column, such as `{"user_name" => "jack", "zip_code" => "12345"}`
       #   job.upload(User.where(country_code: "US"), columns: %i[user_name zip_code])
       #
       # Example: Upload what the block returns for each row of an Active Record relation, which it receives as a Hash
@@ -212,8 +213,14 @@ module RocketJob
                                                         upload_id: rocketjob_upload_id, &block)
           when ->(query) { Sliced::QueryUpload.query?(query) }
             rocketjob_check_upload_options("an Active Record query", file_name, stream_mode, on_first, args)
-            input_collection.upload_arel(object, columns: columns, slice_batch_size: slice_batch_size,
-                                                 upload_id: rocketjob_upload_id, &block)
+            query = Sliced::QueryUpload.new(object, columns: columns)
+            if block || query.single_column?
+              input_collection.upload_query(query, slice_batch_size: slice_batch_size, upload_id: rocketjob_upload_id,
+                                            &block)
+            else
+              rocketjob_upload_query_slices(input_collection, input_category(category), query,
+                                            slice_batch_size: slice_batch_size)
+            end
           else
             raise(ArgumentError, "Unknown keyword argument :columns when uploading a file") if columns
 
@@ -422,6 +429,19 @@ module RocketJob
         return if names.empty?
 
         raise(ArgumentError, Category::Input.removed_options_message(names.collect { |name| "#{name}:" }))
+      end
+
+      # Uploads the rows of the supplied query of Active Record, of several columns, see Sliced::QueryUpload, into the
+      # supplied input category, in slices that carry the names of the columns, which keeps their schema, see
+      # Category::Input#each_query_slice, so that `#perform` receives each row as a Hash of its columns by name.
+      #
+      # Returns [Integer] the number of records uploaded.
+      def rocketjob_upload_query_slices(input_collection, category, query, slice_batch_size:)
+        category.uploading do
+          input_collection.upload(slice_batch_size: slice_batch_size, upload_id: rocketjob_upload_id) do |writer|
+            category.each_query_slice(query) { |slice| writer.write_slice(slice) }
+          end
+        end
       end
 
       # Uploads the file that the supplied path reads into the supplied input category, which has a schema, in the slices

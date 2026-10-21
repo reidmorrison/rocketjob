@@ -271,9 +271,11 @@ module RocketJob
         @records.is_a?(IOStreams::Slice) && !records.is_a?(IOStreams::Slice) && records.none?(Hash)
       end
 
-      # Returns [IOStreams::Slice] the supplied rows, with the header row and format of the supplied rows of a file.
+      # Returns [IOStreams::Slice] the supplied rows, with the header row and format of the supplied rows of a file, and
+      # whether a row whose every value is blank is a record, as each row of a query is, see
+      # `IOStreams::Slice#blank_rows?`.
       def rows_like(slice, rows)
-        IOStreams::Slice.new(rows, header: slice.header, format: slice.format)
+        IOStreams::Slice.new(rows, header: slice.header, format: slice.format, blank_rows: slice.blank_rows?)
       end
 
       # Returns [Hash] the document that holds the records: the rows of a file as the Hash that they return, see

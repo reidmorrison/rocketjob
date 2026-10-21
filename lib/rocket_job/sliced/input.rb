@@ -21,6 +21,10 @@ module RocketJob
         where(upload_id: upload_id).delete_all
       end
 
+      # Uploads the documents of the supplied Mongoid criteria, read with the driver of MongoDB, without building a model
+      # for each one: the value of each document's field when one field is uploaded, by default its `_id`, otherwise a
+      # Hash of its fields by name. With a block, uploads what the block returns for each document. Returns how many it
+      # uploaded.
       def upload_mongo_query(criteria, columns: [], slice_batch_size: nil, upload_id: nil, &block)
         options = criteria.options
 
@@ -39,7 +43,7 @@ module RocketJob
               column = columns.first
               ->(document) { document[column] }
             else
-              ->(document) { columns.collect { |c| document[c] } }
+              ->(document) { columns.to_h { |c| [c, document[c]] } }
             end
         end
 
@@ -51,19 +55,19 @@ module RocketJob
         end
       end
 
-      # Uploads the records of the supplied Active Record relation, or of the batches of one, see QueryUpload: the value
-      # of each row's column when one column is uploaded, by default the primary key, otherwise an Array of the values
-      # of its columns. Returns how many it uploaded.
+      # Uploads the records of the supplied query of Active Record, see QueryUpload: what the block returns for each row,
+      # which it receives as a Hash of its columns by name, see QueryUpload#each_row, without building a model, or the
+      # value of the column of each row, when one column is uploaded, by default the primary key, see
+      # QueryUpload#each_value. Returns how many it uploaded.
       #
-      # With a block, uploads what the block returns for each row of the query, which it receives as a Hash of its
-      # columns by name, see QueryUpload#each_row, without building a model.
-      def upload_arel(arel, columns: nil, slice_batch_size: nil, upload_id: nil, &block)
-        query = QueryUpload.new(arel, columns: columns)
+      # The rows of several columns are uploaded in slices into an input category instead, see
+      # Category::Input#each_query_slice, which keeps the schema that the workers read them by.
+      def upload_query(query, slice_batch_size: nil, upload_id: nil, &block)
         upload(slice_batch_size: slice_batch_size, upload_id: upload_id) do |records|
           if block
             query.each_row { |row| records << block.call(row) }
           else
-            query.each_record { |record| records << record }
+            query.each_value { |value| records << value }
           end
         end
       end

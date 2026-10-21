@@ -8,6 +8,7 @@ ActiveRecord::Schema.define version: 0 do
   create_table :input_query_people, force: true do |t|
     t.string :name
     t.integer :age
+    t.date :born_on
   end
 
   create_table :input_query_pets, force: true do |t|
@@ -18,6 +19,7 @@ ActiveRecord::Schema.define version: 0 do
   create_table :input_query_codes, id: false, force: true do |t|
     t.string :code, primary_key: true
     t.string :name
+    t.binary :data
   end
 
   create_table :input_query_events, id: false, force: true do |t|
@@ -25,7 +27,7 @@ ActiveRecord::Schema.define version: 0 do
   end
 end
 
-# ActiveRecord source for upload_arel.
+# ActiveRecord source for upload_query.
 class InputQueryPerson < ActiveRecord::Base
   has_many :input_query_pets
   alias_attribute :full_name, :name
@@ -85,6 +87,38 @@ module Sliced
       end
     end
 
+    # A job whose input category has a schema of its own.
+    class QueryUploadSchemaJob < RocketJob::Job
+      include RocketJob::Batch
+
+      input_category schema: {
+        "fields" => [
+          {"name" => "name", "type" => "string"},
+          {"name" => "age", "type" => "number"}
+        ]
+      }
+
+      def perform(record)
+        record
+      end
+    end
+
+    # Returns [Array] the records of the supplied job, as `#perform` receives them, see
+    # RocketJob::Category::Input#parse_records.
+    def self.performed_records(job)
+      records = []
+      job.input.each do |slice|
+        job.input_category.parse_records(slice.records) { |record| records << record }
+      end
+      records
+    end
+
+    # Removes the rows and documents that the tests created.
+    def self.delete_all
+      [InputQueryPerson, InputQueryPet, InputQueryCode, InputQueryEvent].each(&:delete_all)
+      InputQueryDoc.delete_all
+    end
+
     describe RocketJob::Sliced::Input do
       let(:collection_name) { :"rocket_job.slices.query_test" }
 
@@ -92,19 +126,21 @@ module Sliced
         RocketJob::Sliced::Input.new(collection_name: collection_name, slice_size: 100)
       end
 
+      # Uploads the records of the supplied relation, or its batches, see RocketJob::Sliced::Input#upload_query.
+      def upload_query(query, columns: nil, &)
+        input.upload_query(RocketJob::Sliced::QueryUpload.new(query, columns: columns), &)
+      end
+
       before do
         input.delete_all
-        InputQueryPerson.delete_all
-        InputQueryDoc.delete_all
       end
 
       after do
         input.drop
-        [InputQueryPerson, InputQueryPet, InputQueryCode, InputQueryEvent].each(&:delete_all)
-        InputQueryDoc.delete_all
+        InputQueryTest.delete_all
       end
 
-      describe "#upload_arel" do
+      describe "#upload_query" do
         # Whether the tests read the batches of a relation, which any database reads, rather than a streamed query.
         def batches?
           false
@@ -117,35 +153,33 @@ module Sliced
         end
 
         it "uploads the id of each record by default" do
-          count = input.upload_arel(InputQueryPerson.all)
+          count = upload_query(InputQueryPerson.all)
 
           assert_equal 2, count
           assert_equal [@alice.id, @bob.id].sort, input.collect(&:to_a).flatten.sort
         end
 
         it "uploads a single named column" do
-          count = input.upload_arel(InputQueryPerson.all, columns: [:name])
+          count = upload_query(InputQueryPerson.all, columns: [:name])
 
           assert_equal 2, count
           assert_equal %w[Alice Bob], input.collect(&:to_a).flatten.sort
         end
 
-        it "uploads multiple columns as arrays" do
-          input.upload_arel(InputQueryPerson.all, columns: %i[name age])
-          rows = input.collect(&:to_a).flatten(1).sort
-
-          assert_equal [["Alice", 30], ["Bob", 40]], rows
+        it "raises for several columns, whose rows are uploaded in slices into an input category" do
+          assert_raises(ArgumentError) { upload_query(InputQueryPerson.all, columns: %i[name age]) }
+          assert_equal 0, input.count
         end
 
         it "uploads what the block returns for each row" do
-          input.upload_arel(InputQueryPerson.all) { |row| row["name"].upcase }
+          upload_query(InputQueryPerson.all) { |row| row["name"].upcase }
 
           assert_equal %w[ALICE BOB], input.collect(&:to_a).flatten.sort
         end
 
         it "yields each row to the block as a Hash of the columns that the relation selects, by name" do
           rows = []
-          input.upload_arel(InputQueryPerson.select(:name, :age).order(:age)) do |row|
+          upload_query(InputQueryPerson.select(:name, :age).order(:age)) do |row|
             rows << row
             row["name"]
           end
@@ -155,60 +189,60 @@ module Sliced
 
         it "yields every column of the table when the relation selects none" do
           rows = []
-          input.upload_arel(InputQueryPerson.where(name: "Alice")) { |row| rows << row }
+          upload_query(InputQueryPerson.where(name: "Alice")) { |row| rows << row }
 
-          assert_equal [{"id" => @alice.id, "name" => "Alice", "age" => 30}], rows
+          assert_equal [{"id" => @alice.id, "name" => "Alice", "age" => 30, "born_on" => nil}], rows
         end
 
         it "yields only the named columns to the block" do
           rows = []
-          input.upload_arel(InputQueryPerson.order(:age), columns: [:name]) { |row| rows << row }
+          upload_query(InputQueryPerson.order(:age), columns: %i[name age]) { |row| rows << row }
 
-          assert_equal [{"name" => "Alice"}, {"name" => "Bob"}], rows
+          assert_equal [{"name" => "Alice", "age" => 30}, {"name" => "Bob", "age" => 40}], rows
         end
 
         it "yields the rows of a model without a primary key to the block" do
           InputQueryEvent.create!(name: "start")
-          upload_count = input.upload_arel(InputQueryEvent.all) { |row| row["name"] }
+          upload_count = upload_query(InputQueryEvent.all) { |row| row["name"] }
 
           assert_equal 1, upload_count
           assert_equal %w[start], input.collect(&:to_a).flatten
         end
 
         it "yields the rows to the block in the order of the relation" do
-          input.upload_arel(InputQueryPerson.order(age: :desc)) { |row| row["name"] }
+          upload_query(InputQueryPerson.order(age: :desc)) { |row| row["name"] }
 
           assert_equal %w[Bob Alice], input.collect(&:to_a).flatten
         end
 
         it "raises for a relation that loads associations, also with a block" do
           assert_raises(ArgumentError) do
-            input.upload_arel(InputQueryPerson.preload(:input_query_pets)) { |row| row["name"] }
+            upload_query(InputQueryPerson.preload(:input_query_pets)) { |row| row["name"] }
           end
           assert_equal 0, input.count
         end
 
         it "uploads the rows in the order of the relation" do
-          input.upload_arel(InputQueryPerson.order(age: :desc), columns: [:name])
+          upload_query(InputQueryPerson.order(age: :desc), columns: [:name])
 
           assert_equal %w[Bob Alice], input.collect(&:to_a).flatten
         end
 
         it "uploads the rows within the limit of a sorted relation" do
-          count = input.upload_arel(InputQueryPerson.order(age: :desc).limit(1), columns: [:name])
+          count = upload_query(InputQueryPerson.order(age: :desc).limit(1), columns: [:name])
 
           assert_equal 1, count
           assert_equal %w[Bob], input.collect(&:to_a).flatten
         end
 
         it "uploads the values that the columns hold, rather than what a reader of the model returns" do
-          input.upload_arel(InputQueryShoutingPerson.all, columns: [:name])
+          upload_query(InputQueryShoutingPerson.all, columns: [:name])
 
           assert_equal %w[Alice Bob], input.collect(&:to_a).flatten.sort
         end
 
         it "uploads only the columns that it names, rather than those that the relation selects" do
-          input.upload_arel(InputQueryPerson.select(:id, :name), columns: [:age])
+          upload_query(InputQueryPerson.select(:id, :name), columns: [:age])
 
           assert_equal [30, 40], input.collect(&:to_a).flatten.sort
         end
@@ -217,16 +251,16 @@ module Sliced
           InputQueryCode.create!(code: "a1", name: "Alice")
           InputQueryCode.create!(code: "b2", name: "Bob")
 
-          assert_equal 2, input.upload_arel(InputQueryCode.all)
+          assert_equal 2, upload_query(InputQueryCode.all)
           assert_equal %w[a1 b2], input.collect(&:to_a).flatten.sort
         end
 
         it "raises for a model without a primary key, unless the columns are named" do
           InputQueryEvent.create!(name: "start")
-          error = assert_raises(ArgumentError) { input.upload_arel(InputQueryEvent.all) }
+          error = assert_raises(ArgumentError) { upload_query(InputQueryEvent.all) }
 
           assert_equal "InputQueryEvent has no primary key, so name the columns to upload with `columns:`", error.message
-          assert_equal 1, input.upload_arel(InputQueryEvent.all, columns: [:name])
+          assert_equal 1, upload_query(InputQueryEvent.all, columns: [:name])
           assert_equal %w[start], input.collect(&:to_a).flatten
         end
 
@@ -234,12 +268,19 @@ module Sliced
           uploaded = nil
           InputQueryPerson.transaction do
             InputQueryPerson.create!(name: "Carol", age: 50)
-            uploaded = input.upload_arel(InputQueryPerson.all, columns: [:name])
+            uploaded = upload_query(InputQueryPerson.all, columns: [:name])
             raise(ActiveRecord::Rollback)
           end
 
           assert_equal 2, uploaded
           assert_equal %w[Alice Bob], input.collect(&:to_a).flatten.sort
+        end
+
+        it "raises for a relation that loads associations, and uploads nothing" do
+          error = assert_raises(ArgumentError) { upload_query(InputQueryPerson.includes(:input_query_pets)) }
+
+          assert_includes error.message, "includes cannot be read as rows"
+          assert_equal 0, input.count
         end
 
         describe "the batches of a relation" do
@@ -248,31 +289,25 @@ module Sliced
           end
 
           it "uploads the primary key of each row" do
-            assert_equal 2, input.upload_arel(InputQueryPerson.in_batches(of: 1))
+            assert_equal 2, upload_query(InputQueryPerson.in_batches(of: 1))
             assert_equal [@alice.id, @bob.id], input.collect(&:to_a).flatten.sort
           end
 
-          it "uploads the named columns of each row, as arrays" do
-            input.upload_arel(InputQueryPerson.in_batches(of: 1), columns: %i[name age])
-
-            assert_equal [["Alice", 30], ["Bob", 40]], input.collect(&:to_a).flatten(1).sort
-          end
-
           it "uploads the columns that the relation selects before in_batches" do
-            input.upload_arel(InputQueryPerson.select(:id, :age).in_batches(of: 1), columns: [:age])
+            upload_query(InputQueryPerson.select(:id, :age).in_batches(of: 1), columns: [:age])
 
             assert_equal [30, 40], input.collect(&:to_a).flatten.sort
           end
 
           it "finds a column by the name of the attribute that aliases it" do
-            input.upload_arel(InputQueryPerson.in_batches(of: 1), columns: [:full_name])
+            upload_query(InputQueryPerson.in_batches(of: 1), columns: [:full_name])
 
             assert_equal %w[Alice Bob], input.collect(&:to_a).flatten.sort
           end
 
           it "raises before any batch is read for a column that the relation does not select" do
             error = assert_raises(ArgumentError) do
-              input.upload_arel(InputQueryPerson.select(:id).in_batches(of: 1), columns: [:name])
+              upload_query(InputQueryPerson.select(:id).in_batches(of: 1), columns: [:name])
             end
 
             assert_equal "The batches of the InputQueryPerson query do not select the column name, which is " \
@@ -283,7 +318,7 @@ module Sliced
           it "uploads the rows that an open transaction of the caller wrote, since it reads on that connection" do
             InputQueryPerson.transaction do
               InputQueryPerson.create!(name: "Carol", age: 50)
-              input.upload_arel(InputQueryPerson.in_batches(of: 1), columns: [:name])
+              upload_query(InputQueryPerson.in_batches(of: 1), columns: [:name])
               raise(ActiveRecord::Rollback)
             end
 
@@ -291,26 +326,19 @@ module Sliced
           end
 
           it "uploads what the block returns for each row" do
-            input.upload_arel(InputQueryPerson.in_batches(of: 1)) { |row| row["name"].upcase }
+            upload_query(InputQueryPerson.in_batches(of: 1)) { |row| row["name"].upcase }
 
             assert_equal %w[ALICE BOB], input.collect(&:to_a).flatten.sort
           end
 
           it "yields only the named columns of each row to the block" do
             rows = []
-            input.upload_arel(InputQueryPerson.in_batches(of: 1), columns: %i[full_name age]) { |row| rows << row }
+            upload_query(InputQueryPerson.in_batches(of: 1), columns: %i[full_name age]) { |row| rows << row }
 
             expected = [{"name" => "Alice", "age" => 30}, {"name" => "Bob", "age" => 40}]
 
             assert_equal(expected, rows.sort_by { |row| row["age"] })
           end
-        end
-
-        it "raises for a relation that loads associations, and uploads nothing" do
-          error = assert_raises(ArgumentError) { input.upload_arel(InputQueryPerson.includes(:input_query_pets)) }
-
-          assert_includes error.message, "includes cannot be read as rows"
-          assert_equal 0, input.count
         end
       end
 
@@ -333,11 +361,11 @@ module Sliced
           assert_equal %w[Alice Bob], input.collect(&:to_a).flatten.sort
         end
 
-        it "uploads multiple columns as arrays" do
+        it "uploads several columns as a Hash of the fields by name" do
           input.upload_mongo_query(InputQueryDoc.all, columns: %i[name age])
-          rows = input.collect(&:to_a).flatten(1).sort
+          records = input.collect(&:to_a).flatten(1).sort_by { |record| record["age"] }
 
-          assert_equal [["Alice", 30], ["Bob", 40]], rows
+          assert_equal [{"name" => "Alice", "age" => 30}, {"name" => "Bob", "age" => 40}], records
         end
 
         it "honors a supplied block" do
@@ -348,13 +376,75 @@ module Sliced
       end
     end
 
-    describe "RocketJob::Batch#upload of a query" do
-      let(:job) { QueryUploadJob.new }
+    describe RocketJob::Sliced::QueryUpload do
+      after do
+        InputQueryTest.delete_all
+      end
 
       before do
-        InputQueryPerson.delete_all
-        InputQueryDoc.delete_all
-        InputQueryPerson.create!(name: "Alice", age: 30)
+        InputQueryPerson.create!(name: "Alice", age: 30, born_on: Date.new(1990, 2, 3))
+        InputQueryPerson.create!(name: "Bob", age: 40)
+      end
+
+      # Returns [Array<IOStreams::Slice>] the slices of the supplied query.
+      def slices(query, columns:, size: 10)
+        slices = []
+        RocketJob::Sliced::QueryUpload.new(query, columns: columns).each_slice(size: size) { |slice| slices << slice }
+        slices
+      end
+
+      it "reads the slices of the rows of the columns, whose header row names them, and whose rows are records" do
+        skip(QUERY_STREAMS_SKIP) unless QUERY_STREAMS
+
+        slice = slices(InputQueryPerson.order(:age), columns: %i[name age]).first
+
+        assert_equal %w[name age], slice.header
+        assert_equal [["Alice", 30], ["Bob", 40]], slice.to_a
+        refute_predicate slice, :blank_rows?
+      end
+
+      it "reads slices of up to the supplied number of rows" do
+        skip(QUERY_STREAMS_SKIP) unless QUERY_STREAMS
+
+        assert_equal [1, 1], slices(InputQueryPerson.order(:age), columns: %i[name age], size: 1).collect(&:size)
+      end
+
+      it "narrows the slices of the batches of a relation to the columns, found by their names" do
+        slice = slices(InputQueryPerson.in_batches(of: 10), columns: %i[full_name age]).first
+
+        assert_equal %w[name age], slice.header
+        assert_equal [["Alice", 30], ["Bob", 40]], slice.sort_by(&:last)
+        refute_predicate slice, :blank_rows?
+      end
+
+      it "describes the columns by their names, and their schema by their types, with String keys" do
+        query = RocketJob::Sliced::QueryUpload.new(InputQueryPerson.all, columns: %i[full_name born_on])
+
+        assert_equal %w[name born_on], query.column_names
+        assert_equal({"fields" => [{"name" => "name", "type" => "string"}, {"name" => "born_on", "type" => "date"}]},
+                     query.schema)
+      end
+
+      it "describes only the columns of the batches of a relation that are read" do
+        query = RocketJob::Sliced::QueryUpload.new(InputQueryPerson.in_batches(of: 10), columns: %i[born_on name])
+
+        assert_equal %w[born_on name], query.column_names
+        assert_equal({"fields" => [{"name" => "born_on", "type" => "date"}, {"name" => "name", "type" => "string"}]},
+                     query.schema)
+      end
+
+      it "uploads one column as its value, and several in slices" do
+        assert_predicate RocketJob::Sliced::QueryUpload.new(InputQueryPerson.all), :single_column?
+        refute_predicate RocketJob::Sliced::QueryUpload.new(InputQueryPerson.all, columns: %i[name age]), :single_column?
+      end
+    end
+
+    describe "RocketJob::Batch#upload of a query" do
+      let(:job) { QueryUploadJob.new }
+      let(:schema_job) { QueryUploadSchemaJob.new }
+
+      before do
+        InputQueryPerson.create!(name: "Alice", age: 30, born_on: Date.new(1990, 2, 3))
         InputQueryPerson.create!(name: "Bob", age: 40)
         InputQueryDoc.create!(name: "Alice", age: 30)
         InputQueryDoc.create!(name: "Bob", age: 40)
@@ -362,16 +452,104 @@ module Sliced
 
       after do
         job.cleanup!
-        InputQueryPerson.delete_all
-        InputQueryDoc.delete_all
+        schema_job.cleanup!
+        InputQueryTest.delete_all
       end
 
-      it "uploads the columns of an Active Record relation" do
+      it "uploads several columns of an Active Record relation, which perform receives as a Hash of their types" do
         skip(QUERY_STREAMS_SKIP) unless QUERY_STREAMS
 
-        assert_equal 2, job.upload(InputQueryPerson.all, columns: %i[name age])
+        assert_equal 2, job.upload(InputQueryPerson.order(:age), columns: %i[name born_on])
         assert_equal 2, job.record_count
-        assert_equal [["Alice", 30], ["Bob", 40]], job.input.collect(&:to_a).flatten(1).sort
+
+        records = InputQueryTest.performed_records(job)
+
+        assert_equal [{"name" => "Alice", "born_on" => Date.new(1990, 2, 3)}, {"name" => "Bob", "born_on" => nil}],
+                     records
+        assert_instance_of Date, records.first["born_on"]
+      end
+
+      it "keeps the schema of the columns in the input category, and records that an upload set it" do
+        skip(QUERY_STREAMS_SKIP) unless QUERY_STREAMS
+
+        job.upload(InputQueryPerson.all, columns: %i[name born_on])
+
+        assert_equal({"fields" => [{"name" => "name", "type" => "string"}, {"name" => "born_on", "type" => "date"}]},
+                     job.input_category.schema)
+        assert_predicate job.input_category, :schema_uploaded?
+      end
+
+      it "uploads a row whose every value is null as a record" do
+        skip(QUERY_STREAMS_SKIP) unless QUERY_STREAMS
+
+        InputQueryPerson.create!(name: nil, age: 50)
+        job.upload(InputQueryPerson.where(age: 50), columns: %i[name born_on])
+
+        assert_equal [{"name" => nil, "born_on" => nil}], InputQueryTest.performed_records(job)
+      end
+
+      it "narrows the batches of a relation to the columns" do
+        job.upload(InputQueryPerson.in_batches(of: 1), columns: %i[full_name age])
+
+        records = InputQueryTest.performed_records(job).sort_by { |record| record["age"] }
+
+        assert_equal [{"name" => "Alice", "age" => 30}, {"name" => "Bob", "age" => 40}], records
+      end
+
+      it "reads a second upload by the schema that the first kept, and raises for other columns" do
+        skip(QUERY_STREAMS_SKIP) unless QUERY_STREAMS
+
+        job.upload(InputQueryPerson.all, columns: %i[name age])
+
+        assert_equal 2, job.upload(InputQueryPerson.all, columns: %i[name age])
+        assert_raises(IOStreams::Errors::InvalidHeader) { job.upload(InputQueryPerson.all, columns: %i[name born_on]) }
+        assert_equal 4, job.record_count
+        assert_equal 4, job.input.collect(&:size).sum
+      end
+
+      it "reads the rows by the schema of the input category, which it keeps" do
+        skip(QUERY_STREAMS_SKIP) unless QUERY_STREAMS
+
+        schema_job.upload(InputQueryPerson.order(:age), columns: %i[name age])
+
+        assert_equal [{"name" => "Alice", "age" => 30}, {"name" => "Bob", "age" => 40}],
+                     InputQueryTest.performed_records(schema_job)
+        assert_instance_of BigDecimal, InputQueryTest.performed_records(schema_job).first["age"]
+        refute_predicate schema_job.input_category, :schema_uploaded?
+      end
+
+      it "raises before any row is read for columns that do not match the schema of the input category" do
+        assert_raises(IOStreams::Errors::InvalidHeader) do
+          schema_job.upload(InputQueryPerson.all, columns: %i[name born_on])
+        end
+        assert_equal 0, schema_job.input.count
+      end
+
+      it "restores the input category when the upload fails, so that it can upload again" do
+        skip(QUERY_STREAMS_SKIP) unless QUERY_STREAMS
+
+        InputQueryCode.create!(code: "a1", name: "Alice", data: "\xFF".b)
+
+        assert_raises(EncodingError) { job.upload(InputQueryCode.all, columns: %i[name data]) }
+        assert_nil job.input_category.schema
+        refute_predicate job.input_category, :schema_uploaded?
+        assert_equal 0, job.input.count
+      end
+
+      it "does not keep a schema that an upload read in the next run of a restarted job" do
+        skip(QUERY_STREAMS_SKIP) unless QUERY_STREAMS
+
+        job.upload(InputQueryPerson.all, columns: %i[name age])
+        copy = job.input_category.restart_copy
+
+        assert_nil copy.schema
+        refute_predicate copy, :schema_uploaded?
+      end
+
+      it "keeps the schema that the application set in the next run of a restarted job" do
+        copy = QueryUploadSchemaJob.new.input_category.restart_copy
+
+        assert_equal "age", copy.schema["fields"].last["name"]
       end
 
       it "uploads what the block returns for each row of an Active Record relation" do
@@ -386,6 +564,13 @@ module Sliced
         assert_equal 2, job.upload(InputQueryPerson.select(:name).in_batches(of: 1), columns: [:name])
         assert_equal 2, job.record_count
         assert_equal %w[Alice Bob], job.input.collect(&:to_a).flatten.sort
+      end
+
+      it "uploads several fields of a Mongoid query, which perform receives as a Hash" do
+        job.upload(InputQueryDoc.all, columns: %i[name age])
+        records = InputQueryTest.performed_records(job).sort_by { |record| record["age"] }
+
+        assert_equal [{"name" => "Alice", "age" => 30}, {"name" => "Bob", "age" => 40}], records
       end
 
       it "uploads what the block returns for each document of a Mongoid query" do
