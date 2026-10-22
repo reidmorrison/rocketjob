@@ -51,6 +51,27 @@ module Sliced
       end
     end
 
+    class CsvUploadJob < RocketJob::Job
+      include RocketJob::Batch
+
+      input_category format: :csv
+
+      def perform(record)
+        record
+      end
+    end
+
+    class JsonSchemaUploadJob < RocketJob::Job
+      include RocketJob::Batch
+
+      input_category format: :json, schema: {"fields" => [{"name" => "first", "type" => "integer"},
+                                                          {"name" => "last", "type" => "integer"}]}
+
+      def perform(record)
+        record
+      end
+    end
+
     describe RocketJob::Sliced::Input do
       let(:collection_name) { :"rocket_job.slices.query_test" }
 
@@ -240,6 +261,42 @@ module Sliced
         error = assert_raises(ArgumentError) { job.upload(InputQueryDoc.all) { |document| document["name"] } }
 
         assert_equal "Cannot supply both an object to upload, and a block.", error.message
+      end
+
+      describe "into a category whose format reads the header row of a file" do
+        let(:job) { CsvUploadJob.new }
+
+        it "rejects an Active Record relation" do
+          error = assert_raises(ArgumentError) { job.upload(InputQueryPerson.all) }
+
+          assert_equal "Input category main: cannot upload an ActiveRecord::Relation in the :csv format, which reads " \
+                       "the header row of a file. Upload it into a category without a format", error.message
+          assert_equal 0, job.input.count
+        end
+
+        it "rejects the batches of an Active Record relation" do
+          assert_raises(ArgumentError) { job.upload(InputQueryPerson.select(:id).in_batches) }
+          assert_equal 0, job.input.count
+        end
+
+        it "rejects a Mongoid query" do
+          assert_raises(ArgumentError) { job.upload(InputQueryDoc.all) }
+          assert_equal 0, job.input.count
+        end
+
+        it "rejects a range" do
+          assert_raises(ArgumentError) { job.upload(1..10) }
+          assert_equal 0, job.input.count
+        end
+      end
+
+      it "uploads into a category whose schema parses each Array of values, in a format without a header row" do
+        job = JsonSchemaUploadJob.new
+
+        assert_equal 3, job.upload(1..3)
+        assert_equal({"first" => 1, "last" => 3}, job.input_category.parse(job.input.first.to_a.first))
+      ensure
+        job&.cleanup!
       end
 
       it "rejects a file option for an Active Record relation" do

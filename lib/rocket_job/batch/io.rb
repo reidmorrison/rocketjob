@@ -214,20 +214,20 @@ module RocketJob
         count =
           case object
           when Range
-            rocketjob_check_upload_options("a Range", ":category, or :slice_batch_size", file_options)
+            rocketjob_check_upload("a Range", ":category, or :slice_batch_size", category, file_options)
             rocketjob_upload_integer_range(input_collection, object, slice_batch_size || 1_000, rocketjob_upload_id)
           when Mongoid::Criteria
-            rocketjob_check_upload_options("a Mongoid::Criteria", ":category, :columns, or :slice_batch_size",
-                                           file_options)
+            rocketjob_check_upload("a Mongoid::Criteria", ":category, :columns, or :slice_batch_size",
+                                   category, file_options)
             input_collection.upload_mongo_query(object, columns: columns, slice_batch_size: slice_batch_size,
                                                         upload_id: rocketjob_upload_id)
           when ->(query) { rocketjob_active_record_query?(query) }
             if object.is_a?(ActiveRecord::Relation)
-              rocketjob_check_upload_options("an ActiveRecord::Relation", ":category, :columns, or :slice_batch_size",
-                                             file_options)
+              rocketjob_check_upload("an ActiveRecord::Relation", ":category, :columns, or :slice_batch_size",
+                                     category, file_options)
             else
-              rocketjob_check_upload_options("the batches of an ActiveRecord::Relation",
-                                             ":category, or :slice_batch_size", file_options)
+              rocketjob_check_upload("the batches of an ActiveRecord::Relation", ":category, or :slice_batch_size",
+                                     category, file_options)
             end
             input_collection.upload_arel(object, columns: columns, slice_batch_size: slice_batch_size,
                                                  upload_id: rocketjob_upload_id)
@@ -480,11 +480,14 @@ module RocketJob
       end
 
       # Raises ArgumentError when an option that only applies to a file is supplied to upload the supplied kind of
-      # object, a range or a query, naming the options that it accepts.
-      def rocketjob_check_upload_options(kind, accepts, file_options)
-        return if file_options.empty?
+      # object, a range or a query, naming the options that it accepts, or when the input category of the supplied name
+      # cannot parse its records, see RocketJob::Category::Input#check_record_upload.
+      def rocketjob_check_upload(kind, accepts, category, file_options)
+        unless file_options.empty?
+          raise(ArgumentError, "Unknown keyword arguments when uploading #{kind}. Only accepts #{accepts}")
+        end
 
-        raise(ArgumentError, "Unknown keyword arguments when uploading #{kind}. Only accepts #{accepts}")
+        input_category(category).check_record_upload(kind)
       end
     end
   end
