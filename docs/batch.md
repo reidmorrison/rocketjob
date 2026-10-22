@@ -144,7 +144,6 @@ Useful `upload` keyword options:
 | `stream_mode`  | `:line` (default) or `:hash`. See [input categories](#input-categories).
 | `file_name`    | Override the file name used to infer format and streams.
 | `delimiter`    | Record delimiter. Default: auto-detect line endings.
-| `on_first`     | A lambda called with the first line, for example to capture a header. With a `schema`, it is called with a copy of the header row as an Array of its columns, or for a file without one, such as JSON or fixed width, with its first line, which is not uploaded.
 
 Files are read as UTF-8 text, since MongoDB only stores UTF-8 strings, and a UTF-8 byte order mark
 at the start of the file (as Excel writes) is removed. A file that is not valid UTF-8 raises
@@ -349,8 +348,7 @@ The `mode` option controls how a file is read during upload:
 * `:line` (default) uploads a raw line (String) at a time. This is the most performant, since each
   worker parses its own lines.
 * `:hash` parses each line into a Hash before uploading. The whole file is parsed up front, so an
-  invalid file is detected before processing starts. Not recommended for very large files. IOStreams
-  reads the header row itself, so `on_first` is not called for a file with one.
+  invalid file is detected before processing starts. Not recommended for very large files.
 
 The `stream_mode` option of `upload` overrides `mode` for that upload. The `:array` mode, which
 uploaded each row as an Array, was removed in v8, see

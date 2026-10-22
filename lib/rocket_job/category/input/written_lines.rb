@@ -6,32 +6,29 @@ module RocketJob
       # `IOStreams::Slice::Reader`, with one tabular, so that the header row is read and matched to the fields once: the
       # tabular reads the header row from the first lines, when the file has one, and each line after it is a row,
       # which it also parses when `validate` is true, so that a row that is not valid raises when it is written. Each
-      # slice of up to `size` rows, which holds the header row, is added to the supplied slices, see UploadSlices.
+      # slice of up to `size` rows, which holds the header row, is yielded to the supplied block.
       class WrittenLines
-        def initialize(tabular, slices, size:, validate:)
+        def initialize(tabular, size:, validate:, &on_slice)
           @tabular  = tabular
-          @slices   = slices
+          @on_slice = on_slice
           @size     = size
           @validate = validate
           @slice    = nil
         end
 
-        # Yields this writer to the supplied block of an upload, then adds the rows written since the last slice, and
-        # the header row, see UploadSlices#finish. The lines written before the block breaks out are added too, as
-        # without a schema, see Sliced::Writer::Input, but not when it raises, since the upload is then removed.
+        # Yields this writer to the supplied block of an upload, then yields the rows written since the last slice. The
+        # lines written before the block breaks out are uploaded too, as without a schema, see Sliced::Writer::Input,
+        # but not when it raises, since the upload is then removed.
         def write(block)
           block.call(self)
         rescue Exception
           failed = true
           raise
         ensure
-          unless failed
-            flush
-            @slices.finish(@tabular.header_row)
-          end
+          flush unless failed
         end
 
-        # Adds the supplied line, and the slice of the rows added, once it has `size` of them.
+        # Adds the supplied line, and yields the slice of the rows added, once it has `size` of them.
         #
         # Raises ArgumentError for a record that is not a line, such as a Hash.
         def <<(line)
@@ -50,13 +47,13 @@ module RocketJob
 
         private
 
-        # Adds the slice of the rows added since the last one, when there are any.
+        # Yields the slice of the rows added since the last one, when there are any.
         def flush
           return unless @slice
 
           slice  = @slice
           @slice = nil
-          @slices << slice
+          @on_slice.call(slice)
         end
       end
     end

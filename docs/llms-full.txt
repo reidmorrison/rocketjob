@@ -2616,7 +2616,6 @@ Useful `upload` keyword options:
 | `stream_mode`  | `:line` (default) or `:hash`. See [input categories](#input-categories).
 | `file_name`    | Override the file name used to infer format and streams.
 | `delimiter`    | Record delimiter. Default: auto-detect line endings.
-| `on_first`     | A lambda called with the first line, for example to capture a header. With a `schema`, it is called with a copy of the header row as an Array of its columns, or for a file without one, such as JSON or fixed width, with its first line, which is not uploaded.
 
 Files are read as UTF-8 text, since MongoDB only stores UTF-8 strings, and a UTF-8 byte order mark
 at the start of the file (as Excel writes) is removed. A file that is not valid UTF-8 raises
@@ -2821,8 +2820,7 @@ The `mode` option controls how a file is read during upload:
 * `:line` (default) uploads a raw line (String) at a time. This is the most performant, since each
   worker parses its own lines.
 * `:hash` parses each line into a Hash before uploading. The whole file is parsed up front, so an
-  invalid file is detected before processing starts. Not recommended for very large files. IOStreams
-  reads the header row itself, so `on_first` is not called for a file with one.
+  invalid file is detected before processing starts. Not recommended for very large files.
 
 The `stream_mode` option of `upload` overrides `mode` for that upload. The `:array` mode, which
 uploaded each row as an Array, was removed in v8, see
@@ -6134,6 +6132,9 @@ These were deprecated or unused, and are removed in v8:
   `job.input_category.file_name = "orders.csv"`. The `upload_file_name` of an `UploadFileJob`, and a
   field of that name on a simple job, are not affected. Mission Control showed and logged it, so
   upgrade Mission Control to a release that supports v8.
+* The `on_first:` option of `upload`, deprecated in v7.1, which raises `ArgumentError`. Every record
+  of a file without a header row, such as JSON or fixed width, is uploaded, including the first,
+  which `on_first` left out. See [Replace on_first](#replace-on_first).
 
 ## Upgrading to v7.1
 
@@ -6294,6 +6295,48 @@ have a header row, such as CSV, cannot be uploaded in the `:hash` mode in 7.x.
 
 With a schema, both modes upload the lines of the file, so that `#perform` receives each value as its
 type, such as a `Date`.
+
+### Replace on_first
+
+The `on_first:` option of `upload` is deprecated, and removed in v8. Its lambda was called with the
+header row of a file, or, for a file without one, such as JSON or fixed width, with the first
+record, which was then not uploaded.
+
+Rocket Job reads the header row itself, so a lambda that only reads it can be removed. To check the
+columns of a file, describe them with the category's schema, which raises
+`IOStreams::Errors::InvalidHeader` during the upload when the header row does not match its fields:
+
+~~~ruby
+# Before (deprecated)
+job.upload(file_name, on_first: ->(header) { raise "No zip column" unless header.include?("zip") })
+
+# After
+input_category format: :csv, schema: {"fields" => [{"name" => "name"}, {"name" => "zip"}]}
+~~~
+
+To leave out the first record of a file without a header row, such as the control record at the
+start of a fixed width file, upload the file with a block that writes every line but that one:
+
+~~~ruby
+# Before (deprecated)
+job.upload(file_name, on_first: ->(line) { job.control_record = line })
+
+# After
+job.upload(file_name: file_name) do |lines|
+  first = true
+  IOStreams.path(file_name).each(:line) do |line|
+    if first
+      job.control_record = line
+      first              = false
+    else
+      lines << line
+    end
+  end
+end
+~~~
+
+The block reads the file itself, so when it is not UTF-8, give the path its encoding, such as
+`IOStreams.path(file_name).encoding("ISO-8859-1")`.
 
 ### Text is read as UTF-8 with a schema
 

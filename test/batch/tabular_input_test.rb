@@ -108,22 +108,12 @@ module Batch
           assert_equal ["Jack,21,x", "Jill,22,y"], input_records
         end
 
-        it "does not call on_first in :hash mode for a file with a header row, and uploads every record, as v7" do
-          job.input_category.mode = :hash
-          called                  = false
-
-          assert_equal 2, upload(".csv", csv, on_first: ->(_row) { called = true })
-          refute called
-          assert_equal 2, input_records.size
-        end
-
-        it "calls on_first in :hash mode with the first record of JSON, which is not uploaded, as v7" do
+        it "uploads every record of JSON in :hash mode, which has no header row" do
           job.input_category.format = :json
           job.input_category.mode   = :hash
-          first                     = nil
 
-          assert_equal 1, upload(".json", json, on_first: ->(record) { first = record })
-          assert_equal({"Name" => "Jack", "age" => 21, "extra" => "x"}, first)
+          assert_equal 2, upload(".json", json)
+          assert_equal [{"Name" => "Jack", "age" => 21, "extra" => "x"}, {"name" => "Jill", "age" => 22}], input_records
         end
       end
 
@@ -258,13 +248,6 @@ module Batch
           assert_equal %w[name age], job.input_category.columns
           assert_equal [{"name" => "Jack", "age" => "21"}], output_records
         end
-
-        it "calls on_first with the header row" do
-          header = nil
-          upload(".csv", csv, on_first: ->(row) { header = row })
-
-          assert_equal "Name,Age", header
-        end
       end
 
       describe "fixed width" do
@@ -335,12 +318,10 @@ module Batch
           assert_equal [{"name" => "Jack", "zip" => "54321"}, {"name" => "Jill", "zip" => "12345"}], output_records
         end
 
-        it "calls on_first with the first line, which is not uploaded, since the file has no header row" do
-          first = nil
-          upload(".txt", "HEADER    00000\nJack      54321\n", on_first: ->(row) { first = row })
+        it "uploads the first line, since the file has no header row" do
+          upload(".txt", "Jill      12345\nJack      54321\n")
 
-          assert_equal "HEADER    00000", first
-          assert_equal ["Jack      54321"], input_records
+          assert_equal ["Jill      12345", "Jack      54321"], input_records
         end
 
         it "fails a record whose integer column is not a number" do
@@ -427,19 +408,9 @@ module Batch
           assert_equal [typed, jill], output_records
         end
 
-        it "calls on_first with the header row, as it is in the file" do
-          header = nil
-          upload(".csv", "Name,AGE,Balance,Joined\nJack,21,12.50,2026-10-13\n", on_first: ->(row) { header = row })
-
-          assert_equal %w[Name AGE Balance Joined], header
-          assert_equal [typed], output_records
-        end
-
-        it "calls on_first with the header row of a file without rows" do
-          header = nil
-
-          assert_equal 0, upload(".csv", "Name,AGE,Balance,Joined\n", on_first: ->(row) { header = row })
-          assert_equal %w[Name AGE Balance Joined], header
+        it "uploads nothing for a file with only a header row" do
+          assert_equal 0, upload(".csv", "Name,AGE,Balance,Joined\n")
+          assert_equal 0, job.input.count
         end
 
         it "fails the record whose value is not valid, which is processed again once it is corrected" do
@@ -558,13 +529,8 @@ module Batch
             assert_equal [typed, jill], output_records
           end
 
-          it "call on_first with the header row" do
-            header = nil
-            job.upload(on_first: ->(row) { header = row }) do |records|
-              records << "Name,AGE,Balance,Joined"
-            end
-
-            assert_equal %w[Name AGE Balance Joined], header
+          it "with only a header row upload nothing" do
+            assert_equal(0, job.upload { |records| records << "Name,AGE,Balance,Joined" })
             assert_equal 0, job.input.count
           end
 
@@ -575,20 +541,6 @@ module Batch
               records << %({"name":"Jill","age":22,"balance":"1.5","joined":"2026-10-14"})
             end
 
-            assert_equal [typed, jill], output_records
-          end
-
-          it "of JSON call on_first with the first line, which is not uploaded" do
-            first = nil
-            job.input_category.format     = :json
-            job.input_category.slice_size = 1
-            job.upload(on_first: ->(row) { first = row }) do |records|
-              records << %({"name":"First","age":1,"balance":"1","joined":"2026-10-01"})
-              records << %({"name":"Jack","age":21,"balance":"12.50","joined":"2026-10-13"})
-              records << %({"name":"Jill","age":22,"balance":"1.5","joined":"2026-10-14"})
-            end
-
-            assert_equal %({"name":"First","age":1,"balance":"1","joined":"2026-10-01"}), first
             assert_equal [typed, jill], output_records
           end
 
@@ -613,6 +565,37 @@ module Batch
             assert_includes error.message, "not a Hash"
             assert_equal 0, job.input.count
           end
+        end
+      end
+
+      describe "on_first, which v8 removed" do
+        let(:removed_message) do
+          "on_first: was removed in Rocket Job v8: Rocket Job reads the header row itself, which the category's " \
+            "schema checks, and to leave out the first record of a file without a header row, upload with a block " \
+            "that writes the other lines, see https://rocketjob.reidmorrison.com/upgrading.html#replace-on_first"
+        end
+
+        it "raises when it is supplied to upload a file, before the file is read" do
+          error = assert_raises(ArgumentError) { upload(".csv", csv, on_first: ->(_row) {}) }
+
+          assert_equal removed_message, error.message
+          assert_equal 0, job.input.count
+          assert_nil job.input_category.columns
+        end
+
+        it "raises when it is supplied to upload a block, before the block is called" do
+          called = false
+          error  = assert_raises(ArgumentError) { job.upload(on_first: nil) { called = true } }
+
+          assert_equal removed_message, error.message
+          refute called
+        end
+
+        it "raises when it is supplied to upload a range" do
+          error = assert_raises(ArgumentError) { job.upload(1..10, on_first: ->(_row) {}) }
+
+          assert_equal removed_message, error.message
+          assert_equal 0, job.input.count
         end
       end
 
