@@ -184,7 +184,7 @@ module RocketJob
       # Raises IndexError when the slice has no record at the index.
       def replace_record(index, record)
         records.fetch(index)
-        records[index] = record
+        change_records { |changed| changed[index] = record }
       end
 
       # Removes the record at the supplied index, rather than every record equal to it. The records keep what they hold
@@ -194,7 +194,7 @@ module RocketJob
       # Raises IndexError when the slice has no record at the index.
       def delete_record(index)
         records.fetch(index)
-        records.delete_at(index)
+        change_records { |changed| changed.delete_at(index) }
       end
 
       # Returns [Hash] the slice as a Hash for storage purposes
@@ -269,6 +269,18 @@ module RocketJob
       # rows, see #records=, rather than with a slice of rows of their own, or with records that are not rows: Hashes.
       def rows_of_file?(records)
         @records.is_a?(IOStreams::Slice) && !records.is_a?(IOStreams::Slice) && records.none?(Hash)
+      end
+
+      # Yields the records to change, and returns what the block returns. Records that are frozen, such as the rows of a
+      # file that IOStreams hands on, see IOStreams::Slice, are changed in a copy, which keeps the header row and format
+      # that they carry, and which then replaces them.
+      def change_records
+        return yield(records) unless records.frozen?
+
+        changed  = records.dup
+        result   = yield(changed)
+        @records = changed
+        result
       end
 
       # Returns [IOStreams::Slice] the supplied rows, with the header row and format of the supplied rows of a file.
