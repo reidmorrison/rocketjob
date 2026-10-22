@@ -46,11 +46,13 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   and within its limit, where Rocket Job 7 uploaded them in the order of their ids. Each column is read as `pluck`
   reads it, so a reader that the model overrides is not called. The query is read on a connection of its own, so it
   uploads the rows that were committed, rather than those that an open transaction of the caller wrote, and the pool
-  of the model needs a connection free besides that of the caller. It needs Active Record 7.2 or later, and a
-  database whose driver streams a query, PostgreSQL, MySQL with `mysql2`, or SQLite with `sqlite3`; any other raises
-  `ArgumentError`, so upload the batches of the relation instead, as does a relation that loads associations with
-  `includes`. `upload` still raises `ArgumentError` for a query with a block: write the records in a block of
-  `upload` instead. See the upgrade guide.
+  of the model needs a connection free besides that of the caller. The query stays open until every row is uploaded,
+  so upload a very large table in batches. A database whose driver cannot stream a query raises `ArgumentError`:
+  any but PostgreSQL, MySQL with `mysql2`, or SQLite with `sqlite3`. Upload the batches of the relation instead. A
+  relation that loads associations with `includes` raises `ArgumentError`, also in batches: join their tables with
+  `joins` instead. A relation, and its batches, need Active Record 7.2 or later, and raise `ArgumentError` for an
+  earlier version, where a block of `upload` can write the records instead. `upload` still raises `ArgumentError` for
+  a query with a block: write the records in a block of `upload` instead. See the upgrade guide.
 - `.from_properties(nil)` of a batch job builds a job with the defaults, as it does for a job that is not a batch
   job. Previously it raised `NoMethodError`, such as when Mission Control saved a Dirmon entry for a batch job
   without changing its properties.

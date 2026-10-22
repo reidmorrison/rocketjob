@@ -215,7 +215,10 @@ job.upload(User.where(country_code: "US"), columns: %i[user_name zip_code])
 
 The rows are uploaded in the order of the relation, and within its limit, and each column is read as
 `pluck` reads it. The query is read on a connection of its own, so the pool of the model needs a
-connection free besides that of the caller.
+connection free besides that of the caller, and only the rows that were committed are uploaded,
+not those that an open transaction of the caller wrote. The query stays open until every row is
+uploaded, so upload a very large table in batches. A relation, and its batches, need Active Record
+7.2 or later.
 
 A database whose driver cannot stream a query, such as MySQL with `trilogy`, raises
 `ArgumentError`. Upload the batches of the relation instead, which are read on the connection of the
@@ -281,8 +284,10 @@ job.upload do |writer|
 end
 ~~~
 
-Each record must serialize to BSON (`Hash`, `Array`, `String`, `Integer`, `Float`, `Symbol`,
-`Regexp`, `Time`; not `Date`). With a `Hash`, keys must be strings, not symbols.
+Each record must serialize to BSON (`Hash`, `Array`, `String`, `Integer`, `Float`, `Regexp`,
+`Time`), and is read back as it is stored: a `Date` is stored as a `Time`, so it comes back as a
+`Time`. Use a `String` rather than a `Symbol`, which MongoDB deprecated. With a `Hash`, keys must be
+strings, not symbols.
 
 For an input category with a `schema`, the block writes the lines of a file: its header row first,
 when the file has one, then its rows. They are read as the lines of a file are, in slices that each

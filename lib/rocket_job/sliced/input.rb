@@ -53,12 +53,21 @@ module RocketJob
             raise(ArgumentError, "Select the columns to upload before `in_batches`, rather than with `columns:`")
           end
         else
-          query = query.reselect(*(columns.presence || [:id]))
+          # Symbols, since Active Record quotes a Symbol as the name of a column, but runs a String as SQL.
+          query = query.reselect(*(columns.presence || [:id]).collect(&:to_sym))
         end
 
         stream = IOStreams.stream(query)
         upload(slice_batch_size: slice_batch_size, upload_id: upload_id) do |records|
-          stream.each(:hash) { |row| records << (row.size == 1 ? row.values.first : row.values) }
+          record = nil
+          stream.each(:array) do |row|
+            if record
+              records << record.call(row)
+            else
+              # The first row is the header row of the names of the columns.
+              record = row.size == 1 ? :first.to_proc : :itself.to_proc
+            end
+          end
         end
       end
 

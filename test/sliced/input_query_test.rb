@@ -16,12 +16,15 @@ class InputQueryPerson < ActiveRecord::Base
 end
 
 # Whether IOStreams streams a query on the test database. It cannot on JRuby, whose SQLite adapter is not the sqlite3
-# gem, where a relation raises ArgumentError, and only its batches can be uploaded.
+# gem, where a relation raises ArgumentError, and only its batches can be uploaded. Any other error is raised, so that
+# the tests of a streamed query fail rather than skip.
 QUERY_STREAMS =
   begin
     IOStreams.stream(InputQueryPerson.limit(0)).each(:array) { nil }
     true
-  rescue ArgumentError
+  rescue ArgumentError => e
+    raise unless e.message.start_with?("IOStreams cannot stream a query on ")
+
     false
   end
 
@@ -89,6 +92,26 @@ module Sliced
 
           assert_equal 2, count
           assert_equal %w[Alice Bob], input.collect(&:to_a).flatten.sort
+        end
+
+        it "uploads a column named by a String" do
+          skip(QUERY_STREAMS_SKIP) unless QUERY_STREAMS
+
+          input.upload_arel(InputQueryPerson.all, columns: ["name"])
+
+          assert_equal %w[Alice Bob], input.collect(&:to_a).flatten.sort
+        end
+
+        it "quotes a String column as the name of a column, rather than running it as SQL" do
+          skip(QUERY_STREAMS_SKIP) unless QUERY_STREAMS
+
+          begin
+            input.upload_arel(InputQueryPerson.all, columns: ["upper(name) AS uname"])
+          rescue ActiveRecord::StatementInvalid
+            nil # A database that rejects the name of a column that the table does not have.
+          end
+
+          refute_includes input.collect(&:to_a).flatten, "ALICE"
         end
 
         it "uploads multiple columns as arrays" do
@@ -201,7 +224,28 @@ module Sliced
         assert_equal "Cannot supply both an object to upload, and a block.", error.message
       end
 
-      it "rejects a file option for a query" do
+      it "rejects a file option for an Active Record relation" do
+        error = assert_raises(ArgumentError) { job.upload(InputQueryPerson.all, file_name: "x.csv") }
+
+        assert_equal "Unknown keyword arguments when uploading an ActiveRecord::Relation. " \
+                     "Only accepts :category, :columns, or :slice_batch_size", error.message
+      end
+
+      it "rejects a file option for the batches of an Active Record relation, without naming columns" do
+        error = assert_raises(ArgumentError) { job.upload(InputQueryPerson.select(:id).in_batches, file_name: "x.csv") }
+
+        assert_equal "Unknown keyword arguments when uploading the batches of an ActiveRecord::Relation. " \
+                     "Only accepts :category, or :slice_batch_size", error.message
+      end
+
+      it "rejects a file option for a range, without naming columns" do
+        error = assert_raises(ArgumentError) { job.upload(1..10, file_name: "x.csv") }
+
+        assert_equal "Unknown keyword arguments when uploading a Range. Only accepts :category, or :slice_batch_size",
+                     error.message
+      end
+
+      it "rejects a file option for a Mongoid query" do
         error = assert_raises(ArgumentError) { job.upload(InputQueryDoc.all, file_name: "x.csv") }
 
         assert_equal "Unknown keyword arguments when uploading a Mongoid::Criteria. " \
