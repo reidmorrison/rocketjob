@@ -14,8 +14,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
     category's `columns`. The same options supplied to `upload`, such as `allowed_columns:` or `cleanse_header:`,
     raise `ArgumentError`. A `:csv`, `:psv` or `:fixed` output category needs a schema, whose fields are the columns
     that it writes.
-  - An input category's `columns`, for a file without a header row: they only hold the header row that `upload` read
-    from a file without a schema. Uploading a file into a category whose `columns` no upload read raises
+  - An input category's `columns`, for a file without a header row: v8 does not set them, since each slice of a file
+    holds its header row. Uploading a file without a schema into a category saved with `columns` raises
     `ArgumentError`, rather than reading the file by them, as does reading the records of a category saved with
     columns that were not cleansed. Also removed `#cleanse_header!` of an input category, which cleansed
     them.
@@ -62,18 +62,22 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   job. Previously it raised `NoMethodError`, such as when Mission Control saved a Dirmon entry for a batch job
   without changing its properties.
 - A batch job that is retried, or requeued, while in `before_batch` removes the slices that its `before_batch`
-  callbacks uploaded, and restores its `record_count`, and the file name, format, columns and header row of each input
+  callbacks uploaded, and restores its `record_count`, and the file name and format of each input
   category, as they were when the callbacks started, so that they upload the input again without duplicating it.
   Previously the slices that they uploaded were kept, so a retry uploaded the input a second time. Slices uploaded
   before the job started are kept. Each slice uploaded by `before_batch` records it in its new `upload_id`, and the
   job keeps what it restores in its new `before_batch_state` while the callbacks run.
-- Uploading a second file with a header row into an input category without a `schema`, which holds the header row of
-  an earlier upload, in the `:line` mode, raises `ArgumentError` and uploads nothing. Previously the second file's header
-  row was stored as a record, and its lines were read with the first file's columns. A second file uploaded in the
-  `:hash` mode also raises. Upload each file into its own input category, or upload every file in the `:hash` mode,
-  in which each record keeps the columns of its own file. An input category records that its `columns` hold the
-  header row of an upload in its new `header_uploaded`, which an upload that fails clears, with the columns, so
-  that a retried job can upload its file again. See the upgrade guide.
+- A file in a `format`, such as CSV, is uploaded into an input category without a `schema` in slices that each hold
+  its header row, as it is with a schema, rather than keeping the header row in the category's `columns`, which are
+  not set. `#perform` receives the same Hash for each line. So a second file with a header row can be uploaded into
+  the same input category, and its lines are read by its own header row: previously the second file's header row was
+  stored as a record, and its lines were read with the first file's columns. In the `:hash` mode the lines are
+  uploaded once each one is parsed, rather than as Hashes. A Hash written to the block of `upload`, which writes the
+  lines of a file into such a category, raises `ArgumentError`, as does an Array of the values of a row, which Rocket
+  Job 7 read too, and options that read the lines of a file, such as `delimiter:`, and a schema set on the path of the
+  upload. A category without a format uploads each record as it is. The lines of a CSV file that `upload_slice` uploads
+  after a file are no longer read by the header row of that file, which the category no longer keeps. See the upgrade
+  guide.
 - `RocketJob::Plugins::Transaction` wraps each slice of a batch job in a transaction, and
   `RocketJob::Plugins::ThrottleDependentJobs` throttles its slices, whether the job includes them before or after
   `RocketJob::Batch`, as documented. Previously a job that included `Transaction` first had a transaction around
@@ -214,8 +218,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   uploaded header row that does not match raises `IOStreams::Errors::InvalidHeader`, and nothing is
   uploaded. Each slice of a file uploaded into an input category holds its header row, see below. An output
   category writes the names of the fields as its header row, and the fields of each result, in order.
-- `upload` reads a file into an input category with a `schema` with IOStreams, rather than splitting it into slices
-  itself: the input is a store of slices, `IOStreams::Slice::Target`, which IOStreams copies the lines of the file to
+- `upload` reads a file into an input category with a `format`, such as CSV, with or without a `schema`, with
+  IOStreams, rather than splitting it into slices itself: the input is a store of slices, `IOStreams::Slice::Target`, which IOStreams copies the lines of the file to
   in slices of up to `slice_size` rows, after the header row, which it matches to
   the fields before any slice is uploaded, and each slice holds the header row of its file. So the category's
   `columns` are not set, and files whose columns are in another order can be uploaded into the same input category,
@@ -224,7 +228,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   reaches `perform` as a `Date`. A row that cannot be read fails its record, and a retry processes the slice again
   from that record. A worker of Rocket Job 7 fails such a slice,
   rather than processing no records, see the upgrade guide. The workers read each slice with the category's schema,
-  so uploading a path that has another schema set on it raises `ArgumentError`. Assigning an Array of rows to the
+  or without one when it has none, so uploading a path that has another schema set on it raises `ArgumentError`. Assigning an Array of rows to the
   `records` of such a slice, such as a changed copy of them, keeps its header row and format.
   The lines that the block of `upload` writes for such a category are written to the same store, in the category's
   format, which a format of `:auto` is replaced with, as for a file: that of the `file_name:` of the upload, otherwise
@@ -426,8 +430,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   at a time unless `stream_mode` was supplied, and the category's `mode` only changed how the header
   row was read, so with `:hash` the workers raised `ArgumentError` because the header columns were not
   set. The `stream_mode` of `upload` still overrides it.
-- Hashes uploaded with `mode: :hash`, or `stream_mode: :hash`, are no longer parsed again by the workers.
-  Previously a worker tried to parse them again in the category's format, which raised for CSV.
+- Hashes that Rocket Job 7 uploaded with `stream_mode: :hash`, or that `upload_slice` uploads, are no longer parsed
+  again by the workers. Previously a worker tried to parse them again in the category's format, which raised for CSV.
 - Non-printable characters in a fixed width upload, such as NUL padding, are replaced with spaces.
   Previously they were removed, which moved the columns after them, so the line raised
   `IOStreams::Errors::InvalidLineLength`.

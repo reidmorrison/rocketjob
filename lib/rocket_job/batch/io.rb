@@ -51,12 +51,16 @@ module RocketJob
       #       Automatically detect line endings and break up by line
       #       Searches for the first "\r\n" or "\n" and then uses that as the
       #       delimiter for all subsequent records
+      #     Only for an input category without a format, since the lines of a file in a format, such as CSV, are read
+      #     in it.
       #
       #   stream_mode: [:line | :hash]
       #     :line
       #       Uploads the file a line (String) at a time for processing by workers.
       #     :hash
-      #       Parses each line from the file into a Hash and uploads each hash for processing by workers.
+      #       In a tabular format, such as CSV, also parses each row as it is uploaded, so that a file with a row that
+      #       cannot be read is rejected before any of it is processed. Without a format, uploads each row as a Hash,
+      #       read in the format of the file name.
       #     Default: The input category's `mode`, which defaults to :line.
       #     Raises ArgumentError for another mode, such as :array, which Rocket Job v8 removed.
       #     See IOStreams::Stream#each.
@@ -192,19 +196,14 @@ module RocketJob
           category.upload_mode
 
           count =
-            if category.slices?
-              # The block writes the lines of a file, which are read in slices, as the lines of a file are.
-              category.uploading do
+            category.uploading do
+              if category.slices?
+                # The block writes the lines of a file, which are read in slices, as the lines of a file are.
                 input_collection.upload(upload_id: rocketjob_upload_id) do |writer|
                   category.write_slices(writer, &block)
                 end
-              end
-            else
-              # Extract the header line during the upload when applicable.
-              extract_header = category.extract_header_callback
-
-              category.uploading do
-                input_collection.upload(on_first: extract_header, upload_id: rocketjob_upload_id, &block)
+              else
+                input_collection.upload(upload_id: rocketjob_upload_id, &block)
               end
             end
           return rocketjob_add_record_count(count)
@@ -248,11 +247,7 @@ module RocketJob
                 rocketjob_upload_slices(input_collection, category, path,
                                         mode: mode, slice_batch_size: slice_batch_size, **args)
               else
-                # Extract the header line during the upload when applicable.
-                extract_header = category.extract_header_callback(mode: mode)
-
-                input_collection.upload(on_first: extract_header, slice_batch_size: slice_batch_size,
-                                        upload_id: rocketjob_upload_id) do |io|
+                input_collection.upload(slice_batch_size: slice_batch_size, upload_id: rocketjob_upload_id) do |io|
                   category.each_record(path, mode: mode, **args) { |record| io << record }
                 end
               end
@@ -460,7 +455,7 @@ module RocketJob
         raise(ArgumentError, Category::Input.removed_options_message(names.collect { |name| "#{name}:" }))
       end
 
-      # Uploads the file that the supplied path reads into the supplied input category, which has a schema, in the slices
+      # Uploads the file that the supplied path reads into the supplied input category, which has a format, in the slices
       # of its rows that IOStreams writes to the input, each of which carries the header row of the file, see
       # Category::Input#copy_slices.
       #

@@ -172,7 +172,8 @@ module Batch
 
             assert_equal 3, job.upload(csv_file)
 
-            assert_equal csv_columns, job.input_category.columns
+            assert_nil job.input_category.columns
+            assert_equal csv_columns, job.input.first.records.header
 
             result = job.input.collect(&:to_a).join("\n") + "\n"
 
@@ -184,7 +185,8 @@ module Batch
 
             assert_equal 3, job.upload(csv_file)
 
-            assert_equal csv_columns, job.input_category.columns
+            assert_equal :csv, job.input_category.format
+            assert_equal csv_columns, job.input.first.records.header
 
             result = job.input.collect(&:to_a).join("\n") + "\n"
 

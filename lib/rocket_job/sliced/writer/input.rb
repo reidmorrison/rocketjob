@@ -18,12 +18,6 @@ module RocketJob
         # Batch collection of lines into slices.
         #
         # Parameters
-        #   on_first: [Proc]
-        #     Called with each line before the first that is stored, instead of storing it, until it returns true.
-        #     Useful for extracting the header row, after any blank lines before it, see
-        #     Category::Input#extract_header_callback.
-        #     Default: nil
-        #
         #   slice_size: [Integer]
         #     Override the slice size when uploading for example ranges, where slice is the size
         #     of the range itself.
@@ -44,8 +38,7 @@ module RocketJob
           writer&.flush
         end
 
-        def initialize(data_store, on_first: nil, slice_size: nil, slice_batch_size: nil, upload_id: nil)
-          @on_first         = on_first
+        def initialize(data_store, slice_size: nil, slice_batch_size: nil, upload_id: nil)
           @upload_id        = upload_id
           @record_count     = 0
           @data_store       = data_store
@@ -57,13 +50,6 @@ module RocketJob
         end
 
         def <<(line)
-          if @on_first
-            if @on_first.call(line)
-              @on_first = nil
-              @header   = true
-            end
-            return self
-          end
           @slice << line
           @record_count += 1
           if @slice.size >= @slice_size

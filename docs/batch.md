@@ -143,7 +143,7 @@ Useful `upload` keyword options:
 | `category`     | Which input category to load into. Default: `:main`.
 | `stream_mode`  | `:line` (default) or `:hash`. See [input categories](#input-categories).
 | `file_name`    | Override the file name used to infer format and streams.
-| `delimiter`    | Record delimiter. Default: auto-detect line endings. Not for an input category with a `schema`, whose lines are read in its format.
+| `delimiter`    | Record delimiter. Default: auto-detect line endings. Not for an input category with a `format`, whose lines are read in it.
 
 Files are read as UTF-8 text, since MongoDB only stores UTF-8 strings, and a UTF-8 byte order mark
 at the start of the file (as Excel writes) is removed. A file that is not valid UTF-8 raises
@@ -289,9 +289,11 @@ Each record must serialize to BSON (`Hash`, `Array`, `String`, `Integer`, `Float
 `Time`. Use a `String` rather than a `Symbol`, which MongoDB deprecated. With a `Hash`, keys must be
 strings, not symbols.
 
-For an input category with a `schema`, the block writes the lines of a file: its header row first,
-when the file has one, then its rows. They are read as the lines of a file are, in slices that each
-hold the header row, so a header row that does not match the schema raises
+For an input category with a `format`, such as CSV, the block writes the lines of a file: its header
+row first, when the file has one, then its rows. They are read as the lines of a file are, in slices
+that each hold the header row. Writing anything other than a line, such as an `Array` of the values
+of a row, or a `Hash`, raises `ArgumentError`: write each row as a line of the format, such as
+`row.to_csv`, or upload it into a category without a `format`, which passes it to `perform` as it is. With a `schema`, a header row that does not match it raises
 `IOStreams::Errors::InvalidHeader`, and nothing is uploaded:
 
 ~~~ruby
@@ -336,52 +338,44 @@ Input category options:
 | `encoding`         | `nil`       | The encoding of the files, such as `"Windows-1252"`, which is converted to UTF-8. `nil` reads UTF-8, or the format's own encoding, such as ASCII for `:fixed`. Name the byte order of UTF-16 or UTF-32, such as `"UTF-16LE"`. See [Files](#files).
 | `invalid_characters` | `nil`     | What to do with a character that is not valid in the file's encoding: `:remove`, `:replace` with U+FFFD, or `:raise`. `nil` removes them from tabular formats, such as CSV, and raises for `:fixed` and lines.
 | `mode`             | `:line`     | How a file is uploaded: `:line` or `:hash`.
-| `columns`          | `nil`       | Set by `upload` without a `schema`: the header row read from the file, so that the workers read each line by it. Not set with a `schema`, since each slice holds the header row of its file instead.
-| `header_uploaded`  | `false`     | Set by `upload` without a `schema`: whether `columns` hold the header row read from the file, see [More than one file](#more-than-one-file).
+| `columns`          | `nil`       | The header row of a file that Rocket Job 7 uploaded without a `schema`, which the workers read its lines by. Not set by v8, since each slice holds the header row of its file.
 
 The options `allowed_columns`, `required_columns`, `skip_unknown` and `header_cleanser`, and setting
 `columns` for a file without a header row, were removed in v8, since a `schema` replaces them, see
 [Column options before v8](#column-options-before-v8).
 
+A file in a `format`, such as CSV, is uploaded as its lines, in slices that each hold the header row
+of the file, as it is in the file, and its format. Each worker reads the lines of its slice by that
+header row, into the types of the fields of the `schema`, when there is one. Since the workers read
+each slice with the category's `schema`, uploading a path that has another schema set on it raises
+`ArgumentError`, also when the category has none.
+
 The `mode` option controls how a file is read during upload:
 
-* `:line` (default) uploads a raw line (String) at a time. This is the most performant, since each
-  worker parses its own lines.
-* `:hash` parses each line into a Hash before uploading. The whole file is parsed up front, so an
-  invalid file is detected before processing starts. Not recommended for very large files.
+* `:line` (default) uploads the lines as they are. This is the most performant, since each worker
+  parses its own lines.
+* `:hash` also parses each line while the file is uploaded, so that a file with a line that cannot be
+  read, or with a value that is not valid for its field, is rejected before processing starts. The
+  slices still hold the lines. Not recommended for very large files. Without a `format`, `:hash`
+  uploads each row as a Hash, read in the format of the file name.
 
 The `stream_mode` option of `upload` overrides `mode` for that upload. The `:array` mode, which
 uploaded each row as an Array, was removed in v8, see
 [Upgrading to v8](upgrading.html#the-deprecated-category-options-are-removed).
 
-With a `schema`, every mode uploads the lines of a file as they are, in slices that each hold the
-header row of the file, and the workers read each line into the types of its fields. The `:hash` mode
-also reads each line while the file is uploaded, so that a file with a value that is not valid is
-rejected before processing starts. Since the workers read each slice with the category's `schema`,
-uploading a path that has another schema set on it raises `ArgumentError`.
-
 ### More than one file
 
-With a `schema`, each slice holds the header row of its file, so files can be uploaded into the same
-input category one after another, in any mode. The header row of each file is matched to the fields
-on its own, so with `"fieldsMatch" => "equal"` the files can even list their columns in different
-orders.
+Each slice holds the header row of its file, so files can be uploaded into the same input category
+one after another, in any mode, and the workers read the lines of each file by its own header row.
+With a `schema`, the header row of each file is matched to the fields on its own, so with
+`"fieldsMatch" => "equal"` the files can even list their columns in different orders.
 
-Without a schema, in the `:line` mode an input category holds the header row of one file, which the
-workers read each of its lines by. So uploading a second file with a header row into the same
-category raises `ArgumentError`, in any mode, rather than storing that file's header row as a record
-and reading its lines with the first file's columns. Upload each such file into its own input
-category, or upload every file in the `:hash` mode, in which each record keeps the columns of its
-own file. Files without a header row, such as JSON in the `:line` mode, can be uploaded one after
-another.
-
-When an upload fails, such as when the file cannot be read to its end, its records are not kept,
-and neither is the header row that it read, so the job can upload the file again when it is
-retried. The records of the files uploaded before it are kept.
+When an upload fails, such as when the file cannot be read to its end, its records are not kept, so
+the job can upload the file again when it is retried. The records of the files uploaded before it
+are kept.
 
 When a batch job restarts, such as the next run of a scheduled job, its input categories keep their
-settings but not the header row that the last upload read, so each run reads the header row of its
-own file.
+settings, and each run reads the header row of its own file.
 
 ## Collecting output
 

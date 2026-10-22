@@ -3,14 +3,6 @@ require_relative "../test_helper"
 module Batch
   class CategoryTest < Minitest::Test
     describe RocketJob::Category::Input do
-      describe "#header_uploaded" do
-        it "is false for a category saved before v8, which did not record it" do
-          category = Mongoid::Factory.from_db(RocketJob::Category::Input, {"name" => "main", "format" => "csv", "columns" => %w[name]})
-
-          refute category.header_uploaded
-        end
-      end
-
       describe "the column options, which v8 removed" do
         let(:removed_message) do
           "were removed in Rocket Job v8, describe the columns of the file with the category's schema instead, see " \
@@ -108,7 +100,6 @@ module Batch
         it "are ignored in a category saved with their defaults, as Rocket Job 7 saved every category" do
           category = saved_category(
             "columns"         => %w[name zip],
-            "header_uploaded" => true,
             "skip_unknown"    => false,
             "header_cleanser" => "default"
           )
@@ -201,7 +192,7 @@ module Batch
         end
 
         it "reads the keys of the first JSON record that Rocket Job 7 read as the header row in the :array mode" do
-          category = RocketJob::Category::Input.new(format: :json, columns: ["First Name", "zip"], header_uploaded: true)
+          category = RocketJob::Category::Input.new(format: :json, columns: ["First Name", "zip"])
 
           assert_equal({"First Name" => "Jack", "zip" => "12345"}, category.parse_record(%w[Jack 12345]))
         end

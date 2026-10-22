@@ -110,13 +110,23 @@ module Batch
           end
         end
 
-        it "says that a record is numbered after the header" do
+        it "says that a binary record is numbered after the header" do
           job.input_category.format = :csv
-          records                   = ["name", "Jack", "Jos\xE9"]
+          records                   = ["name", "Jack", "Jos\xE9".b]
 
           error = assert_raises(EncodingError) { job.upload { |io| records.each { |record| io << record } } }
 
           assert_includes error.message, "Cannot upload record 2 after the header,"
+          assert_equal 0, job.input.count
+        end
+
+        it "rejects a line written with a block in a format that is not valid UTF-8, and leaves no partial upload" do
+          job.input_category.format = :csv
+          records                   = ["name", "Jack", "Jos\xE9"]
+
+          # IOStreams reads the line in the format, before it reaches the slice that would hold it.
+          assert_raises(ArgumentError) { job.upload { |io| records.each { |record| io << record } } }
+          assert_equal 0, job.input.count
         end
 
         it "names a binary record within a hash" do
@@ -153,7 +163,7 @@ module Batch
               assert_equal 1, job.upload(path)
             end
 
-            assert_equal %w[name city], job.input_category.columns
+            assert_equal %w[name city], job.input.first.records.header
             assert_equal ["Jack,Paris"], input_records
           end
 
@@ -170,7 +180,7 @@ module Batch
               assert_equal 1, job.upload(path)
             end
 
-            assert_equal %w[name city], job.input_category.columns
+            assert_equal %w[name city], job.input.first.records.header
             assert_equal ["\"José\",\"Zürich\""], input_records
           end
 
