@@ -46,11 +46,17 @@ module RocketJob
       # supplied columns, by default the id, and batches read the columns that their relation selects. Returns how many
       # it uploaded.
       #
-      # Raises ArgumentError for columns supplied with batches, whose relation selects the columns instead.
+      # Raises ArgumentError for columns supplied with batches, whose relation selects the columns instead, and for
+      # batches whose relation selects no columns, which would upload every column of each row, where a relation
+      # uploads only the id.
       def upload_arel(query, columns: nil, slice_batch_size: nil, upload_id: nil)
         if query.is_a?(ActiveRecord::Batches::BatchEnumerator)
           if columns.present?
             raise(ArgumentError, "Select the columns to upload before `in_batches`, rather than with `columns:`")
+          end
+          if query.relation.select_values.empty?
+            raise(ArgumentError, "Select the columns to upload before `in_batches`, such as " \
+                                 "`relation.select(:id).in_batches`")
           end
         else
           # Symbols, since Active Record quotes a Symbol as the name of a column, but runs a String as SQL.

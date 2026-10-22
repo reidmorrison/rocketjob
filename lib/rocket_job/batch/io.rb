@@ -155,7 +155,8 @@ module RocketJob
       #
       # Notes for a query or a range:
       # * `columns:` is only for a query: the columns, or fields, to upload. Default: the id. The batches of a relation
-      #   upload the columns that the relation selects instead, and raise ArgumentError for `columns:`.
+      #   upload the columns that the relation selects instead, and raise ArgumentError for `columns:`, and for a
+      #   relation that selects no columns.
       # * IOStreams reads an Active Record relation as one query that the database streams, without building a model
       #   for each row, so the rows are uploaded in the order of the relation and within its limit, and each column is
       #   read as `pluck` reads it. See `IOStreams.stream`.

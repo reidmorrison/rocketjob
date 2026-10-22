@@ -170,7 +170,7 @@ streams, rather than with `find_each`, which built a model for each row, see
 * It needs a database whose driver streams a query: PostgreSQL,
   MySQL with `mysql2`, or SQLite with `sqlite3`. Any other raises `ArgumentError`, such as MySQL with
   `trilogy`, SQL Server, or SQLite on JRuby: upload the batches of the relation instead, selecting
-  the columns to upload before `in_batches`:
+  the columns to upload before `in_batches`, without which they raise `ArgumentError`:
 
   ~~~ruby
   # Before

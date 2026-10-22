@@ -189,7 +189,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   result before it is rendered.
 - `upload` uploads the batches of an Active Record relation, `relation.in_batches(...)`, for a database whose driver
   cannot stream a query, such as MySQL with `trilogy`: the columns that the relation selects, such as
-  `job.upload(User.select(:id).in_batches(of: 10_000))`, read on the connection of the caller.
+  `job.upload(User.select(:id).in_batches(of: 10_000))`, read on the connection of the caller. Batches whose
+  relation selects no columns raise `ArgumentError`, rather than upload every column.
 - A job plugin runs its batch setup, such as defining a batch throttle or a slice callback, in a
   `rocket_job_batch_plugin` block, which runs in the job class once it includes `RocketJob::Batch`, so the plugin
   works whether a job includes it before or after `RocketJob::Batch`. `Transaction` and `ThrottleDependentJobs`

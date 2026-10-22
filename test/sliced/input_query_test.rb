@@ -143,6 +143,14 @@ module Sliced
           assert_equal %w[Alice Bob], input.collect(&:to_a).flatten.sort
         end
 
+        it "rejects the batches of a relation that selects no columns, rather than upload every column" do
+          error = assert_raises(ArgumentError) { input.upload_arel(InputQueryPerson.in_batches(of: 1)) }
+
+          assert_equal "Select the columns to upload before `in_batches`, such as `relation.select(:id).in_batches`",
+                       error.message
+          assert_equal 0, input.count
+        end
+
         it "rejects columns for the batches of a relation" do
           error = assert_raises(ArgumentError) do
             input.upload_arel(InputQueryPerson.in_batches(of: 1), columns: [:name])
