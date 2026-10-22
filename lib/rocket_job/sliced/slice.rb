@@ -283,9 +283,10 @@ module RocketJob
         result
       end
 
-      # Returns [IOStreams::Slice] the supplied rows, with the header row and format of the supplied rows of a file.
+      # Returns [IOStreams::Slice] the supplied rows, with what the supplied rows of a file carry: their header row, their
+      # format, and whether their blank rows are records, such as the rows of a query, see IOStreams::Slice#blank_rows?.
       def rows_like(slice, rows)
-        IOStreams::Slice.new(rows, header: slice.header, format: slice.format)
+        slice.dup.replace(rows)
       end
 
       # Returns [Hash] the document that holds the records: the rows of a file as the Hash that they return, see

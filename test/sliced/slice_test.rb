@@ -347,6 +347,24 @@ module Sliced
           assert_equal :csv, saved.format
         end
 
+        it "of a query keep their rows of nulls as records, from a record number or when a changed copy is assigned" do
+          slice.records = IOStreams::Slice.new([["Jack", 21], [nil, nil]], header: %w[name age].freeze, format: :array,
+                                               blank_rows: false).freeze
+          rest          = slice.records_from(2)
+
+          assert_equal [[nil, nil]], rest.to_a
+          refute_predicate rest, :blank_rows?
+
+          records       = slice.records.to_a
+          records[0]    = ["Jill", 22]
+          slice.records = records
+
+          assert_equal [["Jill", 22], [nil, nil]], slice.records.to_a
+          assert_equal %w[name age], slice.records.header
+          assert_equal :array, slice.records.format
+          refute_predicate slice.records, :blank_rows?
+        end
+
         it "are replaced as they are by records that are not rows" do
           slice.records = rows
           slice.records = [{"name" => "Jack"}]
