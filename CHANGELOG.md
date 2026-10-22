@@ -284,6 +284,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixes
 
+- `upload` of a Mongoid query leaves the query as it was. Previously it changed the fields that the query loads, so
+  after `job.upload(criteria, columns: [:zip_code])`, `criteria.to_a` loaded only `_id` and `zip_code`.
 - When an upload raises, only the slices that it stored are removed, so the slices of an earlier upload into the same
   input category, such as the first of two files, are kept. Previously the whole input collection was removed, while
   the job's `record_count` still counted the earlier records, so the job completed without processing them. The

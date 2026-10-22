@@ -179,6 +179,16 @@ module Sliced
           assert_equal %w[Alice Bob], input.collect(&:to_a).flatten.sort
         end
 
+        it "leaves the criteria of the caller as it was" do
+          criteria = InputQueryDoc.where(name: "Alice").only(:name)
+          options  = criteria.options.deep_dup
+
+          input.upload_mongo_query(criteria, columns: [:age])
+
+          assert_equal options, criteria.options
+          assert_equal ["Alice"], criteria.collect(&:name)
+        end
+
         it "uploads multiple columns as arrays" do
           input.upload_mongo_query(InputQueryDoc.all, columns: %i[name age])
           rows = input.collect(&:to_a).flatten(1).sort

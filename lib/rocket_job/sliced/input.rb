@@ -26,8 +26,9 @@ module RocketJob
       # otherwise an Array of the values of the fields. Returns how many it uploaded.
       def upload_mongo_query(criteria, columns: [], slice_batch_size: nil, upload_id: nil)
         columns = columns.blank? ? ["_id"] : columns.collect(&:to_s)
-        options = criteria.options
-        fields  = options.delete(:fields) || {}
+        # Copies, so that the criteria of the caller is not changed.
+        options = criteria.options.dup
+        fields  = (options.delete(:fields) || {}).dup
         columns.each { |col| fields[col] = 1 }
         options[:projection] = fields
 
