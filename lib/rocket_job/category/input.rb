@@ -8,9 +8,8 @@ module RocketJob
 
       embedded_in :job, class_name: "RocketJob::Job", inverse_of: :input_categories
 
-      autoload :UploadSlices, "rocket_job/category/input/upload_slices"
       autoload :WrittenLines, "rocket_job/category/input/written_lines"
-      private_constant :UploadSlices, :WrittenLines
+      private_constant :WrittenLines
 
       # The fields that an upload sets, see #upload_state.
       UPLOAD_FIELDS = %w[file_name format columns header_uploaded].freeze
@@ -244,26 +243,18 @@ module RocketJob
       #
       # In the :hash mode, see #mode, IOStreams also parses each row as it reads it, so that a file with a value that is
       # not valid raises before it is processed. Each slice still holds the rows as they are.
-      #
-      # `on_first` is called with the header row, see UploadSlices.
-      def each_slice(path, mode: self.mode, on_first: nil, **args, &)
-        slices = UploadSlices.new(on_first, &)
-        path.reader(:slice, size: slice_size, validate: mode != :line, **args) do |reader|
-          reader.each { |slice| slices << slice }
-          slices.finish(reader.header)
-        end
+      def each_slice(path, mode: self.mode, **args, &)
+        path.each(:slice, size: slice_size, validate: mode != :line, **args, &)
       end
 
       # Yields a writer to the supplied block of an upload, see RocketJob::Batch::IO#upload, to which the block writes the
       # lines of a file, such as its header row followed by its rows, and yields each slice of them, as IOStreams reads
       # the slices of a file, see #each_slice and WrittenLines: the header row is read from the first lines, and matched
-      # to the fields of the schema, and each slice holds it. `on_first` is called with the header row, see
-      # UploadSlices.
+      # to the fields of the schema, and each slice holds it.
       #
       # Raises ArgumentError for a record written to the writer that is not a line, such as a Hash.
-      def each_written_slice(block, on_first: nil, &)
-        slices = UploadSlices.new(on_first, &)
-        WrittenLines.new(build_tabular, slices, size: slice_size, validate: mode != :line).write(block)
+      def each_written_slice(block, &)
+        WrittenLines.new(build_tabular, size: slice_size, validate: mode != :line, &).write(block)
       end
 
       # Yields each record read from the supplied path in the supplied mode, see #mode.
@@ -276,9 +267,8 @@ module RocketJob
 
       # Returns the lambda that the upload calls with each record before the first that it stores, instead of storing
       # it, until the lambda returns true, see `Sliced::Writer::Input`: it reads the header row, when the upload starts
-      # with one, such as CSV, see `IOStreams::Tabular#header?`, then calls the supplied `on_first` with it. Otherwise
-      # it calls `on_first` with the first record. Returns nil when there is neither. In :hash mode IOStreams reads the
-      # header row itself, so `on_first` is not called for a file with one, as in v7, and every record is uploaded.
+      # with one, such as CSV, see `IOStreams::Tabular#header?`. Returns nil otherwise, such as for JSON, or in :hash
+      # mode, in which IOStreams reads the header row itself, so that every record is uploaded.
       #
       # A blank line before the header row is skipped, as IOStreams skips it when it reads the header row itself, such
       # as in :hash mode, so that the header row is not stored as a record. A category with a schema uploads slices
@@ -289,9 +279,8 @@ module RocketJob
       # columns of that header row when they are parsed, see #parse_record.
       #
       # Raises ArgumentError when the category holds columns that an upload did not read, see #columns.
-      def extract_header_callback(on_first, mode: self.mode)
-        first_record = first_record_callback(on_first)
-        return first_record unless tabular?
+      def extract_header_callback(mode: self.mode)
+        return unless tabular?
 
         if header_uploaded?
           raise(ArgumentError,
@@ -301,16 +290,13 @@ module RocketJob
         end
         check_columns_not_set
         # IOStreams reads the header row itself in :hash mode, see #each_record.
-        return tabular.header? ? nil : first_record if mode == :hash
-        return first_record unless tabular.header?
+        return if mode == :hash || !tabular.header?
 
         lambda do |row|
           next false if row.blank?
 
           read_header(row)
           self.header_uploaded = true
-          # Call chained on_first if present
-          on_first&.call(row)
           true
         end
       end
@@ -427,17 +413,6 @@ module RocketJob
               "Input category #{name} holds columns that no upload read from a file. Clear them when Rocket Job 7 " \
               "copied them from an earlier run of a scheduled job. Otherwise they are the columns of a file without a " \
               "header row: #{self.class.removed_options_message(%w[columns])}")
-      end
-
-      # Returns the lambda that calls the supplied `on_first` with the first record uploaded, which is not stored, see
-      # #extract_header_callback, or nil without one.
-      def first_record_callback(on_first)
-        return unless on_first
-
-        lambda do |record|
-          on_first.call(record)
-          true
-        end
       end
 
       # Reads the header row of a file into a category without a schema, cleansing each of its columns, see

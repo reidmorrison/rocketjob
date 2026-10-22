@@ -41,6 +41,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   the `before_code` of an `OnDemandBatchJob`, whose documentation showed `upload_arel`. Also removed
   `upload_file_name` and `upload_file_name=` of a batch job, deprecated in v6, which read and set the `file_name` of
   its input category: use `input_category.file_name` instead. See the upgrade guide.
+- Removed the `on_first:` option of `upload`, which Rocket Job 7.1 deprecates, and which raises `ArgumentError`.
+  Rocket Job reads the header row itself, and the category's schema checks its columns. For a file without a header
+  row, such as JSON or fixed width, the lambda was called with the first record, which was then not uploaded: every
+  record of such a file is uploaded, so to leave one out, upload with a block that writes the other lines. See the
+  upgrade guide.
 - `upload` of an Active Record relation reads it with IOStreams 3.0, as one query that the database streams, rather
   than with `find_each`, without building a model for each row. The rows are uploaded in the order of the relation,
   and within its limit, where Rocket Job 7 uploaded them in the order of their ids. Each column is read as `pluck`
@@ -216,8 +221,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   one after another. In the `:hash` mode IOStreams also reads each row while the file is uploaded, so
   that a file with a value that is not valid uploads nothing, but the slices hold the lines as they are, and a `date`
   reaches `perform` as a `Date`. A row that cannot be read fails its record, and a retry processes the slice again
-  from that record. `on_first` is called with a copy of the header row as an Array of its columns, or for a file
-  without one, such as JSON, with its first line, which is not uploaded. A worker of Rocket Job 7 fails such a slice,
+  from that record. A worker of Rocket Job 7 fails such a slice,
   rather than processing no records, see the upgrade guide. The workers read each slice with the category's schema,
   so uploading a path that has another schema set on it raises `ArgumentError`. Assigning an Array of rows to the
   `records` of such a slice, such as a changed copy of them, keeps its header row and format.
@@ -298,8 +302,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   thread, and left the slice running under its name until the server restarted.
 - An upload of a tabular file that starts with blank lines, such as a CSV file, skips them and reads the header row
   after them, as IOStreams does. Previously the first blank line was taken as the header row, so the header row was
-  uploaded as a record, and with a schema every slice then failed, since the header row had not been read. The
-  `on_first` lambda is called with the header row.
+  uploaded as a record, and with a schema every slice then failed, since the header row had not been read.
 - An input category with `format: :auto` uploads the first record of a JSON file. Previously it was dropped, as
   though it were a header row, so `record_count` was one short.
 - A category accepts a `format` that the application registers with IOStreams after Rocket Job is loaded, see

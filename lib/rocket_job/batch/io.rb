@@ -175,15 +175,16 @@ module RocketJob
       #   range is the number of integers in it, although each slice holds one `[first_id, last_id]` record.
       # * If an exception is raised while uploading, the records that this upload stored are removed, so that if the
       #   job is retried, its data is not duplicated.
-      def upload(object = nil, category: :main, file_name: nil, stream_mode: nil, on_first: nil, columns: nil,
-                 slice_batch_size: nil, **args, &block)
+      def upload(object = nil, category: :main, file_name: nil, stream_mode: nil, columns: nil, slice_batch_size: nil,
+                 **args, &block)
+        rocketjob_check_on_first(args)
         input_collection = input(category)
 
         if block
           raise(ArgumentError, "Cannot supply both an object to upload, and a block.") if object
           if stream_mode || columns || slice_batch_size || args.size.positive?
             raise(ArgumentError,
-                  "Unknown keyword arguments when uploading a block. Only accepts :category, :file_name, or :on_first")
+                  "Unknown keyword arguments when uploading a block. Only accepts :category, or :file_name")
           end
 
           category           = input_category(category)
@@ -195,12 +196,12 @@ module RocketJob
               # The block writes the lines of a file, which are read in slices, as the lines of a file are.
               category.uploading do
                 input_collection.upload(upload_id: rocketjob_upload_id) do |writer|
-                  category.each_written_slice(block, on_first: on_first) { |slice| writer.write_slice(slice) }
+                  category.each_written_slice(block) { |slice| writer.write_slice(slice) }
                 end
               end
             else
               # Extract the header line during the upload when applicable.
-              extract_header = category.extract_header_callback(on_first)
+              extract_header = category.extract_header_callback
 
               category.uploading do
                 input_collection.upload(on_first: extract_header, upload_id: rocketjob_upload_id, &block)
@@ -210,7 +211,7 @@ module RocketJob
         end
 
         # The options that only apply to a file, which a range or a query rejects.
-        file_options = args.merge(file_name: file_name, stream_mode: stream_mode, on_first: on_first).compact
+        file_options = args.merge(file_name: file_name, stream_mode: stream_mode).compact
         count =
           case object
           when Range
@@ -242,11 +243,11 @@ module RocketJob
             path = category.upload_path(object, original_file_name: file_name)
 
             if category.slices?
-              rocketjob_upload_slices(input_collection, category, path, mode: mode, on_first: on_first,
-                                      slice_batch_size: slice_batch_size, **args)
+              rocketjob_upload_slices(input_collection, category, path, mode: mode, slice_batch_size: slice_batch_size,
+                                      **args)
             else
               # Extract the header line during the upload when applicable.
-              extract_header = category.extract_header_callback(on_first, mode: mode)
+              extract_header = category.extract_header_callback(mode: mode)
 
               category.uploading do
                 input_collection.upload(on_first: extract_header, slice_batch_size: slice_batch_size,
@@ -387,6 +388,10 @@ module RocketJob
       REMOVED_UPLOAD_OPTION_NAMES = %i[allowed_columns required_columns skip_unknown cleanse_header].freeze
       private_constant :REMOVED_UPLOAD_OPTION_NAMES
 
+      # Where the upgrade guide says what replaces `on_first`, which Rocket Job v8 removed.
+      ON_FIRST_GUIDE = "https://rocketjob.reidmorrison.com/upgrading.html#replace-on_first".freeze
+      private_constant :ON_FIRST_GUIDE
+
       # Returns [Hash] the `record_count` and the upload state of each input category, see
       # Category::Input#upload_state, which the before_batch callbacks start with, see #before_batch_state.
       def rocketjob_before_batch_state
@@ -432,6 +437,18 @@ module RocketJob
         object.is_a?(ActiveRecord::Relation) || object.is_a?(ActiveRecord::Batches::BatchEnumerator)
       end
 
+      # Raises ArgumentError for `on_first`, which Rocket Job v8 removed, also when nil, for any object uploaded, saying
+      # what replaces it: Rocket Job reads the header row itself, and a file without one, such as JSON or fixed width,
+      # lost its first record, which a block that writes the other lines leaves out instead.
+      def rocketjob_check_on_first(args)
+        return unless args.key?(:on_first)
+
+        raise(ArgumentError,
+              "on_first: was removed in Rocket Job v8: Rocket Job reads the header row itself, which the category's " \
+              "schema checks, and to leave out the first record of a file without a header row, upload with a block " \
+              "that writes the other lines, see #{ON_FIRST_GUIDE}")
+      end
+
       # Raises ArgumentError for the options that describe the columns of the file, which Rocket Job v8 removed, see
       # REMOVED_UPLOAD_OPTION_NAMES, also when nil, naming the schema that replaces them, rather than leaving IOStreams
       # to reject them as options that it does not take.
@@ -447,10 +464,10 @@ module RocketJob
       # Category::Input#each_slice.
       #
       # Returns [Integer] the number of records uploaded.
-      def rocketjob_upload_slices(input_collection, category, path, mode:, on_first:, slice_batch_size:, **args)
+      def rocketjob_upload_slices(input_collection, category, path, mode:, slice_batch_size:, **args)
         category.uploading do
           input_collection.upload(slice_batch_size: slice_batch_size, upload_id: rocketjob_upload_id) do |writer|
-            category.each_slice(path, mode: mode, on_first: on_first, **args) { |slice| writer.write_slice(slice) }
+            category.each_slice(path, mode: mode, **args) { |slice| writer.write_slice(slice) }
           end
         end
       end

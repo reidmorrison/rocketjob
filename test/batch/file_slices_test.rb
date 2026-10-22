@@ -122,18 +122,6 @@ module Batch
         assert_equal 1, job.upload(path.schema(job.input_category.schema))
       end
 
-      it "calls on_first with a copy of the header row, which it can change" do
-        header = nil
-        job.upload(StringIO.new("Name,AGE\nJack,21\n"), file_name: "people.csv", on_first: lambda { |row|
-          row.map!(&:downcase)
-          row.first << "s"
-          header = row
-        })
-
-        assert_equal %w[names age], header
-        assert_equal %w[Name AGE], job.input.first.records.header
-      end
-
       it "resumes a slice without reading the records that an earlier attempt processed" do
         upload("Name,AGE\nJack,x\nJill,22\n")
         slice = job.input.first
