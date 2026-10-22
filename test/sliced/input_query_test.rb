@@ -39,6 +39,11 @@ class InputQueryDoc
 
   field :name, type: String
   field :age, type: Integer
+  field :c, as: :city, type: String
+end
+
+# A subclass, whose documents share the collection of InputQueryDoc, told apart by their `_type`.
+class InputQueryChildDoc < InputQueryDoc
 end
 
 module Sliced
@@ -215,6 +220,36 @@ module Sliced
           rows = input.collect(&:to_a).flatten(1).sort
 
           assert_equal [["Alice", 30], ["Bob", 40]], rows
+        end
+
+        it "uploads only the documents of a subclass, not those of its parent" do
+          InputQueryChildDoc.create!(name: "Carol", age: 50)
+
+          assert_equal 1, input.upload_mongo_query(InputQueryChildDoc.all, columns: [:name])
+          assert_equal %w[Carol], input.collect(&:to_a).flatten
+        end
+
+        it "uploads from the collection that Mongoid reads the criteria from, such as within `with(collection:)`" do
+          InputQueryDoc.with(collection: "input_query_other_docs") do |klass|
+            klass.create!(name: "Dave", age: 60)
+            input.upload_mongo_query(klass.all, columns: [:name])
+            klass.delete_all
+          end
+
+          assert_equal %w[Dave], input.collect(&:to_a).flatten
+        end
+
+        it "uploads a field by its alias" do
+          InputQueryDoc.where(name: "Alice").update_all(c: "Boston")
+          input.upload_mongo_query(InputQueryDoc.where(name: "Alice"), columns: [:city])
+
+          assert_equal %w[Boston], input.collect(&:to_a).flatten
+        end
+
+        it "uploads in the order of the criteria, and within its limit" do
+          input.upload_mongo_query(InputQueryDoc.order(age: :desc).limit(1), columns: [:name])
+
+          assert_equal %w[Bob], input.collect(&:to_a).flatten
         end
       end
     end

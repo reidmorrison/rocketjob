@@ -24,17 +24,18 @@ module RocketJob
       # Uploads the documents of the supplied Mongoid criteria, read with the driver of MongoDB without building a model
       # for each one: the value of the field of each document when one field is uploaded, by default its `_id`,
       # otherwise an Array of the values of the fields. Returns how many it uploaded.
+      #
+      # The documents are those that Mongoid's own query of the criteria returns, see `Mongoid::Contextual::Mongo#view`:
+      # from the collection that Mongoid reads it from, of the class of the criteria only, rather than its parent's too,
+      # and in its order and within its limit. The criteria of the caller is not changed. A field is read by the name
+      # that it is stored by, so that the field that `as:` aliases is read by its alias.
       def upload_mongo_query(criteria, columns: [], slice_batch_size: nil, upload_id: nil)
-        columns = columns.blank? ? ["_id"] : columns.collect(&:to_s)
-        # Copies, so that the criteria of the caller is not changed.
-        options = criteria.options.dup
-        fields  = (options.delete(:fields) || {}).dup
-        columns.each { |col| fields[col] = 1 }
-        options[:projection] = fields
+        columns = columns.blank? ? ["_id"] : columns.collect { |column| criteria.klass.database_field_name(column) }
+        view    = criteria.only(*columns).context.view
 
         upload(slice_batch_size: slice_batch_size, upload_id: upload_id) do |records|
           # Drop down to the mongo driver level to avoid constructing a Model for each document returned
-          criteria.klass.collection.find(criteria.selector, options).each do |document|
+          view.each do |document|
             records << (columns.size == 1 ? document[columns.first] : columns.collect { |c| document[c] })
           end
         end

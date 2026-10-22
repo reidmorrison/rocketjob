@@ -288,6 +288,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixes
 
+- `upload` of a Mongoid query of a subclass uploads only the documents of that subclass. Previously it also uploaded
+  those of its parent class and its other subclasses, which share its collection, since it read the selector of the
+  query without the `_type` that Mongoid adds. A field that `as:` aliases is uploaded by its alias, such as
+  `columns: [:city]` for `field :c, as: :city`, where it uploaded nil. The documents are read as Mongoid's own query of
+  the criteria reads them.
 - `upload` of a query or a range raises `ArgumentError` for an input category whose format reads the header row of a
   file, such as `format: :csv`, since its records are values rather than lines. Previously they were uploaded, and
   every slice failed when a worker parsed it.
