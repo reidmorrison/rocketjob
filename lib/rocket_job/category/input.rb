@@ -329,6 +329,17 @@ module RocketJob
         raise(ArgumentError, "Input category #{name}: #{message}")
       end
 
+      # Raises ArgumentError when this category cannot parse the records of the supplied kind of object, such as a query
+      # or a range, which are values, or Arrays of them, rather than the lines of a file: in a format whose header row
+      # is still to be read, such as CSV, see #parse_record, since only a file has a header row. Otherwise every slice
+      # would fail once a worker parsed it.
+      def check_record_upload(kind)
+        return unless tabular? && tabular.header?
+
+        raise(ArgumentError, "Input category #{name}: cannot upload #{kind} in the #{format.inspect} format, which " \
+                             "reads the header row of a file. Upload it into a category without a format")
+      end
+
       # Yields to upload a file into this category, see RocketJob::Batch::IO#upload. When the upload raises, its records
       # are not kept, so the fields that it set are restored, see #upload_state, such as the columns that the header
       # row it read replaced, see #header_uploaded, and the file can be uploaded again, such as when the job is retried.

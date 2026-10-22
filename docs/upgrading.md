@@ -141,6 +141,47 @@ row instead, so neither case below applies. Without one, two cases changed, see
   end
   ~~~
 
+### An Active Record query is streamed
+
+`upload` reads an Active Record relation with IOStreams 3.0, as one query that the database
+streams, rather than with `find_each`, which built a model for each row, see
+[Active Record queries](batch.html#active-record-queries):
+
+* The rows are uploaded in the order of the relation, and within its limit. v7 uploaded them in the
+  order of their ids, so `User.order(created_at: :desc).limit(100)` uploaded the first 100 users by
+  id, rather than the 100 most recent.
+* Each column is read as `pluck` reads it, which is the value that the column holds, as its
+  attribute casts it. A reader that the model overrides is not called, so
+  `def name = super.upcase` no longer changes what is uploaded. Do what the reader did in
+  `#perform` instead, or in the query.
+* The query is read on a connection of its own, so it uploads only the rows that were committed.
+  v7 also uploaded the rows that an open transaction of the caller wrote: upload them once that
+  transaction commits. The pool of the model needs a connection free besides the one of the caller,
+  for each thread that uploads at the same time, otherwise `upload` raises
+  `ActiveRecord::ConnectionTimeoutError`, such as within a transaction, or in a job that includes
+  `RocketJob::Plugins::Transaction`.
+* The query stays open until every row is uploaded, where `find_each` ran a short query for each
+  batch. For a very large table, a query held open for hours holds back vacuum on PostgreSQL and
+  makes a change to the table, such as `ALTER TABLE`, wait for it: upload the batches of the
+  relation instead, see below.
+* It needs Active Record 7.2 or later, both for a relation and for its batches, and raises
+  `ArgumentError` for an earlier version: upgrade Active Record, or write the records in a block of
+  `upload`, see below.
+* It needs a database whose driver streams a query: PostgreSQL,
+  MySQL with `mysql2`, or SQLite with `sqlite3`. Any other raises `ArgumentError`, such as MySQL with
+  `trilogy`, SQL Server, or SQLite on JRuby: upload the batches of the relation instead, selecting
+  the columns to upload before `in_batches`, without which they raise `ArgumentError`:
+
+  ~~~ruby
+  # Before
+  job.upload(User.where(country_code: "US"), columns: %i[user_name zip_code])
+
+  # After
+  job.upload(User.where(country_code: "US").select(:user_name, :zip_code).in_batches)
+  ~~~
+* A relation that loads associations with `includes`, `preload` or `eager_load` raises
+  `ArgumentError`, since no models are built. Join their tables with `joins` instead.
+
 ### A paused Singleton job is active
 
 A job that includes `RocketJob::Plugins::Singleton` is not valid while another job of its class is
@@ -190,7 +231,25 @@ These were deprecated or unused, and are removed in v8:
   job.upload(1_000_000..1)
   ~~~
 
-  A block passed to `upload_arel` or `upload_mongo_query` is passed to `upload` the same way. A range
+  `upload` does not take a block with a query. Where a block passed to `upload_arel` or
+  `upload_mongo_query` returned the record to upload for each model or document, write the records
+  in a block of `upload` instead:
+
+  ~~~ruby
+  # Before
+  job.upload_arel(User.where(country_code: "US")) do |user|
+    user.email.downcase
+  end
+
+  # After
+  job.upload do |records|
+    User.where(country_code: "US").find_each do |user|
+      records << user.email.downcase
+    end
+  end
+  ~~~
+
+  A range
   is uploaded in the direction it is written, so where `upload_integer_range(first, last)` was called
   with bounds that it computed, which uploaded nothing when `last` was less than `first`, check for
   that before calling `upload(first..last)`, which uploads the range in reverse instead. A range that

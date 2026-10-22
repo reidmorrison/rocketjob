@@ -95,7 +95,7 @@ module Batch
         end
 
         it "rejects a schema that is not valid" do
-          category = RocketJob::Category::Input.new(schema: {"fields" => [{"name" => "name", "type" => "time"}]})
+          category = RocketJob::Category::Input.new(schema: {"fields" => [{"name" => "name", "type" => "blob"}]})
 
           refute_predicate category, :valid?
           assert_match(/\ASchema is not valid: /, category.errors.full_messages.first)

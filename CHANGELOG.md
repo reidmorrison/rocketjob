@@ -41,6 +41,18 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   the `before_code` of an `OnDemandBatchJob`, whose documentation showed `upload_arel`. Also removed
   `upload_file_name` and `upload_file_name=` of a batch job, deprecated in v6, which read and set the `file_name` of
   its input category: use `input_category.file_name` instead. See the upgrade guide.
+- `upload` of an Active Record relation reads it with IOStreams 3.0, as one query that the database streams, rather
+  than with `find_each`, without building a model for each row. The rows are uploaded in the order of the relation,
+  and within its limit, where Rocket Job 7 uploaded them in the order of their ids. Each column is read as `pluck`
+  reads it, so a reader that the model overrides is not called. The query is read on a connection of its own, so it
+  uploads the rows that were committed, rather than those that an open transaction of the caller wrote, and the pool
+  of the model needs a connection free besides that of the caller. The query stays open until every row is uploaded,
+  so upload a very large table in batches. A database whose driver cannot stream a query raises `ArgumentError`:
+  any but PostgreSQL, MySQL with `mysql2`, or SQLite with `sqlite3`. Upload the batches of the relation instead. A
+  relation that loads associations with `includes` raises `ArgumentError`, also in batches: join their tables with
+  `joins` instead. A relation, and its batches, need Active Record 7.2 or later, and raise `ArgumentError` for an
+  earlier version, where a block of `upload` can write the records instead. `upload` still raises `ArgumentError` for
+  a query with a block: write the records in a block of `upload` instead. See the upgrade guide.
 - `.from_properties(nil)` of a batch job builds a job with the defaults, as it does for a job that is not a batch
   job. Previously it raised `NoMethodError`, such as when Mission Control saved a Dirmon entry for a batch job
   without changing its properties.
@@ -175,9 +187,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   record in `before_perform`, and the result of `#perform` before it is rendered in `after_perform`, except for a
   perform callback defined before the job includes `RocketJob::Batch`, which now also sees the parsed record, and the
   result before it is rendered.
-- `upload` passes each model of an Active Record relation, or each document of a Mongoid query, to a supplied block,
-  and uploads what it returns, such as `job.upload(User.where(country_code: "US")) { |user| user.email }`, as the
-  removed `upload_arel` and `upload_mongo_query` did. Previously it raised `ArgumentError` for a query with a block.
+- `upload` uploads the batches of an Active Record relation, `relation.in_batches(...)`, for a database whose driver
+  cannot stream a query, such as MySQL with `trilogy`: the columns that the relation selects, such as
+  `job.upload(User.select(:id).in_batches(of: 10_000))`, read on the connection of the caller. Batches whose
+  relation selects no columns raise `ArgumentError`, rather than upload every column.
 - A job plugin runs its batch setup, such as defining a batch throttle or a slice callback, in a
   `rocket_job_batch_plugin` block, which runs in the job class once it includes `RocketJob::Batch`, so the plugin
   works whether a job includes it before or after `RocketJob::Batch`. `Transaction` and `ThrottleDependentJobs`
@@ -271,6 +284,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixes
 
+- `upload` of a query or a range raises `ArgumentError` for an input category whose format reads the header row of a
+  file, such as `format: :csv`, since its records are values rather than lines. Previously they were uploaded, and
+  every slice failed when a worker parsed it.
+- `upload` of a Mongoid query leaves the query as it was. Previously it changed the fields that the query loads, so
+  after `job.upload(criteria, columns: [:zip_code])`, `criteria.to_a` loaded only `_id` and `zip_code`.
 - When an upload raises, only the slices that it stored are removed, so the slices of an earlier upload into the same
   input category, such as the first of two files, are kept. Previously the whole input collection was removed, while
   the job's `record_count` still counted the earlier records, so the job completed without processing them. The
