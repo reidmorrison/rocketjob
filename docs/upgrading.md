@@ -196,6 +196,48 @@ have a header row, such as CSV, cannot be uploaded in the `:hash` mode in 7.x.
 With a schema, both modes upload the lines of the file, so that `#perform` receives each value as its
 type, such as a `Date`.
 
+### Replace on_first
+
+The `on_first:` option of `upload` is deprecated, and removed in v8. Its lambda was called with the
+header row of a file, or, for a file without one, such as JSON or fixed width, with the first
+record, which was then not uploaded.
+
+Rocket Job reads the header row itself, so a lambda that only reads it can be removed. To check the
+columns of a file, describe them with the category's schema, which raises
+`IOStreams::Errors::InvalidHeader` during the upload when the header row does not match its fields:
+
+~~~ruby
+# Before (deprecated)
+job.upload(file_name, on_first: ->(header) { raise "No zip column" unless header.include?("zip") })
+
+# After
+input_category format: :csv, schema: {"fields" => [{"name" => "name"}, {"name" => "zip"}]}
+~~~
+
+To leave out the first record of a file without a header row, such as the control record at the
+start of a fixed width file, upload the file with a block that writes every line but that one:
+
+~~~ruby
+# Before (deprecated)
+job.upload(file_name, on_first: ->(line) { job.control_record = line })
+
+# After
+job.upload(file_name: file_name) do |lines|
+  first = true
+  IOStreams.path(file_name).each(:line) do |line|
+    if first
+      job.control_record = line
+      first              = false
+    else
+      lines << line
+    end
+  end
+end
+~~~
+
+The block reads the file itself, so when it is not UTF-8, give the path its encoding, such as
+`IOStreams.path(file_name).encoding("ISO-8859-1")`.
+
 ### Text is read as UTF-8 with a schema
 
 The text of a file uploaded into a category with a schema is read as UTF-8, so letters that are not
