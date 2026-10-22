@@ -196,8 +196,7 @@ module RocketJob
         path.file_name = original_file_name if original_file_name
         self.file_name = path.file_name
 
-        # Auto detect the format based on the upload file name if present, which builds the tabular again.
-        self.format = path.format || :csv if format == :auto
+        detect_format(path)
 
         # Read the file in this category's encoding, unless the caller set one on the path, see #encoding.
         apply_encoding(path)
@@ -241,17 +240,27 @@ module RocketJob
       #
       # In the :hash mode, see #mode, IOStreams also parses each row before its slice is written, so that a file with a
       # value that is not valid raises before it is processed. Each slice still holds the rows as they are.
-      def copy_slices(path, writer, mode: self.mode)
+      #
+      # Raises ArgumentError for any other options of the upload, such as `delimiter:`, which read the lines of a file
+      # without a schema, see #each_record, since the lines of this category's files are read in its format.
+      def copy_slices(path, writer, mode: self.mode, **args)
+        unless args.empty?
+          raise(ArgumentError, "Input category #{name}: #{args.keys.map(&:inspect).join(', ')} cannot be supplied " \
+                               "when uploading a file into a category with a schema, whose lines are read in its format")
+        end
+
         slice_target(writer).copy_from(path, mode: :line, validate: mode != :line)
       end
 
       # Yields to the supplied block of an upload, see RocketJob::Batch::IO#upload, the writer of the lines of a file,
       # such as its header row followed by its rows, which IOStreams writes to the supplied store of slices, see
       # Sliced::Writer::Input, as it reads the slices of a file, see #copy_slices: the header row is read from the first
-      # lines, and matched to the fields of the schema, and each slice holds it.
+      # lines, and matched to the fields of the schema, and each slice holds it. A format of :auto is replaced with that
+      # of the file name of the upload, otherwise CSV, as for a file, see #upload_path.
       #
       # Raises ArgumentError for a record written to the writer that is not a line, such as a Hash.
       def write_slices(writer, &)
+        detect_format(file_name)
         slice_target(writer).writer(:line, validate: mode != :line, &)
       end
 
@@ -349,13 +358,17 @@ module RocketJob
 
       private
 
+      # Replaces a format of :auto with the format of the supplied path, which its file name gives, otherwise CSV, so
+      # that an upload reads its file, or the lines that its block writes, in it, see #upload_path and #write_slices.
+      # Setting the format builds the tabular again.
+      def detect_format(path)
+        self.format = path&.format || :csv if format == :auto
+      end
+
       # Returns [IOStreams::Stream] that writes lines to the supplied store of slices, see Sliced::Writer::Input, by this
-      # category's schema, in its format, otherwise the format of its file name, or CSV, see #copy_slices and
-      # #write_slices.
+      # category's schema, in its format, which an upload has detected when it was :auto, see #detect_format.
       def slice_target(writer)
-        stream = IOStreams.stream(writer).schema(schema_descriptor)
-        format = tabular_format || (IOStreams.path(file_name).format if file_name)
-        format ? stream.format(format) : stream
+        IOStreams.stream(writer).schema(schema_descriptor).format(format)
       end
 
       # The text that replaces each character that is not valid in the file's encoding, see #invalid_characters.

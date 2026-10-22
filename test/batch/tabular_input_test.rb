@@ -205,6 +205,19 @@ module Batch
           assert_equal %w[name age], job.input_category.columns
           assert job.input_category.header_uploaded
         end
+
+        it "keeps a format of :auto and no file name, so that another file is read in its own format" do
+          job.input_category.format = :auto
+          assert_raises(ArgumentError) { upload(".psv", "name|age\nJack|21\n", unknown: true) }
+
+          assert_equal :auto, job.input_category.format
+          assert_nil job.input_category.file_name
+
+          upload(".csv", csv)
+
+          assert_equal :csv, job.input_category.format
+          assert_equal ["Jack,21,x", "Jill,22,y"], input_records
+        end
       end
 
       describe "csv" do
@@ -364,11 +377,15 @@ module Batch
         end
 
         it "rejects the options of reading lines, since the lines are read in the format of the category" do
+          job.input_category.format = :auto
           error = assert_raises(ArgumentError) { upload(".csv", people, delimiter: "\r\n") }
 
           assert_equal "Input category main: :delimiter cannot be supplied when uploading a file into a category with " \
                        "a schema, whose lines are read in its format", error.message
           assert_equal 0, job.input.count
+          # The category is as it was, so that another file is read in its own format.
+          assert_equal :auto, job.input_category.format
+          assert_nil job.input_category.file_name
         end
 
         it "uploads the lines written to a block in the format of the file name, when the format is :auto" do
@@ -378,8 +395,33 @@ module Batch
             records << "Jack|21|12.50|2026-10-13"
           end
 
+          assert_equal :psv, job.input_category.format
           assert_equal :psv, job.input.first.records.format
           assert_equal [typed], output_records
+        end
+
+        it "uploads the lines written to a block as CSV, when the format is :auto and there is no file name" do
+          job.input_category.format = :auto
+          job.upload do |records|
+            records << "name,age,balance,joined"
+            records << "Jack,21,12.50,2026-10-13"
+          end
+
+          assert_equal :csv, job.input_category.format
+          assert_equal [typed], output_records
+        end
+
+        it "keeps a format of :auto when the block of the upload raises" do
+          job.input_category.format = :auto
+          assert_raises(RuntimeError) do
+            job.upload(file_name: "people.psv") do |records|
+              records << "name|age|balance|joined"
+              raise "failed"
+            end
+          end
+
+          assert_equal :auto, job.input_category.format
+          assert_equal 0, job.input.count
         end
 
         it "matches the header row to the fields whatever its case and punctuation, and keeps it as it is" do
