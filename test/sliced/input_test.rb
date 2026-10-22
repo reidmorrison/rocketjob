@@ -104,6 +104,20 @@ module Sliced
         end
       end
 
+      describe "#upload to IOStreams" do
+        it "is a store of slices of the slice size of the input, which IOStreams writes the lines of a file to" do
+          count = input.upload do |writer|
+            assert_kind_of IOStreams::Slice::Target, writer
+            assert_equal 2, writer.slice_size
+            IOStreams.stream(writer).writer(:line) { |io| io << "name" << "Jack" << "Jill" << "Bob" }
+          end
+
+          assert_equal 3, count
+          assert_equal [%w[Jack Jill], %w[Bob]], input.collect(&:to_a)
+          assert_equal([%w[name], %w[name]], input.collect { |slice| slice.records.header })
+        end
+      end
+
       describe "#upload_integer_range" do
         before do
           input.slice_size = 10

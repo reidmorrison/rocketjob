@@ -1,9 +1,19 @@
 module RocketJob
   module Sliced
     module Writer
-      # Internal class for uploading records into input slices
+      # Internal class for uploading records into input slices.
+      #
+      # It is also a store of the slices of the rows of a file, see `IOStreams::Slice::Target`, so that IOStreams writes
+      # the lines of a file to it in slices of `slice_size` rows, see #write_slice and
+      # Category::Input#write_slices.
       class Input
+        include IOStreams::Slice::Target
+
         attr_reader :record_count
+
+        # Returns [Integer] the number of records of each slice, which IOStreams writes the slices of a file in, see
+        # `IOStreams::Slice::Target#slice_size`.
+        attr_reader :slice_size
 
         # Batch collection of lines into slices.
         #

@@ -214,8 +214,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   uploaded header row that does not match raises `IOStreams::Errors::InvalidHeader`, and nothing is
   uploaded. Each slice of a file uploaded into an input category holds its header row, see below. An output
   category writes the names of the fields as its header row, and the fields of each result, in order.
-- `upload` reads a file into an input category with a `schema` with IOStreams' `each(:slice)`, rather than splitting
-  it into slices itself: IOStreams reads up to `slice_size` rows at a time, after the header row, which it matches to
+- `upload` reads a file into an input category with a `schema` with IOStreams, rather than splitting it into slices
+  itself: the input is a store of slices, `IOStreams::Slice::Target`, which IOStreams copies the lines of the file to
+  in slices of up to `slice_size` rows, after the header row, which it matches to
   the fields before any slice is uploaded, and each slice holds the header row of its file. So the category's
   `columns` are not set, and files whose columns are in another order can be uploaded into the same input category,
   one after another. In the `:hash` mode IOStreams also reads each row while the file is uploaded, so
@@ -225,9 +226,13 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   rather than processing no records, see the upgrade guide. The workers read each slice with the category's schema,
   so uploading a path that has another schema set on it raises `ArgumentError`. Assigning an Array of rows to the
   `records` of such a slice, such as a changed copy of them, keeps its header row and format.
-  The lines that the block of `upload` writes for such a category are read in the same slices, after the header row
-  read from the first lines, and a record written to it that is not a line, such as a Hash, raises `ArgumentError`.
-  The lines written before the block breaks out are uploaded, as without a schema.
+  The lines that the block of `upload` writes for such a category are written to the same store, in the category's
+  format, which a format of `:auto` is replaced with, as for a file: that of the `file_name:` of the upload, otherwise
+  CSV. They are read after the header row read from the first lines, and a record written to it that is not a line, such
+  as a Hash, raises `ArgumentError`. A line that holds a line ending is split into rows, as reading the file would split
+  it. The lines written before the block breaks out are uploaded, as without a schema. Since the lines of a file are
+  read in the category's format, the options of reading lines, such as `delimiter:`, raise `ArgumentError` for such a
+  category.
 - `CopyFileJob` converts the text of a file from its `source_encoding` to its `target_encoding`, such as
   `source_encoding: "Windows-1252"`, which copies a file that Excel saved on Windows as UTF-8. When only one
   is set, the other is UTF-8, and when neither is set the file is still copied byte for byte. The text is
@@ -297,6 +302,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   input category, such as the first of two files, are kept. Previously the whole input collection was removed, while
   the job's `record_count` still counted the earlier records, so the job completed without processing them. The
   slices of an upload into an input collection that already holds slices record it in their `upload_id`.
+- When the upload of a file raises, its input category keeps the file name and format it had. Previously the upload
+  kept the file name, and the format that it replaced `:auto` with, so the next file uploaded into the category was
+  read in the format of the one that failed.
 - A slice whose records cannot be read, such as one encrypted with a key that the worker does not have, fails with
   that error when it is processed. Previously reading it raised as the worker claimed it, which stopped that worker
   thread, and left the slice running under its name until the server restarted.
