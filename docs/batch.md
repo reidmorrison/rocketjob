@@ -141,7 +141,7 @@ Useful `upload` keyword options:
 | Option         | Description
 |:---------------|:------------
 | `category`     | Which input category to load into. Default: `:main`.
-| `stream_mode`  | `:line` (default) or `:hash`. See [input categories](#input-categories).
+| `validate_rows` | `true` to parse each row of the file while it is uploaded, so that a file with a row that cannot be read is rejected before processing starts. Default: the input category's `validate_rows`. See [input categories](#input-categories).
 | `file_name`    | Override the file name used to infer format and streams.
 | `delimiter`    | Record delimiter. Default: auto-detect line endings. Not for an input category with a `format`, whose lines are read in it.
 
@@ -338,7 +338,7 @@ Input category options:
 | `schema`           | `nil`       | The fields of each record and their types, and which columns a file can and must have. Also gives the position of each field of a `:fixed` file. See [Typed values with a schema](#typed-values-with-a-schema) and [Validating columns](#validating-columns).
 | `encoding`         | `nil`       | The encoding of the files, such as `"Windows-1252"`, which is converted to UTF-8. `nil` reads UTF-8, or the format's own encoding, such as ASCII for `:fixed`. Name the byte order of UTF-16 or UTF-32, such as `"UTF-16LE"`. See [Files](#files).
 | `invalid_characters` | `nil`     | What to do with a character that is not valid in the file's encoding: `:remove`, `:replace` with U+FFFD, or `:raise`. `nil` removes them from tabular formats, such as CSV, and raises for `:fixed` and lines.
-| `mode`             | `:line`     | How a file is uploaded: `:line` or `:hash`.
+| `validate_rows`    | `false`     | Parse each row of a file in the category's `format` while it is uploaded, so that a file with a row that cannot be read is rejected before processing starts. Needs a `format`.
 | `columns`          | `nil`       | The header row of a file that Rocket Job 7 uploaded without a `schema`, which the workers read its lines by. Not set by v8, since each slice holds the header row of its file.
 
 The options `allowed_columns`, `required_columns`, `skip_unknown` and `header_cleanser`, and setting
@@ -351,18 +351,28 @@ header row, into the types of the fields of the `schema`, when there is one. Sin
 each slice with the category's `schema`, uploading a path that has another schema set on it raises
 `ArgumentError`, also when the category has none.
 
-The `mode` option controls how a file is read during upload:
+By default the lines are uploaded as they are, which is the most performant, since each worker
+parses its own lines. With `validate_rows: true`, each line is also parsed while the file is
+uploaded, so that a file with a line that cannot be read, or with a value that is not valid for its
+field, is rejected, and nothing is uploaded, before processing starts. The slices still hold the
+lines. The rows are parsed one after another, so it is not recommended for very large files when
+upload time matters:
 
-* `:line` (default) uploads the lines as they are. This is the most performant, since each worker
-  parses its own lines.
-* `:hash` also parses each line while the file is uploaded, so that a file with a line that cannot be
-  read, or with a value that is not valid for its field, is rejected before processing starts. The
-  slices still hold the lines. Not recommended for very large files. Without a `format`, `:hash`
-  uploads each row as a Hash, read in the format of the file name.
+~~~ruby
+class ImportJob < RocketJob::Job
+  include RocketJob::Batch
 
-The `stream_mode` option of `upload` overrides `mode` for that upload. The `:array` mode, which
-uploaded each row as an Array, was removed in v8, see
-[Upgrading to v8](upgrading.html#the-deprecated-category-options-are-removed).
+  input_category format: :csv, validate_rows: true
+
+  def perform(row)
+    # ...
+  end
+end
+~~~
+
+The `validate_rows` option of `upload` overrides the category's for that upload. It replaces the
+`mode: :hash` of v7, which v8 still reads as `validate_rows: true`, see
+[Upgrading to v8](upgrading.html#replace-the-hash-mode-with-validate_rows).
 
 ### More than one file
 

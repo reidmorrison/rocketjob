@@ -108,10 +108,60 @@ module Batch
         end
       end
 
+      describe "#validate_rows" do
+        it "is false by default" do
+          refute RocketJob::Category::Input.new.validate_rows
+        end
+
+        it "needs a format, whose rows it validates" do
+          assert_predicate RocketJob::Category::Input.new(format: :csv, validate_rows: true), :valid?
+          assert_predicate RocketJob::Category::Input.new(format: :auto, validate_rows: true), :valid?
+
+          category = RocketJob::Category::Input.new(validate_rows: true)
+
+          refute_predicate category, :valid?
+          assert_equal ["Validate rows needs a format, whose rows it validates"], category.errors.full_messages
+        end
+
+        it "is reported in the properties of a Dirmon entry or an UploadFileJob without a format" do
+          category = RocketJob::Category::Input.new
+
+          assert_equal ["Validate rows needs a format, whose rows it validates"],
+                       category.property_errors("validate_rows" => true)
+          assert_empty category.property_errors("format" => "csv", "validate_rows" => true)
+        end
+      end
+
+      describe "#upload_validates_rows?" do
+        it "is the validate_rows of the category" do
+          refute_predicate RocketJob::Category::Input.new(format: :csv), :upload_validates_rows?
+          assert_predicate RocketJob::Category::Input.new(format: :csv, validate_rows: true), :upload_validates_rows?
+        end
+
+        it "is true for the :hash mode that Rocket Job 7 saved, which validate_rows replaces" do
+          category = Mongoid::Factory.from_db(RocketJob::Category::Input, {"name" => "main", "format" => "csv", "mode" => "hash"})
+
+          assert_predicate category, :upload_validates_rows?
+        end
+
+        it "is the validate_rows of the upload, unless it is nil" do
+          category = RocketJob::Category::Input.new(format: :csv, mode: :hash)
+
+          refute category.upload_validates_rows?(false)
+          assert category.upload_validates_rows?(nil)
+          assert RocketJob::Category::Input.new(format: :csv).upload_validates_rows?(true)
+        end
+
+        it "is false without a format, whose records are uploaded as they are, as the :hash mode was in Rocket Job 7.0" do
+          refute_predicate RocketJob::Category::Input.new(mode: :hash), :upload_validates_rows?
+        end
+      end
+
       describe "#mode" do
         let(:array_message) do
-          "mode: :array was removed in Rocket Job v8, use :line, which the workers parse, or :hash to parse the whole " \
-            "file when it is uploaded, see #{RocketJob::Category::Base::REMOVED_OPTIONS_GUIDE}"
+          "mode: :array was removed in Rocket Job v8: the workers parse the lines of a file in the category's format, " \
+            "and validate_rows: true also parses them when it is uploaded, see " \
+            "#{RocketJob::Category::Base::REMOVED_OPTIONS_GUIDE}"
         end
 
         it "is :line or :hash, or :array in a category saved before v8, so that its next run can still be created" do
@@ -149,20 +199,42 @@ module Batch
           assert_raises(ArgumentError) { category.merge_properties("mode" => "array") }
         end
 
-        it "is the upload mode, unless another is supplied" do
-          category = RocketJob::Category::Input.new(mode: :hash)
-
-          assert_equal :hash, category.upload_mode
-          assert_equal :line, category.upload_mode("line")
-        end
-
-        it "raises for the :array mode, which a category saved before v8 can hold" do
+        it "raises for the :array mode when a category saved before v8 that holds it is uploaded into" do
           category = Mongoid::Factory.from_db(RocketJob::Category::Input, {"name" => "main", "mode" => "array"})
 
-          error = assert_raises(ArgumentError) { category.upload_mode }
+          error = assert_raises(ArgumentError) { category.check_upload }
           assert_equal "Input category main: #{array_message}", error.message
-          error = assert_raises(ArgumentError) { category.upload_mode(:lines) }
-          assert_equal "Input category main: the upload mode must be :line or :hash, not :lines", error.message
+        end
+      end
+
+      describe "#check_upload" do
+        it "accepts the validate_rows of an upload into a category with a format" do
+          category = RocketJob::Category::Input.new(format: :csv)
+
+          [nil, true, false].each do |validate_rows|
+            assert_nil category.check_upload(validate_rows)
+          end
+        end
+
+        it "raises for a validate_rows that is not true or false" do
+          error = assert_raises(ArgumentError) { RocketJob::Category::Input.new(format: :csv).check_upload("yes") }
+          assert_equal "Input category main: validate_rows: must be true or false, not \"yes\"", error.message
+        end
+
+        it "raises for validate_rows: true without a format, whose rows it would validate" do
+          category = RocketJob::Category::Input.new
+
+          assert_nil category.check_upload(false)
+          error = assert_raises(ArgumentError) { category.check_upload(true) }
+          assert_equal "Input category main: validate_rows: needs a format, whose rows it validates, such as :auto, " \
+                       "which reads a file in the format of its file name", error.message
+        end
+
+        it "raises for the validate_rows of a category without a format, unless the upload supplies false" do
+          category = RocketJob::Category::Input.new(validate_rows: true)
+
+          assert_raises(ArgumentError) { category.check_upload }
+          assert_nil category.check_upload(false)
         end
       end
 

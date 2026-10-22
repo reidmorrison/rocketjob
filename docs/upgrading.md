@@ -69,8 +69,10 @@ Replace each one while v7.1 still reads it, as its upgrade steps describe:
   `ArgumentError`. A `:csv`, `:psv` or `:fixed` output category needs a schema, whose fields are the
   columns that it writes, in order.
 * An input category's `mode: :array`, and the `stream_mode: :array` of `upload`, see
-  [Replace the :array upload mode](#replace-the-array-upload-mode). A file that v7 uploaded in the
-  `:array` mode, whose slices hold an Array for each row, is still processed.
+  [Replace the :array upload mode](#replace-the-array-upload-mode), where v8 reads `:hash` as
+  `validate_rows: true`, see
+  [Replace the :hash mode with validate_rows](#replace-the-hash-mode-with-validate_rows). A file that v7
+  uploaded in the `:array` mode, whose slices hold an Array for each row, is still processed.
 
 Code or a saved document that still sets one fails, naming the option, rather than reading or
 writing the records of the category as though it were not set:
@@ -123,9 +125,8 @@ same Hash for each line, so most jobs need no change, but:
 * A second file with a header row can be uploaded into the same input category, in any mode, and its
   lines are read by its own header row. v7 stored the second file's header row as a record, and read
   its lines with the first file's columns.
-* In the `:hash` mode, a file in a format is uploaded as its lines, once each one is parsed, rather
-  than as Hashes, so the slices of an input category hold lines in every mode. Without a format, the
-  `:hash` mode still uploads each row as a Hash, read in the format of the file name.
+* A file in a format is uploaded as its lines in every mode, see
+  [Replace the :hash mode with validate_rows](#replace-the-hash-mode-with-validate_rows).
 * The block of `upload` writes the lines of a file into a category with a format: its header row
   first, when the file has one, then its rows. Writing anything else raises `ArgumentError`, such as an
   Array of the values of each row of CSV, after the Array of its header row, or a Hash into a JSON
@@ -158,6 +159,34 @@ same Hash for each line, so most jobs need no change, but:
     job.save!
   end
   ~~~
+
+### Replace the :hash mode with validate_rows
+
+An input category's `validate_rows: true` replaces its `mode: :hash`, and the `validate_rows:` of
+`upload` replaces its `stream_mode:`. Each line of a file in the category's format is parsed while the
+file is uploaded, so that a file with a line that cannot be read is rejected, and nothing is
+uploaded, before processing starts. The slices hold the lines, as they do without it, rather than the
+Hashes that v7 uploaded, and `#perform` receives the same Hash for each line:
+
+~~~ruby
+# Before
+input_category format: :csv, mode: :hash
+job.upload("people.csv", stream_mode: :hash)
+
+# After
+input_category format: :csv, validate_rows: true
+job.upload("people.csv", validate_rows: true)
+~~~
+
+* A category's `mode` is still read, so that a job class, a saved job, such as a scheduled job, and
+  a Dirmon entry with it need not change: `mode: :hash` validates the rows of a file in a format, as
+  `validate_rows: true` does, unless `upload` is given `validate_rows: false`. Without a format it has
+  no effect, as in v7.0.
+* `stream_mode:` raises `ArgumentError`, with any value, since `validate_rows:` replaces it.
+* `stream_mode: :hash` read a file into a category without a format as Hashes, in the format of its
+  file name. Set the category's `format: :auto` instead, which reads a file in the format of its file
+  name, otherwise CSV, so that `#perform` receives the same Hashes. `validate_rows: true` needs a
+  format, and raises `ArgumentError` without one.
 
 ### An Active Record query is streamed
 

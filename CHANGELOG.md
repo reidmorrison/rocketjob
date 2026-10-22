@@ -79,6 +79,14 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   Parquet, uploads each record as it is. The lines of a CSV file that `upload_slice` uploads
   after a file are no longer read by the header row of that file, which the category no longer keeps. See the upgrade
   guide.
+- An input category's `validate_rows: true`, and the `validate_rows:` of `upload`, replace its `mode: :hash` and the
+  `stream_mode:` of `upload`: each line of a file in the category's format is parsed while it is uploaded, so that a
+  file with a line that cannot be read uploads nothing, and the slices hold the lines. A category's `mode` is still
+  read, so a saved `mode: :hash` validates the rows of a file in a format, and has no effect without one, as in 7.0.
+  `stream_mode:` raises `ArgumentError`, with any value. Its `:hash` read a file into a category without a format as
+  Hashes: set the category's `format: :auto` instead. `validate_rows: true` without a format raises `ArgumentError`,
+  and is not valid on a category. `Category::Input#check_upload` and `#upload_validates_rows?` replace
+  `#upload_mode`. See the upgrade guide.
 - `RocketJob::Plugins::Transaction` wraps each slice of a batch job in a transaction, and
   `RocketJob::Plugins::ThrottleDependentJobs` throttles its slices, whether the job includes them before or after
   `RocketJob::Batch`, as documented. Previously a job that included `Transaction` first had a transaction around
@@ -224,7 +232,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   in slices of up to `slice_size` rows, after the header row, which it matches to
   the fields before any slice is uploaded, and each slice holds the header row of its file. So the category's
   `columns` are not set, and files whose columns are in another order can be uploaded into the same input category,
-  one after another. In the `:hash` mode IOStreams also reads each row while the file is uploaded, so
+  one after another. With `validate_rows: true` IOStreams also reads each row while the file is uploaded, so
   that a file with a value that is not valid uploads nothing, but the slices hold the lines as they are, and a `date`
   reaches `perform` as a `Date`. A row that cannot be read fails its record, and a retry processes the slice again
   from that record. A worker of Rocket Job 7 fails such a slice,
@@ -373,8 +381,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   those of every server, or none, depending on which worker started the job. The name of a server is also read back
   correctly from the names of its workers when it has no colon, such as `RocketJob::Config.server_name = "worker1"`,
   so `HousekeepingJob` no longer requeues the jobs that the workers of such a running server are processing.
-- An upload in the `:hash` mode of a tabular input category reads with IOStreams 3.0. The
-  category sets its format on the path that it reads, since IOStreams no longer accepts it for each read.
 - A category's `encoding`, and `CopyFileJob#source_encoding` and `#target_encoding`, can be `"UTF-8"`.
   Previously it was rejected as an encoding that Ruby cannot convert to and from UTF-8, since Ruby has no
   converter from UTF-8 to itself.
@@ -427,10 +433,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - A tabular upload, such as CSV, uses the encoding set on the path, such as `encoding("Windows-1252:UTF-8")`.
   Previously it was always replaced with UTF-8, so the characters of a Windows-1252 file that are not
   ASCII were removed.
-- An input category's `mode` of `:hash` is used by `upload`. Since v6.0.0 `upload` read the file a line
-  at a time unless `stream_mode` was supplied, and the category's `mode` only changed how the header
-  row was read, so with `:hash` the workers raised `ArgumentError` because the header columns were not
-  set. The `stream_mode` of `upload` still overrides it.
+- An input category's `mode` of `:hash` validates the rows of a file in a format when it is uploaded, as
+  `validate_rows: true` does. Since v6.0.0 `upload` read the file a line at a time unless `stream_mode` was
+  supplied, and the category's `mode` only changed how the header row was read, so with `:hash` the workers
+  raised `ArgumentError` because the header columns were not set.
 - Hashes that Rocket Job 7 uploaded with `stream_mode: :hash`, or that `upload_slice` uploads, are no longer parsed
   again by the workers. Previously a worker tried to parse them again in the category's format, which raised for CSV.
 - Non-printable characters in a fixed width upload, such as NUL padding, are replaced with spaces.

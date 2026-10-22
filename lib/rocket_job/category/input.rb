@@ -12,8 +12,9 @@ module RocketJob
       UPLOAD_FIELDS = %w[file_name format].freeze
       private_constant :UPLOAD_FIELDS
 
-      # The modes that a file can be uploaded in, see #mode.
+      # The modes that Rocket Job 7 uploaded a file in, which v8 still reads, see #mode.
       MODES = %i[line hash].freeze
+      private_constant :MODES
 
       # Replaces each non-printable character, other than line endings, with a space.
       FIXED_WIDTH_CLEANER = ->(data, _replace) { data.gsub(/[^[:print:]\r\n]/, " ") }
@@ -33,22 +34,30 @@ module RocketJob
       # `"header" => false` instead.
       field :columns, type: Array
 
-      # How `#upload` reads a file, or the lines that its block writes:
-      # :line
-      #   Uploads the lines as they are, which the workers parse. This is the default behavior and is the most
-      #   performant since it leaves the parsing of each line up to the workers themselves.
-      # :hash
-      #   In a tabular format, see #format, also parses each row as it is uploaded, so that a file with a row that
-      #   cannot be read is rejected before any of it is processed. The slices still hold the lines, see #copy_slices.
-      #   Without a format, uploads each row of a file as a Hash, read in the format of its file name.
-      #   Not recommended for large files since the parsing is performed sequentially during the upload process.
+      # Whether `#upload` parses each row of a file in this category's format, see #format, as it uploads it, so that a
+      # file with a row that cannot be read, or with a value that is not valid for its field, see #schema, is rejected
+      # before any of it is processed. The slices still hold the lines, which the workers parse, see #copy_slices.
       #
-      # Use :hash when the entire file must be parsed/validated before processing is started, and upload time is not
-      # important.
+      # Use it when the entire file must be validated before processing is started, and upload time is not important,
+      # since the rows are parsed one after another while the file is uploaded.
+      #
+      # Needs a format: a category without one uploads each record as it is, see #each_record.
+      # Default: false
+      field :validate_rows, type: ::Mongoid::Boolean, default: false
+      validate :validate_rows_has_format
+
+      # How Rocket Job 7 uploaded a file, which `validate_rows` replaces, see #upload_validates_rows?. Rocket Job v8
+      # still reads it, so that a job class, a saved job or a Dirmon entry with it need not change:
+      # :line
+      #   The default, which uploads the lines as they are.
+      # :hash
+      #   In a tabular format, see #format, validates the rows of a file, as `validate_rows: true` does. Without a format
+      #   it has no effect, as in Rocket Job 7.0, which only parsed a file into Hashes for the `stream_mode: :hash` of
+      #   `#upload`, which v8 removed: set the format to :auto instead.
       #
       # Rocket Job v8 removed the :array mode, which uploaded each row as an Array, see .removed_option_names. A category
       # saved with it before v8 stays valid, so that the next run of a scheduled job is still created, and its upload
-      # raises instead, see #upload_mode.
+      # raises instead, see #check_upload.
       field :mode, type: ::Mongoid::StringifiedSymbol, default: :line
       validates_inclusion_of :mode, in: [*MODES, :array]
 
@@ -79,7 +88,7 @@ module RocketJob
       # Returns [Array<String>] the names of the options of an input category that Rocket Job v8 removed, see
       # Category::Base.removed_option_names: its column options, `allowed_columns`, `required_columns`, `skip_unknown`
       # and `header_cleanser`, the `columns` of a file without a header row, which an application can no longer set,
-      # see #columns, and the :array `mode`, see #upload_mode.
+      # see #columns, and the :array `mode`, see #check_upload.
       def self.removed_option_names
         super + %w[allowed_columns required_columns skip_unknown header_cleanser columns mode]
       end
@@ -89,8 +98,8 @@ module RocketJob
       def self.removed_options_message(names)
         return super unless names.include?("mode")
 
-        mode = "mode: :array was removed in Rocket Job v8, use :line, which the workers parse, or :hash to parse the " \
-               "whole file when it is uploaded, see #{REMOVED_OPTIONS_GUIDE}"
+        mode = "mode: :array was removed in Rocket Job v8: the workers parse the lines of a file in the category's " \
+               "format, and validate_rows: true also parses them when it is uploaded, see #{REMOVED_OPTIONS_GUIDE}"
         names == ["mode"] ? mode : "#{super(names - ['mode'])}. #{mode}"
       end
 
@@ -224,19 +233,20 @@ module RocketJob
       # slice. Each slice carries the header row of its file, so that more than one file can be uploaded into this
       # category, and the workers read each row by it, see #parse_records.
       #
-      # In the :hash mode, see #mode, IOStreams also parses each row before its slice is written, so that a file with a
-      # value that is not valid raises before it is processed. Each slice still holds the rows as they are.
+      # When `validate_rows` is true, see #upload_validates_rows?, IOStreams also parses each row before its slice is
+      # written, so that a file with a value that is not valid raises before it is processed. Each slice still holds
+      # the rows as they are.
       #
       # Raises ArgumentError for any other options of the upload, such as `delimiter:`, which read the lines of a file
       # without a format, see #each_record, since the lines of this category's files are read in its format. Also
       # raises ArgumentError when this category cannot read a file, see #slice_target.
-      def copy_slices(path, writer, mode: self.mode, **args)
+      def copy_slices(path, writer, validate_rows: upload_validates_rows?, **args)
         unless args.empty?
           raise(ArgumentError, "Input category #{name}: #{args.keys.map(&:inspect).join(', ')} cannot be supplied " \
                                "when uploading a file in the #{format.inspect} format, whose lines are read in it")
         end
 
-        slice_target(writer).copy_from(path, mode: :line, validate: mode != :line)
+        slice_target(writer).copy_from(path, mode: :line, validate: validate_rows)
       end
 
       # Yields to the supplied block of an upload, see RocketJob::Batch::IO#upload, the writer of the lines of a file,
@@ -245,34 +255,48 @@ module RocketJob
       # lines, and matched to the fields of the schema, and each slice holds it. A format of :auto is replaced with that
       # of the file name of the upload, otherwise CSV, as for a file, see #upload_path.
       #
+      # When `validate_rows` is true, see #upload_validates_rows?, IOStreams also parses each line, after the header row,
+      # before its slice is written.
+      #
       # Raises ArgumentError for a record written to the writer that is not a line, such as a Hash, and when this
       # category cannot read the lines, see #slice_target.
-      def write_slices(writer, &block)
+      def write_slices(writer, validate_rows: upload_validates_rows?, &block)
         detect_format(file_name)
-        slice_target(writer).writer(:line, validate: mode != :line) do |lines|
+        slice_target(writer).writer(:line, validate: validate_rows) do |lines|
           block.call(EncodedLines.new(lines) { tabular.header? })
         end
       end
 
-      # Yields each record read from the supplied path in the supplied mode, see #mode, for a category without a format,
-      # whose files are not uploaded in slices, see #slices?: each line, or in the :hash mode, each row of the file as a
-      # Hash, read in the format of its file name.
-      def each_record(path, mode: self.mode, **args, &)
-        path.each(mode, **args, &)
+      # Yields each line read from the supplied path, for a category without a format, whose files are not uploaded in
+      # slices, see #slices?, and whose records `#perform` receives as they are, see #parse.
+      def each_record(path, **args, &)
+        path.each(:line, **args, &)
       end
 
-      # Returns [Symbol] the mode to upload a file in, see #mode: the supplied one, such as the `stream_mode` of an
-      # upload, otherwise this category's.
-      #
-      # Raises ArgumentError for a mode other than :line or :hash, such as the :array mode, which Rocket Job v8 removed,
-      # also when a category saved before v8 holds it.
-      def upload_mode(mode = nil)
-        mode = (mode || self.mode).to_sym
-        return mode if MODES.include?(mode)
+      # Returns [true|false] whether an upload into this category parses each row of its file as it uploads it: the
+      # supplied `validate_rows:` of the upload, unless it is nil, otherwise this category's, see #validate_rows, or the
+      # :hash `mode` that Rocket Job 7 saved, see #mode. Always false without a format, which has no rows to parse.
+      def upload_validates_rows?(validate_rows = nil)
+        return false unless tabular?
+        return validate_rows unless validate_rows.nil?
 
-        message = "the upload mode must be :line or :hash, not #{mode.inspect}"
-        message = self.class.removed_options_message(%w[mode]) if mode == :array
-        raise(ArgumentError, "Input category #{name}: #{message}")
+        self.validate_rows || mode == :hash
+      end
+
+      # Raises ArgumentError when a file, or the lines that the block of an upload writes, cannot be uploaded into this
+      # category with the supplied `validate_rows:` of the upload, see #upload_validates_rows?: when it is not true,
+      # false or nil, or when it, or else this category's `validate_rows`, is true without a format, which has no rows
+      # to validate, or when this category was saved before Rocket Job v8 with the :array mode, which v8 removed, see
+      # #mode.
+      def check_upload(validate_rows = nil)
+        unless [nil, true, false].include?(validate_rows)
+          raise(ArgumentError, "Input category #{name}: validate_rows: must be true or false, not #{validate_rows.inspect}")
+        end
+        raise(ArgumentError, "Input category #{name}: #{self.class.removed_options_message(%w[mode])}") if mode == :array
+        return if tabular? || !(validate_rows.nil? ? self.validate_rows : validate_rows)
+
+        raise(ArgumentError, "Input category #{name}: validate_rows: needs a format, whose rows it validates, such as " \
+                             ":auto, which reads a file in the format of its file name")
       end
 
       # Raises ArgumentError when this category cannot parse the records of the supplied kind of object, such as a query
@@ -310,6 +334,11 @@ module RocketJob
       end
 
       private
+
+      # Adds an error when `validate_rows` is true without a format, whose rows it would validate, see #validate_rows.
+      def validate_rows_has_format
+        errors.add(:validate_rows, "needs a format, whose rows it validates") if validate_rows && !tabular?
+      end
 
       # Replaces a format of :auto with the format of the supplied path, which its file name gives, otherwise CSV, so
       # that an upload reads its file, or the lines that its block writes, in it, see #upload_path and #write_slices.
