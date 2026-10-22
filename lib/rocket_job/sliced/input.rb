@@ -24,18 +24,29 @@ module RocketJob
       # Uploads the documents of the supplied Mongoid criteria, read with the driver of MongoDB without building a model
       # for each one: the value of the field of each document when one field is uploaded, by default its `_id`,
       # otherwise an Array of the values of the fields. Returns how many it uploaded.
+      #
+      # The documents are those that Mongoid's own query of the criteria returns, see `Mongoid::Contextual::Mongo#view`:
+      # from the collection that Mongoid reads it from, of the class of the criteria and its subclasses only, rather
+      # than its parent's too, and in its order and within its limit. None are uploaded for a criteria that Mongoid
+      # knows returns none without a query, such as `criteria.none`. The criteria of the caller is not changed.
+      #
+      # A field is read by the name that it is stored by, so that the field that `as:` aliases is read by its alias, and
+      # a dotted name reads the field of an embedded document, such as `address.city`, or of each of a list of them, as
+      # an Array. The columns replace any projection of the criteria, such as `without(:secret)`.
+      #
+      # The documents are read outside any session or transaction of the caller, so that a large upload is not bound by
+      # the time limit of a transaction. Raises ArgumentError for a criteria of embedded documents, which are read
+      # within the documents that embed them rather than queried.
       def upload_mongo_query(criteria, columns: [], slice_batch_size: nil, upload_id: nil)
-        columns = columns.blank? ? ["_id"] : columns.collect(&:to_s)
-        # Copies, so that the criteria of the caller is not changed.
-        options = criteria.options.dup
-        fields  = (options.delete(:fields) || {}).dup
-        columns.each { |col| fields[col] = 1 }
-        options[:projection] = fields
+        columns = columns.blank? ? ["_id"] : columns.collect { |column| criteria.klass.database_field_name(column) }
+        view    = mongo_query_view(criteria, columns)
+        paths   = columns.collect { |column| column.split(".") }
 
         upload(slice_batch_size: slice_batch_size, upload_id: upload_id) do |records|
           # Drop down to the mongo driver level to avoid constructing a Model for each document returned
-          criteria.klass.collection.find(criteria.selector, options).each do |document|
-            records << (columns.size == 1 ? document[columns.first] : columns.collect { |c| document[c] })
+          view&.each do |document|
+            record = paths.size == 1 ? mongo_value(document, paths.first) : paths.collect { |p| mongo_value(document, p) }
+            records << record
           end
         end
       end
@@ -158,6 +169,40 @@ module RocketJob
                                    )
         document.collection_name = collection_name if document
         document
+      end
+
+      private
+
+      # The driver's view of the documents that Mongoid's query of the criteria returns, with only the supplied
+      # columns, without the session of the caller. Nil when Mongoid knows without a query that it returns none.
+      def mongo_query_view(criteria, columns)
+        # A copy, so that the criteria of the caller is not changed. Its projection is dropped, since the columns say
+        # what to read, and MongoDB rejects the columns merged into a projection that excludes fields.
+        query = criteria.clone
+        query.options.delete(:fields)
+        context = query.only(*columns).context
+        return if context.is_a?(Mongoid::Contextual::None)
+
+        unless context.is_a?(Mongoid::Contextual::Mongo)
+          raise(ArgumentError, "Upload a query of the documents that embed #{criteria.klass.name}, since embedded " \
+                               "documents are read within them rather than queried")
+        end
+
+        view    = context.view
+        options = view.options.dup
+        options.delete(:session)
+        view.collection.find(view.filter, options)
+      end
+
+      # The value at the path of the names of the fields within the document, or an Array of the values within each
+      # document of an Array, such as `items.name` of `embeds_many :items`.
+      def mongo_value(value, path)
+        case value
+        when Hash
+          path.size == 1 ? value[path.first] : mongo_value(value[path.first], path.drop(1))
+        when Array
+          value.collect { |element| mongo_value(element, path) }
+        end
       end
     end
   end

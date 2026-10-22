@@ -31,6 +31,24 @@ QUERY_STREAMS =
 # Why a test of a streamed query is skipped, see QUERY_STREAMS.
 QUERY_STREAMS_SKIP = "IOStreams cannot stream a query on this database, such as SQLite on JRuby".freeze
 
+# An embedded document of InputQueryDoc, read with a dotted column.
+class InputQueryAddress
+  include Mongoid::Document
+
+  embedded_in :input_query_doc
+
+  field :city, type: String
+end
+
+# A list of embedded documents of InputQueryDoc, read with a dotted column.
+class InputQueryPhone
+  include Mongoid::Document
+
+  embedded_in :input_query_doc
+
+  field :number, type: String
+end
+
 # Mongoid source for upload_mongo_query.
 class InputQueryDoc
   include Mongoid::Document
@@ -39,7 +57,22 @@ class InputQueryDoc
 
   field :name, type: String
   field :age, type: Integer
+  field :c, as: :city, type: String
+
+  embeds_one :address, class_name: "InputQueryAddress"
+  embeds_many :phones, class_name: "InputQueryPhone"
 end
+
+# A subclass, whose documents share the collection of InputQueryDoc, told apart by their `_type`.
+class InputQueryChildDoc < InputQueryDoc
+end
+
+# A subclass of the subclass, whose documents are also those of InputQueryChildDoc.
+class InputQueryGrandchildDoc < InputQueryChildDoc
+end
+
+# Another collection that InputQueryDoc is read from, by `with(collection:)` or `with_collection`.
+INPUT_QUERY_OTHER_COLLECTION = "input_query_other_docs".freeze
 
 module Sliced
   class InputQueryTest < Minitest::Test
@@ -83,12 +116,14 @@ module Sliced
         input.delete_all
         InputQueryPerson.delete_all
         InputQueryDoc.delete_all
+        InputQueryDoc.mongo_client[INPUT_QUERY_OTHER_COLLECTION].drop
       end
 
       after do
         input.drop
         InputQueryPerson.delete_all
         InputQueryDoc.delete_all
+        InputQueryDoc.mongo_client[INPUT_QUERY_OTHER_COLLECTION].drop
       end
 
       describe "#upload_arel" do
@@ -215,6 +250,85 @@ module Sliced
           rows = input.collect(&:to_a).flatten(1).sort
 
           assert_equal [["Alice", 30], ["Bob", 40]], rows
+        end
+
+        it "uploads only the documents of a subclass and its own subclasses, not those of its parent" do
+          InputQueryChildDoc.create!(name: "Carol", age: 50)
+          InputQueryGrandchildDoc.create!(name: "Gina", age: 55)
+
+          assert_equal 2, input.upload_mongo_query(InputQueryChildDoc.all, columns: [:name])
+          assert_equal %w[Carol Gina], input.collect(&:to_a).flatten.sort
+        end
+
+        it "uploads from the collection that Mongoid reads the criteria from, such as within `with(collection:)`" do
+          InputQueryDoc.with(collection: INPUT_QUERY_OTHER_COLLECTION) do |klass|
+            klass.create!(name: "Dave", age: 60)
+            input.upload_mongo_query(klass.all, columns: [:name])
+          end
+
+          assert_equal %w[Dave], input.collect(&:to_a).flatten
+        end
+
+        it "uploads from the collection that `with_collection` names" do
+          InputQueryDoc.with(collection: INPUT_QUERY_OTHER_COLLECTION) { |klass| klass.create!(name: "Dave", age: 60) }
+          input.upload_mongo_query(InputQueryDoc.with_collection(INPUT_QUERY_OTHER_COLLECTION), columns: [:name])
+
+          assert_equal %w[Dave], input.collect(&:to_a).flatten
+        end
+
+        it "uploads none for a criteria that returns none" do
+          assert_equal 0, input.upload_mongo_query(InputQueryDoc.none, columns: [:name])
+          assert_equal 0, input.count
+        end
+
+        it "raises for a criteria of embedded documents" do
+          doc   = InputQueryDoc.create!(name: "Erin", phones: [InputQueryPhone.new(number: "555-0100")])
+          error = assert_raises(ArgumentError) do
+            input.upload_mongo_query(doc.phones.where(number: "555-0100"), columns: [:number])
+          end
+
+          assert_equal "Upload a query of the documents that embed InputQueryPhone, since embedded documents are " \
+                       "read within them rather than queried", error.message
+        end
+
+        it "uploads the fields of embedded documents by their dotted names" do
+          InputQueryDoc.create!(
+            name:    "Erin",
+            address: InputQueryAddress.new(city: "Boston"),
+            phones:  [InputQueryPhone.new(number: "555-0100"), InputQueryPhone.new(number: "555-0101")]
+          )
+          input.upload_mongo_query(InputQueryDoc.where(name: "Erin"), columns: ["address.city", "phones.number"])
+
+          assert_equal [["Boston", %w[555-0100 555-0101]]], input.collect(&:to_a).flatten(1)
+        end
+
+        it "replaces a projection of the criteria that excludes fields with the columns" do
+          input.upload_mongo_query(InputQueryDoc.without(:age), columns: [:name])
+
+          assert_equal %w[Alice Bob], input.collect(&:to_a).flatten.sort
+        end
+
+        it "reads outside the session of the caller" do
+          InputQueryDoc.with_session do |session|
+            # A read within this session raises Mongo::Error::SessionEnded.
+            session.end_session
+            input.upload_mongo_query(InputQueryDoc.all, columns: [:name])
+          end
+
+          assert_equal %w[Alice Bob], input.collect(&:to_a).flatten.sort
+        end
+
+        it "uploads a field by its alias" do
+          InputQueryDoc.where(name: "Alice").update_all(c: "Boston")
+          input.upload_mongo_query(InputQueryDoc.where(name: "Alice"), columns: [:city])
+
+          assert_equal %w[Boston], input.collect(&:to_a).flatten
+        end
+
+        it "uploads in the order of the criteria, and within its limit" do
+          input.upload_mongo_query(InputQueryDoc.order(age: :desc).limit(1), columns: [:name])
+
+          assert_equal %w[Bob], input.collect(&:to_a).flatten
         end
       end
     end

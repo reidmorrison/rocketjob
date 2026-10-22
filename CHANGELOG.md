@@ -293,6 +293,22 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixes
 
+- `upload` of a Mongoid query reads the documents that Mongoid's own query of the criteria returns:
+  - A query of a subclass uploads only the documents of that subclass and its own subclasses. Previously it also
+    uploaded those of its parent class and its other subclasses, which share its collection, since it read the selector
+    of the query without the `_type` that Mongoid adds.
+  - A query from `with_collection` uploads the documents of the collection that it names, rather than of the default
+    collection of its class.
+  - A query that returns none, such as `Model.none`, uploads none. Previously it uploaded every document of the
+    collection.
+  - A field that `as:` aliases is uploaded by its alias, such as `columns: [:city]` for `field :c, as: :city`, and a
+    dotted column by the field of the embedded document that it names, such as `columns: ["address.city"]`, or by an
+    Array of the field of each document that `embeds_many` embeds. Previously both uploaded nil.
+  - The columns replace a projection of the query that excludes fields, such as `without(:secret)`, which MongoDB
+    rejected merged with the columns.
+  - A query of embedded documents raises `ArgumentError`, since they are read within the documents that embed them.
+  - The documents are still read outside any session or transaction of the caller, so that a large upload is not bound
+    by the time limit of a transaction.
 - `upload` of a query or a range raises `ArgumentError` for an input category whose format reads the header row of a
   file, such as `format: :csv`, since its records are values rather than lines. Previously they were uploaded, and
   every slice failed when a worker parsed it.
