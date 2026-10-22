@@ -363,6 +363,25 @@ module Batch
           assert_equal [typed], output_records
         end
 
+        it "rejects the options of reading lines, since the lines are read in the format of the category" do
+          error = assert_raises(ArgumentError) { upload(".csv", people, delimiter: "\r\n") }
+
+          assert_equal "Input category main: :delimiter cannot be supplied when uploading a file into a category with " \
+                       "a schema, whose lines are read in its format", error.message
+          assert_equal 0, job.input.count
+        end
+
+        it "uploads the lines written to a block in the format of the file name, when the format is :auto" do
+          job.input_category.format = :auto
+          job.upload(file_name: "people.psv") do |records|
+            records << "name|age|balance|joined"
+            records << "Jack|21|12.50|2026-10-13"
+          end
+
+          assert_equal :psv, job.input.first.records.format
+          assert_equal [typed], output_records
+        end
+
         it "matches the header row to the fields whatever its case and punctuation, and keeps it as it is" do
           upload(".csv", "Name,AGE,Balance,Joined\nJack,21,12.50,2026-10-13\n")
 

@@ -2615,7 +2615,7 @@ Useful `upload` keyword options:
 | `category`     | Which input category to load into. Default: `:main`.
 | `stream_mode`  | `:line` (default) or `:hash`. See [input categories](#input-categories).
 | `file_name`    | Override the file name used to infer format and streams.
-| `delimiter`    | Record delimiter. Default: auto-detect line endings.
+| `delimiter`    | Record delimiter. Default: auto-detect line endings. Not for an input category with a `schema`, whose lines are read in its format.
 
 Files are read as UTF-8 text, since MongoDB only stores UTF-8 strings, and a UTF-8 byte order mark
 at the start of the file (as Excel writes) is removed. A file that is not valid UTF-8 raises

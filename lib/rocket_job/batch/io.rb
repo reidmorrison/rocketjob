@@ -196,7 +196,7 @@ module RocketJob
               # The block writes the lines of a file, which are read in slices, as the lines of a file are.
               category.uploading do
                 input_collection.upload(upload_id: rocketjob_upload_id) do |writer|
-                  category.each_written_slice(block) { |slice| writer.write_slice(slice) }
+                  category.write_slices(writer, &block)
                 end
               end
             else
@@ -243,8 +243,8 @@ module RocketJob
             path = category.upload_path(object, original_file_name: file_name)
 
             if category.slices?
-              rocketjob_upload_slices(input_collection, category, path, mode: mode, slice_batch_size: slice_batch_size,
-                                      **args)
+              rocketjob_check_slice_upload_options(category, args)
+              rocketjob_upload_slices(input_collection, category, path, mode: mode, slice_batch_size: slice_batch_size)
             else
               # Extract the header line during the upload when applicable.
               extract_header = category.extract_header_callback(mode: mode)
@@ -460,16 +460,27 @@ module RocketJob
       end
 
       # Uploads the file that the supplied path reads into the supplied input category, which has a schema, in the slices
-      # of its rows that IOStreams reads, each of which carries the header row of the file, see
-      # Category::Input#each_slice.
+      # of its rows that IOStreams writes to the input, each of which carries the header row of the file, see
+      # Category::Input#copy_slices.
       #
       # Returns [Integer] the number of records uploaded.
-      def rocketjob_upload_slices(input_collection, category, path, mode:, slice_batch_size:, **args)
+      def rocketjob_upload_slices(input_collection, category, path, mode:, slice_batch_size:)
         category.uploading do
           input_collection.upload(slice_batch_size: slice_batch_size, upload_id: rocketjob_upload_id) do |writer|
-            category.each_slice(path, mode: mode, **args) { |slice| writer.write_slice(slice) }
+            category.copy_slices(path, writer, mode: mode)
           end
         end
+      end
+
+      # Raises ArgumentError for the options of reading the lines of a file, such as `delimiter:`, when it is uploaded
+      # into a category with a schema, whose lines IOStreams copies in slices with those of its format, see
+      # Category::Input#copy_slices, rather than ignore them.
+      def rocketjob_check_slice_upload_options(category, args)
+        return if args.empty?
+
+        raise(ArgumentError, "Input category #{category.name}: #{args.keys.map(&:inspect).join(', ')} cannot be " \
+                             "supplied when uploading a file into a category with a schema, whose lines are read in " \
+                             "its format")
       end
 
       # Uploads the integers of the supplied range as one `[first_id, last_id]` record per slice, starting with the last
