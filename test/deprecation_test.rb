@@ -242,8 +242,52 @@ class DeprecationTest < Minitest::Test
                warnings.first
       end
 
+      it "warns at the line that uploads a file with on_first, and still calls it with the header row" do
+        header   = nil
+        line     = __LINE__ + 2
+        warnings = deprecation_warnings do
+          job.upload(StringIO.new("name\nJack\n"), file_name: "people.csv", on_first: ->(row) { header = row })
+        end
+
+        assert_equal "name", header
+        assert_equal 1, job.record_count
+        assert_equal 1, warnings.size, warnings.inspect
+        assert warnings.first.start_with?("#{__FILE__}:#{line}: warning: Rocket Job: on_first: is deprecated, and " \
+                                          "removed in Rocket Job 8"), warnings.first
+      end
+
+      it "warns at the line that uploads a block with on_first, and still leaves out the first record of JSON" do
+        job.input_category.format = :json
+        first    = nil
+        line     = __LINE__ + 2
+        warnings = deprecation_warnings do
+          job.upload(on_first: ->(record) { first = record }) do |records|
+            records << %({"name":"Control"})
+            records << %({"name":"Jack"})
+          end
+        end
+
+        assert_equal %({"name":"Control"}), first
+        assert_equal [%({"name":"Jack"})], job.input.first.to_a
+        assert_equal 1, warnings.size, warnings.inspect
+        assert warnings.first.start_with?("#{__FILE__}:#{line}: warning: Rocket Job: on_first: is deprecated"),
+               warnings.first
+      end
+
       it "does not warn for an upload without one" do
         assert_empty(deprecation_warnings { job.upload(StringIO.new("name\nJack\n"), file_name: "people.csv") })
+      end
+
+      it "does not warn for an upload with a block that leaves out the first record, which replaces on_first" do
+        job.input_category.format = :json
+        warnings = deprecation_warnings do
+          job.upload do |records|
+            [%({"name":"Control"}), %({"name":"Jack"})].each_with_index { |record, index| records << record if index.positive? }
+          end
+        end
+
+        assert_equal [%({"name":"Jack"})], job.input.first.to_a
+        assert_empty warnings
       end
     end
 

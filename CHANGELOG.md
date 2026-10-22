@@ -123,6 +123,10 @@ production stays quiet. A job read back from the database does not report one. S
   or `upload(1..1_000_000)`, also with a block. A range is uploaded in the direction that it is written, so
   `upload(first..last)` uploads a range whose `last` is less than its `first` from its last id, where
   `upload_integer_range(first, last)` uploaded nothing.
+- The `on_first:` option of `upload`, which Rocket Job 8 removes. Rocket Job reads the header row itself, and the
+  category's schema checks its columns. For a file without a header row, such as JSON or fixed width, the lambda
+  was called with the first record, which was then not uploaded: to leave it out, upload with a block that writes
+  the other lines instead.
 
 ### Fixes
 

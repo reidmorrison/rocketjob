@@ -283,6 +283,7 @@ module RocketJob
                   "Unknown keyword arguments when uploading a block. Only accepts :category, :file_name, or :on_first")
           end
 
+          rocketjob_warn_on_first if on_first
           category           = input_category(category)
           category.file_name = file_name if file_name
 
@@ -328,6 +329,7 @@ module RocketJob
             raise(ArgumentError, "Unknown keyword argument :columns when uploading a file") if columns
 
             rocketjob_warn_deprecated_upload_options(stream_mode, args)
+            rocketjob_warn_on_first if on_first
             category = input_category(category)
 
             # The path sets the format of a category whose format is :auto, which decides whether the file has a
@@ -521,6 +523,17 @@ module RocketJob
       # or documents a block can transform: a Mongoid::Criteria, or an ActiveRecord::Relation.
       def rocketjob_query?(object)
         object.is_a?(Mongoid::Criteria) || (defined?(ActiveRecord::Relation) && object.is_a?(ActiveRecord::Relation))
+      end
+
+      # Reports a deprecation warning, see RocketJob::Deprecation, at the line of the application that uploads with
+      # `on_first`, which Rocket Job 8 removes: Rocket Job reads the header row itself, and a file without one, such as
+      # JSON or fixed width, loses its first record, which a block that writes the other lines leaves out instead.
+      def rocketjob_warn_on_first
+        RocketJob::Deprecation.warn(
+          "on_first: is deprecated, and removed in Rocket Job 8: Rocket Job reads the header row itself, which the " \
+          "category's schema checks, and to leave out the first record of a file without a header row, upload with " \
+          "a block that writes the other lines, see #{RocketJob::Deprecation::UPGRADE_GUIDE}"
+        )
       end
 
       # Reports a deprecation warning, see RocketJob::Deprecation, at the line of the application that uploads a file

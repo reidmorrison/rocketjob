@@ -140,7 +140,7 @@ Useful `upload` keyword options:
 | `stream_mode`  | `:line` (default), `:array`, or `:hash`. See [input categories](#input-categories).
 | `file_name`    | Override the file name used to infer format and streams.
 | `delimiter`    | Record delimiter. Default: auto-detect line endings.
-| `on_first`     | A lambda called with the first line, for example to capture a header.
+| `on_first`     | Deprecated, and removed in v8, see [Replace on_first](upgrading.html#replace-on_first). A lambda called with the header row, or the first record of a file without one, such as JSON or fixed width, which is not uploaded.
 
 By default all data is converted to UTF-8 before being stored, since MongoDB only stores UTF-8
 strings. A Zip stream must contain only one file; the first file found is loaded. CSV and other
