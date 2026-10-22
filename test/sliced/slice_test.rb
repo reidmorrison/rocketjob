@@ -290,6 +290,36 @@ module Sliced
           assert_equal %w[Name AGE], found.records.header
         end
 
+        it "read back keep their header row when a record is replaced or removed" do
+          slice.records = rows
+          slice.save!
+          found = slices.find(slice.id)
+          found.replace_record(0, "Jack,22")
+
+          assert_equal "", found.delete_record(1)
+          found.save!
+          saved = slices.find(slice.id).records
+
+          assert_equal ["Jack,22", "Jill,22"], saved.to_a
+          assert_equal %w[Name AGE], saved.header
+          assert_equal :csv, saved.format
+        end
+
+        it "that are frozen, as IOStreams hands them on, are changed in a copy that keeps what they carry" do
+          frozen        = IOStreams::Slice.new(["Jack,21", "", "Jill,22"], header: %w[Name AGE].freeze, format: :array,
+                                               blank_rows: false).freeze
+          slice.records = frozen
+          slice.replace_record(0, "Jack,22")
+
+          assert_equal "", slice.delete_record(1)
+          assert_kind_of IOStreams::Slice, slice.records
+          assert_equal ["Jack,22", "Jill,22"], slice.records.to_a
+          assert_equal %w[Name AGE], slice.records.header
+          assert_equal :array, slice.records.format
+          refute_predicate slice.records, :blank_rows?
+          assert_equal ["Jack,21", "", "Jill,22"], frozen
+        end
+
         it "keeps the header row and format that they carry" do
           slice.records = rows
           slice.save!
