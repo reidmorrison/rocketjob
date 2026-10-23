@@ -181,12 +181,13 @@ input_category format: :csv, validate_rows: true
 job.upload("people.csv", validate_rows: true)
 ~~~
 
-* A job, a Dirmon entry or an `UploadFileJob` that v7 saved with `mode: :hash`, such as a scheduled
-  job, need not change: v8 reads it as `validate_rows: true` when its category has a format, unless
-  `validate_rows` was set too, which then applies. The format of a Dirmon entry's or an
-  `UploadFileJob`'s category is the one in its properties, otherwise the one that its job class
-  defines. Without a format `mode: :hash` had no effect, as in v7.0, so it is dropped, as is
-  `mode: :line`.
+* v8 reads a job, a Dirmon entry or an `UploadFileJob` that v7 saved with `mode: :hash`, such as a
+  scheduled job, as `validate_rows: true` when its category has a format, unless `validate_rows` was
+  set too, which then applies. The format of a Dirmon entry's or an `UploadFileJob`'s category is the
+  one in its properties, otherwise the one that its job class defines. With a schema that is what
+  `mode: :hash` did, so it need not change. Without a schema v7 did not validate the lines, so a file
+  with a line that cannot be read is now rejected: set `validate_rows: false` to keep uploading it.
+  Without a format `mode: :hash` had no effect, as in v7.0, so it is dropped, as is `mode: :line`.
 * The next time v8 saves such a job, entry or `UploadFileJob`, such as when a job runs, or Mission
   Control edits it, it saves `validate_rows` in place of `mode`, so that Mission Control shows it, and
   it can be changed like any other setting. The next run of a scheduled job is saved with it.
