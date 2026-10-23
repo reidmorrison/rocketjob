@@ -137,7 +137,8 @@ Useful `upload` keyword options:
 | Option         | Description
 |:---------------|:------------
 | `category`     | Which input category to load into. Default: `:main`.
-| `stream_mode`  | `:line` (default), `:array`, or `:hash`. See [input categories](#input-categories).
+| `validate_rows` | `true` to parse each line of the file while it is uploaded, so that a file with a line that cannot be read uploads nothing. Default: the input category's `validate_rows`. See [input categories](#input-categories).
+| `stream_mode`  | Deprecated, and removed in v8, see [Replace the :hash mode and stream_mode](upgrading.html#replace-the-hash-mode-and-stream_mode). `:line` (default), `:array`, or `:hash`.
 | `file_name`    | Override the file name used to infer format and streams.
 | `delimiter`    | Record delimiter. Default: auto-detect line endings.
 | `on_first`     | Deprecated, and removed in v8, see [Replace on_first](upgrading.html#replace-on_first). A lambda called with the header row, or the first record of a file without one, such as JSON or fixed width, which is not uploaded.
@@ -249,19 +250,37 @@ Input category options:
 | `format`           | `nil`       | Parse each record before `perform`: `nil` (raw line), `:auto`, or a tabular format such as `:csv`. See [Reading tabular files](#reading-tabular-files).
 | `format_options`   | `nil`       | Format-specific options, for example a `:layout` for `:fixed`.
 | `columns`          | `nil`       | Header columns, when the file has no header row.
-| `mode`             | `:line`     | How a file is uploaded: `:line`, `:array`, or `:hash`.
+| `validate_rows`    | `nil`       | Parse each line of a file in the category's `format` while it is uploaded, so that a file with a line that cannot be read uploads nothing. Needs a `format`.
+| `mode`             | `:line`     | Deprecated, use `validate_rows`. How a file is uploaded: `:line`, `:array`, or `:hash`.
 | `allowed_columns`  | `nil`       | Restrict tabular input to these columns; others are returned as nil.
 | `required_columns` | `nil`       | Tabular columns that must be present, or an exception is raised.
 | `skip_unknown`     | `false`     | When `allowed_columns` is set, ignore unknown columns instead of raising.
 | `header_cleanser`  | `:default`  | Cleanse tabular header column names (`:default`) or leave them as-is (`:none`).
 
-The `mode` option controls how a file is read during upload:
+A file is uploaded a line at a time, which is the most performant, since each worker parses its own
+lines. With `validate_rows: true`, each line is also parsed while the file is uploaded, so that a file
+with a line that cannot be read, or with a value that is not valid for its field in the
+[schema](#typed-values-with-a-schema), uploads nothing, and is found before any worker
+runs. The lines are still uploaded as they are. It is not recommended for very large files, since the
+lines are parsed one after another during the upload:
 
-* `:line` (default) uploads a raw line (String) at a time. This is the most performant, since each
-  worker parses its own lines.
-* `:array` parses each line into an Array before uploading. The whole file is parsed up front, so an
-  invalid file is detected before processing starts. Not recommended for very large files.
-* `:hash` parses each line into a Hash before uploading. Like `:array`, but slightly less efficient.
+~~~ruby
+class ImportJob < RocketJob::Job
+  include RocketJob::Batch
+
+  input_category format: :csv, validate_rows: true
+
+  def perform(row)
+    # ...
+  end
+end
+~~~
+
+The `validate_rows` option of `upload` overrides the category's for that upload. Only a file is
+validated, not a query or a range, nor the records that a block writes to `upload`.
+
+The `mode` option is deprecated: `validate_rows` replaces `mode: :hash`, see
+[Replace the :hash mode and stream_mode](upgrading.html#replace-the-hash-mode-and-stream_mode).
 
 ## Collecting output
 
@@ -492,9 +511,9 @@ The schema also describes the file:
   must be available to every server that runs the job.
 
 With a schema the upload stores the lines of the file, which the workers parse, so `perform` receives
-each value as its type, such as a `Date`. In the `:hash` mode each line is also parsed during the
-upload, so that a file with a value that is not valid is rejected before any worker runs. The
-`:array` mode cannot be used with a schema.
+each value as its type, such as a `Date`. With `validate_rows: true`, or in the deprecated `:hash`
+mode, each line is also parsed during the upload, so that a file with a value that is not valid is
+rejected before any worker runs. The `:array` mode cannot be used with a schema.
 
 ### Matching columns to the fields of a schema
 

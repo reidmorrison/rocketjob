@@ -170,14 +170,34 @@ class DeprecationTest < Minitest::Test
 
         assert_equal 1, warnings.size
         assert_includes warnings.first, "mode: :array is deprecated, use :line, the default"
-        assert_includes warnings.first, "or with a schema :hash"
+        assert_includes warnings.first, "and validate_rows: true to also parse every line"
       end
 
-      it "does not warn for a category defined with a schema, or in the :line or :hash mode" do
+      it "warns for the :hash mode, which validate_rows replaces" do
         warnings = deprecation_warnings do
           Class.new(DeprecatedCategoryJob) do
-            input_category name: :lines, format: :csv
             input_category format: :csv, mode: :hash, schema: {"fields" => [{"name" => "name"}]}
+          end
+        end
+
+        assert_equal 1, warnings.size
+        assert_includes warnings.first, "mode: :hash is deprecated, use validate_rows: true instead"
+      end
+
+      it "warns for the :hash mode in the properties of a Dirmon entry" do
+        job      = Class.new(DeprecatedCategoryJob) { input_category format: :csv }.new
+        warnings = deprecation_warnings { job.merge_input_categories([{"mode" => "hash"}]) }
+
+        assert_equal 1, warnings.size
+        assert_includes warnings.first, "mode: :hash is deprecated"
+        assert_equal :hash, job.input_category.mode
+      end
+
+      it "does not warn for a category defined with a schema, in the :line mode, or with validate_rows" do
+        warnings = deprecation_warnings do
+          Class.new(DeprecatedCategoryJob) do
+            input_category name: :lines, format: :csv, mode: :line
+            input_category format: :csv, validate_rows: true, schema: {"fields" => [{"name" => "name"}]}
             output_category format: :csv, schema: {"fields" => [{"name" => "name"}]}
           end
         end
@@ -216,30 +236,93 @@ class DeprecationTest < Minitest::Test
         job.cleanup!
       end
 
-      it "warns at the line that uploads a file in the :array mode" do
-        line     = __LINE__ + 2
+      # Returns the deprecation warning reported when a file is uploaded into the job's category in the supplied
+      # stream_mode.
+      def stream_mode_warning(stream_mode)
         warnings = deprecation_warnings do
-          job.upload(StringIO.new("name\nJack\n"), file_name: "people.csv", stream_mode: :array)
-        rescue StandardError
-          # v7 does not read a header row in the :array mode, which is what the warning is about.
-          nil
-        end
-
-        assert(warnings.any? { |w| w.start_with?("#{__FILE__}:#{line}: warning: Rocket Job: stream_mode: :array") },
-               warnings.inspect)
-      end
-
-      it "warns at the line that uploads a file with the options that describe its columns" do
-        # v7 reads the header row of a category with a format in :line mode only, so this one has none.
-        job.input_category.format = nil
-        line                      = __LINE__ + 2
-        warnings                  = deprecation_warnings do
-          job.upload(StringIO.new("name\nJack\n"), file_name: "people.csv", stream_mode: :hash, allowed_columns: %w[name])
+          job.upload(StringIO.new("name\nJack\n"), file_name: "people.csv", stream_mode: stream_mode)
         end
 
         assert_equal 1, warnings.size, warnings.inspect
-        assert warnings.first.start_with?("#{__FILE__}:#{line}: warning: Rocket Job: allowed_columns: is deprecated"),
-               warnings.first
+        warnings.first
+      end
+
+      it "warns at the line that uploads a file in the :array mode, and reads its header row" do
+        line     = __LINE__ + 2
+        warnings = deprecation_warnings do
+          job.upload(StringIO.new("name\nJack\n"), file_name: "people.csv", stream_mode: :array)
+        end
+
+        assert_equal 1, warnings.size, warnings.inspect
+        assert warnings.first.start_with?("#{__FILE__}:#{line}: warning: Rocket Job: stream_mode: :array"), warnings.first
+        assert_equal %w[name], job.input_category.columns
+        assert_equal 1, job.record_count
+      end
+
+      it "warns at the line that uploads a file with the options that describe its columns" do
+        # They apply to the Hashes that a file is read into, in the :hash mode of a category without a format.
+        job.input_category.format = nil
+        line                      = __LINE__ + 2
+        warnings = deprecation_warnings do
+          job.upload(StringIO.new("name\nJack\n"), file_name: "people.csv", stream_mode: :hash, allowed_columns: %w[name])
+        end
+
+        assert_equal 2, warnings.size, warnings.inspect
+        columns = warnings.find { |w| w.include?("allowed_columns:") }
+
+        assert columns.start_with?("#{__FILE__}:#{line}: warning: Rocket Job: allowed_columns: is deprecated"), columns
+      end
+
+      describe "stream_mode" do
+        it "warns at the line that uploads a file with it" do
+          line     = __LINE__ + 2
+          warnings = deprecation_warnings do
+            job.upload(StringIO.new("name\nJack\n"), file_name: "people.csv", stream_mode: :line)
+          end
+
+          assert_equal 1, warnings.size, warnings.inspect
+          assert warnings.first.start_with?("#{__FILE__}:#{line}: warning: Rocket Job: stream_mode: :line"), warnings
+        end
+
+        it "says to use validate_rows: true in place of :hash in a category with a format" do
+          assert_includes stream_mode_warning(:hash), "stream_mode: :hash is deprecated, and removed in Rocket Job 8: " \
+                                                      "use validate_rows: true in place of stream_mode: :hash"
+        end
+
+        it "says to give a category without a format format: :auto in place of :hash or :array" do
+          job.input_category.format = nil
+
+          %i[hash array].each do |mode|
+            assert_includes stream_mode_warning(mode), "removed in Rocket Job 8: give the category format: :auto in " \
+                                                       "place of stream_mode: :#{mode}"
+          end
+        end
+
+        it "says to remove :array in a category with a format, whose workers parse the lines" do
+          assert_includes stream_mode_warning(:array), "removed in Rocket Job 8: remove it, so that the workers parse"
+        end
+
+        it "says to remove :line, the default" do
+          assert_includes stream_mode_warning(:line), "removed in Rocket Job 8: remove it, since :line is the default"
+        end
+
+        it "says to use validate_rows: false in place of :line in a category that validates rows" do
+          job.input_category.validate_rows = true
+
+          assert_includes stream_mode_warning(:line), "removed in Rocket Job 8: use validate_rows: false in its place"
+        end
+
+        it "names a String stream_mode as it was supplied" do
+          assert_includes stream_mode_warning("hash"), %(stream_mode: "hash" is deprecated)
+        end
+      end
+
+      it "does not warn for an upload with validate_rows" do
+        warnings = deprecation_warnings do
+          job.upload(StringIO.new("name\nJack\n"), file_name: "people.csv", validate_rows: true)
+        end
+
+        assert_empty warnings
       end
 
       it "warns at the line that uploads a file with on_first, and still calls it with the header row" do

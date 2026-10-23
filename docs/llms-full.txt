@@ -2580,7 +2580,8 @@ Useful `upload` keyword options:
 | Option         | Description
 |:---------------|:------------
 | `category`     | Which input category to load into. Default: `:main`.
-| `stream_mode`  | `:line` (default), `:array`, or `:hash`. See [input categories](#input-categories).
+| `validate_rows` | `true` to parse each line of the file while it is uploaded, so that a file with a line that cannot be read uploads nothing. Default: the input category's `validate_rows`. See [input categories](#input-categories).
+| `stream_mode`  | Deprecated, and removed in v8, see [Replace the :hash mode and stream_mode](upgrading.html#replace-the-hash-mode-and-stream_mode). `:line` (default), `:array`, or `:hash`.
 | `file_name`    | Override the file name used to infer format and streams.
 | `delimiter`    | Record delimiter. Default: auto-detect line endings.
 | `on_first`     | Deprecated, and removed in v8, see [Replace on_first](upgrading.html#replace-on_first). A lambda called with the header row, or the first record of a file without one, such as JSON or fixed width, which is not uploaded.
@@ -2692,19 +2693,37 @@ Input category options:
 | `format`           | `nil`       | Parse each record before `perform`: `nil` (raw line), `:auto`, or a tabular format such as `:csv`. See [Reading tabular files](#reading-tabular-files).
 | `format_options`   | `nil`       | Format-specific options, for example a `:layout` for `:fixed`.
 | `columns`          | `nil`       | Header columns, when the file has no header row.
-| `mode`             | `:line`     | How a file is uploaded: `:line`, `:array`, or `:hash`.
+| `validate_rows`    | `nil`       | Parse each line of a file in the category's `format` while it is uploaded, so that a file with a line that cannot be read uploads nothing. Needs a `format`.
+| `mode`             | `:line`     | Deprecated, use `validate_rows`. How a file is uploaded: `:line`, `:array`, or `:hash`.
 | `allowed_columns`  | `nil`       | Restrict tabular input to these columns; others are returned as nil.
 | `required_columns` | `nil`       | Tabular columns that must be present, or an exception is raised.
 | `skip_unknown`     | `false`     | When `allowed_columns` is set, ignore unknown columns instead of raising.
 | `header_cleanser`  | `:default`  | Cleanse tabular header column names (`:default`) or leave them as-is (`:none`).
 
-The `mode` option controls how a file is read during upload:
+A file is uploaded a line at a time, which is the most performant, since each worker parses its own
+lines. With `validate_rows: true`, each line is also parsed while the file is uploaded, so that a file
+with a line that cannot be read, or with a value that is not valid for its field in the
+[schema](#typed-values-with-a-schema), uploads nothing, and is found before any worker
+runs. The lines are still uploaded as they are. It is not recommended for very large files, since the
+lines are parsed one after another during the upload:
 
-* `:line` (default) uploads a raw line (String) at a time. This is the most performant, since each
-  worker parses its own lines.
-* `:array` parses each line into an Array before uploading. The whole file is parsed up front, so an
-  invalid file is detected before processing starts. Not recommended for very large files.
-* `:hash` parses each line into a Hash before uploading. Like `:array`, but slightly less efficient.
+~~~ruby
+class ImportJob < RocketJob::Job
+  include RocketJob::Batch
+
+  input_category format: :csv, validate_rows: true
+
+  def perform(row)
+    # ...
+  end
+end
+~~~
+
+The `validate_rows` option of `upload` overrides the category's for that upload. Only a file is
+validated, not a query or a range, nor the records that a block writes to `upload`.
+
+The `mode` option is deprecated: `validate_rows` replaces `mode: :hash`, see
+[Replace the :hash mode and stream_mode](upgrading.html#replace-the-hash-mode-and-stream_mode).
 
 ## Collecting output
 
@@ -2935,9 +2954,9 @@ The schema also describes the file:
   must be available to every server that runs the job.
 
 With a schema the upload stores the lines of the file, which the workers parse, so `perform` receives
-each value as its type, such as a `Date`. In the `:hash` mode each line is also parsed during the
-upload, so that a file with a value that is not valid is rejected before any worker runs. The
-`:array` mode cannot be used with a schema.
+each value as its type, such as a `Date`. With `validate_rows: true`, or in the deprecated `:hash`
+mode, each line is also parsed during the upload, so that a file with a value that is not valid is
+rejected before any worker runs. The `:array` mode cannot be used with a schema.
 
 ### Matching columns to the fields of a schema
 
@@ -5739,7 +5758,8 @@ fields.
 ### Replace the :array upload mode
 
 An input category's `mode: :array`, and the `stream_mode: :array` of `upload`, are deprecated, and
-cannot be used with a schema. Use the default `:line` mode, in which each worker parses its lines:
+cannot be used with a schema. Use the default `:line` mode, in which each worker parses its lines,
+and leave out `stream_mode:`:
 
 ~~~ruby
 # Before (deprecated)
@@ -5750,11 +5770,51 @@ input_category format: :csv
 ~~~
 
 To also parse every line when the file is uploaded, so that a file with a problem is found before it
-is processed, give the category a schema and use `:hash`. Without a schema, a category whose files
-have a header row, such as CSV, cannot be uploaded in the `:hash` mode in 7.x.
+is processed, use `validate_rows: true`, see
+[Replace the :hash mode and stream_mode](#replace-the-hash-mode-and-stream_mode).
 
-With a schema, both modes upload the lines of the file, so that `#perform` receives each value as its
-type, such as a `Date`.
+### Replace the :hash mode and stream_mode
+
+An input category's `mode: :hash`, and the `stream_mode:` of `upload`, are deprecated, and removed in
+v8. An input category's `validate_rows: true`, and the `validate_rows:` of `upload`, replace them: each
+line of a file in the category's format is parsed while the file is uploaded, so that a file with a
+line that cannot be read, or with a value that is not valid for its field in the schema, uploads
+nothing. The lines are still uploaded as they are, and the workers parse them:
+
+~~~ruby
+# Before (deprecated)
+input_category format: :csv, mode: :hash, schema: "schemas/people.json"
+job.upload("people.csv", stream_mode: :hash)
+
+# After
+input_category format: :csv, validate_rows: true, schema: "schemas/people.json"
+job.upload("people.csv", validate_rows: true)
+~~~
+
+* `validate_rows` also validates the lines of a category without a schema, which `mode: :hash` did
+  not.
+* A category without a format, which `stream_mode: :hash` read a file into Hashes for, gives the
+  category `format: :auto` instead, so that the workers read each line into a Hash, in the format of
+  the file name. Leave out `stream_mode: :line`, which is the default.
+* `upload` with a block does not validate the records that it writes in 7.1, and raises for
+  `validate_rows: true`. v8 also validates the lines that the block writes.
+* Until it is removed, `stream_mode:` decides alone whether a file is validated, over the category's
+  `validate_rows`. So in a category with `validate_rows: true`, replace `stream_mode: :line` by
+  `validate_rows: false`, rather than leave it out.
+* In a category with a format, 7.1 uploads the lines of a file in `stream_mode: :hash`, reading its
+  header row, and parses each one first, as `validate_rows: true` does. 7.0 raised
+  `IOStreams::Errors::TypeMismatch` for a file with a header row, such as CSV, without a schema. 7.1
+  also reads the header row in `mode: :hash`, which 7.0 uploaded as a record, and in `mode: :array`,
+  which raised in 7.0.
+* v8 reads a job saved with `mode: :hash` in a category with a format as `validate_rows: true`, unless
+  its `validate_rows` is false. With a schema that is what `mode: :hash` did, so such a job need not
+  change. Without a schema `mode: :hash` did not validate the lines, so remove it, rather than replace
+  it, to keep uploading a file with a line that cannot be read. The
+  [schema proposals](#propose-the-schema-of-each-category) make both changes, in job classes and in
+  saved jobs, Dirmon entries and `UploadFileJob`s.
+
+Servers running v7.0 cannot read `validate_rows`, so upgrade every server before giving any Dirmon
+entry or `UploadFileJob` one.
 
 ### Replace on_first
 
@@ -5955,7 +6015,7 @@ including in the jobs that are already saved, such as a scheduled one, which cop
 
 Rocket Job reports a Ruby deprecation warning for each deprecated category option that it is given,
 naming the line of the job class that defines the category, or of the call to `upload` that supplies
-one, such as `stream_mode: :array` or `allowed_columns:`, for example:
+one, such as `stream_mode:` or `allowed_columns:`, for example:
 
 ~~~
 app/jobs/import_job.rb:5: warning: Rocket Job: allowed_columns:, skip_unknown: are deprecated, describe the columns of the file with schema: instead, see https://rocketjob.reidmorrison.com/upgrading.html#upgrading-to-v71

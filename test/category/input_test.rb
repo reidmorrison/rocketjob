@@ -33,7 +33,63 @@ module Batch
           category = RocketJob::Category::Input.new(format: :csv, schema: schema, mode: :array)
 
           refute_predicate category, :valid?
-          assert_equal ["Mode cannot be :array with a schema, use :line or :hash"], category.errors.full_messages
+          assert_equal ["Mode cannot be :array with a schema, use :line, and validate_rows: true to parse every line"],
+                       category.errors.full_messages
+        end
+      end
+
+      describe "#validate_rows" do
+        it "defaults to nil, so that false can be told apart from not set" do
+          assert_nil RocketJob::Category::Input.new.validate_rows
+        end
+
+        it "cannot be true without a format, which has no lines to validate" do
+          category = RocketJob::Category::Input.new(validate_rows: true)
+
+          refute_predicate category, :valid?
+          assert_equal ["Validate rows needs a format, whose lines it validates"], category.errors.full_messages
+          assert_predicate RocketJob::Category::Input.new(format: :csv, validate_rows: true), :valid?
+        end
+      end
+
+      describe "#upload_validates_rows?" do
+        let(:schema) { {"fields" => [{"name" => "name"}]} }
+
+        it "is the validate_rows of the upload, otherwise of the category" do
+          category = RocketJob::Category::Input.new(format: :csv, validate_rows: true)
+
+          assert_predicate category, :upload_validates_rows?
+          refute category.upload_validates_rows?(false)
+          category.validate_rows = false
+
+          refute_predicate category, :upload_validates_rows?
+          assert category.upload_validates_rows?(true)
+        end
+
+        it "is the :hash mode of a category with a schema, when neither is set, as 7.0 parsed its lines" do
+          assert_predicate RocketJob::Category::Input.new(format: :csv, schema: schema, mode: :hash), :upload_validates_rows?
+          refute_predicate RocketJob::Category::Input.new(format: :csv, schema: schema), :upload_validates_rows?
+          refute_predicate RocketJob::Category::Input.new(format: :csv, mode: :hash), :upload_validates_rows?
+        end
+
+        it "is false without a format" do
+          refute RocketJob::Category::Input.new(validate_rows: true).upload_validates_rows?(true)
+        end
+      end
+
+      describe "#check_upload" do
+        it "raises for validate_rows: true without a format, from the upload or the category" do
+          category = RocketJob::Category::Input.new
+
+          assert_raises(ArgumentError) { category.check_upload(true) }
+          category.validate_rows = true
+          error = assert_raises(ArgumentError) { category.check_upload }
+          assert_match(/validate_rows: needs a format/, error.message)
+          assert_nil category.check_upload(false)
+        end
+
+        it "does not raise with a format" do
+          assert_nil RocketJob::Category::Input.new(format: :csv, validate_rows: true).check_upload
         end
       end
 
