@@ -6391,10 +6391,21 @@ job.upload("people.csv", validate_rows: true)
   category `format: :auto` instead, so that the workers read each line into a Hash, in the format of
   the file name. Leave out `stream_mode: :line`, which is the default.
 * `upload` with a block does not validate the records that it writes in 7.1, and raises for
-  `validate_rows:`. v8 also validates the lines that the block writes.
-* A job, a Dirmon entry or an `UploadFileJob` that was saved with `mode: :hash` need not change: v8
-  reads it as `validate_rows: true` in a category with a format, unless `validate_rows` was set too,
-  which then applies.
+  `validate_rows: true`. v8 also validates the lines that the block writes.
+* Until it is removed, `stream_mode:` decides alone whether a file is validated, over the category's
+  `validate_rows`. So in a category with `validate_rows: true`, replace `stream_mode: :line` by
+  `validate_rows: false`, rather than leave it out.
+* In a category with a format, 7.1 uploads the lines of a file in `stream_mode: :hash`, reading its
+  header row, and parses each one first, as `validate_rows: true` does. 7.0 raised
+  `IOStreams::Errors::TypeMismatch` for a file with a header row, such as CSV, without a schema. 7.1
+  also reads the header row in `mode: :hash`, which 7.0 uploaded as a record, and in `mode: :array`,
+  which raised in 7.0.
+* v8 reads a job saved with `mode: :hash` in a category with a format as `validate_rows: true`, unless
+  its `validate_rows` is false. With a schema that is what `mode: :hash` did, so such a job need not
+  change. Without a schema `mode: :hash` did not validate the lines, so remove it, rather than replace
+  it, to keep uploading a file with a line that cannot be read. The
+  [schema proposals](#propose-the-schema-of-each-category) make both changes, in job classes and in
+  saved jobs, Dirmon entries and `UploadFileJob`s.
 
 Servers running v7.0 cannot read `validate_rows`, so upgrade every server before giving any Dirmon
 entry or `UploadFileJob` one.
