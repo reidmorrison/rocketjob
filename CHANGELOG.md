@@ -82,7 +82,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - An input category's `validate_rows: true`, and the `validate_rows:` of `upload`, replace its `mode: :hash` and the
   `stream_mode:` of `upload`: each line of a file in the category's format is parsed while it is uploaded, so that a
   file with a line that cannot be read uploads nothing, and the slices hold the lines. A category's `mode` is still
-  read, so a saved `mode: :hash` validates the rows of a file in a format, and has no effect without one, as in 7.0.
+  read, so a saved `mode: :hash` validates the rows of a file in a format, unless the category's `validate_rows` is
+  false, and has no effect without one, as in 7.0. A query or a range is not validated.
   `stream_mode:` raises `ArgumentError`, with any value. Its `:hash` read a file into a category without a format as
   Hashes: set the category's `format: :auto` instead. `validate_rows: true` without a format raises `ArgumentError`,
   and is not valid on a category. `Category::Input#check_upload` and `#upload_validates_rows?` replace

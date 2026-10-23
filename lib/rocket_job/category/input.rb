@@ -41,9 +41,13 @@ module RocketJob
       # Use it when the entire file must be validated before processing is started, and upload time is not important,
       # since the rows are parsed one after another while the file is uploaded.
       #
-      # Needs a format: a category without one uploads each record as it is, see #each_record.
-      # Default: false
-      field :validate_rows, type: ::Mongoid::Boolean, default: false
+      # Needs a format: a category without one uploads each record as it is, see #each_record. Only a file, and the lines
+      # that the block of an upload writes, are validated: a query or a range uploads values, rather than the rows of a
+      # file, see RocketJob::Batch::IO#upload.
+      #
+      # Default: nil, which validates the rows when the category holds the :hash `mode` that Rocket Job 7 saved, see
+      # #mode. Set it to false so that such a category does not validate them.
+      field :validate_rows, type: ::Mongoid::Boolean
       validate :validate_rows_has_format
 
       # How Rocket Job 7 uploaded a file, which `validate_rows` replaces, see #upload_validates_rows?. Rocket Job v8
@@ -240,13 +244,13 @@ module RocketJob
       # Raises ArgumentError for any other options of the upload, such as `delimiter:`, which read the lines of a file
       # without a format, see #each_record, since the lines of this category's files are read in its format. Also
       # raises ArgumentError when this category cannot read a file, see #slice_target.
-      def copy_slices(path, writer, validate_rows: upload_validates_rows?, **args)
+      def copy_slices(path, writer, validate_rows: nil, **args)
         unless args.empty?
           raise(ArgumentError, "Input category #{name}: #{args.keys.map(&:inspect).join(', ')} cannot be supplied " \
                                "when uploading a file in the #{format.inspect} format, whose lines are read in it")
         end
 
-        slice_target(writer).copy_from(path, mode: :line, validate: validate_rows)
+        slice_target(writer).copy_from(path, mode: :line, validate: upload_validates_rows?(validate_rows))
       end
 
       # Yields to the supplied block of an upload, see RocketJob::Batch::IO#upload, the writer of the lines of a file,
@@ -260,27 +264,29 @@ module RocketJob
       #
       # Raises ArgumentError for a record written to the writer that is not a line, such as a Hash, and when this
       # category cannot read the lines, see #slice_target.
-      def write_slices(writer, validate_rows: upload_validates_rows?, &block)
+      def write_slices(writer, validate_rows: nil, &block)
         detect_format(file_name)
-        slice_target(writer).writer(:line, validate: validate_rows) do |lines|
+        slice_target(writer).writer(:line, validate: upload_validates_rows?(validate_rows)) do |lines|
           block.call(EncodedLines.new(lines) { tabular.header? })
         end
       end
 
-      # Yields each line read from the supplied path, for a category without a format, whose files are not uploaded in
-      # slices, see #slices?, and whose records `#perform` receives as they are, see #parse.
+      # Yields each record read from the supplied path, for a category whose files are not uploaded in slices, see
+      # #slices?: each line without a format, whose records `#perform` receives as they are, see #parse, otherwise each
+      # row as a Hash, read in the category's format, such as Parquet, whose rows are not lines.
       def each_record(path, **args, &)
-        path.each(:line, **args, &)
+        path.each(tabular? ? :hash : :line, **args, &)
       end
 
       # Returns [true|false] whether an upload into this category parses each row of its file as it uploads it: the
-      # supplied `validate_rows:` of the upload, unless it is nil, otherwise this category's, see #validate_rows, or the
-      # :hash `mode` that Rocket Job 7 saved, see #mode. Always false without a format, which has no rows to parse.
+      # supplied `validate_rows:` of the upload, unless it is nil, otherwise this category's, see #validate_rows, unless
+      # it is nil too, otherwise whether it holds the :hash `mode` that Rocket Job 7 saved, see #mode. Always false
+      # without a format, which has no rows to parse.
       def upload_validates_rows?(validate_rows = nil)
         return false unless tabular?
-        return validate_rows unless validate_rows.nil?
 
-        self.validate_rows || mode == :hash
+        validate_rows = validate_rows_setting(validate_rows)
+        validate_rows.nil? ? mode == :hash : validate_rows
       end
 
       # Raises ArgumentError when a file, or the lines that the block of an upload writes, cannot be uploaded into this
@@ -293,7 +299,7 @@ module RocketJob
           raise(ArgumentError, "Input category #{name}: validate_rows: must be true or false, not #{validate_rows.inspect}")
         end
         raise(ArgumentError, "Input category #{name}: #{self.class.removed_options_message(%w[mode])}") if mode == :array
-        return if tabular? || !(validate_rows.nil? ? self.validate_rows : validate_rows)
+        return if tabular? || !validate_rows_setting(validate_rows)
 
         raise(ArgumentError, "Input category #{name}: validate_rows: needs a format, whose rows it validates, such as " \
                              ":auto, which reads a file in the format of its file name")
@@ -338,6 +344,12 @@ module RocketJob
       # Adds an error when `validate_rows` is true without a format, whose rows it would validate, see #validate_rows.
       def validate_rows_has_format
         errors.add(:validate_rows, "needs a format, whose rows it validates") if validate_rows && !tabular?
+      end
+
+      # Returns [true|false|nil] the supplied `validate_rows:` of an upload, unless it is nil, otherwise this category's,
+      # see #validate_rows, which is nil when neither is set, see #upload_validates_rows?.
+      def validate_rows_setting(validate_rows)
+        validate_rows.nil? ? self.validate_rows : validate_rows
       end
 
       # Replaces a format of :auto with the format of the supplied path, which its file name gives, otherwise CSV, so

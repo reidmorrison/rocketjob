@@ -338,7 +338,7 @@ Input category options:
 | `schema`           | `nil`       | The fields of each record and their types, and which columns a file can and must have. Also gives the position of each field of a `:fixed` file. See [Typed values with a schema](#typed-values-with-a-schema) and [Validating columns](#validating-columns).
 | `encoding`         | `nil`       | The encoding of the files, such as `"Windows-1252"`, which is converted to UTF-8. `nil` reads UTF-8, or the format's own encoding, such as ASCII for `:fixed`. Name the byte order of UTF-16 or UTF-32, such as `"UTF-16LE"`. See [Files](#files).
 | `invalid_characters` | `nil`     | What to do with a character that is not valid in the file's encoding: `:remove`, `:replace` with U+FFFD, or `:raise`. `nil` removes them from tabular formats, such as CSV, and raises for `:fixed` and lines.
-| `validate_rows`    | `false`     | Parse each row of a file in the category's `format` while it is uploaded, so that a file with a row that cannot be read is rejected before processing starts. Needs a `format`.
+| `validate_rows`    | `nil`       | Parse each row of a file in the category's `format` while it is uploaded, so that a file with a row that cannot be read is rejected before processing starts. Needs a `format`. `nil` validates them for a `mode: :hash` that v7 saved, and `false` does not.
 | `columns`          | `nil`       | The header row of a file that Rocket Job 7 uploaded without a `schema`, which the workers read its lines by. Not set by v8, since each slice holds the header row of its file.
 
 The options `allowed_columns`, `required_columns`, `skip_unknown` and `header_cleanser`, and setting
@@ -371,8 +371,10 @@ end
 ~~~
 
 The `validate_rows` option of `upload` overrides the category's for that upload. It replaces the
-`mode: :hash` of v7, which v8 still reads as `validate_rows: true`, see
-[Upgrading to v8](upgrading.html#replace-the-hash-mode-with-validate_rows).
+`mode: :hash` of v7, which v8 still reads as `validate_rows: true` while the category's
+`validate_rows` is not set, see [Upgrading to v8](upgrading.html#replace-the-hash-mode-with-validate_rows).
+Only a file, and the lines that a block writes, are validated: a query or a range uploads values
+rather than rows.
 
 ### More than one file
 

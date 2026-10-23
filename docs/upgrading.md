@@ -185,8 +185,16 @@ job.upload("people.csv", validate_rows: true)
 * `stream_mode:` raises `ArgumentError`, with any value, since `validate_rows:` replaces it.
 * `stream_mode: :hash` read a file into a category without a format as Hashes, in the format of its
   file name. Set the category's `format: :auto` instead, which reads a file in the format of its file
-  name, otherwise CSV, so that `#perform` receives the same Hashes. `validate_rows: true` needs a
-  format, and raises `ArgumentError` without one.
+  name, otherwise CSV, so that `#perform` receives the same Hashes, apart from the columns of a
+  header row that IOStreams 3.0 cleanses differently, see
+  [A header row is cleansed as IOStreams 3.0 cleanses it](#a-header-row-is-cleansed-as-iostreams-30-cleanses-it).
+  `validate_rows: true` needs a format, and raises `ArgumentError` without one.
+* A category's `validate_rows: false` is used in place of its `mode: :hash`, so that a job class can
+  stop validating the rows of the files of saved jobs and Dirmon entries with it. Left unset, the
+  `mode` decides.
+* `validate_rows:` applies to a file, and the lines that the block of `upload` writes. A query or a
+  range uploads values rather than rows, so `upload` raises `ArgumentError` for `validate_rows: true`
+  with one, and the category's `validate_rows` does not apply to it.
 
 ### An Active Record query is streamed
 

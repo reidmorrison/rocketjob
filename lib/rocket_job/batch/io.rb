@@ -59,8 +59,9 @@ module RocketJob
       #     that a file with a row that cannot be read, or with a value that is not valid for its field, is rejected
       #     before any of it is processed. The slices still hold the lines, which the workers parse.
       #     Raises ArgumentError when true for an input category without a format, whose records are uploaded as they
-      #     are.
-      #     Default: The input category's `validate_rows`, which defaults to false.
+      #     are, or for a query or a range, which upload values rather than the rows of a file, so that the category's
+      #     `validate_rows` does not apply to them either.
+      #     Default: The input category's `validate_rows`, see RocketJob::Category::Input#upload_validates_rows?.
       #
       #   `stream_mode:` was removed in Rocket Job v8, and raises ArgumentError: `validate_rows: true` replaces
       #   `stream_mode: :hash`, and for a category without a format, its `format: :auto` reads a file into Hashes.
@@ -206,7 +207,7 @@ module RocketJob
               if category.slices?
                 # The block writes the lines of a file, which are read in slices, as the lines of a file are.
                 input_collection.upload(upload_id: rocketjob_upload_id) do |writer|
-                  category.write_slices(writer, validate_rows: category.upload_validates_rows?(validate_rows), &block)
+                  category.write_slices(writer, validate_rows: validate_rows, &block)
                 end
               else
                 input_collection.upload(upload_id: rocketjob_upload_id, &block)
@@ -215,8 +216,9 @@ module RocketJob
           return rocketjob_add_record_count(count)
         end
 
-        # The options that only apply to a file, which a range or a query rejects.
-        file_options = args.merge(file_name: file_name, validate_rows: validate_rows).compact
+        # The options that only apply to a file, which a range or a query rejects: `validate_rows: false` asks for
+        # nothing that it does not do, since it uploads values, rather than the rows of a file.
+        file_options = args.merge(file_name: file_name, validate_rows: validate_rows || nil).compact
         count =
           case object
           when Range
@@ -251,7 +253,7 @@ module RocketJob
 
               if category.slices?
                 rocketjob_upload_slices(input_collection, category, path,
-                                        validate_rows:    category.upload_validates_rows?(validate_rows),
+                                        validate_rows:    validate_rows,
                                         slice_batch_size: slice_batch_size, **args)
               else
                 input_collection.upload(slice_batch_size: slice_batch_size, upload_id: rocketjob_upload_id) do |io|

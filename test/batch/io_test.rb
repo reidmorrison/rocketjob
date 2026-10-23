@@ -337,6 +337,10 @@ module Batch
                        error.message
         end
 
+        it "accepts validate_rows: false when uploading a Range, which uploads values rather than rows" do
+          assert_equal 10, job.upload(1..10, validate_rows: false)
+        end
+
         it "rejects keyword arguments when uploading a Range" do
           assert_raises(ArgumentError) { job.upload(1..10, file_name: "x.txt") }
         end

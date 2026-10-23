@@ -207,6 +207,29 @@ module Batch
         end
       end
 
+      describe "#upload_validates_rows?" do
+        it "is the validate_rows of the upload, else of the category, else the :hash mode that Rocket Job 7 saved" do
+          category = RocketJob::Category::Input.new(format: :csv)
+
+          refute_predicate category, :upload_validates_rows?
+          assert category.upload_validates_rows?(true)
+
+          category.mode = :hash
+
+          assert_predicate category, :upload_validates_rows?
+          refute category.upload_validates_rows?(false)
+
+          category.validate_rows = false
+
+          refute_predicate category, :upload_validates_rows?
+          assert category.upload_validates_rows?(true)
+        end
+
+        it "is false without a format, which has no rows to validate" do
+          refute RocketJob::Category::Input.new(mode: :hash).upload_validates_rows?(true)
+        end
+      end
+
       describe "#check_upload" do
         it "accepts the validate_rows of an upload into a category with a format" do
           category = RocketJob::Category::Input.new(format: :csv)

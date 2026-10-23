@@ -99,6 +99,25 @@ module Batch
           assert_equal 0, job.input.count
         end
 
+        it "reads a file with format: :auto into the Hashes that stream_mode: :hash read without a format in v7" do
+          job.input_category.format = :auto
+
+          assert_equal 2, upload(".csv", csv)
+
+          assert_equal [
+            {"name" => "Jack", "age" => "21", "extra" => "x"},
+            {"name" => "Jill", "age" => "22", "extra" => "y"}
+          ], output_records
+        end
+
+        it "reads a JSON file with format: :auto into the Hashes that stream_mode: :hash read in v7, with their keys" do
+          job.input_category.format = :auto
+
+          assert_equal 2, upload(".json", json)
+
+          assert_equal [{"Name" => "Jack", "age" => 21, "extra" => "x"}, {"name" => "Jill", "age" => 22}], output_records
+        end
+
         it "processes the arrays of a file that Rocket Job 7 uploaded in :array mode" do
           job.input_category.columns = %w[name age extra]
           job.upload_slice([%w[Jack 21 x], %w[Jill 22 y]])
@@ -152,6 +171,13 @@ module Batch
 
             assert_raises(CSV::MalformedCSVError) { upload(".csv", malformed) }
             assert_equal 3, upload(".csv", malformed, validate_rows: false)
+          end
+
+          it "of the category, when false, is used in place of the :hash mode that Rocket Job 7 saved" do
+            job.input_category.mode          = :hash
+            job.input_category.validate_rows = false
+
+            assert_equal 3, upload(".csv", malformed)
           end
 
           it "rejects a line written to the block of an upload that cannot be parsed, and uploads nothing" do
