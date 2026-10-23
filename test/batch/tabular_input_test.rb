@@ -806,9 +806,10 @@ module Batch
             [nil, :hash].each do |stream_mode|
               error = assert_raises(ArgumentError) { upload(".csv", "Jack,21,x\n", stream_mode: stream_mode) }
 
-              assert_includes error.message, "Input category main holds columns that no upload read from a file. " \
-                                             "Clear them when Rocket Job 7 copied them from an earlier run of a " \
-                                             "scheduled job."
+              assert_includes error.message, "Input category main holds columns, which Rocket Job v8 never sets, " \
+                                             "so a file cannot be uploaded into it without a schema. When Rocket " \
+                                             "Job 7 uploaded a file into this category of a job that is still " \
+                                             "running, upload the next file into a new job"
             end
             assert_equal 0, job.input.count
             assert_equal %w[name age extra], job.input_category.columns
@@ -823,6 +824,16 @@ module Batch
             assert_equal 0, job.input.count
           end
 
+          it "restore the file name of an upload that raises" do
+            job.input_category.columns   = nil
+            job.input_category.file_name = "a.csv"
+            assert_raises(RuntimeError) do
+              job.upload(file_name: "b.csv") { |_lines| raise("boom") }
+            end
+
+            assert_equal "a.csv", job.input_category.file_name.to_s
+          end
+
           it "are not needed once they are cleared, since each slice holds the header row of its file" do
             job.input_category.columns = nil
             upload(".csv", csv)
@@ -830,6 +841,26 @@ module Batch
             assert_nil job.input_category.columns
             assert_equal %w[Name Age Extra], job.input.first.records.header
           end
+        end
+      end
+
+      describe "a format whose rows are Ruby objects" do
+        it "uploads each Hash written to a block in the :hash format as it is" do
+          job.input_category.format = :hash
+          records                   = [{"name" => "Jack", "age" => 21}, {"name" => "Jill", "age" => 22}]
+
+          assert_equal(2, job.upload { |io| records.each { |record| io << record } })
+
+          assert_equal records, job.input.first.to_a
+        end
+
+        it "uploads each Array written to a block in the :array format as it is" do
+          job.input_category.format = :array
+          rows                      = [%w[name age], ["Jack", 21]]
+
+          assert_equal(2, job.upload { |io| rows.each { |row| io << row } })
+
+          assert_equal rows, job.input.first.to_a
         end
       end
 

@@ -245,6 +245,26 @@ module Batch
         end
       end
 
+      describe "#slices?" do
+        it "uploads the lines of a format of text in slices, also without a schema" do
+          %i[csv psv json fixed].each do |format|
+            assert_predicate RocketJob::Category::Input.new(format: format), :slices?, format
+          end
+        end
+
+        it "uploads each record as it is without a format, or in a format whose rows are Ruby objects or not lines" do
+          [nil, :hash, :array, :parquet].each do |format|
+            refute_predicate RocketJob::Category::Input.new(format: format), :slices?, format.inspect
+          end
+        end
+
+        it "reads a format of :auto from the file name, otherwise CSV" do
+          assert_predicate RocketJob::Category::Input.new(format: :auto), :slices?
+          assert_predicate RocketJob::Category::Input.new(format: :auto, file_name: "a.json"), :slices?
+          refute_predicate RocketJob::Category::Input.new(format: :auto, file_name: "a.parquet"), :slices?
+        end
+      end
+
       describe "#parse_records" do
         let(:schema) { {"fields" => [{"name" => "name"}, {"name" => "age", "type" => "integer"}]} }
 

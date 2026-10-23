@@ -120,13 +120,30 @@ module Batch
           assert_equal 0, job.input.count
         end
 
-        it "rejects a line written with a block in a format that is not valid UTF-8, and leaves no partial upload" do
+        it "numbers a line written with a block in a format that is not valid UTF-8, and leaves no partial upload" do
           job.input_category.format = :csv
           records                   = ["name", "Jack", "Jos\xE9"]
 
-          # IOStreams reads the line in the format, before it reaches the slice that would hold it.
-          assert_raises(ArgumentError) { job.upload { |io| records.each { |record| io << record } } }
+          error = assert_raises(EncodingError) { job.upload { |io| records.each { |record| io << record } } }
+
+          assert_equal "Cannot upload record 2 after the header, since it is not valid UTF-8 text", error.message
           assert_equal 0, job.input.count
+        end
+
+        it "names a header row written with a block that is not valid UTF-8" do
+          job.input_category.format = :csv
+
+          error = assert_raises(EncodingError) { job.upload { |io| io << "nam\xE9" } }
+
+          assert_equal "Cannot upload the header, since it is not valid UTF-8 text", error.message
+        end
+
+        it "numbers a line without a header row written with a block that is not valid UTF-8" do
+          job.input_category.format = :json
+
+          error = assert_raises(EncodingError) { job.upload { |io| io << %({"a":1}) << %({"a":"\xE9"}) } }
+
+          assert_equal "Cannot upload record 2, since it is not valid UTF-8 text", error.message
         end
 
         it "names a binary record within a hash" do

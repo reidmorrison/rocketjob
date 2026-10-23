@@ -75,7 +75,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   uploaded once each one is parsed, rather than as Hashes. A Hash written to the block of `upload`, which writes the
   lines of a file into such a category, raises `ArgumentError`, as does an Array of the values of a row, which Rocket
   Job 7 read too, and options that read the lines of a file, such as `delimiter:`, and a schema set on the path of the
-  upload. A category without a format uploads each record as it is. The lines of a CSV file that `upload_slice` uploads
+  upload. A category without a format, or in a format whose rows are not lines, such as `:hash`, `:array` or
+  Parquet, uploads each record as it is. The lines of a CSV file that `upload_slice` uploads
   after a file are no longer read by the header row of that file, which the category no longer keeps. See the upgrade
   guide.
 - `RocketJob::Plugins::Transaction` wraps each slice of a batch job in a transaction, and

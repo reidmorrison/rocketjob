@@ -120,11 +120,12 @@ module RocketJob
       # knows which record failed.
       #
       # Raises ArgumentError when this category was saved before Rocket Job v8 with an option that v8 removed, see
-      # Category::Base#check_removed_options.
+      # Category::Base#check_removed_options, which is checked once for each instance of the category, rather than for
+      # each slice that a worker processes, since the options that a saved category holds do not change.
       def parse_records(records, &)
         return records.each { |record| yield parse(record) } unless records.is_a?(IOStreams::Slice)
 
-        check_removed_options
+        @removed_options_checked ||= check_removed_options || true
         IOStreams.stream(records).schema(schema_descriptor).each(:hash, &)
       end
 
@@ -205,10 +206,15 @@ module RocketJob
 
       # Returns [true|false] whether a file, or the lines that the block of an upload writes, is uploaded into this
       # category in slices of its rows, which carry the header row of their file and its format, see #copy_slices: when
-      # it has a tabular format, see #tabular?, with or without a schema. Otherwise each record is uploaded as it is, see
-      # #each_record, and passed to `#perform` as it is, see #parse.
+      # it has a tabular format whose rows are lines of text, such as CSV or JSON, with or without a schema. Otherwise
+      # each record is uploaded as it is, see #each_record: without a format, in a format whose rows are Ruby objects,
+      # such as :hash or :array, which the block of an upload writes, or in a format whose rows are not lines, such as
+      # Parquet. A format of :auto is that of the file name, otherwise CSV, see #detect_format.
       def slices?
-        tabular?
+        return false unless tabular?
+
+        format = upload_format
+        IOStreams::Tabular.lines?(format) && IOStreams::Tabular.parser_class(format).value_form != :typed
       end
 
       # Writes the file that the supplied path reads, see #upload_path, to the supplied store of slices, see
@@ -241,9 +247,11 @@ module RocketJob
       #
       # Raises ArgumentError for a record written to the writer that is not a line, such as a Hash, and when this
       # category cannot read the lines, see #slice_target.
-      def write_slices(writer, &)
+      def write_slices(writer, &block)
         detect_format(file_name)
-        slice_target(writer).writer(:line, validate: mode != :line, &)
+        slice_target(writer).writer(:line, validate: mode != :line) do |lines|
+          block.call(EncodedLines.new(lines) { tabular.header? })
+        end
       end
 
       # Yields each record read from the supplied path in the supplied mode, see #mode, for a category without a format,
@@ -309,6 +317,51 @@ module RocketJob
       def detect_format(path)
         self.format = path&.format || :csv if format == :auto
       end
+
+      # Returns [Symbol] this category's format, or the format of its file name when it is :auto, otherwise CSV, which an
+      # upload replaces :auto with, see #detect_format.
+      def upload_format
+        format == :auto ? file_name&.format || :csv : format
+      end
+
+      # The writer of the lines that the block of an upload writes, see #write_slices, which numbers them, so that a line
+      # that is not valid in its encoding raises EncodingError naming the record, as IOStreams would only say that the
+      # text is not valid, before IOStreams reads it in the category's format. The supplied block returns whether the
+      # first line is a header row, which is only asked for such a line.
+      class EncodedLines
+        def initialize(lines, &header)
+          @lines  = lines
+          @header = header
+          @count  = 0
+        end
+
+        # Writes the supplied line, see `IOStreams::Slice::TargetStream#writer`.
+        #
+        # Raises EncodingError for a String that is not valid in its encoding, such as UTF-8 text with a byte of Latin-1,
+        # numbering the record as the job does, see Sliced::Writer::Input: after the header row, when the format has one.
+        def <<(line)
+          @count += 1
+          if line.is_a?(String) && !line.valid_encoding?
+            raise(EncodingError, "Cannot upload #{record_name}, since it is not valid #{line.encoding} text")
+          end
+
+          @lines << line
+          self
+        end
+
+        alias write <<
+
+        private
+
+        # Returns [String] the name of the line last written: the header, or the record that it is.
+        def record_name
+          return "record #{@count}" unless @header.call
+          return "the header" if @count == 1
+
+          "record #{@count - 1} after the header"
+        end
+      end
+      private_constant :EncodedLines
 
       # Returns [IOStreams::Stream] that writes lines to the supplied store of slices, see Sliced::Writer::Input, by this
       # category's schema, when it has one, in its format, which an upload has detected when it was :auto, see
@@ -382,9 +435,11 @@ module RocketJob
         return if columns.blank?
 
         raise(ArgumentError,
-              "Input category #{name} holds columns that no upload read from a file. Clear them when Rocket Job 7 " \
-              "copied them from an earlier run of a scheduled job. Otherwise they are the columns of a file without a " \
-              "header row: #{self.class.removed_options_message(%w[columns])}")
+              "Input category #{name} holds columns, which Rocket Job v8 never sets, so a file cannot be uploaded " \
+              "into it without a schema. When Rocket Job 7 uploaded a file into this category of a job that is " \
+              "still running, upload the next file into a new job, since this one reads its lines by those columns. " \
+              "When Rocket Job 7 copied them from an earlier run of a scheduled job, clear them. Otherwise they are " \
+              "the columns of a file without a header row: #{self.class.removed_options_message(%w[columns])}")
       end
     end
   end

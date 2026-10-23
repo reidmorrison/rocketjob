@@ -191,12 +191,13 @@ module RocketJob
                   "Unknown keyword arguments when uploading a block. Only accepts :category, or :file_name")
           end
 
-          category           = input_category(category)
-          category.file_name = file_name if file_name
+          category = input_category(category)
           category.upload_mode
 
+          # Restores the file name that the upload sets when it raises, see Category::Input#uploading.
           count =
             category.uploading do
+              category.file_name = file_name if file_name
               if category.slices?
                 # The block writes the lines of a file, which are read in slices, as the lines of a file are.
                 input_collection.upload(upload_id: rocketjob_upload_id) do |writer|

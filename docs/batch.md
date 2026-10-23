@@ -289,11 +289,12 @@ Each record must serialize to BSON (`Hash`, `Array`, `String`, `Integer`, `Float
 `Time`. Use a `String` rather than a `Symbol`, which MongoDB deprecated. With a `Hash`, keys must be
 strings, not symbols.
 
-For an input category with a `format`, such as CSV, the block writes the lines of a file: its header
-row first, when the file has one, then its rows. They are read as the lines of a file are, in slices
+For an input category with a `format` whose rows are lines of text, such as CSV or JSON, the block
+writes the lines of a file: its header row first, when the file has one, then its rows. They are read as the lines of a file are, in slices
 that each hold the header row. Writing anything other than a line, such as an `Array` of the values
 of a row, or a `Hash`, raises `ArgumentError`: write each row as a line of the format, such as
-`row.to_csv`, or upload it into a category without a `format`, which passes it to `perform` as it is. With a `schema`, a header row that does not match it raises
+`row.to_csv`, or upload it into a category without a `format`, which passes it to `perform` as it is. In the `:hash`
+and `:array` formats, whose rows are Ruby objects, the block writes each record as it is instead. With a `schema`, a header row that does not match it raises
 `IOStreams::Errors::InvalidHeader`, and nothing is uploaded:
 
 ~~~ruby

@@ -226,7 +226,7 @@ module Plugins
             error = assert_raises(ArgumentError) do
               restarted.upload(StringIO.new("name,zip\nJill,02101\n"), file_name: "b.csv")
             end
-            assert_includes error.message, "Input category main holds columns that no upload read from a file"
+            assert_includes error.message, "Input category main holds columns, which Rocket Job v8 never sets"
           ensure
             RocketJob::Job.destroy_all
           end
