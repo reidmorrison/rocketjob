@@ -35,7 +35,8 @@ development:
 test:
   clients:
     default: &default_test
-      uri: mongodb://127.0.0.1:27017/rocketjob_test
+      # TEST_DATABASE in test/test_helper.rb sets it for each git worktree.
+      uri: mongodb://127.0.0.1:27017/<%= ENV.fetch("ROCKETJOB_TEST_DATABASE", "rocketjob_test") %>
       options:
         <<: *client_options
     rocketjob:
