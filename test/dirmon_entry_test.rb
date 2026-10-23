@@ -85,7 +85,7 @@ class DirmonEntryTest < Minitest::Test
 
     describe ".config" do
       it "support multiple databases" do
-        assert_equal "rocketjob_test", RocketJob::DirmonEntry.collection.database.name
+        assert_equal TEST_DATABASE, RocketJob::DirmonEntry.collection.database.name
       end
     end
 
