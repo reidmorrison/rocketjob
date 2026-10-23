@@ -172,7 +172,8 @@ module Batch
 
             assert_equal 3, job.upload(csv_file)
 
-            assert_equal csv_columns, job.input_category.columns
+            assert_nil job.input_category.columns
+            assert_equal csv_columns, job.input.first.records.header
 
             result = job.input.collect(&:to_a).join("\n") + "\n"
 
@@ -184,7 +185,8 @@ module Batch
 
             assert_equal 3, job.upload(csv_file)
 
-            assert_equal csv_columns, job.input_category.columns
+            assert_equal :csv, job.input_category.format
+            assert_equal csv_columns, job.input.first.records.header
 
             result = job.input.collect(&:to_a).join("\n") + "\n"
 
@@ -326,7 +328,17 @@ module Batch
         end
 
         it "rejects stream options when uploading a block" do
-          assert_raises(ArgumentError) { job.upload(stream_mode: :array) { |io| io << "x" } }
+          assert_raises(ArgumentError) { job.upload(delimiter: ",") { |io| io << "x" } }
+        end
+
+        it "rejects validate_rows when uploading a Range or a query" do
+          error = assert_raises(ArgumentError) { job.upload(1..10, validate_rows: true) }
+          assert_equal "Unknown keyword arguments when uploading a Range. Only accepts :category, or :slice_batch_size",
+                       error.message
+        end
+
+        it "accepts validate_rows: false when uploading a Range, which uploads values rather than rows" do
+          assert_equal 10, job.upload(1..10, validate_rows: false)
         end
 
         it "rejects keyword arguments when uploading a Range" do

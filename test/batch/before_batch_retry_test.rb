@@ -64,7 +64,6 @@ module Batch
         assert_equal :before, @job.sub_state
         assert_equal 1, @job.input.count
         assert_equal 2, @job.record_count
-        assert @job.input_category.header_uploaded
       end
 
       it "removes what they uploaded, and restores the job, when it is retried" do
@@ -75,8 +74,6 @@ module Batch
         assert_predicate @job, :queued?
         assert_equal 0, @job.input.count
         assert_nil @job.record_count
-        assert_nil @job.input_category.columns
-        refute @job.input_category.header_uploaded
         assert_nil @job.before_batch_state
       end
 
@@ -87,7 +84,6 @@ module Batch
 
         assert_predicate @job, :completed?, -> { @job.as_document.ai }
         assert_equal 2, @job.record_count
-        assert_equal %w[name age], @job.input_category.columns
         assert_nil @job.before_batch_state
         output = []
         @job.output.each { |slice| output.concat(slice.to_a) }
@@ -127,7 +123,6 @@ module Batch
 
         assert_predicate @job, :queued?
         assert_equal 0, @job.input.count
-        refute @job.input_category.header_uploaded
       end
 
       it "leaves a job saved before before_batch_state as it is when it is retried" do

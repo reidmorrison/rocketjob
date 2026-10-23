@@ -2,6 +2,7 @@ require_relative "../test_helper"
 
 module Batch
   # How tabular input is read during upload, in each mode, and parsed by the workers, with and without a schema.
+  # Every file of a tabular format is uploaded in slices that each hold its header row, see IOStreams::Slice.
   class TabularInputTest < Minitest::Test
     class TabularJob < RocketJob::Job
       include RocketJob::Batch
@@ -46,21 +47,35 @@ module Batch
         job.output.collect(&:to_a).flatten(1)
       end
 
-      describe "mode" do
-        it "uploads lines by default" do
+      describe "upload" do
+        it "uploads lines by default, in slices that hold the header row of the file, as it is" do
           assert_equal 2, upload(".csv", csv)
 
-          assert_equal %w[name age extra], job.input_category.columns
+          assert_nil job.input_category.columns
+          assert_equal %w[Name Age Extra], job.input.first.records.header
           assert_equal ["Jack,21,x", "Jill,22,y"], input_records
+          assert_equal [
+            {"name" => "Jack", "age" => "21", "extra" => "x"},
+            {"name" => "Jill", "age" => "22", "extra" => "y"}
+          ], output_records
+        end
+
+        it "uploads the slices of a file of slice_size rows, each of which holds the header row" do
+          job.input_category.slice_size = 2
+
+          assert_equal 3, upload(".csv", "#{csv}Joe,23,z\n")
+
+          assert_equal [2, 1], job.input.collect(&:size)
+          assert_equal([%w[Name Age Extra]] * 2, job.input.collect { |slice| slice.records.header })
         end
 
         it "raises for the :array mode, which v8 removed, and uploads nothing" do
           job.input_category.mode = :array
 
           error = assert_raises(ArgumentError) { upload(".csv", csv) }
-          assert_equal "Input category main: mode: :array was removed in Rocket Job v8, use :line, which the workers " \
-                       "parse, or :hash to parse the whole file when it is uploaded, see " \
-                       "#{RocketJob::Category::Base::REMOVED_OPTIONS_GUIDE}", error.message
+          assert_equal "Input category main: mode: :array was removed in Rocket Job v8: the workers parse the lines " \
+                       "of a file in the category's format, and validate_rows: true also parses them when it is " \
+                       "uploaded, see #{RocketJob::Category::Base::REMOVED_OPTIONS_GUIDE}", error.message
           assert_raises(ArgumentError) do
             job.upload do |records|
               records << "Name,Age"
@@ -69,11 +84,38 @@ module Batch
           assert_equal 0, job.input.count
         end
 
-        it "raises for the :array stream_mode" do
-          job.input_category.mode = :hash
+        it "raises for stream_mode, which v8 removed, naming what replaces it, before anything is read" do
+          message = "stream_mode: was removed in Rocket Job v8: use validate_rows: true in place of stream_mode: :hash " \
+                    "to parse each row of a file in the input category's format when it is uploaded, and to read a " \
+                    "file into Hashes, set the format of the input category, such as to :auto, see " \
+                    "https://rocketjob.reidmorrison.com/upgrading.html#replace-the-hash-mode-with-validate_rows"
 
-          error = assert_raises(ArgumentError) { upload(".csv", csv, stream_mode: :array) }
-          assert_includes error.message, "Input category main: mode: :array was removed in Rocket Job v8"
+          [:hash, :line, nil].each do |stream_mode|
+            error = assert_raises(ArgumentError) { upload(".csv", csv, stream_mode: stream_mode) }
+            assert_equal message, error.message
+          end
+          assert_raises(ArgumentError) { job.upload(stream_mode: :hash) { |records| records << "Name" } }
+          assert_raises(ArgumentError) { job.upload(1..10, stream_mode: :line) }
+          assert_equal 0, job.input.count
+        end
+
+        it "reads a file with format: :auto into the Hashes that stream_mode: :hash read without a format in v7" do
+          job.input_category.format = :auto
+
+          assert_equal 2, upload(".csv", csv)
+
+          assert_equal [
+            {"name" => "Jack", "age" => "21", "extra" => "x"},
+            {"name" => "Jill", "age" => "22", "extra" => "y"}
+          ], output_records
+        end
+
+        it "reads a JSON file with format: :auto into the Hashes that stream_mode: :hash read in v7, with their keys" do
+          job.input_category.format = :auto
+
+          assert_equal 2, upload(".json", json)
+
+          assert_equal [{"Name" => "Jack", "age" => 21, "extra" => "x"}, {"name" => "Jill", "age" => 22}], output_records
         end
 
         it "processes the arrays of a file that Rocket Job 7 uploaded in :array mode" do
@@ -86,69 +128,140 @@ module Batch
           ], output_records
         end
 
-        it "uploads hashes in :hash mode" do
-          job.input_category.mode = :hash
+        it "parses each row with validate_rows, and uploads the lines, which the workers read into hashes" do
+          job.input_category.validate_rows = true
 
           assert_equal 2, upload(".csv", csv)
 
-          expected = [
+          assert_equal ["Jack,21,x", "Jill,22,y"], input_records
+          assert_equal [
             {"name" => "Jack", "age" => "21", "extra" => "x"},
             {"name" => "Jill", "age" => "22", "extra" => "y"}
-          ]
-
-          assert_equal expected, input_records
-          assert_equal expected, output_records
+          ], output_records
         end
 
-        it "uses stream_mode in place of the category's mode" do
-          job.input_category.mode = :hash
+        describe "validate_rows" do
+          let(:malformed) { %(#{csv}Joe,"23"x,z\n) }
 
-          assert_equal 2, upload(".csv", csv, stream_mode: :line)
+          it "rejects a row that cannot be parsed, and uploads nothing, which is uploaded without it" do
+            job.input_category.validate_rows = true
 
-          assert_equal ["Jack,21,x", "Jill,22,y"], input_records
+            assert_raises(CSV::MalformedCSVError) { upload(".csv", malformed) }
+            assert_equal 0, job.input.count
+            assert_equal 0, job.record_count.to_i
+
+            job.input_category.validate_rows = false
+
+            assert_equal 3, upload(".csv", malformed)
+          end
+
+          it "of the upload is used in place of the category's" do
+            job.input_category.validate_rows = true
+
+            assert_equal 3, upload(".csv", malformed, validate_rows: false)
+
+            job.input_category.validate_rows = false
+
+            assert_raises(CSV::MalformedCSVError) { upload(".csv", malformed, validate_rows: true) }
+            assert_equal 3, job.record_count
+          end
+
+          it "is the :hash mode that Rocket Job 7 saved" do
+            job.input_category.mode = :hash
+
+            assert_raises(CSV::MalformedCSVError) { upload(".csv", malformed) }
+            assert_equal 3, upload(".csv", malformed, validate_rows: false)
+          end
+
+          it "of the category, when false, is used in place of the :hash mode that Rocket Job 7 saved" do
+            job.input_category.mode          = :hash
+            job.input_category.validate_rows = false
+
+            assert_equal 3, upload(".csv", malformed)
+          end
+
+          it "rejects a line written to the block of an upload that cannot be parsed, and uploads nothing" do
+            assert_raises(CSV::MalformedCSVError) do
+              job.upload(validate_rows: true) do |records|
+                records << "Name,Age"
+                records << %(Joe,"23"x)
+              end
+            end
+            assert_equal 0, job.input.count
+          end
+
+          it "raises without a format, whose records are uploaded as they are" do
+            job.input_category.format = nil
+
+            error = assert_raises(ArgumentError) { upload(".csv", csv, validate_rows: true) }
+            assert_includes error.message, "Input category main: validate_rows: needs a format"
+            assert_raises(ArgumentError) { job.upload(validate_rows: true) { |records| records << "Jack" } }
+            assert_equal 0, job.input.count
+          end
         end
 
-        it "uploads every record of JSON in :hash mode, which has no header row" do
-          job.input_category.format = :json
+        it "uploads the lines of a file into a category without a format, also in the :hash mode that Rocket Job 7 saved" do
+          job.input_category.format = nil
           job.input_category.mode   = :hash
 
+          assert_equal 3, upload(".csv", csv)
+          assert_equal ["Name,Age,Extra", "Jack,21,x", "Jill,22,y"], output_records
+        end
+
+        it "reads a file into hashes, in the format of its file name, with the :auto format" do
+          job.input_category.format = :auto
+
+          assert_equal 2, upload(".csv", csv)
+          assert_equal [
+            {"name" => "Jack", "age" => "21", "extra" => "x"},
+            {"name" => "Jill", "age" => "22", "extra" => "y"}
+          ], output_records
+        end
+
+        it "uploads every record of JSON with validate_rows, which has no header row, and keeps its keys" do
+          job.input_category.format        = :json
+          job.input_category.validate_rows = true
+
           assert_equal 2, upload(".json", json)
-          assert_equal [{"Name" => "Jack", "age" => 21, "extra" => "x"}, {"name" => "Jill", "age" => 22}], input_records
+          assert_nil job.input.first.records.header
+          assert_equal [{"Name" => "Jack", "age" => 21, "extra" => "x"}, {"name" => "Jill", "age" => 22}], output_records
+        end
+
+        it "processes the lines of a file that Rocket Job 7 uploaded, by the header row that it kept in columns" do
+          job.input_category.columns = %w[name age extra]
+          job.upload_slice(["Jack,21,x", "Jill,22,y"])
+
+          assert_equal [
+            {"name" => "Jack", "age" => "21", "extra" => "x"},
+            {"name" => "Jill", "age" => "22", "extra" => "y"}
+          ], output_records
         end
       end
 
       describe "a second file" do
-        it "is not uploaded into a category that holds the header row of the first, which its lines are read by" do
-          upload(".csv", csv)
-          error = assert_raises(ArgumentError) { upload(".csv", "Name,City\nJoe,Boston\n") }
+        it "is uploaded into the same category, validated or not, and each row is read by the header row of its file" do
+          [false, true].each do |validate_rows|
+            job.input_category.validate_rows = validate_rows
+            upload(".csv", csv)
+            upload(".csv", "Name,City\nJoe,Boston\n")
+          end
 
-          assert_includes error.message, "already holds the header row of an uploaded file"
-          assert_equal 2, job.record_count
-          assert_equal ["Jack,21,x", "Jill,22,y"], input_records
+          assert_equal 6, job.record_count
+          assert_equal [{"name" => "Joe", "city" => "Boston"}], output_records.last(1)
         end
 
-        it "is uploaded in :hash mode, in which each record keeps the columns of its own file" do
-          job.input_category.mode = :hash
-          upload(".csv", csv)
-          upload(".csv", "Name,City\nJoe,Boston\n")
-
-          assert_equal [{"name" => "Joe", "city" => "Boston"}], input_records.last(1)
-          assert_equal 3, job.record_count
-        end
-
-        it "that fails in :hash mode keeps the records of the first" do
-          job.input_category.mode = :hash
+        it "that fails keeps the records of the first" do
           upload(".csv", csv)
           assert_raises(RuntimeError) do
             job.upload do |io|
-              io << {"name" => "Joe"}
+              io << "Name,City"
+              io << "Joe,Boston"
               raise "upload failed"
             end
           end
 
           assert_equal 2, job.record_count
-          assert_equal [{"name" => "Jack", "age" => "21", "extra" => "x"}, {"name" => "Jill", "age" => "22", "extra" => "y"}],
-                       input_records
+          assert_equal ["Jack,21,x", "Jill,22,y"], input_records
         end
 
         it "without a header row is uploaded into a category whose schema describes its columns" do
@@ -157,14 +270,6 @@ module Batch
           upload(".csv", "Jill,22\n")
 
           assert_equal [{"name" => "Jack", "age" => "21"}, {"name" => "Jill", "age" => "22"}], output_records
-        end
-
-        it "is not uploaded in :hash mode into a category that holds the header row of the first" do
-          upload(".csv", csv)
-          error = assert_raises(ArgumentError) { upload(".csv", "Name,City\nJoe,Boston\n", stream_mode: :hash) }
-
-          assert_includes error.message, "already holds the header row of an uploaded file"
-          assert_equal ["Jack,21,x", "Jill,22,y"], input_records
         end
 
         it "of JSON is uploaded in :line mode" do
@@ -177,8 +282,7 @@ module Batch
       end
 
       describe "a failed upload" do
-        it "keeps neither the header row it read nor its records, so the file can be uploaded again" do
-          job.input_category.columns = nil
+        it "keeps none of its records, so the file can be uploaded again" do
           assert_raises(RuntimeError) do
             job.upload do |io|
               io << "Name,Age,Extra"
@@ -187,23 +291,12 @@ module Batch
             end
           end
 
-          assert_nil job.input_category.columns
-          refute job.input_category.header_uploaded
           assert_equal 0, job.input.count
 
           upload(".csv", csv)
 
           assert_equal ["Jack,21,x", "Jill,22,y"], input_records
-          assert_equal %w[name age extra], job.input_category.columns
-        end
-
-        it "restores the columns of the header row that an earlier run read, which a retry can upload again" do
-          job.input_category.columns         = %w[name age]
-          job.input_category.header_uploaded = true
-          assert_raises(ArgumentError) { upload(".csv", csv) }
-
-          assert_equal %w[name age], job.input_category.columns
-          assert job.input_category.header_uploaded
+          assert_nil job.input_category.columns
         end
 
         it "keeps a format of :auto and no file name, so that another file is read in its own format" do
@@ -234,7 +327,7 @@ module Batch
         it "skips them, and reads the header row after them" do
           assert_equal 1, upload(".csv", csv)
 
-          assert_equal %w[name age], job.input_category.columns
+          assert_equal %w[Name Age], job.input.first.records.header
           assert_equal [{"name" => "Jack", "age" => "21"}], output_records
         end
 
@@ -258,8 +351,68 @@ module Batch
             end
 
           assert_equal 1, count
-          assert_equal %w[name age], job.input_category.columns
+          assert_equal %w[Name Age], job.input.first.records.header
           assert_equal [{"name" => "Jack", "age" => "21"}], output_records
+        end
+      end
+
+      describe "without a schema" do
+        it "rejects the options of reading lines, since the lines are read in the format of the category" do
+          error = assert_raises(ArgumentError) { upload(".csv", csv, delimiter: "\r\n") }
+
+          assert_equal "Input category main: :delimiter cannot be supplied when uploading a file in the :csv format, " \
+                       "whose lines are read in it", error.message
+          assert_equal 0, job.input.count
+        end
+
+        it "rejects a schema set on the path, since the workers read each slice without one" do
+          with_file(".csv", csv) do |file_name|
+            path  = IOStreams.path(file_name).schema({"fields" => [{"name" => "name"}]})
+            error = assert_raises(ArgumentError) { job.upload(path) }
+
+            assert_includes error.message, "Set the schema of the file uploaded into input category main on the category"
+          end
+          assert_equal 0, job.input.count
+        end
+
+        it "raises for a Hash written to the block of an upload, since the block writes the lines of a file" do
+          error = assert_raises(ArgumentError) do
+            job.upload do |records|
+              records << {"name" => "Jack"}
+            end
+          end
+
+          assert_includes error.message, "not a Hash"
+          assert_equal 0, job.input.count
+        end
+
+        it "raises for an Array written to the block of an upload, which Rocket Job 7 read as a row" do
+          error = assert_raises(ArgumentError) do
+            job.upload do |records|
+              records << %w[name age]
+              records << %w[Jack 21]
+            end
+          end
+
+          assert_includes error.message, "not a Array"
+          assert_equal 0, job.input.count
+        end
+
+        it "does not read the lines that upload_slice uploads by the header row of a file uploaded before" do
+          upload(".csv", csv)
+          job.upload_slice(["Joe,23,z"])
+
+          error = assert_raises(ArgumentError) { output_records }
+          assert_includes error.message, "The tabular header columns _must_ be set"
+        end
+
+        it "uploads a Hash written to the block of an upload into a category without a format, as it is" do
+          job.input_category.format = nil
+          job.upload do |records|
+            records << {"name" => "Jack"}
+          end
+
+          assert_equal [{"name" => "Jack"}], output_records
         end
       end
 
@@ -277,8 +430,8 @@ module Batch
           assert_equal [{"name" => "Jack", "zip" => "54321"}], output_records
         end
 
-        it "uploads each line in :hash mode, which the workers read by the schema" do
-          job.input_category.mode = :hash
+        it "uploads each line with validate_rows, which the workers read by the schema" do
+          job.input_category.validate_rows = true
           upload(".txt", "Jack      54321\nJill      12345\n")
 
           assert_equal ["Jack      54321", "Jill      12345"], input_records
@@ -323,7 +476,7 @@ module Batch
           assert_equal [{"name" => "Jos", "zip" => "12345"}], output_records
         end
 
-        it "uploads each line in :hash mode, after reading it, which the workers read by the schema" do
+        it "uploads each line in the :hash mode that Rocket Job 7 saved, after reading it, which the workers read by the schema" do
           job.input_category.mode = :hash
           upload(".txt", "Jack      54321\nJill      12345\n")
 
@@ -380,8 +533,8 @@ module Batch
           job.input_category.format = :auto
           error = assert_raises(ArgumentError) { upload(".csv", people, delimiter: "\r\n") }
 
-          assert_equal "Input category main: :delimiter cannot be supplied when uploading a file into a category with " \
-                       "a schema, whose lines are read in its format", error.message
+          assert_equal "Input category main: :delimiter cannot be supplied when uploading a file in the :csv format, " \
+                       "whose lines are read in it", error.message
           assert_equal 0, job.input.count
           # The category is as it was, so that another file is read in its own format.
           assert_equal :auto, job.input_category.format
@@ -443,16 +596,16 @@ module Batch
           assert_equal [typed], output_records
         end
 
-        it "uploads each line in :hash mode, after parsing it, so that a date reaches perform as a date" do
-          job.input_category.mode = :hash
+        it "uploads each line with validate_rows, after parsing it, so that a date reaches perform as a date" do
+          job.input_category.validate_rows = true
           upload(".csv", people)
 
           assert_equal ["Jack,21,12.50,2026-10-13"], input_records
           assert_equal [typed], output_records
         end
 
-        it "rejects a value that is not valid in :hash mode, and uploads nothing" do
-          job.input_category.mode = :hash
+        it "rejects a value that is not valid with validate_rows, and uploads nothing" do
+          job.input_category.validate_rows = true
           assert_raises(IOStreams::Errors::InvalidValue) { upload(".csv", "#{people}Jill,x,1,2026-10-13\n") }
 
           assert_equal 0, job.input.count
@@ -677,16 +830,39 @@ module Batch
 
         it "raise when they are nil, since IOStreams reads a nil cleanse_header as false" do
           error = assert_raises(ArgumentError) do
-            upload(".csv", csv, stream_mode: :hash, cleanse_header: nil, skip_unknown: nil)
+            upload(".csv", csv, validate_rows: true, cleanse_header: nil, skip_unknown: nil)
           end
 
           assert_equal "cleanse_header:, skip_unknown: #{removed_message}", error.message
           assert_equal 0, job.input.count
         end
 
-        it "raise in :hash mode, in which IOStreams would read the file with them" do
+        it "raise when a file is uploaded into a category saved with one, before the file is read" do
+          job.input_category.attributes["skip_unknown"] = true
+
+          error = assert_raises(ArgumentError) { upload(".csv", csv) }
+          assert_equal "Input category main: skip_unknown was removed in Rocket Job v8, describe the columns of the " \
+                       "file with the category's schema instead, see #{RocketJob::Category::Base::REMOVED_OPTIONS_GUIDE}",
+                       error.message
+          assert_raises(ArgumentError) do
+            job.upload do |records|
+              records << "Name,Age"
+            end
+          end
+          assert_equal 0, job.input.count
+        end
+
+        it "raise when a worker reads a slice of a category saved with one" do
+          upload(".csv", csv)
+          job.input_category.attributes["allowed_columns"] = %w[name]
+
+          error = assert_raises(ArgumentError) { output_records }
+          assert_match(/\AInput category main: allowed_columns was removed in Rocket Job v8/, error.message)
+        end
+
+        it "raise with validate_rows, with which IOStreams would read the file with them" do
           error = assert_raises(ArgumentError) do
-            upload(".csv", csv, stream_mode: :hash, required_columns: %w[name])
+            upload(".csv", csv, validate_rows: true, required_columns: %w[name])
           end
 
           assert_match(/\Arequired_columns: was removed/, error.message)
@@ -697,13 +873,14 @@ module Batch
             job.input_category.columns = %w[name age extra]
           end
 
-          it "raise before a file is read by them, in each mode" do
-            [nil, :hash].each do |stream_mode|
-              error = assert_raises(ArgumentError) { upload(".csv", "Jack,21,x\n", stream_mode: stream_mode) }
+          it "raise before a file is read by them, validated or not" do
+            [false, true].each do |validate_rows|
+              error = assert_raises(ArgumentError) { upload(".csv", "Jack,21,x\n", validate_rows: validate_rows) }
 
-              assert_includes error.message, "Input category main holds columns that no upload read from a file. " \
-                                             "Clear them when Rocket Job 7 copied them from an earlier run of a " \
-                                             "scheduled job."
+              assert_includes error.message, "Input category main holds columns, which Rocket Job v8 never sets, " \
+                                             "so a file cannot be uploaded into it without a schema. When Rocket " \
+                                             "Job 7 uploaded a file into this category of a job that is still " \
+                                             "running, upload the next file into a new job"
             end
             assert_equal 0, job.input.count
             assert_equal %w[name age extra], job.input_category.columns
@@ -718,12 +895,43 @@ module Batch
             assert_equal 0, job.input.count
           end
 
-          it "are read from the file once they are cleared" do
+          it "restore the file name of an upload that raises" do
+            job.input_category.columns   = nil
+            job.input_category.file_name = "a.csv"
+            assert_raises(RuntimeError) do
+              job.upload(file_name: "b.csv") { |_lines| raise("boom") }
+            end
+
+            assert_equal "a.csv", job.input_category.file_name.to_s
+          end
+
+          it "are not needed once they are cleared, since each slice holds the header row of its file" do
             job.input_category.columns = nil
             upload(".csv", csv)
 
-            assert_equal %w[name age extra], job.input_category.columns
+            assert_nil job.input_category.columns
+            assert_equal %w[Name Age Extra], job.input.first.records.header
           end
+        end
+      end
+
+      describe "a format whose rows are Ruby objects" do
+        it "uploads each Hash written to a block in the :hash format as it is" do
+          job.input_category.format = :hash
+          records                   = [{"name" => "Jack", "age" => 21}, {"name" => "Jill", "age" => 22}]
+
+          assert_equal(2, job.upload { |io| records.each { |record| io << record } })
+
+          assert_equal records, job.input.first.to_a
+        end
+
+        it "uploads each Array written to a block in the :array format as it is" do
+          job.input_category.format = :array
+          rows                      = [%w[name age], ["Jack", 21]]
+
+          assert_equal(2, job.upload { |io| rows.each { |row| io << row } })
+
+          assert_equal rows, job.input.first.to_a
         end
       end
 

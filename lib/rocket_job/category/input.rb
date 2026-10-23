@@ -9,11 +9,12 @@ module RocketJob
       embedded_in :job, class_name: "RocketJob::Job", inverse_of: :input_categories
 
       # The fields that an upload sets, see #upload_state.
-      UPLOAD_FIELDS = %w[file_name format columns header_uploaded].freeze
+      UPLOAD_FIELDS = %w[file_name format].freeze
       private_constant :UPLOAD_FIELDS
 
-      # The modes that a file can be uploaded in, see #mode.
+      # The modes that Rocket Job 7 uploaded a file in, which v8 still reads, see #mode.
       MODES = %i[line hash].freeze
+      private_constant :MODES
 
       # Replaces each non-printable character, other than line endings, with a space.
       FIXED_WIDTH_CLEANER = ->(data, _replace) { data.gsub(/[^[:print:]\r\n]/, " ") }
@@ -23,33 +24,44 @@ module RocketJob
       field :slice_size, type: Integer, default: 100
       validates_presence_of :slice_size
 
-      # The header row that an upload read from a file of a tabular format without a schema, such as CSV, with each
-      # column cleansed, such as `first_name` for the column `First Name`, which the workers read each line by, see
-      # #header_uploaded. With a schema, see #schema, each slice of an uploaded file holds its header row instead, see
-      # #copy_slices, so they are not set.
+      # The header row of a file that Rocket Job 7 uploaded in a tabular format without a schema, such as CSV, with each
+      # column cleansed, such as `first_name` for the column `First Name`, which the workers read each of its lines by,
+      # see #parse_record. Rocket Job v8 does not set them, since each slice of a file holds its header row instead, see
+      # #copy_slices.
       #
-      # Only an upload sets them: Rocket Job v8 removed setting them for a file without a header row, see
-      # .removed_option_names. Describe its columns with a schema with `"header" => false` instead.
+      # Rocket Job v8 removed setting them for a file without a header row, see .removed_option_names, so an upload
+      # raises while they are set, see #check_columns_not_set. Describe the columns of such a file with a schema with
+      # `"header" => false` instead.
       field :columns, type: Array
 
-      # When `#upload` is called with a file_name, it uploads the file using any of the following approaches:
-      # :line
-      #   Uploads the file a line (String) at a time for processing by workers.
-      #   This is the default behavior and is the most performant since it leaves the parsing of each line
-      #   up to the workers themselves.
-      # :hash
-      #   Parses each line from the file into a Hash and uploads each hash for processing by workers.
-      #   The entire file is parsed before processing is started, so that a file with an invalid line is found first.
-      #   Not recommended for large files since the CSV or other parsing is performed sequentially during the
-      #   upload process. With a schema, see #schema, the lines are uploaded as they are, once each one is parsed.
+      # Whether `#upload` parses each row of a file in this category's format, see #format, as it uploads it, so that a
+      # file with a row that cannot be read, or with a value that is not valid for its field, see #schema, is rejected
+      # before any of it is processed. The slices still hold the lines, which the workers parse, see #copy_slices.
       #
-      # Use :hash when the entire file must be parsed/validated before processing is started, and upload time is not
-      # important.
-      # See IOStreams#each for more details.
+      # Use it when the entire file must be validated before processing is started, and upload time is not important,
+      # since the rows are parsed one after another while the file is uploaded.
+      #
+      # Needs a format: a category without one uploads each record as it is, see #each_record. Only a file, and the lines
+      # that the block of an upload writes, are validated: a query or a range uploads values, rather than the rows of a
+      # file, see RocketJob::Batch::IO#upload.
+      #
+      # Default: nil, which validates the rows when the category holds the :hash `mode` that Rocket Job 7 saved, see
+      # #mode. Set it to false so that such a category does not validate them.
+      field :validate_rows, type: ::Mongoid::Boolean
+      validate :validate_rows_has_format
+
+      # How Rocket Job 7 uploaded a file, which `validate_rows` replaces, see #upload_validates_rows?. Rocket Job v8
+      # still reads it, so that a job class, a saved job or a Dirmon entry with it need not change:
+      # :line
+      #   The default, which uploads the lines as they are.
+      # :hash
+      #   In a tabular format, see #format, validates the rows of a file, as `validate_rows: true` does. Without a format
+      #   it has no effect, as in Rocket Job 7.0, which only parsed a file into Hashes for the `stream_mode: :hash` of
+      #   `#upload`, which v8 removed: set the format to :auto instead.
       #
       # Rocket Job v8 removed the :array mode, which uploaded each row as an Array, see .removed_option_names. A category
       # saved with it before v8 stays valid, so that the next run of a scheduled job is still created, and its upload
-      # raises instead, see #upload_mode.
+      # raises instead, see #check_upload.
       field :mode, type: ::Mongoid::StringifiedSymbol, default: :line
       validates_inclusion_of :mode, in: [*MODES, :array]
 
@@ -69,15 +81,6 @@ module RocketJob
       field :invalid_characters, type: ::Mongoid::StringifiedSymbol
       validates_inclusion_of :invalid_characters, in: [nil, :remove, :replace, :raise]
 
-      # Whether `columns` hold the header row that an upload read from its file, see #read_header. The category holds
-      # the header row of one file, which the workers read each of its lines by, so another file with a header row
-      # cannot be uploaded into it, see #extract_header_callback, and the next run of a restarted job reads the header
-      # row of its own file, see #restart_copy.
-      #
-      # Default: false, which is also what a job saved before v8 reads, whose columns can be the header row of an
-      # earlier run, or columns set for a file without a header row, which v8 removed, see #check_columns_not_set.
-      field :header_uploaded, type: ::Mongoid::Boolean, default: false
-
       validates_inclusion_of :serializer, in: %i[none compress encrypt]
 
       # Setting the columns builds the tabular again when it is next used, see #tabular.
@@ -86,22 +89,10 @@ module RocketJob
         super
       end
 
-      # Returns [RocketJob::Category::Input] a copy of this category for the next run of its job, see
-      # Category::Base#restart_copy, without the header row that an upload read from the file, see #header_uploaded, so
-      # that the next run reads the header row of its own file.
-      def restart_copy
-        copy = super
-        return copy unless header_uploaded?
-
-        copy.columns         = nil
-        copy.header_uploaded = false
-        copy
-      end
-
       # Returns [Array<String>] the names of the options of an input category that Rocket Job v8 removed, see
       # Category::Base.removed_option_names: its column options, `allowed_columns`, `required_columns`, `skip_unknown`
       # and `header_cleanser`, the `columns` of a file without a header row, which an application can no longer set,
-      # see #columns, and the :array `mode`, see #upload_mode.
+      # see #columns, and the :array `mode`, see #check_upload.
       def self.removed_option_names
         super + %w[allowed_columns required_columns skip_unknown header_cleanser columns mode]
       end
@@ -111,8 +102,8 @@ module RocketJob
       def self.removed_options_message(names)
         return super unless names.include?("mode")
 
-        mode = "mode: :array was removed in Rocket Job v8, use :line, which the workers parse, or :hash to parse the " \
-               "whole file when it is uploaded, see #{REMOVED_OPTIONS_GUIDE}"
+        mode = "mode: :array was removed in Rocket Job v8: the workers parse the lines of a file in the category's " \
+               "format, and validate_rows: true also parses them when it is uploaded, see #{REMOVED_OPTIONS_GUIDE}"
         names == ["mode"] ? mode : "#{super(names - ['mode'])}. #{mode}"
       end
 
@@ -135,13 +126,19 @@ module RocketJob
 
       # Yields each record of the supplied records of a slice of this category, as `#perform` receives it. The rows of a
       # file, see IOStreams::Slice, are read by IOStreams by the header row and format that they carry, with this
-      # category's schema, see #schema. Otherwise each record is parsed on its own, see #parse. A blank row is nil.
+      # category's schema when it has one, see #schema. Otherwise each record is parsed on its own, see #parse. A blank
+      # row is nil.
       #
       # A record that cannot be parsed raises before it is yielded, after the records before it, so that the caller
       # knows which record failed.
+      #
+      # Raises ArgumentError when this category was saved before Rocket Job v8 with an option that v8 removed, see
+      # Category::Base#check_removed_options, which is checked once for each instance of the category, rather than for
+      # each slice that a worker processes, since the options that a saved category holds do not change.
       def parse_records(records, &)
         return records.each { |record| yield parse(record) } unless records.is_a?(IOStreams::Slice)
 
+        @removed_options_checked ||= check_removed_options || true
         IOStreams.stream(records).schema(schema_descriptor).each(:hash, &)
       end
 
@@ -157,7 +154,7 @@ module RocketJob
 
       # Returns [Hash|Array|String] the record uploaded into this category, parsed for `#perform`.
       #
-      # A Hash was parsed when it was uploaded, for example in :hash mode without a schema, or by the application with
+      # A Hash was parsed when it was uploaded, for example by Rocket Job 7 in :hash mode, or by the application with
       # `upload_slice`, so it is kept as it is with a schema, otherwise only narrowed to the columns, when they are set.
       # A record of a category with a schema that is not a Hash, such as one that `upload_slice` uploaded, is read by
       # the schema, so it needs a format without a header row, such as JSON or fixed width, since the slices of a file
@@ -207,14 +204,11 @@ module RocketJob
         if tabular?
           path.format(format)
           # The fields of the records, and the position of each field of a fixed width file, so that IOStreams matches
-          # the header row to the fields, and reads typed values in their columns, see #copy_slices and #each_record. The
-          # schema is read once, see #schema_descriptor, for the workers too, which read each slice with it, see
-          # #parse_records, so that another schema cannot be set on the supplied path. Without a schema, a schema set on
-          # the supplied path is kept.
-          if schema.present?
-            check_path_schema(path)
-            path.schema(schema_descriptor)
-          end
+          # the header row to the fields, and reads typed values in their columns, see #copy_slices. The schema is read
+          # once, see #schema_descriptor, for the workers too, which read each slice with it, see #parse_records, so that
+          # another schema cannot be set on the supplied path, also when this category has none.
+          check_path_schema(path)
+          path.schema(schema_descriptor) if schema.present?
           # Replace the non-printable characters of a fixed width file, such as NUL padding, so that the columns stay
           # in place, and remove those of any other tabular format.
           path.encoding(cleaner: format == :fixed ? FIXED_WIDTH_CLEANER : :printable)
@@ -223,33 +217,40 @@ module RocketJob
         path
       end
 
-      # Returns [true|false] whether a file is uploaded into this category in slices of its rows, which carry the header
-      # row of their file and its format, see #copy_slices: when it has a schema, which describes the columns of its
-      # files. Otherwise each record is uploaded on its own, see #each_record, and parsed by the columns that this
-      # category holds, see #parse.
+      # Returns [true|false] whether a file, or the lines that the block of an upload writes, is uploaded into this
+      # category in slices of its rows, which carry the header row of their file and its format, see #copy_slices: when
+      # it has a tabular format whose rows are lines of text, such as CSV or JSON, with or without a schema. Otherwise
+      # each record is uploaded as it is, see #each_record: without a format, in a format whose rows are Ruby objects,
+      # such as :hash or :array, which the block of an upload writes, or in a format whose rows are not lines, such as
+      # Parquet. A format of :auto is that of the file name, otherwise CSV, see #detect_format.
       def slices?
-        tabular? && schema.present?
+        return false unless tabular?
+
+        format = upload_format
+        IOStreams::Tabular.lines?(format) && IOStreams::Tabular.parser_class(format).value_form != :typed
       end
 
       # Writes the file that the supplied path reads, see #upload_path, to the supplied store of slices, see
       # Sliced::Writer::Input, in slices of up to `slice_size` rows, as IOStreams reads them, see
-      # `IOStreams::Stream#each(:slice)`: after its header row, which IOStreams matches to the fields of the schema, so
-      # that a file whose columns do not match raises IOStreams::Errors::InvalidHeader before any slice. Each slice
-      # carries the header row of its file, so that more than one file can be uploaded into this category, and the
-      # workers read each row by it, see #parse_records.
+      # `IOStreams::Stream#each(:slice)`: after its header row, which IOStreams matches to the fields of the schema, when
+      # there is one, so that a file whose columns do not match raises IOStreams::Errors::InvalidHeader before any
+      # slice. Each slice carries the header row of its file, so that more than one file can be uploaded into this
+      # category, and the workers read each row by it, see #parse_records.
       #
-      # In the :hash mode, see #mode, IOStreams also parses each row before its slice is written, so that a file with a
-      # value that is not valid raises before it is processed. Each slice still holds the rows as they are.
+      # When `validate_rows` is true, see #upload_validates_rows?, IOStreams also parses each row before its slice is
+      # written, so that a file with a value that is not valid raises before it is processed. Each slice still holds
+      # the rows as they are.
       #
       # Raises ArgumentError for any other options of the upload, such as `delimiter:`, which read the lines of a file
-      # without a schema, see #each_record, since the lines of this category's files are read in its format.
-      def copy_slices(path, writer, mode: self.mode, **args)
+      # without a format, see #each_record, since the lines of this category's files are read in its format. Also
+      # raises ArgumentError when this category cannot read a file, see #slice_target.
+      def copy_slices(path, writer, validate_rows: nil, **args)
         unless args.empty?
           raise(ArgumentError, "Input category #{name}: #{args.keys.map(&:inspect).join(', ')} cannot be supplied " \
-                               "when uploading a file into a category with a schema, whose lines are read in its format")
+                               "when uploading a file in the #{format.inspect} format, whose lines are read in it")
         end
 
-        slice_target(writer).copy_from(path, mode: :line, validate: mode != :line)
+        slice_target(writer).copy_from(path, mode: :line, validate: upload_validates_rows?(validate_rows))
       end
 
       # Yields to the supplied block of an upload, see RocketJob::Batch::IO#upload, the writer of the lines of a file,
@@ -258,68 +259,50 @@ module RocketJob
       # lines, and matched to the fields of the schema, and each slice holds it. A format of :auto is replaced with that
       # of the file name of the upload, otherwise CSV, as for a file, see #upload_path.
       #
-      # Raises ArgumentError for a record written to the writer that is not a line, such as a Hash.
-      def write_slices(writer, &)
+      # When `validate_rows` is true, see #upload_validates_rows?, IOStreams also parses each line, after the header row,
+      # before its slice is written.
+      #
+      # Raises ArgumentError for a record written to the writer that is not a line, such as a Hash, and when this
+      # category cannot read the lines, see #slice_target.
+      def write_slices(writer, validate_rows: nil, &block)
         detect_format(file_name)
-        slice_target(writer).writer(:line, validate: mode != :line, &)
-      end
-
-      # Yields each record read from the supplied path in the supplied mode, see #mode.
-      #
-      # In :hash mode IOStreams reads the header row, since it is not yielded. In :line mode the header row is
-      # yielded, and read by #extract_header_callback.
-      def each_record(path, mode: self.mode, **args, &)
-        path.each(mode, **args, &)
-      end
-
-      # Returns the lambda that the upload calls with each record before the first that it stores, instead of storing
-      # it, until the lambda returns true, see `Sliced::Writer::Input`: it reads the header row, when the upload starts
-      # with one, such as CSV, see `IOStreams::Tabular#header?`. Returns nil otherwise, such as for JSON, or in :hash
-      # mode, in which IOStreams reads the header row itself, so that every record is uploaded.
-      #
-      # A blank line before the header row is skipped, as IOStreams skips it when it reads the header row itself, such
-      # as in :hash mode, so that the header row is not stored as a record. A category with a schema uploads slices
-      # instead, see #copy_slices.
-      #
-      # Raises ArgumentError when the category already holds the header row of a file, see #header_uploaded, since the
-      # lines of another file could not be read by it, also in :hash mode, since its records would be narrowed to the
-      # columns of that header row when they are parsed, see #parse_record.
-      #
-      # Raises ArgumentError when the category holds columns that an upload did not read, see #columns.
-      def extract_header_callback(mode: self.mode)
-        return unless tabular?
-
-        if header_uploaded?
-          raise(ArgumentError,
-                "Input category #{name} already holds the header row of an uploaded file, which its lines are read " \
-                "by. Upload each file with a header row into its own input category, or upload every file in the " \
-                ":hash mode")
-        end
-        check_columns_not_set
-        # IOStreams reads the header row itself in :hash mode, see #each_record.
-        return if mode == :hash || !tabular.header?
-
-        lambda do |row|
-          next false if row.blank?
-
-          read_header(row)
-          self.header_uploaded = true
-          true
+        slice_target(writer).writer(:line, validate: upload_validates_rows?(validate_rows)) do |lines|
+          block.call(EncodedLines.new(lines) { tabular.header? })
         end
       end
 
-      # Returns [Symbol] the mode to upload a file in, see #mode: the supplied one, such as the `stream_mode` of an
-      # upload, otherwise this category's.
-      #
-      # Raises ArgumentError for a mode other than :line or :hash, such as the :array mode, which Rocket Job v8 removed,
-      # also when a category saved before v8 holds it.
-      def upload_mode(mode = nil)
-        mode = (mode || self.mode).to_sym
-        return mode if MODES.include?(mode)
+      # Yields each record read from the supplied path, for a category whose files are not uploaded in slices, see
+      # #slices?: each line without a format, whose records `#perform` receives as they are, see #parse, otherwise each
+      # row as a Hash, read in the category's format, such as Parquet, whose rows are not lines.
+      def each_record(path, **args, &)
+        path.each(tabular? ? :hash : :line, **args, &)
+      end
 
-        message = "the upload mode must be :line or :hash, not #{mode.inspect}"
-        message = self.class.removed_options_message(%w[mode]) if mode == :array
-        raise(ArgumentError, "Input category #{name}: #{message}")
+      # Returns [true|false] whether an upload into this category parses each row of its file as it uploads it: the
+      # supplied `validate_rows:` of the upload, unless it is nil, otherwise this category's, see #validate_rows, unless
+      # it is nil too, otherwise whether it holds the :hash `mode` that Rocket Job 7 saved, see #mode. Always false
+      # without a format, which has no rows to parse.
+      def upload_validates_rows?(validate_rows = nil)
+        return false unless tabular?
+
+        validate_rows = validate_rows_setting(validate_rows)
+        validate_rows.nil? ? mode == :hash : validate_rows
+      end
+
+      # Raises ArgumentError when a file, or the lines that the block of an upload writes, cannot be uploaded into this
+      # category with the supplied `validate_rows:` of the upload, see #upload_validates_rows?: when it is not true,
+      # false or nil, or when it, or else this category's `validate_rows`, is true without a format, which has no rows
+      # to validate, or when this category was saved before Rocket Job v8 with the :array mode, which v8 removed, see
+      # #mode.
+      def check_upload(validate_rows = nil)
+        unless [nil, true, false].include?(validate_rows)
+          raise(ArgumentError, "Input category #{name}: validate_rows: must be true or false, not #{validate_rows.inspect}")
+        end
+        raise(ArgumentError, "Input category #{name}: #{self.class.removed_options_message(%w[mode])}") if mode == :array
+        return if tabular? || !validate_rows_setting(validate_rows)
+
+        raise(ArgumentError, "Input category #{name}: validate_rows: needs a format, whose rows it validates, such as " \
+                             ":auto, which reads a file in the format of its file name")
       end
 
       # Raises ArgumentError when this category cannot parse the records of the supplied kind of object, such as a query
@@ -334,8 +317,8 @@ module RocketJob
       end
 
       # Yields to upload a file into this category, see RocketJob::Batch::IO#upload. When the upload raises, its records
-      # are not kept, so the fields that it set are restored, see #upload_state, such as the columns that the header
-      # row it read replaced, see #header_uploaded, and the file can be uploaded again, such as when the job is retried.
+      # are not kept, so the fields that it set are restored, see #upload_state, such as the format that :auto was
+      # replaced with, and the file can be uploaded again, such as when the job is retried.
       def uploading
         state = upload_state
         yield
@@ -344,8 +327,8 @@ module RocketJob
         raise
       end
 
-      # Returns [Hash] the fields that an upload sets, see #restore_upload_state: the file name, the format that
-      # :auto is replaced with, and the columns of the header row that it reads, see #header_uploaded.
+      # Returns [Hash] the fields that an upload sets, see #restore_upload_state: the file name, and the format that
+      # :auto is replaced with.
       def upload_state
         UPLOAD_FIELDS.to_h { |name| [name, attributes[name]] }
       end
@@ -358,6 +341,17 @@ module RocketJob
 
       private
 
+      # Adds an error when `validate_rows` is true without a format, whose rows it would validate, see #validate_rows.
+      def validate_rows_has_format
+        errors.add(:validate_rows, "needs a format, whose rows it validates") if validate_rows && !tabular?
+      end
+
+      # Returns [true|false|nil] the supplied `validate_rows:` of an upload, unless it is nil, otherwise this category's,
+      # see #validate_rows, which is nil when neither is set, see #upload_validates_rows?.
+      def validate_rows_setting(validate_rows)
+        validate_rows.nil? ? self.validate_rows : validate_rows
+      end
+
       # Replaces a format of :auto with the format of the supplied path, which its file name gives, otherwise CSV, so
       # that an upload reads its file, or the lines that its block writes, in it, see #upload_path and #write_slices.
       # Setting the format builds the tabular again.
@@ -365,9 +359,61 @@ module RocketJob
         self.format = path&.format || :csv if format == :auto
       end
 
+      # Returns [Symbol] this category's format, or the format of its file name when it is :auto, otherwise CSV, which an
+      # upload replaces :auto with, see #detect_format.
+      def upload_format
+        format == :auto ? file_name&.format || :csv : format
+      end
+
+      # The writer of the lines that the block of an upload writes, see #write_slices, which numbers them, so that a line
+      # that is not valid in its encoding raises EncodingError naming the record, as IOStreams would only say that the
+      # text is not valid, before IOStreams reads it in the category's format. The supplied block returns whether the
+      # first line is a header row, which is only asked for such a line.
+      class EncodedLines
+        def initialize(lines, &header)
+          @lines  = lines
+          @header = header
+          @count  = 0
+        end
+
+        # Writes the supplied line, see `IOStreams::Slice::TargetStream#writer`.
+        #
+        # Raises EncodingError for a String that is not valid in its encoding, such as UTF-8 text with a byte of Latin-1,
+        # numbering the record as the job does, see Sliced::Writer::Input: after the header row, when the format has one.
+        def <<(line)
+          @count += 1
+          if line.is_a?(String) && !line.valid_encoding?
+            raise(EncodingError, "Cannot upload #{record_name}, since it is not valid #{line.encoding} text")
+          end
+
+          @lines << line
+          self
+        end
+
+        alias write <<
+
+        private
+
+        # Returns [String] the name of the line last written: the header, or the record that it is.
+        def record_name
+          return "record #{@count}" unless @header.call
+          return "the header" if @count == 1
+
+          "record #{@count - 1} after the header"
+        end
+      end
+      private_constant :EncodedLines
+
       # Returns [IOStreams::Stream] that writes lines to the supplied store of slices, see Sliced::Writer::Input, by this
-      # category's schema, in its format, which an upload has detected when it was :auto, see #detect_format.
+      # category's schema, when it has one, in its format, which an upload has detected when it was :auto, see
+      # #detect_format.
+      #
+      # Raises ArgumentError, before any line is read, when this category was saved before Rocket Job v8 with an option
+      # that v8 removed, see Category::Base#check_removed_options, or, without a schema, holds columns that no upload
+      # read, see #check_columns_not_set.
       def slice_target(writer)
+        check_removed_options
+        check_columns_not_set if schema.blank?
         IOStreams.stream(writer).schema(schema_descriptor).format(format)
       end
 
@@ -376,7 +422,7 @@ module RocketJob
       private_constant :INVALID_CHARACTER_REPLACEMENTS
 
       # Raises ArgumentError when the supplied path has a schema other than this category's, which the workers read each
-      # slice of the file with, see #parse_records.
+      # slice of the file with, see #parse_records, also when this category has none.
       def check_path_schema(path)
         return if path.schema.nil? || path.schema == schema
 
@@ -394,8 +440,8 @@ module RocketJob
         path.encoding(replace: replacement) if replacement
       end
 
-      # Without a schema, the tabular reads the columns as the header row that an upload read from a file, see
-      # #columns, which it reads each line by. With one, each slice of a file holds its header row instead, see
+      # Without a schema, the tabular reads the columns as the header row of a file that Rocket Job 7 uploaded, see
+      # #columns, which it reads each of its lines by. With one, each slice of a file holds its header row instead, see
       # #parse_records.
       #
       # Raises ArgumentError when the columns are not the header row of a file, see #check_header_row.
@@ -407,8 +453,8 @@ module RocketJob
         tabular
       end
 
-      # Reads the columns as the header row that an upload read from a file, see #columns, with the supplied tabular,
-      # which cleanses each of them, as it cleansed them when the file was uploaded.
+      # Reads the columns as the header row of a file that Rocket Job 7 uploaded, see #columns, with the supplied
+      # tabular, which cleanses each of them, as Rocket Job 7 cleansed them when the file was uploaded.
       #
       # Raises ArgumentError when reading them as a header row changes them, since Rocket Job v8 cannot read the lines
       # by them as Rocket Job 7 did: columns that were not cleansed, which an application set before v8 for a file
@@ -422,26 +468,19 @@ module RocketJob
               "columns of a file without a header row: #{self.class.removed_options_message(%w[columns])}")
       end
 
-      # Raises ArgumentError when the category holds columns that an upload did not read from a file, see #columns,
-      # before an upload reads its file by them: the columns of a scheduled job saved by Rocket Job 7, which copied the
-      # header row of an upload into its next run, or columns set for a file without a header row, which Rocket Job v8
-      # removed.
+      # Raises ArgumentError when the category holds columns, see #columns, before an upload into it without a schema
+      # reads its file, which would read the first row of a file without a header row as its header row: the columns
+      # of a scheduled job saved by Rocket Job 7, which copied the header row of an upload into its next run, or columns
+      # set for a file without a header row, which Rocket Job v8 removed.
       def check_columns_not_set
         return if columns.blank?
 
         raise(ArgumentError,
-              "Input category #{name} holds columns that no upload read from a file. Clear them when Rocket Job 7 " \
-              "copied them from an earlier run of a scheduled job. Otherwise they are the columns of a file without a " \
-              "header row: #{self.class.removed_options_message(%w[columns])}")
-      end
-
-      # Reads the header row of a file into a category without a schema, cleansing each of its columns, see
-      # `IOStreams::Tabular#read_header`, and keeps them as its columns, see #columns. A category with a schema uploads
-      # slices instead, which hold the header row of their file, see #copy_slices.
-      def read_header(row)
-        tabular.read_header(row)
-        # Kept without building the tabular again, which has read them.
-        self[:columns] = tabular.header.columns
+              "Input category #{name} holds columns, which Rocket Job v8 never sets, so a file cannot be uploaded " \
+              "into it without a schema. When Rocket Job 7 uploaded a file into this category of a job that is " \
+              "still running, upload the next file into a new job, since this one reads its lines by those columns. " \
+              "When Rocket Job 7 copied them from an earlier run of a scheduled job, clear them. Otherwise they are " \
+              "the columns of a file without a header row: #{self.class.removed_options_message(%w[columns])}")
       end
     end
   end

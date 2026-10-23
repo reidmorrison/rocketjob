@@ -49,9 +49,9 @@ JRuby that is JRuby 10.0 or later. Upgrade Ruby before upgrading Rocket Job.
 
 Upgrade every server that runs workers at the same time, rather than running v7 and v8 workers
 together. A v7 worker reads the jobs that v8 saves, but ignores the options that v8 adds, such as a
-category's `schema` or `encoding`. A file that v8 uploads into an input category with a `schema` is
-stored in slices that a v7 worker cannot read, so it fails each one, and they can be retried once
-every worker runs v8.
+category's `schema` or `encoding`. A file that v8 uploads into an input category with a `format`, such
+as CSV, is stored in slices that a v7 worker cannot read, so it fails each one, and they can be
+retried once every worker runs v8.
 
 ### The deprecated category options are removed
 
@@ -69,8 +69,10 @@ Replace each one while v7.1 still reads it, as its upgrade steps describe:
   `ArgumentError`. A `:csv`, `:psv` or `:fixed` output category needs a schema, whose fields are the
   columns that it writes, in order.
 * An input category's `mode: :array`, and the `stream_mode: :array` of `upload`, see
-  [Replace the :array upload mode](#replace-the-array-upload-mode). A file that v7 uploaded in the
-  `:array` mode, whose slices hold an Array for each row, is still processed.
+  [Replace the :array upload mode](#replace-the-array-upload-mode), where v8 reads `:hash` as
+  `validate_rows: true`, see
+  [Replace the :hash mode with validate_rows](#replace-the-hash-mode-with-validate_rows). A file that v7
+  uploaded in the `:array` mode, whose slices hold an Array for each row, is still processed.
 
 Code or a saved document that still sets one fails, naming the option, rather than reading or
 writing the records of the category as though it were not set:
@@ -83,12 +85,12 @@ writing the records of the category as though it were not set:
   when that category reads or writes its records, such as when its file is uploaded, or a worker
   processes one of its slices. For the `:array` mode only an upload raises, since the Arrays that v7
   uploaded are still processed, and the next run of a scheduled job with it is still created.
-* An input category's `columns` are only set by `upload`, to the header row of a file uploaded
-  without a schema. Uploading a file into a category whose `columns` no upload read, such as those
-  set for a file without a header row, raises `ArgumentError`, rather than reading the file by them.
-  So does reading the records of a category saved with columns that reading them as a header row
-  would change, such as columns that were not cleansed, see
-  [An input category holds the header row of one file](#an-input-category-holds-the-header-row-of-one-file).
+* An input category's `columns` are not set by v8, since each slice of a file holds its header row.
+  Uploading a file without a schema into a category saved with `columns`, such as those set for a
+  file without a header row, raises `ArgumentError`, rather than reading the file by them. So does
+  reading the records of a category saved with columns that reading them as a header row would
+  change, such as columns that were not cleansed, see
+  [Each slice holds the header row of its file](#each-slice-holds-the-header-row-of-its-file).
 
 An option that is blank, or at its default, is ignored, such as a blank `format_options`, or
 `skip_unknown: false` and `header_cleanser: :default`, which Rocket Job 7 saved with every input
@@ -112,17 +114,34 @@ space. So the column `Prénom` is `prénom`, where it was `prnom`, which changes
 that `#perform` receives. With a schema, the keys of each record are the names of its fields, which
 the columns are matched to whatever their case, spaces and punctuation.
 
-### An input category holds the header row of one file
+### Each slice holds the header row of its file
 
-Without a schema, in the `:line` mode an input category keeps the header row that `upload` read from
-a file, and its workers read each line by it. With a schema, each slice of a file holds its header
-row instead, so neither case below applies. Without one, two cases changed, see
-[More than one file](batch.html#more-than-one-file):
+v7 kept the header row that `upload` read from a file without a schema in the input category's
+`columns`, and its workers read each line by it. v8 uploads every file in a `format`, such as CSV,
+in slices that each hold the header row of the file, as it is in the file, and its format, as it
+does with a schema, see [More than one file](batch.html#more-than-one-file). `#perform` receives the
+same Hash for each line, so most jobs need no change, but:
 
-* Uploading a second file with a header row into the same input category raises `ArgumentError`, in
-  any mode. v7 stored the second file's header row as a record, and read its lines with the first
-  file's columns. Upload each file into its own input category, or upload every file in the `:hash`
-  mode.
+* A second file with a header row can be uploaded into the same input category, in any mode, and its
+  lines are read by its own header row. v7 stored the second file's header row as a record, and read
+  its lines with the first file's columns.
+* A file in a format is uploaded as its lines in every mode, see
+  [Replace the :hash mode with validate_rows](#replace-the-hash-mode-with-validate_rows).
+* The block of `upload` writes the lines of a file into a category with a format: its header row
+  first, when the file has one, then its rows. Writing anything else raises `ArgumentError`, such as an
+  Array of the values of each row of CSV, after the Array of its header row, or a Hash into a JSON
+  category, which v7 read as it read a line. Write each row as a line of the format instead, such as
+  `row.to_csv` or `hash.to_json`, or upload it into a category without a format, whose `#perform`
+  receives it as it was written. The `:hash` and `:array` formats, whose rows are Ruby objects, and
+  formats whose rows are not lines, such as Parquet, still upload each record as it is.
+* The lines of a file in a format with a header row, such as CSV, that `upload_slice` uploads after
+  `upload` uploaded a file are not read by its header row, which the category no longer keeps, so a
+  worker raises `ArgumentError` for them. Write them to the block of `upload` instead, after the
+  header row. Hashes, and the lines of a format without a header row, such as JSON, are still read.
+* Options that read the lines of a file, such as `delimiter:`, raise `ArgumentError` for a category
+  with a format, whose lines are read in it.
+* A slice of an input category holds an `IOStreams::Slice` of rows, rather than an Array, for code
+  that reads the records of a slice itself, such as Mission Control.
 * The next run of a batch job that `RocketJob::Plugins::Cron` creates after the job uploaded its
   file, such as one with `cron_after_start: false`, whose next run is created when it completes or
   fails, reads the header row of its own upload. v7 copied the header row that the upload read into
@@ -140,6 +159,42 @@ row instead, so neither case below applies. Without one, two cases changed, see
     job.save!
   end
   ~~~
+
+### Replace the :hash mode with validate_rows
+
+An input category's `validate_rows: true` replaces its `mode: :hash`, and the `validate_rows:` of
+`upload` replaces its `stream_mode:`. Each line of a file in the category's format is parsed while the
+file is uploaded, so that a file with a line that cannot be read is rejected, and nothing is
+uploaded, before processing starts. The slices hold the lines, as they do without it, rather than the
+Hashes that v7 uploaded, and `#perform` receives the same Hash for each line:
+
+~~~ruby
+# Before
+input_category format: :csv, mode: :hash
+job.upload("people.csv", stream_mode: :hash)
+
+# After
+input_category format: :csv, validate_rows: true
+job.upload("people.csv", validate_rows: true)
+~~~
+
+* A category's `mode` is still read, so that a job class, a saved job, such as a scheduled job, and
+  a Dirmon entry with it need not change: `mode: :hash` validates the rows of a file in a format, as
+  `validate_rows: true` does, unless `upload` is given `validate_rows: false`. Without a format it has
+  no effect, as in v7.0.
+* `stream_mode:` raises `ArgumentError`, with any value, since `validate_rows:` replaces it.
+* `stream_mode: :hash` read a file into a category without a format as Hashes, in the format of its
+  file name. Set the category's `format: :auto` instead, which reads a file in the format of its file
+  name, otherwise CSV, so that `#perform` receives the same Hashes, apart from the columns of a
+  header row that IOStreams 3.0 cleanses differently, see
+  [A header row is cleansed as IOStreams 3.0 cleanses it](#a-header-row-is-cleansed-as-iostreams-30-cleanses-it).
+  `validate_rows: true` needs a format, and raises `ArgumentError` without one.
+* A category's `validate_rows: false` is used in place of its `mode: :hash`, so that a job class can
+  stop validating the rows of the files of saved jobs and Dirmon entries with it. Left unset, the
+  `mode` decides.
+* `validate_rows:` applies to a file, and the lines that the block of `upload` writes. A query or a
+  range uploads values rather than rows, so `upload` raises `ArgumentError` for `validate_rows: true`
+  with one, and the category's `validate_rows` does not apply to it.
 
 ### An Active Record query is streamed
 

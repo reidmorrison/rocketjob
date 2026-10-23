@@ -189,9 +189,8 @@ module Plugins
             restarted = RocketJob::Job.where(:id.ne => job.id).first
 
             assert_nil restarted.input_category.columns
-            refute restarted.input_category.header_uploaded
             assert_equal 1, restarted.upload(StringIO.new("name,city\nJill,Boston\n"), file_name: "b.csv")
-            assert_equal %w[name city], restarted.input_category.columns
+            assert_equal %w[name city], restarted.input.first.records.header
           ensure
             RocketJob::Job.all.each(&:cleanup!)
             RocketJob::Job.destroy_all
@@ -227,7 +226,7 @@ module Plugins
             error = assert_raises(ArgumentError) do
               restarted.upload(StringIO.new("name,zip\nJill,02101\n"), file_name: "b.csv")
             end
-            assert_includes error.message, "Input category main holds columns that no upload read from a file"
+            assert_includes error.message, "Input category main holds columns, which Rocket Job v8 never sets"
           ensure
             RocketJob::Job.destroy_all
           end

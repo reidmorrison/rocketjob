@@ -93,8 +93,8 @@ module Batch
       end
 
       it "keeps the slices of an earlier file when a later one fails" do
-        job.input_category.mode       = :hash
-        job.input_category.slice_size = 1
+        job.input_category.validate_rows = true
+        job.input_category.slice_size    = 1
         upload("Name,AGE\nJack,21\n")
 
         # The slice of Jill is stored before Bob's value raises.

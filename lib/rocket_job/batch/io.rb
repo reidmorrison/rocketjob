@@ -51,15 +51,20 @@ module RocketJob
       #       Automatically detect line endings and break up by line
       #       Searches for the first "\r\n" or "\n" and then uses that as the
       #       delimiter for all subsequent records
+      #     Only for an input category without a format, since the lines of a file in a format, such as CSV, are read
+      #     in it.
       #
-      #   stream_mode: [:line | :hash]
-      #     :line
-      #       Uploads the file a line (String) at a time for processing by workers.
-      #     :hash
-      #       Parses each line from the file into a Hash and uploads each hash for processing by workers.
-      #     Default: The input category's `mode`, which defaults to :line.
-      #     Raises ArgumentError for another mode, such as :array, which Rocket Job v8 removed.
-      #     See IOStreams::Stream#each.
+      #   validate_rows: [true | false]
+      #     Whether to parse each row of the file in the input category's format, such as CSV, as it is uploaded, so
+      #     that a file with a row that cannot be read, or with a value that is not valid for its field, is rejected
+      #     before any of it is processed. The slices still hold the lines, which the workers parse.
+      #     Raises ArgumentError when true for an input category without a format, whose records are uploaded as they
+      #     are, or for a query or a range, which upload values rather than the rows of a file, so that the category's
+      #     `validate_rows` does not apply to them either.
+      #     Default: The input category's `validate_rows`, see RocketJob::Category::Input#upload_validates_rows?.
+      #
+      #   `stream_mode:` was removed in Rocket Job v8, and raises ArgumentError: `validate_rows: true` replaces
+      #   `stream_mode: :hash`, and for a category without a format, its `format: :auto` reads a file into Hashes.
       #
       #   category [Symbol|RocketJob::Category::Input]
       #     The category or the name of the category to upload the data into
@@ -106,6 +111,9 @@ module RocketJob
       #   job.upload do |writer|
       #     10.times { |i| writer << i }
       #   end
+      #
+      # The block of an upload into an input category with a format, such as CSV, writes the lines of a file, its header
+      # row first, which are uploaded as a file is, and takes `validate_rows:` too.
       #
       # Notes:
       # * Only call from one thread at a time against a single instance of this job.
@@ -175,43 +183,42 @@ module RocketJob
       #   range is the number of integers in it, although each slice holds one `[first_id, last_id]` record.
       # * If an exception is raised while uploading, the records that this upload stored are removed, so that if the
       #   job is retried, its data is not duplicated.
-      def upload(object = nil, category: :main, file_name: nil, stream_mode: nil, columns: nil, slice_batch_size: nil,
+      def upload(object = nil, category: :main, file_name: nil, validate_rows: nil, columns: nil, slice_batch_size: nil,
                  **args, &block)
         rocketjob_check_on_first(args)
+        rocketjob_check_stream_mode(args)
         input_collection = input(category)
 
         if block
           raise(ArgumentError, "Cannot supply both an object to upload, and a block.") if object
-          if stream_mode || columns || slice_batch_size || args.size.positive?
+          if columns || slice_batch_size || args.size.positive?
             raise(ArgumentError,
-                  "Unknown keyword arguments when uploading a block. Only accepts :category, or :file_name")
+                  "Unknown keyword arguments when uploading a block. Only accepts :category, :file_name, or " \
+                  ":validate_rows")
           end
 
-          category           = input_category(category)
-          category.file_name = file_name if file_name
-          category.upload_mode
+          category = input_category(category)
+          category.check_upload(validate_rows)
 
+          # Restores the file name that the upload sets when it raises, see Category::Input#uploading.
           count =
-            if category.slices?
-              # The block writes the lines of a file, which are read in slices, as the lines of a file are.
-              category.uploading do
+            category.uploading do
+              category.file_name = file_name if file_name
+              if category.slices?
+                # The block writes the lines of a file, which are read in slices, as the lines of a file are.
                 input_collection.upload(upload_id: rocketjob_upload_id) do |writer|
-                  category.write_slices(writer, &block)
+                  category.write_slices(writer, validate_rows: validate_rows, &block)
                 end
-              end
-            else
-              # Extract the header line during the upload when applicable.
-              extract_header = category.extract_header_callback
-
-              category.uploading do
-                input_collection.upload(on_first: extract_header, upload_id: rocketjob_upload_id, &block)
+              else
+                input_collection.upload(upload_id: rocketjob_upload_id, &block)
               end
             end
           return rocketjob_add_record_count(count)
         end
 
-        # The options that only apply to a file, which a range or a query rejects.
-        file_options = args.merge(file_name: file_name, stream_mode: stream_mode).compact
+        # The options that only apply to a file, which a range or a query rejects: `validate_rows: false` asks for
+        # nothing that it does not do, since it uploads values, rather than the rows of a file.
+        file_options = args.merge(file_name: file_name, validate_rows: validate_rows || nil).compact
         count =
           case object
           when Range
@@ -237,7 +244,7 @@ module RocketJob
 
             rocketjob_check_upload_file_options(args)
             category = input_category(category)
-            mode     = category.upload_mode(stream_mode)
+            category.check_upload(validate_rows)
 
             # Restores the fields that the upload sets when it raises, such as the format that :auto is replaced with.
             category.uploading do
@@ -246,14 +253,11 @@ module RocketJob
 
               if category.slices?
                 rocketjob_upload_slices(input_collection, category, path,
-                                        mode: mode, slice_batch_size: slice_batch_size, **args)
+                                        validate_rows:    validate_rows,
+                                        slice_batch_size: slice_batch_size, **args)
               else
-                # Extract the header line during the upload when applicable.
-                extract_header = category.extract_header_callback(mode: mode)
-
-                input_collection.upload(on_first: extract_header, slice_batch_size: slice_batch_size,
-                                        upload_id: rocketjob_upload_id) do |io|
-                  category.each_record(path, mode: mode, **args) { |record| io << record }
+                input_collection.upload(slice_batch_size: slice_batch_size, upload_id: rocketjob_upload_id) do |io|
+                  category.each_record(path, **args) { |record| io << record }
                 end
               end
             end
@@ -393,6 +397,10 @@ module RocketJob
       ON_FIRST_GUIDE = "https://rocketjob.reidmorrison.com/upgrading.html#replace-on_first".freeze
       private_constant :ON_FIRST_GUIDE
 
+      # Where the upgrade guide says what replaces `stream_mode`, which Rocket Job v8 removed.
+      STREAM_MODE_GUIDE = "https://rocketjob.reidmorrison.com/upgrading.html#replace-the-hash-mode-with-validate_rows".freeze
+      private_constant :STREAM_MODE_GUIDE
+
       # Returns [Hash] the `record_count` and the upload state of each input category, see
       # Category::Input#upload_state, which the before_batch callbacks start with, see #before_batch_state.
       def rocketjob_before_batch_state
@@ -450,6 +458,18 @@ module RocketJob
               "that writes the other lines, see #{ON_FIRST_GUIDE}")
       end
 
+      # Raises ArgumentError for `stream_mode`, which Rocket Job v8 removed, also when nil, for any object uploaded, saying
+      # what replaces it: `validate_rows: true` checks each row of a file in the category's format as it is uploaded,
+      # which `stream_mode: :hash` did, and a category without a format reads a file into Hashes with `format: :auto`.
+      def rocketjob_check_stream_mode(args)
+        return unless args.key?(:stream_mode)
+
+        raise(ArgumentError,
+              "stream_mode: was removed in Rocket Job v8: use validate_rows: true in place of stream_mode: :hash to " \
+              "parse each row of a file in the input category's format when it is uploaded, and to read a file into " \
+              "Hashes, set the format of the input category, such as to :auto, see #{STREAM_MODE_GUIDE}")
+      end
+
       # Raises ArgumentError for the options that describe the columns of the file, which Rocket Job v8 removed, see
       # REMOVED_UPLOAD_OPTION_NAMES, also when nil, naming the schema that replaces them, rather than leaving IOStreams
       # to reject them as options that it does not take.
@@ -460,14 +480,14 @@ module RocketJob
         raise(ArgumentError, Category::Input.removed_options_message(names.collect { |name| "#{name}:" }))
       end
 
-      # Uploads the file that the supplied path reads into the supplied input category, which has a schema, in the slices
+      # Uploads the file that the supplied path reads into the supplied input category, which has a format, in the slices
       # of its rows that IOStreams writes to the input, each of which carries the header row of the file, see
       # Category::Input#copy_slices.
       #
       # Returns [Integer] the number of records uploaded.
-      def rocketjob_upload_slices(input_collection, category, path, mode:, slice_batch_size:, **args)
+      def rocketjob_upload_slices(input_collection, category, path, validate_rows:, slice_batch_size:, **args)
         input_collection.upload(slice_batch_size: slice_batch_size, upload_id: rocketjob_upload_id) do |writer|
-          category.copy_slices(path, writer, mode: mode, **args)
+          category.copy_slices(path, writer, validate_rows: validate_rows, **args)
         end
       end
 
