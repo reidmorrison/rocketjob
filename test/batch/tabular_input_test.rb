@@ -253,6 +253,46 @@ module Batch
           error = assert_raises(ArgumentError) { upload(".csv", csv, stream_mode: :array) }
           assert_match(/cannot be uploaded in :array mode/, error.message)
         end
+
+        describe "validate_rows" do
+          let(:invalid) { "Name,Age,Joined\nJack,21,2026-10-20\nJill,old,2026-10-21\n" }
+
+          it "parses every line when it is uploaded, so a value that is not valid uploads nothing" do
+            assert_raises(IOStreams::Errors::InvalidValue) { upload(".csv", invalid, validate_rows: true) }
+            assert_equal 0, job.input.count
+          end
+
+          it "uploads the lines as they are, which the workers parse" do
+            assert_equal 3, upload(".csv", "\n#{csv}\n", validate_rows: true)
+
+            assert_equal ["Jack,21,2026-10-20", "Jill,22,2026-10-21", ""], input_records
+            assert_equal records, output_records
+          end
+
+          it "is read from the category" do
+            job.input_category.validate_rows = true
+
+            assert_raises(IOStreams::Errors::InvalidValue) { upload(".csv", invalid) }
+          end
+
+          it "is false on the upload, overriding the :hash mode of the category" do
+            job.input_category.mode = :hash
+
+            assert_equal 2, upload(".csv", invalid, validate_rows: false)
+          end
+
+          it "is false on the category, overriding its :hash mode" do
+            job.input_category.mode          = :hash
+            job.input_category.validate_rows = false
+
+            assert_equal 2, upload(".csv", invalid)
+          end
+
+          it "cannot be supplied with stream_mode" do
+            error = assert_raises(ArgumentError) { upload(".csv", csv, validate_rows: true, stream_mode: :line) }
+            assert_match(/either validate_rows:, or the deprecated stream_mode:/, error.message)
+          end
+        end
       end
 
       describe "without a schema" do
@@ -260,6 +300,43 @@ module Batch
           upload(".csv", "Name\nJosé\n")
 
           assert_equal ["Jos"], input_records
+        end
+
+        describe "validate_rows" do
+          it "parses every line after the header row when it is uploaded, uploading the lines as they are" do
+            assert_equal 3, upload(".csv", "\nName,Age\nJack,21\n\nJill,22\n", validate_rows: true)
+
+            assert_equal %w[name age], job.input_category.columns
+            assert_equal ["Jack,21", "", "Jill,22"], input_records
+            assert_equal [{"name" => "Jack", "age" => "21"}, {"name" => "Jill", "age" => "22"}], output_records
+          end
+
+          it "uploads nothing when a line cannot be parsed" do
+            csv = %(Name,Age\nJack,21\nJill,"22"x\n)
+            assert_raises(CSV::MalformedCSVError) { upload(".csv", csv, validate_rows: true) }
+            assert_equal 0, job.input.count
+          end
+
+          it "parses every line of a file without a header row, such as JSON" do
+            job.input_category.format = :json
+
+            assert_raises(StandardError) { upload(".json", %({"name":"Jack"}\n{"name":\n), validate_rows: true) }
+            assert_equal 0, job.input.count
+          end
+
+          it "is not read from the :hash mode of the category, which 7.0 did not parse the lines in" do
+            job.input_category.format = :json
+            job.input_category.mode   = :hash
+
+            assert_equal 2, upload(".json", %({"name":"Jack"}\n{"name":\n))
+          end
+
+          it "raises for a category without a format, which has no lines to parse" do
+            job.input_category.format = nil
+
+            error = assert_raises(ArgumentError) { upload(".txt", "hello\n", validate_rows: true) }
+            assert_match(/validate_rows: needs a format/, error.message)
+          end
         end
       end
 

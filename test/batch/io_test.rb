@@ -268,6 +268,21 @@ module Batch
           assert_raises(ArgumentError) { job.upload(1..10, file_name: "x.txt") }
         end
 
+        it "rejects validate_rows when uploading a block, whose records are uploaded as they are" do
+          error = assert_raises(ArgumentError) { job.upload(validate_rows: false) { |io| io << "x" } }
+          assert_match(/validate_rows: cannot be supplied when uploading a block/, error.message)
+        end
+
+        it "rejects validate_rows: true when uploading a Range, which has no lines to validate, but not false" do
+          assert_raises(ArgumentError) { job.upload(1..10, validate_rows: true) }
+          assert_predicate job.upload(1..10, validate_rows: false), :positive?
+        end
+
+        it "rejects a validate_rows that is not true or false" do
+          error = assert_raises(ArgumentError) { job.upload(text_file, validate_rows: "yes") }
+          assert_match(/validate_rows: must be true or false/, error.message)
+        end
+
         it "rejects :columns when uploading a file" do
           assert_raises(ArgumentError) { job.upload(text_file, columns: [:a]) }
         end
