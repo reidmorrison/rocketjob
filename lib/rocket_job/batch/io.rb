@@ -92,8 +92,9 @@ module RocketJob
       #     true to parse each line of the file in the input category's format while it is uploaded, so that a file
       #     with a line that cannot be read, or with a value that is not valid, uploads nothing. The lines are still
       #     uploaded as they are, and the workers parse them.
-      #     Raises ArgumentError when true for an input category without a format, or for a query or a range, which
-      #     upload values rather than the lines of a file, and when supplied with a block, or with `stream_mode:`.
+      #     Raises ArgumentError when true for an input category without a format, or for a query, a range or a block,
+      #     which upload values rather than the lines of a file, and when supplied with `stream_mode:`. False is
+      #     accepted for each, since it validates nothing.
       #     Default: The input category's `validate_rows`, see RocketJob::Category::Input#upload_validates_rows?.
       #
       #   stream_mode: [:line | :array | :hash]
@@ -288,10 +289,8 @@ module RocketJob
         # Sliced::Input#upload_arel.
         if block && !rocketjob_query?(object)
           raise(ArgumentError, "Cannot supply both an object to upload, and a block.") if object
-          unless validate_rows.nil?
-            raise(ArgumentError, "validate_rows: cannot be supplied when uploading a block, whose records are uploaded " \
-                                 "as they are")
-          end
+
+          rocketjob_check_no_validate_rows(validate_rows, "a block, whose records are uploaded as they are")
           if stream_mode || columns || slice_batch_size || args.size.positive?
             raise(ArgumentError,
                   "Unknown keyword arguments when uploading a block. Only accepts :category, :file_name, or :on_first")
@@ -312,7 +311,8 @@ module RocketJob
         count =
           case object
           when Range
-            if file_name || stream_mode || validate_rows || on_first || args.size.positive?
+            rocketjob_check_no_validate_rows(validate_rows, "a Range, whose values are not the lines of a file")
+            if file_name || stream_mode || on_first || args.size.positive?
               raise(ArgumentError,
                     "Unknown keyword arguments when uploading a Range. Only accepts :category, :columns, or :slice_batch_size")
             end
@@ -325,14 +325,16 @@ module RocketJob
               input_collection.upload_integer_range_in_reverse_order(last, first, slice_batch_size: slice_batch_size || 1_000)
             end
           when Mongoid::Criteria
-            if file_name || stream_mode || validate_rows || on_first || args.size.positive?
+            rocketjob_check_no_validate_rows(validate_rows, "a Mongoid::Criteria, whose values are not the lines of a file")
+            if file_name || stream_mode || on_first || args.size.positive?
               raise(ArgumentError,
                     "Unknown keyword arguments when uploading a Mongoid::Criteria. Only accepts :category, :columns, or :slice_batch_size")
             end
 
             input_collection.upload_mongo_query(object, columns: columns, slice_batch_size: slice_batch_size, &block)
           when defined?(ActiveRecord::Relation) ? ActiveRecord::Relation : false
-            if file_name || stream_mode || validate_rows || on_first || args.size.positive?
+            rocketjob_check_no_validate_rows(validate_rows, "an ActiveRecord::Relation, whose values are not the lines of a file")
+            if file_name || stream_mode || on_first || args.size.positive?
               raise(ArgumentError,
                     "Unknown keyword arguments when uploading an ActiveRecord::Relation. Only accepts :category, :columns, or :slice_batch_size")
             end
@@ -346,9 +348,10 @@ module RocketJob
               raise(ArgumentError, "Supply either validate_rows:, or the deprecated stream_mode:, when uploading a file")
             end
 
-            rocketjob_warn_deprecated_upload_options(stream_mode, args)
+            rocketjob_warn_deprecated_upload_options(args)
             rocketjob_warn_on_first if on_first
             category = input_category(category)
+            category.warn_deprecated_stream_mode(stream_mode) if stream_mode
             category.check_upload(validate_rows)
 
             # The path sets the format of a category whose format is :auto, which decides whether the file has a
@@ -555,39 +558,23 @@ module RocketJob
         )
       end
 
-      # Reports a deprecation warning, see RocketJob::Deprecation, at the line of the application that uploads a file
-      # with a `stream_mode`, or with options that describe the columns of the file, which the schema of the input
-      # category replaces.
-      def rocketjob_warn_deprecated_upload_options(stream_mode, args)
-        rocketjob_warn_stream_mode(stream_mode) if stream_mode
+      # Raises ArgumentError for the supplied `validate_rows:` of an upload of what is described, which has no lines to
+      # validate, unless it is nil or false, which validates nothing.
+      def rocketjob_check_no_validate_rows(validate_rows, what)
+        return if [nil, false].include?(validate_rows)
 
+        raise(ArgumentError, "validate_rows: #{validate_rows.inspect} cannot be supplied when uploading #{what}")
+      end
+
+      # Reports a deprecation warning, see RocketJob::Deprecation, at the line of the application that uploads a file
+      # with options that describe the columns of the file, which the schema of the input category replaces.
+      def rocketjob_warn_deprecated_upload_options(args)
         names = args.keys & DEPRECATED_UPLOAD_OPTIONS
         return if names.empty?
 
         RocketJob::Deprecation.warn(
           "#{names.collect { |name| "#{name}:" }.join(', ')} #{names.size == 1 ? 'is' : 'are'} deprecated, describe " \
           "the columns of the file with the schema: of the input category instead, see " \
-          "#{RocketJob::Deprecation::UPGRADE_GUIDE}"
-        )
-      end
-
-      # Reports a deprecation warning, see RocketJob::Deprecation, for the supplied `stream_mode` of an upload, which
-      # Rocket Job 8 removes, saying what replaces it.
-      def rocketjob_warn_stream_mode(stream_mode)
-        instead =
-          case stream_mode.to_s
-          when "hash"
-            "use validate_rows: true in place of stream_mode: :hash to parse every line of a file in the category's " \
-            "format when it is uploaded, or for a category without a format, give it format: :auto, whose workers " \
-            "read each line into a Hash"
-          when "array"
-            "remove it, so that the workers parse the lines in the category's format, and use validate_rows: true to " \
-            "also parse every line when the file is uploaded"
-          else
-            "remove it, since :line is the default"
-          end
-        RocketJob::Deprecation.warn(
-          "stream_mode: #{stream_mode.inspect} is deprecated, and removed in Rocket Job 8: #{instead}, see " \
           "#{RocketJob::Deprecation::UPGRADE_GUIDE}"
         )
       end

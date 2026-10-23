@@ -28,7 +28,6 @@ module RocketJob
       # otherwise, since a scheduled job copies them from its last run, so that each upload reads its own header row.
       def schema_proposal(where, defined: nil, uploaded: false)
         names = deprecated_options_set
-        names << "mode" if mode == :array
         return if names.empty?
 
         notes   = []
@@ -53,6 +52,15 @@ module RocketJob
       end
 
       private
+
+      # Returns [Hash] the supplied deprecated options, by name, set to their defaults, see Category::Base, and
+      # `validate_rows` set to true for the :hash mode with a schema, which parsed every line when a file was uploaded.
+      # Without a schema the :hash mode had no effect, so it is only reset.
+      def default_settings(names)
+        settings = super
+        settings["validate_rows"] = true if names.include?("mode") && mode == :hash && schema.present? && validate_rows.nil?
+        settings
+      end
 
       # The proposal for a category that already has a schema, such as one that a Dirmon entry's properties merge into a
       # job class with a schema, whose deprecated options are only removed.

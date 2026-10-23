@@ -81,6 +81,15 @@ module RocketJob
           properties["columns"].present? ? ["columns"] : []
         end
 
+        # Returns [Array<String>] the names of all the deprecated options in the supplied properties of a category,
+        # with String keys: its deprecated column options, see .deprecated_column_options, and `format_options`.
+        # Overridden by the input category.
+        def deprecated_options(properties)
+          names = deprecated_column_options(properties)
+          names << "format_options" if properties["format_options"].present?
+          names
+        end
+
         # Reports a deprecation warning, see RocketJob::Deprecation, for the deprecated options in the supplied
         # properties of a category, such as those that a job class defines it with, or that a Dirmon entry holds.
         def warn_deprecated_options(properties)
@@ -152,12 +161,10 @@ module RocketJob
         collection_name
       end
 
-      # Returns [Array<String>] the names of the deprecated options that this category sets, see
-      # .deprecated_column_options, and `format_options`, whose schema #schema_proposal proposes.
+      # Returns [Array<String>] the names of the deprecated options that this category sets, see .deprecated_options,
+      # which #schema_proposal replaces.
       def deprecated_options_set
-        names = self.class.deprecated_column_options(attributes.to_h.stringify_keys)
-        names << "format_options" if format_options.present?
-        names
+        self.class.deprecated_options(attributes.to_h.stringify_keys)
       end
 
       private

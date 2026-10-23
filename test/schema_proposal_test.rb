@@ -177,6 +177,22 @@ class SchemaProposalTest < Minitest::Test
         assert_equal({"mode" => :line}, proposal(input(format: :csv, mode: :array)).changes)
       end
 
+      it "replaces the :hash mode with a schema by validate_rows, since it parsed every line when a file was uploaded" do
+        category = input(format: :csv, mode: :hash, schema: {"fields" => [{"name" => "name"}]})
+
+        assert_equal({"mode" => :line, "validate_rows" => true}, proposal(category).changes)
+      end
+
+      it "replaces the :hash mode without a schema by :line, since it had no effect" do
+        assert_equal({"mode" => :line}, proposal(input(format: :csv, mode: :hash)).changes)
+      end
+
+      it "keeps validate_rows when it is set with the :hash mode" do
+        category = input(format: :csv, mode: :hash, validate_rows: false, schema: {"fields" => [{"name" => "name"}]})
+
+        assert_equal({"mode" => :line}, proposal(category).changes)
+      end
+
       it "replaces a fixed width layout, reading its files as it did" do
         layout   = {layout: [{size: 4, key: "name"}, {size: 5, key: "zip", type: :integer}]}
         category = input(format: :fixed, format_options: layout)
@@ -402,6 +418,13 @@ class SchemaProposalTest < Minitest::Test
         assert_equal 1, job.schema_proposals.size
       end
 
+      it "with the :hash mode are proposed" do
+        entry = RocketJob::DirmonEntry.new(job_class_name: ProposalJob.name,
+                                           properties:     {"input_categories" => [{"name" => "main", "mode" => "hash"}]})
+
+        assert_equal [{"mode" => :line}], entry.schema_proposals.map(&:changes)
+      end
+
       it "without a deprecated option propose nothing" do
         entry = RocketJob::DirmonEntry.new(job_class_name: ProposalJob.name,
                                            properties:     {"input_categories" => [{"name" => "main", "format" => "csv"}]})
@@ -416,6 +439,20 @@ class SchemaProposalTest < Minitest::Test
 
         assert_match(/Its before_code names a deprecated category or upload option/,
                      job.schema_proposals.last.notes.first)
+      end
+
+      it "says when its code names a deprecated mode" do
+        ["upload(file, stream_mode: :line)", "input_category.mode = :hash", "upload(file, mode: :array)"].each do |code|
+          job = RocketJob::Jobs::OnDemandBatchJob.new(code: "row", before_code: code)
+
+          assert_match(/Its before_code names a deprecated/, job.schema_proposals.last&.notes&.first.to_s, code)
+        end
+      end
+
+      it "does not name validate_rows or the :line mode as deprecated" do
+        job = RocketJob::Jobs::OnDemandBatchJob.new(code: "row", before_code: "upload(file, validate_rows: true)\nmode: :line")
+
+        assert_empty job.schema_proposals
       end
     end
 

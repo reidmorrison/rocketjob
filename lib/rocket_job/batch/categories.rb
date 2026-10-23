@@ -86,7 +86,7 @@ module RocketJob
               next unless category_properties.is_a?(Hash)
 
               category_properties = category_properties.stringify_keys
-              next if rocketjob_deprecated_properties(klass, category_properties).empty?
+              next if klass.deprecated_options(category_properties).empty?
 
               category = rocketjob_category_from(klass, category_properties)
               category.schema_proposal("#{where}, #{rocketjob_category_label(category)}, in its properties")
@@ -126,13 +126,6 @@ module RocketJob
 
         def rocketjob_categories_of(klass)
           [*klass.defined_input_categories, *klass.defined_output_categories]
-        end
-
-        def rocketjob_deprecated_properties(klass, properties)
-          names = klass.deprecated_column_options(properties)
-          names << "format_options" if properties["format_options"].present?
-          names << "mode" if klass == RocketJob::Category::Input && properties["mode"].to_s == "array"
-          names
         end
 
         # Returns the category that the supplied properties build for a job of this class, from its own category of

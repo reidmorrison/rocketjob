@@ -288,6 +288,10 @@ module Batch
             assert_equal 2, upload(".csv", invalid)
           end
 
+          it "is parsed in the :hash stream_mode, supplied as a String" do
+            assert_raises(IOStreams::Errors::InvalidValue) { upload(".csv", invalid, stream_mode: "hash") }
+          end
+
           it "cannot be supplied with stream_mode" do
             error = assert_raises(ArgumentError) { upload(".csv", csv, validate_rows: true, stream_mode: :line) }
             assert_match(/either validate_rows:, or the deprecated stream_mode:/, error.message)
@@ -337,6 +341,74 @@ module Batch
             error = assert_raises(ArgumentError) { upload(".txt", "hello\n", validate_rows: true) }
             assert_match(/validate_rows: needs a format/, error.message)
           end
+
+          it "parses every line of a category in the :hash mode, after its header row" do
+            job.input_category.mode          = :hash
+            job.input_category.validate_rows = true
+
+            assert_raises(CSV::MalformedCSVError) { upload(".csv", %(Name,Age\nJack,21\nJill,"22"x\n)) }
+            assert_equal %w[name age], job.input_category.columns
+          end
+        end
+
+        describe "the :hash stream_mode" do
+          it "uploads the lines of a file in a format, reading its header row, and parses them first" do
+            assert_equal 2, upload(".csv", "Name,Age\nJack,21\nJill,22\n", stream_mode: :hash)
+
+            assert_equal %w[name age], job.input_category.columns
+            assert_equal ["Jack,21", "Jill,22"], input_records
+            assert_equal [{"name" => "Jack", "age" => "21"}, {"name" => "Jill", "age" => "22"}], output_records
+          end
+
+          it "uploads nothing when a line cannot be parsed" do
+            assert_raises(CSV::MalformedCSVError) { upload(".csv", %(Name,Age\nJack,21\nJill,"22"x\n), stream_mode: :hash) }
+            assert_equal 0, job.input.count
+          end
+
+          it "is read as a String" do
+            assert_raises(CSV::MalformedCSVError) { upload(".csv", %(Name,Age\nJill,"22"x\n), stream_mode: "hash") }
+          end
+
+          it "reads each line of a category without a format into a Hash, in the format of the file name" do
+            job.input_category.format = nil
+
+            assert_equal 2, upload(".csv", "Name,Age\nJack,21\nJill,22\n", stream_mode: :hash)
+
+            assert_equal [{"name" => "Jack", "age" => "21"}, {"name" => "Jill", "age" => "22"}], input_records
+          end
+
+          it "decides alone whether the lines are parsed, over the category's validate_rows" do
+            job.input_category.validate_rows = true
+
+            assert_equal 1, upload(".csv", %(Name,Age\nJill,"22"x\n), stream_mode: :line)
+          end
+        end
+
+        it "reads the header row of a category in the :hash mode" do
+          job.input_category.mode = :hash
+
+          assert_equal 2, upload(".csv", "Name,Age\nJack,21\nJill,22\n")
+
+          assert_equal ["Jack,21", "Jill,22"], input_records
+          assert_equal [{"name" => "Jack", "age" => "21"}, {"name" => "Jill", "age" => "22"}], output_records
+        end
+
+        it "reads the header row of a category in the :array mode" do
+          job.input_category.mode = :array
+
+          assert_equal 2, upload(".csv", "Name,Age\nJack,21\nJill,22\n")
+
+          assert_equal [{"name" => "Jack", "age" => "21"}, {"name" => "Jill", "age" => "22"}], output_records
+        end
+
+        it "reads the header row from the first Array of the :array stream_mode" do
+          job.input_category.mode = :array
+
+          assert_equal 2, upload(".csv", "Name,Age\nJack,21\nJill,22\n", stream_mode: :array)
+
+          assert_equal %w[name age], job.input_category.columns
+          assert_equal [%w[Jack 21], %w[Jill 22]], input_records
+          assert_equal [{"name" => "Jack", "age" => "21"}, {"name" => "Jill", "age" => "22"}], output_records
         end
       end
 

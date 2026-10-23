@@ -67,6 +67,10 @@ module RocketJob
       field :validate_rows, type: ::Mongoid::Boolean
       validate :validate_rows_has_format
 
+      # Why `validate_rows` cannot be true without a format, see #validate_rows_without_format?.
+      VALIDATE_ROWS_NEEDS_FORMAT = "needs a format, whose lines it validates".freeze
+      private_constant :VALIDATE_ROWS_NEEDS_FORMAT
+
       # When `#upload` is called with a file_name, it uploads the file using any of the following approaches:
       # :line
       #   Uploads the file a line (String) at a time for processing by workers.
@@ -83,12 +87,12 @@ module RocketJob
       # :hash
       #   Deprecated, use `validate_rows: true`, see #validate_rows, which Rocket Job 8 reads a saved :hash mode as.
       #   With a schema, see #schema, parses every line when it is uploaded, as `validate_rows: true` does. Without a
-      #   schema it has no effect on how a file is read, and a category with a format whose files have a header row,
-      #   such as CSV, cannot be uploaded in it, since its header row is not read.
+      #   schema it has no effect on how a file is read.
       #
-      # With a schema, the lines of the file are uploaded in the :line and :hash modes, which the workers parse by the
-      # schema, so that each value reaches `#perform` as its type, such as a Date. The :array mode cannot be used with a
-      # schema.
+      # Only the deprecated `stream_mode:` of an upload reads a file into records rather than lines: :hash without a
+      # format, and :array without a schema, see #each_record. Otherwise the lines of the file are uploaded, and its
+      # header row read, whatever this mode is, and the workers parse them, by the schema when there is one, so that
+      # each value reaches `#perform` as its type, such as a Date. The :array mode cannot be used with a schema.
       field :mode, type: ::Mongoid::StringifiedSymbol, default: :line
       validates_inclusion_of :mode, in: %i[line array hash]
 
@@ -132,9 +136,19 @@ module RocketJob
         when "hash"
           RocketJob::Deprecation.warn(
             "mode: :hash is deprecated, use validate_rows: true instead, which parses every line of a file in the " \
-            "category's format when it is uploaded, see #{RocketJob::Deprecation::UPGRADE_GUIDE}"
+            "category's format when it is uploaded, as mode: :hash did with a schema. Without a schema mode: :hash " \
+            "has no effect, so remove it, since Rocket Job 8 reads it as validate_rows: true, see " \
+            "#{RocketJob::Deprecation::UPGRADE_GUIDE}"
           )
         end
+      end
+
+      # Returns [Array<String>] the names of the deprecated options in the supplied properties of an input category,
+      # with String keys, see Category::Base.deprecated_options, and `mode` when it is :array or :hash, see #mode.
+      def self.deprecated_options(properties)
+        names = super
+        names << "mode" if %w[array hash].include?(properties["mode"].to_s)
+        names
       end
 
       # Returns [Array<String>] the names of the deprecated options in the supplied properties of an input category,
@@ -240,7 +254,8 @@ module RocketJob
         path    = copy.upload_path(stream.is_a?(IOStreams::Stream) ? stream.dup : stream)
         header  = copy.extract_header_callback(nil)
         records = []
-        copy.each_record(path) do |record|
+        # Each record is parsed below, as a worker parses it, so it is not also parsed while it is read.
+        copy.each_record(path, validate_rows: false) do |record|
           if header
             header = nil if header.call(record)
             next
@@ -256,11 +271,13 @@ module RocketJob
       # with the supplied `validate_rows:` of the upload, so that a line that cannot be read, or a value that is not
       # valid, raises before any record is processed.
       #
-      # The supplied mode, the deprecated `stream_mode:` of the upload, reads the file as 7.0 read it instead, see
-      # `IOStreams::Stream#each`: without a schema each record is read in that mode, and with one each line is uploaded,
-      # and parsed first in the :hash mode.
+      # The supplied mode, the deprecated `stream_mode:` of the upload, decides alone whether the lines are parsed: in
+      # the :hash mode each line is parsed first, as with `validate_rows: true`. It reads the file into records instead
+      # of lines, as 7.0 read it, see `IOStreams::Stream#each`, only where 7.0 could upload them, see
+      # #stream_mode_records?.
       def each_record(path, mode: nil, validate_rows: nil, **args, &)
-        return path.each(mode, **args, &) if mode && schema.blank?
+        mode = mode&.to_sym
+        return path.each(mode, **args, &) if stream_mode_records?(mode)
 
         if schema.present? && (mode || self.mode) == :array
           raise(ArgumentError,
@@ -296,10 +313,20 @@ module RocketJob
         unless [nil, true, false].include?(validate_rows)
           raise(ArgumentError, "Input category #{name}: validate_rows: must be true or false, not #{validate_rows.inspect}")
         end
-        return if tabular? || !(validate_rows.nil? ? self.validate_rows : validate_rows)
+        return unless validate_rows_without_format?(validate_rows.nil? ? self.validate_rows : validate_rows)
 
-        raise(ArgumentError, "Input category #{name}: validate_rows: needs a format, whose lines it validates, such as " \
-                             ":auto, which reads a file in the format of its file name")
+        raise(ArgumentError, "Input category #{name}: validate_rows: #{VALIDATE_ROWS_NEEDS_FORMAT}, such as :auto, which " \
+                             "reads a file in the format of its file name")
+      end
+
+      # Reports a deprecation warning, see RocketJob::Deprecation, for the supplied `stream_mode:` of an upload into
+      # this category, see RocketJob::Batch::IO#upload, which Rocket Job 8 removes, saying what replaces it here: an
+      # explicit `stream_mode:` decides alone whether the lines are parsed, see #each_record.
+      def warn_deprecated_stream_mode(stream_mode)
+        RocketJob::Deprecation.warn(
+          "stream_mode: #{stream_mode.inspect} is deprecated, and removed in Rocket Job 8: " \
+          "#{stream_mode_replacement(stream_mode.to_s)}, see #{RocketJob::Deprecation::UPGRADE_GUIDE}"
+        )
       end
 
       # Returns the lambda that the upload calls with each record before the first that it stores, instead of storing
@@ -309,30 +336,22 @@ module RocketJob
       #
       # A blank line before the header row is skipped, as IOStreams skips it when it reads the header row itself, such
       # as in :hash mode, so that the header row is not stored as a record.
+      #
+      # The header row is read whatever the mode, see #mode, since a file in a format is uploaded in lines, or in the
+      # :array `stream_mode:` of an upload, as an Array, which IOStreams also reads as a header row, see #each_record.
       def extract_header_callback(on_first)
         return schema_header_callback(on_first) if schema.present?
         return first_record_callback(on_first) unless tabular? && tabular.header?
 
-        case mode
-        when :line
-          lambda do |line|
-            next false if line.blank?
+        lambda do |line|
+          next false if line.blank?
 
-            tabular.parse_header(line)
-            cleanse_header!
-            self.columns = tabular.header.columns
-            # Call chained on_first if present
-            on_first&.call(line)
-            true
-          end
-        when :array
-          lambda do |row|
-            tabular.header.columns = row
-            cleanse_header!
-            self.columns = category.tabular.header.columns
-            # Call chained on_first if present
-            on_first&.call(line)
-          end
+          tabular.parse_header(line)
+          cleanse_header!
+          self.columns = tabular.header.columns
+          # Call chained on_first if present
+          on_first&.call(line)
+          true
         end
       end
 
@@ -380,9 +399,43 @@ module RocketJob
         replaced
       end
 
-      # Adds an error when `validate_rows` is true without a format, whose lines it would validate, see #validate_rows.
+      # Returns [true|false] whether the supplied `validate_rows` is true without a format, whose lines it validates.
+      def validate_rows_without_format?(validate_rows)
+        validate_rows == true && !tabular?
+      end
+
+      # Adds an error when `validate_rows` is true without a format, see #validate_rows_without_format?.
       def validate_rows_has_format
-        errors.add(:validate_rows, "needs a format, whose lines it validates") if validate_rows && !tabular?
+        errors.add(:validate_rows, VALIDATE_ROWS_NEEDS_FORMAT) if validate_rows_without_format?(validate_rows)
+      end
+
+      # Returns [true|false] whether the supplied `stream_mode:` of an upload reads a file into records rather than
+      # lines, see #each_record: without a schema, :array, whose rows IOStreams reads a header row from, and :hash
+      # without a format, which reads each line into a Hash in the format of the file name. In a format, :hash uploads
+      # the lines, whose header row is read, see #extract_header_callback, and which the workers parse, since a Hash
+      # cannot be read as a header row, nor parsed by the format.
+      def stream_mode_records?(mode)
+        schema.blank? && (mode == :array || (mode == :hash && !tabular?))
+      end
+
+      # Returns [String] what replaces the supplied `stream_mode:` of an upload into this category, see
+      # #warn_deprecated_stream_mode.
+      def stream_mode_replacement(stream_mode)
+        if %w[hash array].include?(stream_mode) && !tabular?
+          "give the category format: :auto in place of stream_mode: :#{stream_mode}, so that the workers read each " \
+            "line into a Hash, in the format of the file name"
+        elsif stream_mode == "hash"
+          "use validate_rows: true in place of stream_mode: :hash, to parse every line of the file in the category's " \
+            "format when it is uploaded"
+        elsif stream_mode == "array"
+          "remove it, so that the workers parse the lines in the category's format, and use validate_rows: true to " \
+            "also parse every line when the file is uploaded"
+        elsif upload_validates_rows?
+          "use validate_rows: false in its place, since the category parses every line of a file when it is " \
+            "uploaded, which stream_mode: :line does not"
+        else
+          "remove it, since :line is the default"
+        end
       end
 
       # The :array mode cannot be used with a schema, see #mode.
