@@ -166,6 +166,13 @@ module RocketJob
         self
       end
 
+      # Returns [Hash] the supplied properties of this category that a Dirmon entry or an UploadFileJob saved before
+      # Rocket Job v8, as v8 reads them, see RocketJob::Plugins::Job::Model.convert_saved_properties: unchanged, unless
+      # this kind of category replaces an option that v8 removed, see RocketJob::Category::Input#convert_saved_properties.
+      def convert_saved_properties(properties)
+        properties
+      end
+
       # Returns [Array<String>] why the supplied properties cannot be merged into this category, see
       # #merge_properties, such as an option that Rocket Job v8 removed, a property that a category does not have, or a
       # value that is not valid, such as its encoding. Empty when they can. This category is not changed.
@@ -241,8 +248,9 @@ module RocketJob
       # Raises ArgumentError when this category was saved before Rocket Job v8 with an option that v8 removed, which
       # IOStreams no longer reads, so that its records are not read or written as though it had none, see
       # .removed_options. Mongoid keeps such an option among the attributes of a saved category, but not as a field.
-      def check_removed_options
-        removed = self.class.removed_options(attributes.except(*self.class.fields.keys))
+      # The supplied attributes limit which of them are checked, such as only the `mode` of an input category.
+      def check_removed_options(options = attributes.except(*self.class.fields.keys))
+        removed = self.class.removed_options(options)
         return if removed.empty?
 
         raise(ArgumentError, "#{self.class.name.demodulize} category #{name}: #{self.class.removed_options_message(removed)}")

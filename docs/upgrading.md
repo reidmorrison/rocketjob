@@ -81,12 +81,13 @@ writing the records of the category as though it were not set:
 * A job class that defines a category with one raises `ArgumentError` when it is loaded.
 * A Dirmon entry or an `UploadFileJob` whose properties hold one fails validation when it is saved,
   and one that was saved before raises `ArgumentError` when it builds its job, such as when Dirmon
-  finds a file.
+  finds a file. A saved `mode: :hash` does not, since v8 reads it as `validate_rows: true`.
 * A job saved before v8 whose category holds one, such as a scheduled job, raises `ArgumentError`
   when that category reads or writes its records, such as when its file is uploaded, or a worker
   processes one of its slices. For the `:array` mode only an upload raises, since the Arrays that v7
   uploaded are still processed, and the next run of a scheduled job with it is still created. A
-  saved `mode: :hash` does not raise, since v8 reads it as `validate_rows: true`.
+  saved `mode: :hash` does not raise, since v8 reads it as `validate_rows: true`. A `mode` that v7
+  did not accept either, such as `:hashes`, raises like `:array`.
 * An input category's `columns` are not set by v8, since each slice of a file holds its header row.
   Uploading a file without a schema into a category saved with `columns`, such as those set for a
   file without a header row, raises `ArgumentError`, rather than reading the file by them. So does
@@ -180,12 +181,17 @@ input_category format: :csv, validate_rows: true
 job.upload("people.csv", validate_rows: true)
 ~~~
 
-* A job that v7 saved with `mode: :hash`, such as a scheduled job, need not change: v8 reads it as
-  `validate_rows: true` when its category has a format, unless `validate_rows` was saved with it, and
-  its next run is saved with `validate_rows: true`. Without a format `mode: :hash` had no effect, as in
-  v7.0, so it is dropped.
-* A job class, a Dirmon entry or an `UploadFileJob` that still sets `mode: :hash` raises
-  `ArgumentError`, as for the other removed options, see
+* A job, a Dirmon entry or an `UploadFileJob` that v7 saved with `mode: :hash`, such as a scheduled
+  job, need not change: v8 reads it as `validate_rows: true` when its category has a format, unless
+  `validate_rows` was set too, which then applies. The format of a Dirmon entry's or an
+  `UploadFileJob`'s category is the one in its properties, otherwise the one that its job class
+  defines. Without a format `mode: :hash` had no effect, as in v7.0, so it is dropped, as is
+  `mode: :line`.
+* The next time v8 saves such a job, entry or `UploadFileJob`, such as when a job runs, or Mission
+  Control edits it, it saves `validate_rows` in place of `mode`, so that Mission Control shows it, and
+  it can be changed like any other setting. The next run of a scheduled job is saved with it.
+* A job class that still sets `mode: :hash` raises `ArgumentError`, as does a Dirmon entry or an
+  `UploadFileJob` that is created with it, as for the other removed options, see
   [The deprecated category options are removed](#the-deprecated-category-options-are-removed). v7.1
   reports a deprecation warning for it, see
   [Replace the :hash mode and stream_mode](#replace-the-hash-mode-and-stream_mode).
@@ -508,8 +514,9 @@ job.upload("people.csv", validate_rows: true)
   the file name. Leave out `stream_mode: :line`, which is the default.
 * `upload` with a block does not validate the records that it writes in 7.1, and raises for
   `validate_rows:`. v8 also validates the lines that the block writes.
-* A job that was saved with `mode: :hash` need not change: v8 reads it as `validate_rows: true` in a
-  category with a format, unless its `validate_rows` is false.
+* A job, a Dirmon entry or an `UploadFileJob` that was saved with `mode: :hash` need not change: v8
+  reads it as `validate_rows: true` in a category with a format, unless `validate_rows` was set too,
+  which then applies.
 
 Servers running v7.0 cannot read `validate_rows`, so upgrade every server before giving any Dirmon
 entry or `UploadFileJob` one.

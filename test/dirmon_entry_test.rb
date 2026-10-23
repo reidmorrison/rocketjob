@@ -822,6 +822,46 @@ class DirmonEntryTest < Minitest::Test
           refute(events.any? { |event| "#{event.message}#{event.payload}".include?("secret") })
         end
 
+        describe "an entry that Rocket Job 7 saved with the :hash mode" do
+          # Returns [RocketJob::DirmonEntry] the batch entry read from the database, whose input category properties
+          # Rocket Job 7 saved with the supplied ones.
+          def saved_v7_entry(input_category)
+            entry = batch_dirmon_entry
+            RocketJob::DirmonEntry.collection.update_one(
+              {_id: entry.id}, {"$set" => {"properties.input_categories" => [input_category]}}
+            )
+            RocketJob::DirmonEntry.find(entry.id)
+          end
+
+          it "reads it as validate_rows, which saving the entry saves in place of the mode" do
+            entry = saved_v7_entry("format" => "csv", "mode" => "hash")
+
+            assert_equal [{"format" => "csv", "validate_rows" => true}], entry.properties["input_categories"]
+            assert_predicate entry, :valid?, -> { entry.errors.full_messages }
+            assert_predicate entry, :changed?
+
+            entry.save!
+            saved = RocketJob::DirmonEntry.collection.find(_id: entry.id).first
+
+            assert_equal [{"format" => "csv", "validate_rows" => true}], saved["properties"]["input_categories"]
+            refute_predicate RocketJob::DirmonEntry.find(entry.id), :changed?
+          end
+
+          it "starts its jobs with validate_rows" do
+            job = saved_v7_entry("format" => "csv", "mode" => "hash").later(iopath)
+
+            assert_equal [{"format" => "csv", "validate_rows" => true}], job.properties["input_categories"]
+            assert BatchTestJob.from_properties(job.properties).input_category.validate_rows
+          end
+
+          it "drops the :hash mode without a format, which had no effect" do
+            entry = saved_v7_entry("encoding" => "Windows-1252", "mode" => "hash")
+
+            assert_equal [{"encoding" => "Windows-1252"}], entry.properties["input_categories"]
+            assert_predicate entry, :valid?, -> { entry.errors.full_messages }
+          end
+        end
+
         it "skips a file that was removed after it was found" do
           assert_nil dirmon_entry.later(IOStreams.path("test/files/removed.txt"))
           assert_equal 0, RocketJob::Jobs::UploadFileJob.count

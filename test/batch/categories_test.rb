@@ -304,6 +304,28 @@ module Batch
         end
       end
 
+      describe ".convert_saved_properties" do
+        it "converts the properties of each category by the category that a new job starts with" do
+          properties = {
+            "priority"         => 10,
+            "input_categories" => [{"mode" => "hash"}, {"name" => "other", "mode" => "hash"}]
+          }
+
+          # The input category of CallbackCategoriesJob has a format, while `other` is not defined, so it is kept.
+          assert_equal({"priority" => 10, "input_categories" => [{"validate_rows" => true}, {"name" => "other", "mode" => "hash"}]},
+                       CallbackCategoriesJob.convert_saved_properties(properties))
+          assert_equal({"priority" => 10, "input_categories" => [{}, {"name" => "other", "mode" => "hash"}]},
+                       CategoriesJob.convert_saved_properties(properties))
+        end
+
+        it "keeps properties without categories as they are" do
+          properties = {"priority" => 10, "output_categories" => [{"format" => "csv"}]}
+
+          assert_equal properties, OutputCategoriesJob.convert_saved_properties(properties)
+          assert_same properties, RocketJob::Job.convert_saved_properties(properties)
+        end
+      end
+
       describe "a job saved before v8" do
         it "raises for the format_options of a category, which v8 removed, when it reads its records" do
           job = CategoriesJob.create!

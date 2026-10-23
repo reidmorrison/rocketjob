@@ -81,6 +81,7 @@ module RocketJob
     validates_presence_of :pattern, :job_class_name, :archive_directory
     validate :job_class_can_be_started
     validate :job_has_properties
+    after_initialize :convert_saved_properties, unless: :new_record?
     validates_uniqueness_of :pattern, :name
 
     # State Machine events and transitions
@@ -470,6 +471,17 @@ module RocketJob
       RocketJob::Jobs::UploadFileJob.job_class_errors(job_class_name).each do |message|
         errors.add(:job_class_name, message)
       end
+    end
+
+    # Converts the properties that were saved before Rocket Job v8, such as an input category's `mode`, which v8
+    # replaced, as the job class reads them, see RocketJob::Plugins::Job::Model.convert_saved_properties. Setting them
+    # changes this entry, so that saving it saves them. Kept as they are when the job class is not loaded.
+    def convert_saved_properties
+      klass = job_class
+      return unless klass.respond_to?(:convert_saved_properties) && properties.is_a?(Hash)
+
+      converted       = klass.convert_saved_properties(properties)
+      self.properties = converted unless converted == properties
     end
 
     # Can the properties build the job, such as each being one that the job has? The job class decides, see

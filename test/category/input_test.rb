@@ -173,24 +173,36 @@ module Batch
           assert category.validate_rows
           assert_predicate category, :upload_validates_rows?
           refute category.attributes.key?("mode")
-          # Not changed, so that saving its job does not change it either.
-          assert_empty category.changed & %w[mode validate_rows]
+          # Changed, so that saving its job saves the conversion.
+          assert_equal %w[mode validate_rows], (category.changed & %w[mode validate_rows]).sort
           assert_predicate category, :valid?
         end
 
         it "keeps the validate_rows that was saved with it" do
           category = saved("format" => "csv", "mode" => "hash", "validate_rows" => false)
 
-          refute_nil category.validate_rows
+          # Not refute, which also passes for nil.
+          assert_same false, category.validate_rows
           refute_predicate category, :upload_validates_rows?
+          refute_includes category.changed, "validate_rows"
         end
 
         it "drops the :hash mode without a format, and the :line mode, which had no effect" do
           [saved("mode" => "hash"), saved("format" => "csv", "mode" => "line")].each do |category|
             assert_nil category.validate_rows
             refute category.attributes.key?("mode")
+            assert_includes category.changed, "mode"
             assert_predicate category, :valid?
           end
+        end
+
+        it "keeps a mode that Rocket Job 7 did not accept either, which raises when it is uploaded into" do
+          category = saved("format" => "csv", "mode" => "Hash")
+
+          assert_nil category.validate_rows
+          assert_equal "Hash", category.attributes["mode"]
+          error = assert_raises(ArgumentError) { category.check_upload }
+          assert_equal "Input category main: #{mode_message}", error.message
         end
 
         it "keeps the :array mode, so that its next run can still be created, and raises when it is uploaded into" do
@@ -233,6 +245,53 @@ module Batch
         it "drops the :line mode, which had no effect" do
           assert_equal({"format" => "csv"}, RocketJob::Category::Input.supported_properties("format" => "csv", "mode" => "line"))
           assert_empty RocketJob::Category::Input.new.property_errors("mode" => "line")
+        end
+
+        it "raises for a mode that Rocket Job 7 did not accept either" do
+          assert_equal [mode_message], RocketJob::Category::Input.new.property_errors("mode" => :hashes)
+          assert_raises(ArgumentError) { RocketJob::Category::Input.supported_properties("mode" => "Hash") }
+        end
+      end
+
+      describe "#convert_saved_properties" do
+        let(:csv_category) { RocketJob::Category::Input.new(format: :csv) }
+
+        it "replaces the :hash mode with validate_rows: true in the format of the category" do
+          assert_equal({"name" => "main", "validate_rows" => true},
+                       csv_category.convert_saved_properties("name" => "main", "mode" => "hash"))
+        end
+
+        it "replaces the :hash mode with validate_rows: true in the format of the properties" do
+          assert_equal({"format" => :json, "validate_rows" => true},
+                       RocketJob::Category::Input.new.convert_saved_properties(format: :json, mode: :hash))
+        end
+
+        it "drops the :hash mode without a format, and the :line mode, which had no effect" do
+          assert_equal({"slice_size" => 10}, RocketJob::Category::Input.new.convert_saved_properties("slice_size" => 10, "mode" => "hash"))
+          assert_equal({"format" => nil}, csv_category.convert_saved_properties("format" => nil, "mode" => "hash"))
+          assert_equal({}, csv_category.convert_saved_properties("mode" => "line"))
+        end
+
+        it "keeps the validate_rows of the properties, otherwise of the category" do
+          assert_equal({"validate_rows" => false},
+                       csv_category.convert_saved_properties("mode" => "hash", "validate_rows" => false))
+
+          csv_category.validate_rows = false
+
+          assert_equal({}, csv_category.convert_saved_properties("mode" => "hash"))
+        end
+
+        it "keeps any other mode, which is reported as not valid" do
+          properties = {"mode" => "array"}
+
+          assert_same properties, csv_category.convert_saved_properties(properties)
+          assert_equal [mode_message], csv_category.property_errors(properties)
+        end
+
+        it "keeps properties without a mode as they are" do
+          properties = {encoding: "Windows-1252"}
+
+          assert_same properties, csv_category.convert_saved_properties(properties)
         end
       end
 

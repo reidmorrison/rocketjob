@@ -79,6 +79,21 @@ module RocketJob
           errors
         end
 
+        # Returns [Hash] the supplied properties of this job class that a Dirmon entry or an UploadFileJob saved before
+        # Rocket Job v8, see RocketJob::Plugins::Job::Model.convert_saved_properties, also asking each category that a
+        # new job starts with to convert the properties that are merged into it, see `from_properties` and
+        # RocketJob::Category::Base#convert_saved_properties. The properties of a category that the job does not
+        # define are kept, so that they are reported as not valid, see `property_errors`.
+        def convert_saved_properties(properties)
+          super.to_h do |key, value|
+            category_class = CATEGORY_PROPERTIES[key.to_sym]
+            next [key, value] unless category_class && value.is_a?(Array)
+
+            defaults = rocketjob_new_categories(key.to_sym)
+            [key, value.map { |category| rocketjob_convert_saved_category(category_class, defaults, category) }]
+          end
+        end
+
         # Returns [Array<RocketJob::Category::Input|RocketJob::Category::Output>] new copies of the categories that a
         # new job of this class starts with, for the supplied property, `:input_categories` or `:output_categories`.
         # The input categories are `main` when the class does not define any.
@@ -112,6 +127,16 @@ module RocketJob
           index      = categories.find_index { |cat| cat.name == category.name }
           index ? categories[index] = category : categories << category
           categories
+        end
+
+        # Returns [Hash] the supplied properties of a category, see `convert_saved_properties`, converted by the one of
+        # the supplied categories, that a new job starts with, that they are merged into, when there is one.
+        def rocketjob_convert_saved_category(category_class, defaults, properties)
+          return properties unless properties.is_a?(Hash)
+
+          name     = category_class.name_in(properties)
+          category = defaults.find { |default| default.name == name }
+          category ? category.convert_saved_properties(properties) : properties
         end
 
         # Returns [Array<String>] why the supplied list of the properties of each category cannot be merged into the

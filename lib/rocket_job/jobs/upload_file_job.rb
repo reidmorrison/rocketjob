@@ -33,6 +33,7 @@ module RocketJob
       validate :job_class_can_be_started
       validate :file_exists
       validate :job_has_properties
+      after_initialize :convert_saved_properties, unless: :new_record?
 
       # The methods that #upload_file uploads the file with, whichever the job has: its #upload, or the file name that
       # it reads.
@@ -124,6 +125,17 @@ module RocketJob
         errors.add(:upload_file_name, "Upload file: #{RocketJob.path_display_name(upload_file_name)} does not exist.")
       rescue NotImplementedError
         nil
+      end
+
+      # Converts the properties that were saved before Rocket Job v8, such as an input category's `mode`, which v8
+      # replaced, as the job class reads them, see RocketJob::Plugins::Job::Model.convert_saved_properties. Setting them
+      # changes this job, so that saving it saves them. Kept as they are when the job class is not loaded.
+      def convert_saved_properties
+        klass = job_class
+        return unless klass.respond_to?(:convert_saved_properties) && properties.is_a?(Hash)
+
+        converted       = klass.convert_saved_properties(properties)
+        self.properties = converted unless converted == properties
       end
 
       # Can the properties build the job? The job class decides, see RocketJob::Plugins::Job::Model.property_errors.

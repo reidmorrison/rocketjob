@@ -196,33 +196,66 @@ module Plugins
             RocketJob::Job.destroy_all
           end
 
-          it "reads the :hash mode that Rocket Job 7 saved as validate_rows, without changing the job" do
-            job = PersistBatchJob.create!
-            PersistBatchJob.collection.update_one(
-              {_id: job.id},
-              {"$set" => {"input_categories.0.format" => "csv", "input_categories.0.mode" => "hash"}}
-            )
-            job = PersistBatchJob.find(job.id)
+          describe "a job that Rocket Job 7 saved with the :hash mode" do
+            # Returns [PersistBatchJob] a job read from the database, whose input category Rocket Job 7 saved with the
+            # supplied attributes.
+            def saved_v7_job(attributes)
+              job = PersistBatchJob.create!
+              set = attributes.transform_keys { |key| "input_categories.0.#{key}" }
+              PersistBatchJob.collection.update_one({_id: job.id}, {"$set" => set})
+              PersistBatchJob.find(job.id)
+            end
 
-            assert job.input_category.validate_rows
-            refute_predicate job, :changed?
+            # Returns [Hash] the input category of the supplied job as it is saved in the database.
+            def saved_category(job)
+              PersistBatchJob.collection.find(_id: job.id).first["input_categories"].first
+            end
 
-            job.description = "Saved again"
-            job.save!
-            saved = PersistBatchJob.collection.find(_id: job.id).first["input_categories"].first
+            after do
+              RocketJob::Job.destroy_all
+            end
 
-            assert_equal "hash", saved["mode"]
-            refute saved.key?("validate_rows")
+            it "reads it as validate_rows, which saving the job saves in place of the mode" do
+              job = saved_v7_job("format" => "csv", "mode" => "hash")
 
-            job.create_restart!
-            restarted = RocketJob::Job.where(:id.ne => job.id).first
-            saved     = PersistBatchJob.collection.find(_id: restarted.id).first["input_categories"].first
+              assert job.input_category.validate_rows
+              assert_predicate job, :changed?
 
-            assert restarted.input_category.validate_rows
-            assert saved["validate_rows"]
-            refute saved.key?("mode")
-          ensure
-            RocketJob::Job.destroy_all
+              job.description = "Saved again"
+              job.save!
+
+              assert_equal({"validate_rows" => true}, saved_category(job).slice("mode", "validate_rows"))
+              refute_predicate PersistBatchJob.find(job.id), :changed?
+            end
+
+            it "creates the next run of a scheduled job with validate_rows" do
+              job = saved_v7_job("format" => "csv", "mode" => "hash")
+              job.create_restart!
+              restarted = RocketJob::Job.where(:id.ne => job.id).first
+
+              assert restarted.input_category.validate_rows
+              assert_equal({"validate_rows" => true}, saved_category(restarted).slice("mode", "validate_rows"))
+            end
+
+            it "removes the mode without a format, which had no effect, also once a format is set" do
+              job = saved_v7_job("mode" => "hash")
+
+              assert_nil job.input_category.validate_rows
+              job.input_category.format = :csv
+              job.save!
+
+              assert_empty saved_category(job).slice("mode", "validate_rows")
+              assert_nil PersistBatchJob.find(job.id).input_category.validate_rows
+            end
+
+            it "clears the validate_rows that it is read as" do
+              job = saved_v7_job("format" => "csv", "mode" => "hash")
+              job.input_category.validate_rows = nil
+              job.save!
+
+              refute saved_category(job).key?("mode")
+              assert_nil PersistBatchJob.find(job.id).input_category.validate_rows
+            end
           end
 
           it "creates the next run of a job that Rocket Job 7 saved with the :array mode, whose upload raises" do

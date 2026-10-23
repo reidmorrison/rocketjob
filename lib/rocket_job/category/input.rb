@@ -12,9 +12,14 @@ module RocketJob
       UPLOAD_FIELDS = %w[file_name format].freeze
       private_constant :UPLOAD_FIELDS
 
-      # Where the upgrade guide says what replaces the `mode` that Rocket Job v8 removed, see .removed_options_message.
-      MODE_GUIDE = "https://rocketjob.reidmorrison.com/upgrading.html#replace-the-hash-mode-with-validate_rows".freeze
-      private_constant :MODE_GUIDE
+      # Where the upgrade guide says what replaces the `mode` of a category, and the `stream_mode:` of an upload, which
+      # Rocket Job v8 removed, see #validate_rows.
+      VALIDATE_ROWS_GUIDE = "https://rocketjob.reidmorrison.com/upgrading.html#replace-the-hash-mode-with-validate_rows".freeze
+
+      # The values of the `mode` that Rocket Job 7 saved, which v8 removed, that are read as the `validate_rows` that
+      # replaces it, see #convert_saved_mode: "hash", and "line", the default, which had no effect.
+      CONVERTED_MODES = %w[hash line].freeze
+      private_constant :CONVERTED_MODES
 
       # Replaces each non-printable character, other than line endings, with a space.
       FIXED_WIDTH_CLEANER = ->(data, _replace) { data.gsub(/[^[:print:]\r\n]/, " ") }
@@ -46,7 +51,8 @@ module RocketJob
       # file, see RocketJob::Batch::IO#upload.
       #
       # Replaces the `mode` of Rocket Job 7, which v8 removed, see .removed_option_names: a category that Rocket Job 7
-      # saved with `mode: :hash` is read with `validate_rows: true`, see #convert_saved_mode.
+      # saved with `mode: :hash` and a format is read with `validate_rows: true`, see #convert_saved_mode, as are the
+      # properties of such a category that a Dirmon entry or an UploadFileJob saved, see #convert_saved_properties.
       #
       # Default: nil, so that a category saved with `validate_rows: false` and `mode: :hash` is read with false.
       field :validate_rows, type: ::Mongoid::Boolean
@@ -94,13 +100,14 @@ module RocketJob
 
         mode = "mode: was removed in Rocket Job v8: use validate_rows: true in place of mode: :hash, which parses " \
                "each row of a file in the category's format when it is uploaded, and remove mode: :array, since the " \
-               "workers parse the lines of a file in the category's format, see #{MODE_GUIDE}"
+               "workers parse the lines of a file in the category's format, see #{VALIDATE_ROWS_GUIDE}"
         names == ["mode"] ? mode : "#{super(names - ['mode'])}. #{mode}"
       end
 
       # Returns [true|false] whether the supplied value of the named removed option is set, rather than blank, or at its
       # default, see Category::Base.removed_options: `skip_unknown` when true, `header_cleanser` when :none, and `mode`
-      # when :hash or :array, otherwise when it is not blank.
+      # when it is not blank or :line, so that a value that Rocket Job 7 did not accept either, such as :hashes, raises
+      # too, otherwise when it is not blank.
       def self.removed_option_set?(name, value)
         case name
         when "skip_unknown"
@@ -108,12 +115,32 @@ module RocketJob
         when "header_cleanser"
           value.to_s == "none"
         when "mode"
-          %w[hash array].include?(value.to_s)
+          value.present? && value.to_s != "line"
         else
           super
         end
       end
       private_class_method :removed_option_set?
+
+      # Returns [Hash] the supplied properties of this category that a Dirmon entry or an UploadFileJob saved before
+      # Rocket Job v8, see Category::Base#convert_saved_properties, with the `mode` that v8 removed replaced by the
+      # `validate_rows` that replaces it, as for a category that Rocket Job 7 saved, see #convert_saved_mode. This
+      # category is the one that the properties are merged into, see #merge_properties, so its format and
+      # `validate_rows` apply when the properties do not set them. The keys of converted properties are Strings, as
+      # they are saved.
+      #
+      # Any other `mode`, such as :array, is kept, so that the properties are reported as not valid, see
+      # #property_errors.
+      def convert_saved_properties(properties)
+        mode = properties["mode"] || properties[:mode]
+        return properties unless CONVERTED_MODES.include?(mode.to_s)
+
+        properties    = properties.stringify_keys.except("mode")
+        validate_rows = properties.key?("validate_rows") ? properties["validate_rows"] : self.validate_rows
+        format        = properties.key?("format") ? properties["format"] : self.format
+        properties["validate_rows"] = true if mode_validates_rows?(mode, format, validate_rows)
+        properties
+      end
 
       # Yields each record of the supplied records of a slice of this category, as `#perform` receives it. The rows of a
       # file, see IOStreams::Slice, are read by IOStreams by the header row and format that they carry, with this
@@ -279,15 +306,15 @@ module RocketJob
       # Raises ArgumentError when a file, or the lines that the block of an upload writes, cannot be uploaded into this
       # category with the supplied `validate_rows:` of the upload, see #upload_validates_rows?: when it is not true,
       # false or nil, or when it, or else this category's `validate_rows`, is true without a format, which has no rows
-      # to validate, or when this category was saved before Rocket Job v8 with the :array mode, which v8 removed, see
-      # #convert_saved_mode, also without a format.
+      # to validate, or when this category was saved before Rocket Job v8 with a mode that v8 did not convert, such as
+      # :array, see #convert_saved_mode, also without a format. The other options that v8 removed only raise in a
+      # format, see Category::Base#check_removed_options, since they had no effect without one.
       def check_upload(validate_rows = nil)
         unless [nil, true, false].include?(validate_rows)
           raise(ArgumentError, "Input category #{name}: validate_rows: must be true or false, not #{validate_rows.inspect}")
         end
-        if attributes["mode"].to_s == "array"
-          raise(ArgumentError, "Input category #{name}: #{self.class.removed_options_message(%w[mode])}")
-        end
+
+        check_removed_options(attributes.slice("mode"))
         return if tabular? || !validate_rows_setting(validate_rows)
 
         raise(ArgumentError, "Input category #{name}: validate_rows: needs a format, whose rows it validates, such as " \
@@ -338,24 +365,30 @@ module RocketJob
       # Reads the `mode` that Rocket Job 7 saved in this category, which v8 removed, see .removed_option_names, as the
       # `validate_rows` that replaces it, once the category is read from the database:
       # :hash
-      #   Read as `validate_rows: true` in a tabular format, see #format, unless `validate_rows` was saved too. Without
-      #   a format it had no effect, as in Rocket Job 7.0, which only parsed a file into Hashes for the
-      #   `stream_mode: :hash` of `#upload`, so it is dropped.
+      #   Read as `validate_rows: true` in a format, see #mode_validates_rows?, otherwise dropped.
       # :line
       #   The default, which had no effect, so it is dropped.
-      # :array
+      # :array, or any other value
       #   Kept, so that the next run of a scheduled job is still created, and its upload raises, see #check_upload, as a
       #   worker does that reads its records in a format, see Category::Base#check_removed_options.
       #
-      # It changes the attributes as they were read, rather than set them, so that the category, and its job, are not
-      # changed: the next run of a scheduled job, see #restart_copy, saves `validate_rows`, and a job that is saved
-      # again keeps its `mode` in the database, which is read the same way each time.
+      # The category, and so its job, is changed, as though it had been set: saving the job removes the `mode` from
+      # the database, and saves the `validate_rows` that replaces it, so that it is read the same way, also once the
+      # format is changed, and can be changed like any other setting.
       def convert_saved_mode
         mode = attributes["mode"]
-        return if mode.nil? || mode.to_s == "array"
+        return unless CONVERTED_MODES.include?(mode.to_s)
 
-        attributes.delete("mode")
-        attributes["validate_rows"] = true if mode.to_s == "hash" && attributes["validate_rows"].nil? && tabular?
+        remove_attribute("mode")
+        self.validate_rows = true if mode_validates_rows?(mode, format, validate_rows)
+      end
+
+      # Returns [true|false] whether the supplied `mode` that Rocket Job 7 saved, see #convert_saved_mode, is read as
+      # `validate_rows: true` in a category with the supplied format and `validate_rows`: :hash in a format, unless
+      # `validate_rows` was set too, which then applies, as in Rocket Job 7.1. Without a format it had no effect, as in
+      # Rocket Job 7.0, which only parsed a file into Hashes for the `stream_mode: :hash` of `#upload`.
+      def mode_validates_rows?(mode, format, validate_rows)
+        mode.to_s == "hash" && format.present? && validate_rows.nil?
       end
 
       # Returns [true|false|nil] the supplied `validate_rows:` of an upload, unless it is nil, otherwise this category's,
