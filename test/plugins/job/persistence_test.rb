@@ -43,7 +43,7 @@ module Plugins
 
         describe ".config" do
           it "support multiple databases" do
-            assert_equal "rocketjob_test", RocketJob::Job.collection.database.name
+            assert_equal TEST_DATABASE, RocketJob::Job.collection.database.name
           end
         end
 
