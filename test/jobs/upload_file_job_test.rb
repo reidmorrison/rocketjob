@@ -263,6 +263,29 @@ module Jobs
           created_job&.cleanup!
         end
 
+        it "starts the job of an UploadFileJob that Rocket Job 7 saved with the :hash mode, with validate_rows" do
+          batch_job.save!
+          RocketJob::Jobs::UploadFileJob.collection.update_one(
+            {_id: batch_job.id}, {"$set" => {"properties.input_categories" => [{"format" => "csv", "mode" => "hash"}]}}
+          )
+          saved = RocketJob::Jobs::UploadFileJob.find(batch_job.id)
+
+          assert_equal [{"format" => "csv", "validate_rows" => true}], saved.properties["input_categories"]
+          assert_predicate saved, :valid?, -> { saved.errors.full_messages }
+
+          saved.save!
+          stored = RocketJob::Jobs::UploadFileJob.collection.find(_id: saved.id).first
+
+          assert_equal [{"format" => "csv", "validate_rows" => true}], stored["properties"]["input_categories"]
+
+          saved.perform_now
+
+          assert created_job = UploadFileJobTest::BatchTestJob.first
+          assert created_job.input_category.validate_rows
+        ensure
+          created_job&.cleanup!
+        end
+
         it "assigns the supplied job_id to the downstream job" do
           id         = BSON::ObjectId.new
           job.job_id = id
