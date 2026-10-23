@@ -68,11 +68,12 @@ Replace each one while v7.1 still reads it, as its upgrade steps describe:
   options supplied to `upload`, such as `allowed_columns:` or `cleanse_header:`, raise
   `ArgumentError`. A `:csv`, `:psv` or `:fixed` output category needs a schema, whose fields are the
   columns that it writes, in order.
-* An input category's `mode: :array`, and the `stream_mode: :array` of `upload`, see
-  [Replace the :array upload mode](#replace-the-array-upload-mode), where v8 reads `:hash` as
-  `validate_rows: true`, see
-  [Replace the :hash mode with validate_rows](#replace-the-hash-mode-with-validate_rows). A file that v7
-  uploaded in the `:array` mode, whose slices hold an Array for each row, is still processed.
+* An input category's `mode`, and the `stream_mode:` of `upload`: `validate_rows` replaces
+  `mode: :hash`, see
+  [Replace the :hash mode with validate_rows](#replace-the-hash-mode-with-validate_rows), and
+  `:array` has no replacement, see [Replace the :array upload mode](#replace-the-array-upload-mode).
+  A file that v7 uploaded in the `:array` mode, whose slices hold an Array for each row, is still
+  processed.
 
 Code or a saved document that still sets one fails, naming the option, rather than reading or
 writing the records of the category as though it were not set:
@@ -80,11 +81,13 @@ writing the records of the category as though it were not set:
 * A job class that defines a category with one raises `ArgumentError` when it is loaded.
 * A Dirmon entry or an `UploadFileJob` whose properties hold one fails validation when it is saved,
   and one that was saved before raises `ArgumentError` when it builds its job, such as when Dirmon
-  finds a file.
+  finds a file. A saved `mode: :hash` does not, since v8 reads it as `validate_rows: true`.
 * A job saved before v8 whose category holds one, such as a scheduled job, raises `ArgumentError`
   when that category reads or writes its records, such as when its file is uploaded, or a worker
   processes one of its slices. For the `:array` mode only an upload raises, since the Arrays that v7
-  uploaded are still processed, and the next run of a scheduled job with it is still created.
+  uploaded are still processed, and the next run of a scheduled job with it is still created. A
+  saved `mode: :hash` does not raise, since v8 reads it as `validate_rows: true`. A `mode` that v7
+  did not accept either, such as `:hashes`, raises like `:array`.
 * An input category's `columns` are not set by v8, since each slice of a file holds its header row.
   Uploading a file without a schema into a category saved with `columns`, such as those set for a
   file without a header row, raises `ArgumentError`, rather than reading the file by them. So does
@@ -93,8 +96,8 @@ writing the records of the category as though it were not set:
   [Each slice holds the header row of its file](#each-slice-holds-the-header-row-of-its-file).
 
 An option that is blank, or at its default, is ignored, such as a blank `format_options`, or
-`skip_unknown: false` and `header_cleanser: :default`, which Rocket Job 7 saved with every input
-category, and which Mission Control can save in the properties of a Dirmon entry. Any other value
+`skip_unknown: false`, `header_cleanser: :default` and `mode: :line`, which Rocket Job 7 saved with
+every input category, and which Mission Control can save in the properties of a Dirmon entry. Any other value
 fails, even where Rocket Job 7 did not apply it, such as `skip_unknown: true` without
 `allowed_columns`.
 
@@ -178,10 +181,21 @@ input_category format: :csv, validate_rows: true
 job.upload("people.csv", validate_rows: true)
 ~~~
 
-* A category's `mode` is still read, so that a job class, a saved job, such as a scheduled job, and
-  a Dirmon entry with it need not change: `mode: :hash` validates the rows of a file in a format, as
-  `validate_rows: true` does, unless `upload` is given `validate_rows: false`. Without a format it has
-  no effect, as in v7.0.
+* v8 reads a job, a Dirmon entry or an `UploadFileJob` that v7 saved with `mode: :hash`, such as a
+  scheduled job, as `validate_rows: true` when its category has a format, unless `validate_rows` was
+  set too, which then applies. The format of a Dirmon entry's or an `UploadFileJob`'s category is the
+  one in its properties, otherwise the one that its job class defines. With a schema that is what
+  `mode: :hash` did, so it need not change. Without a schema v7 did not validate the lines, so a file
+  with a line that cannot be read is now rejected: set `validate_rows: false` to keep uploading it.
+  Without a format `mode: :hash` had no effect, as in v7.0, so it is dropped, as is `mode: :line`.
+* The next time v8 saves such a job, entry or `UploadFileJob`, such as when a job runs, or Mission
+  Control edits it, it saves `validate_rows` in place of `mode`, so that Mission Control shows it, and
+  it can be changed like any other setting. The next run of a scheduled job is saved with it.
+* A job class that still sets `mode: :hash` raises `ArgumentError`, as does a Dirmon entry or an
+  `UploadFileJob` that is created with it, as for the other removed options, see
+  [The deprecated category options are removed](#the-deprecated-category-options-are-removed). v7.1
+  reports a deprecation warning for it, see
+  [Replace the :hash mode and stream_mode](#replace-the-hash-mode-and-stream_mode).
 * `stream_mode:` raises `ArgumentError`, with any value, since `validate_rows:` replaces it.
 * `stream_mode: :hash` read a file into a category without a format as Hashes, in the format of its
   file name. Set the category's `format: :auto` instead, which reads a file in the format of its file
@@ -189,9 +203,6 @@ job.upload("people.csv", validate_rows: true)
   header row that IOStreams 3.0 cleanses differently, see
   [A header row is cleansed as IOStreams 3.0 cleanses it](#a-header-row-is-cleansed-as-iostreams-30-cleanses-it).
   `validate_rows: true` needs a format, and raises `ArgumentError` without one.
-* A category's `validate_rows: false` is used in place of its `mode: :hash`, so that a job class can
-  stop validating the rows of the files of saved jobs and Dirmon entries with it. Left unset, the
-  `mode` decides.
 * `validate_rows:` applies to a file, and the lines that the block of `upload` writes. A query or a
   range uploads values rather than rows, so `upload` raises `ArgumentError` for `validate_rows: true`
   with one, and the category's `validate_rows` does not apply to it.
@@ -464,7 +475,8 @@ fields.
 ### Replace the :array upload mode
 
 An input category's `mode: :array`, and the `stream_mode: :array` of `upload`, are deprecated, and
-cannot be used with a schema. Use the default `:line` mode, in which each worker parses its lines:
+cannot be used with a schema. Use the default `:line` mode, in which each worker parses its lines,
+and leave out `stream_mode:`:
 
 ~~~ruby
 # Before (deprecated)
@@ -475,11 +487,51 @@ input_category format: :csv
 ~~~
 
 To also parse every line when the file is uploaded, so that a file with a problem is found before it
-is processed, give the category a schema and use `:hash`. Without a schema, a category whose files
-have a header row, such as CSV, cannot be uploaded in the `:hash` mode in 7.x.
+is processed, use `validate_rows: true`, see
+[Replace the :hash mode and stream_mode](#replace-the-hash-mode-and-stream_mode).
 
-With a schema, both modes upload the lines of the file, so that `#perform` receives each value as its
-type, such as a `Date`.
+### Replace the :hash mode and stream_mode
+
+An input category's `mode: :hash`, and the `stream_mode:` of `upload`, are deprecated, and removed in
+v8. An input category's `validate_rows: true`, and the `validate_rows:` of `upload`, replace them: each
+line of a file in the category's format is parsed while the file is uploaded, so that a file with a
+line that cannot be read, or with a value that is not valid for its field in the schema, uploads
+nothing. The lines are still uploaded as they are, and the workers parse them:
+
+~~~ruby
+# Before (deprecated)
+input_category format: :csv, mode: :hash, schema: "schemas/people.json"
+job.upload("people.csv", stream_mode: :hash)
+
+# After
+input_category format: :csv, validate_rows: true, schema: "schemas/people.json"
+job.upload("people.csv", validate_rows: true)
+~~~
+
+* `validate_rows` also validates the lines of a category without a schema, which `mode: :hash` did
+  not.
+* A category without a format, which `stream_mode: :hash` read a file into Hashes for, gives the
+  category `format: :auto` instead, so that the workers read each line into a Hash, in the format of
+  the file name. Leave out `stream_mode: :line`, which is the default.
+* `upload` with a block does not validate the records that it writes in 7.1, and raises for
+  `validate_rows: true`. v8 also validates the lines that the block writes.
+* Until it is removed, `stream_mode:` decides alone whether a file is validated, over the category's
+  `validate_rows`. So in a category with `validate_rows: true`, replace `stream_mode: :line` by
+  `validate_rows: false`, rather than leave it out.
+* In a category with a format, 7.1 uploads the lines of a file in `stream_mode: :hash`, reading its
+  header row, and parses each one first, as `validate_rows: true` does. 7.0 raised
+  `IOStreams::Errors::TypeMismatch` for a file with a header row, such as CSV, without a schema. 7.1
+  also reads the header row in `mode: :hash`, which 7.0 uploaded as a record, and in `mode: :array`,
+  which raised in 7.0.
+* v8 reads a job saved with `mode: :hash` in a category with a format as `validate_rows: true`, unless
+  its `validate_rows` is false. With a schema that is what `mode: :hash` did, so such a job need not
+  change. Without a schema `mode: :hash` did not validate the lines, so remove it, rather than replace
+  it, to keep uploading a file with a line that cannot be read. The
+  [schema proposals](#propose-the-schema-of-each-category) make both changes, in job classes and in
+  saved jobs, Dirmon entries and `UploadFileJob`s.
+
+Servers running v7.0 cannot read `validate_rows`, so upgrade every server before giving any Dirmon
+entry or `UploadFileJob` one.
 
 ### Replace on_first
 
@@ -535,7 +587,7 @@ it used to lose. An encoding set on the path that is uploaded is used instead.
 
 Rocket Job reports a Ruby deprecation warning for each deprecated category option that it is given,
 naming the line of the job class that defines the category, or of the call to `upload` that supplies
-one, such as `stream_mode: :array` or `allowed_columns:`, for example:
+one, such as `stream_mode:` or `allowed_columns:`, for example:
 
 ~~~
 app/jobs/import_job.rb:5: warning: Rocket Job: allowed_columns:, skip_unknown: are deprecated, describe the columns of the file with schema: instead, see https://rocketjob.reidmorrison.com/upgrading.html#upgrading-to-v71

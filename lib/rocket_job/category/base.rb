@@ -129,7 +129,7 @@ module RocketJob
         # Returns [Hash] the supplied properties of a category, such as those that a job class defines it with, or that
         # a Dirmon entry holds, without the options that Rocket Job v8 removed, see .removed_option_names, which are only
         # left out when they are blank, or at their default, see .removed_options. An option that is still a field, such
-        # as an input category's `mode`, is kept, since only some of its values were removed.
+        # as an input category's `columns`, is kept, since only some of its uses were removed.
         #
         # Raises ArgumentError, which names the removed options that are set, see .removed_options.
         def supported_properties(properties)
@@ -164,6 +164,13 @@ module RocketJob
       def merge_properties(properties)
         self.class.supported_properties(properties).each_pair { |key, value| public_send(:"#{key}=", value) }
         self
+      end
+
+      # Returns [Hash] the supplied properties of this category that a Dirmon entry or an UploadFileJob saved before
+      # Rocket Job v8, as v8 reads them, see RocketJob::Plugins::Job::Model.convert_saved_properties: unchanged, unless
+      # this kind of category replaces an option that v8 removed, see RocketJob::Category::Input#convert_saved_properties.
+      def convert_saved_properties(properties)
+        properties
       end
 
       # Returns [Array<String>] why the supplied properties cannot be merged into this category, see
@@ -241,8 +248,9 @@ module RocketJob
       # Raises ArgumentError when this category was saved before Rocket Job v8 with an option that v8 removed, which
       # IOStreams no longer reads, so that its records are not read or written as though it had none, see
       # .removed_options. Mongoid keeps such an option among the attributes of a saved category, but not as a field.
-      def check_removed_options
-        removed = self.class.removed_options(attributes.except(*self.class.fields.keys))
+      # The supplied attributes limit which of them are checked, such as only the `mode` of an input category.
+      def check_removed_options(options = attributes.except(*self.class.fields.keys))
+        removed = self.class.removed_options(options)
         return if removed.empty?
 
         raise(ArgumentError, "#{self.class.name.demodulize} category #{name}: #{self.class.removed_options_message(removed)}")

@@ -397,10 +397,6 @@ module RocketJob
       ON_FIRST_GUIDE = "https://rocketjob.reidmorrison.com/upgrading.html#replace-on_first".freeze
       private_constant :ON_FIRST_GUIDE
 
-      # Where the upgrade guide says what replaces `stream_mode`, which Rocket Job v8 removed.
-      STREAM_MODE_GUIDE = "https://rocketjob.reidmorrison.com/upgrading.html#replace-the-hash-mode-with-validate_rows".freeze
-      private_constant :STREAM_MODE_GUIDE
-
       # Returns [Hash] the `record_count` and the upload state of each input category, see
       # Category::Input#upload_state, which the before_batch callbacks start with, see #before_batch_state.
       def rocketjob_before_batch_state
@@ -467,7 +463,7 @@ module RocketJob
         raise(ArgumentError,
               "stream_mode: was removed in Rocket Job v8: use validate_rows: true in place of stream_mode: :hash to " \
               "parse each row of a file in the input category's format when it is uploaded, and to read a file into " \
-              "Hashes, set the format of the input category, such as to :auto, see #{STREAM_MODE_GUIDE}")
+              "Hashes, set the format of the input category, such as to :auto, see #{RocketJob::Category::Input::VALIDATE_ROWS_GUIDE}")
       end
 
       # Raises ArgumentError for the options that describe the columns of the file, which Rocket Job v8 removed, see

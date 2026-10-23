@@ -3,6 +3,13 @@ require_relative "../test_helper"
 module Batch
   class CategoryTest < Minitest::Test
     describe RocketJob::Category::Input do
+      let(:mode_message) do
+        "mode: was removed in Rocket Job v8: use validate_rows: true in place of mode: :hash, which parses each row " \
+          "of a file in the category's format when it is uploaded, and remove mode: :array, since the workers parse " \
+          "the lines of a file in the category's format, see " \
+          "https://rocketjob.reidmorrison.com/upgrading.html#replace-the-hash-mode-with-validate_rows"
+      end
+
       describe "the column options, which v8 removed" do
         let(:removed_message) do
           "were removed in Rocket Job v8, describe the columns of the file with the category's schema instead, see " \
@@ -138,95 +145,153 @@ module Batch
           assert_predicate RocketJob::Category::Input.new(format: :csv, validate_rows: true), :upload_validates_rows?
         end
 
-        it "is true for the :hash mode that Rocket Job 7 saved, which validate_rows replaces" do
-          category = Mongoid::Factory.from_db(RocketJob::Category::Input, {"name" => "main", "format" => "csv", "mode" => "hash"})
-
-          assert_predicate category, :upload_validates_rows?
-        end
-
         it "is the validate_rows of the upload, unless it is nil" do
-          category = RocketJob::Category::Input.new(format: :csv, mode: :hash)
+          category = RocketJob::Category::Input.new(format: :csv, validate_rows: true)
 
           refute category.upload_validates_rows?(false)
           assert category.upload_validates_rows?(nil)
-          assert RocketJob::Category::Input.new(format: :csv).upload_validates_rows?(true)
-        end
-
-        it "is false without a format, whose records are uploaded as they are, as the :hash mode was in Rocket Job 7.0" do
-          refute_predicate RocketJob::Category::Input.new(mode: :hash), :upload_validates_rows?
-        end
-      end
-
-      describe "#mode" do
-        let(:array_message) do
-          "mode: :array was removed in Rocket Job v8: the workers parse the lines of a file in the category's format, " \
-            "and validate_rows: true also parses them when it is uploaded, see " \
-            "#{RocketJob::Category::Base::REMOVED_OPTIONS_GUIDE}"
-        end
-
-        it "is :line or :hash, or :array in a category saved before v8, so that its next run can still be created" do
-          assert_predicate RocketJob::Category::Input.new(mode: :hash), :valid?
-          refute_predicate RocketJob::Category::Input.new(mode: :lines), :valid?
-
-          category = Mongoid::Factory.from_db(RocketJob::Category::Input, {"name" => "main", "mode" => "array"})
-
-          assert_predicate category, :valid?
-          assert_predicate category.restart_copy, :valid?
-        end
-
-        it "raises for the :array mode when an input category is defined with it" do
-          error = assert_raises(ArgumentError) do
-            Class.new(RocketJob::Job) do
-              include RocketJob::Batch
-
-              input_category format: :csv, mode: :array
-            end
-          end
-
-          assert_equal array_message, error.message
-        end
-
-        it "reports the :array mode in the properties of a Dirmon entry or an UploadFileJob, and keeps the others" do
-          category = RocketJob::Category::Input.new
-
-          assert_equal [array_message], category.property_errors("mode" => "array")
-          assert_equal ["allowed_columns was removed in Rocket Job v8, describe the columns of the file with the " \
-                        "category's schema instead, see #{RocketJob::Category::Base::REMOVED_OPTIONS_GUIDE}. " \
-                        "#{array_message}"],
-                       category.property_errors("mode" => :array, "allowed_columns" => %w[name])
-          assert_equal({"mode" => "hash"}, RocketJob::Category::Input.supported_properties("mode" => "hash"))
-          assert_equal :hash, category.merge_properties("mode" => "hash").mode
-          assert_raises(ArgumentError) { category.merge_properties("mode" => "array") }
-        end
-
-        it "raises for the :array mode when a category saved before v8 that holds it is uploaded into" do
-          category = Mongoid::Factory.from_db(RocketJob::Category::Input, {"name" => "main", "mode" => "array"})
-
-          error = assert_raises(ArgumentError) { category.check_upload }
-          assert_equal "Input category main: #{array_message}", error.message
-        end
-      end
-
-      describe "#upload_validates_rows?" do
-        it "is the validate_rows of the upload, else of the category, else the :hash mode that Rocket Job 7 saved" do
-          category = RocketJob::Category::Input.new(format: :csv)
-
-          refute_predicate category, :upload_validates_rows?
-          assert category.upload_validates_rows?(true)
-
-          category.mode = :hash
-
-          assert_predicate category, :upload_validates_rows?
-          refute category.upload_validates_rows?(false)
 
           category.validate_rows = false
 
-          refute_predicate category, :upload_validates_rows?
           assert category.upload_validates_rows?(true)
+          assert RocketJob::Category::Input.new(format: :csv).upload_validates_rows?(true)
         end
 
         it "is false without a format, which has no rows to validate" do
-          refute RocketJob::Category::Input.new(mode: :hash).upload_validates_rows?(true)
+          refute RocketJob::Category::Input.new.upload_validates_rows?(true)
+        end
+      end
+
+      describe "a category that Rocket Job 7 saved with a mode" do
+        def saved(attributes)
+          Mongoid::Factory.from_db(RocketJob::Category::Input, {"name" => "main"}.merge(attributes))
+        end
+
+        it "reads the :hash mode as validate_rows: true in a format, which validate_rows replaces" do
+          category = saved("format" => "csv", "mode" => "hash")
+
+          assert category.validate_rows
+          assert_predicate category, :upload_validates_rows?
+          refute category.attributes.key?("mode")
+          # Changed, so that saving its job saves the conversion.
+          assert_equal %w[mode validate_rows], (category.changed & %w[mode validate_rows]).sort
+          assert_predicate category, :valid?
+        end
+
+        it "keeps the validate_rows that was saved with it" do
+          category = saved("format" => "csv", "mode" => "hash", "validate_rows" => false)
+
+          # Not refute, which also passes for nil.
+          assert_same false, category.validate_rows
+          refute_predicate category, :upload_validates_rows?
+          refute_includes category.changed, "validate_rows"
+        end
+
+        it "drops the :hash mode without a format, and the :line mode, which had no effect" do
+          [saved("mode" => "hash"), saved("format" => "csv", "mode" => "line")].each do |category|
+            assert_nil category.validate_rows
+            refute category.attributes.key?("mode")
+            assert_includes category.changed, "mode"
+            assert_predicate category, :valid?
+          end
+        end
+
+        it "keeps a mode that Rocket Job 7 did not accept either, which raises when it is uploaded into" do
+          category = saved("format" => "csv", "mode" => "Hash")
+
+          assert_nil category.validate_rows
+          assert_equal "Hash", category.attributes["mode"]
+          error = assert_raises(ArgumentError) { category.check_upload }
+          assert_equal "Input category main: #{mode_message}", error.message
+        end
+
+        it "keeps the :array mode, so that its next run can still be created, and raises when it is uploaded into" do
+          category = saved("mode" => "array")
+
+          assert_predicate category, :valid?
+          assert_predicate category.restart_copy, :valid?
+          error = assert_raises(ArgumentError) { category.check_upload }
+          assert_equal "Input category main: #{mode_message}", error.message
+        end
+      end
+
+      describe "mode in the properties of a category" do
+        it "raises for the :hash and :array modes when an input category is defined with one" do
+          %i[hash array].each do |mode|
+            error = assert_raises(ArgumentError) do
+              Class.new(RocketJob::Job) do
+                include RocketJob::Batch
+
+                input_category format: :csv, mode: mode
+              end
+            end
+
+            assert_equal mode_message, error.message
+          end
+        end
+
+        it "reports the :hash and :array modes in the properties of a Dirmon entry or an UploadFileJob" do
+          category = RocketJob::Category::Input.new
+
+          assert_equal [mode_message], category.property_errors("mode" => "array")
+          assert_equal [mode_message], category.property_errors("mode" => :hash)
+          assert_equal ["allowed_columns was removed in Rocket Job v8, describe the columns of the file with the " \
+                        "category's schema instead, see #{RocketJob::Category::Base::REMOVED_OPTIONS_GUIDE}. " \
+                        "#{mode_message}"],
+                       category.property_errors("mode" => "hash", "allowed_columns" => %w[name])
+          assert_raises(ArgumentError) { category.merge_properties("mode" => "hash") }
+        end
+
+        it "drops the :line mode, which had no effect" do
+          assert_equal({"format" => "csv"}, RocketJob::Category::Input.supported_properties("format" => "csv", "mode" => "line"))
+          assert_empty RocketJob::Category::Input.new.property_errors("mode" => "line")
+        end
+
+        it "raises for a mode that Rocket Job 7 did not accept either" do
+          assert_equal [mode_message], RocketJob::Category::Input.new.property_errors("mode" => :hashes)
+          assert_raises(ArgumentError) { RocketJob::Category::Input.supported_properties("mode" => "Hash") }
+        end
+      end
+
+      describe "#convert_saved_properties" do
+        let(:csv_category) { RocketJob::Category::Input.new(format: :csv) }
+
+        it "replaces the :hash mode with validate_rows: true in the format of the category" do
+          assert_equal({"name" => "main", "validate_rows" => true},
+                       csv_category.convert_saved_properties("name" => "main", "mode" => "hash"))
+        end
+
+        it "replaces the :hash mode with validate_rows: true in the format of the properties" do
+          assert_equal({"format" => :json, "validate_rows" => true},
+                       RocketJob::Category::Input.new.convert_saved_properties(format: :json, mode: :hash))
+        end
+
+        it "drops the :hash mode without a format, and the :line mode, which had no effect" do
+          assert_equal({"slice_size" => 10}, RocketJob::Category::Input.new.convert_saved_properties("slice_size" => 10, "mode" => "hash"))
+          assert_equal({"format" => nil}, csv_category.convert_saved_properties("format" => nil, "mode" => "hash"))
+          assert_equal({}, csv_category.convert_saved_properties("mode" => "line"))
+        end
+
+        it "keeps the validate_rows of the properties, otherwise of the category" do
+          assert_equal({"validate_rows" => false},
+                       csv_category.convert_saved_properties("mode" => "hash", "validate_rows" => false))
+
+          csv_category.validate_rows = false
+
+          assert_equal({}, csv_category.convert_saved_properties("mode" => "hash"))
+        end
+
+        it "keeps any other mode, which is reported as not valid" do
+          properties = {"mode" => "array"}
+
+          assert_same properties, csv_category.convert_saved_properties(properties)
+          assert_equal [mode_message], csv_category.property_errors(properties)
+        end
+
+        it "keeps properties without a mode as they are" do
+          properties = {encoding: "Windows-1252"}
+
+          assert_same properties, csv_category.convert_saved_properties(properties)
         end
       end
 

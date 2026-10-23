@@ -222,6 +222,14 @@ module RocketJob
             new(properties)
           end
 
+          # Returns [Hash] the supplied properties of this job class that a Dirmon entry or an UploadFileJob saved
+          # before Rocket Job v8, as v8 reads them, such as with a setting that v8 replaced. Unchanged, unless a
+          # plugin converts its own properties: batch asks each of its categories, see
+          # RocketJob::Category::Base#convert_saved_properties.
+          def convert_saved_properties(properties)
+            properties
+          end
+
           # Returns [Array<String>] why the supplied properties cannot build this job, see `from_properties`, such as a
           # property that this job does not have. Empty when they can. Overridden by batch to also check its
           # categories.
