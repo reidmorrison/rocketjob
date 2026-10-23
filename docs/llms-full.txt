@@ -2581,7 +2581,7 @@ Useful `upload` keyword options:
 |:---------------|:------------
 | `category`     | Which input category to load into. Default: `:main`.
 | `validate_rows` | `true` to parse each line of the file while it is uploaded, so that a file with a line that cannot be read uploads nothing. Default: the input category's `validate_rows`. See [input categories](#input-categories).
-| `stream_mode`  | Deprecated, and removed in v8, see [Replace the :hash mode with validate_rows](upgrading.html#replace-the-hash-mode-with-validate_rows). `:line` (default), `:array`, or `:hash`.
+| `stream_mode`  | Deprecated, and removed in v8, see [Replace the :hash mode and stream_mode](upgrading.html#replace-the-hash-mode-and-stream_mode). `:line` (default), `:array`, or `:hash`.
 | `file_name`    | Override the file name used to infer format and streams.
 | `delimiter`    | Record delimiter. Default: auto-detect line endings.
 | `on_first`     | Deprecated, and removed in v8, see [Replace on_first](upgrading.html#replace-on_first). A lambda called with the header row, or the first record of a file without one, such as JSON or fixed width, which is not uploaded.
@@ -2723,7 +2723,7 @@ The `validate_rows` option of `upload` overrides the category's for that upload.
 validated, not a query or a range, nor the records that a block writes to `upload`.
 
 The `mode` option is deprecated: `validate_rows` replaces `mode: :hash`, see
-[Replace the :hash mode with validate_rows](upgrading.html#replace-the-hash-mode-with-validate_rows).
+[Replace the :hash mode and stream_mode](upgrading.html#replace-the-hash-mode-and-stream_mode).
 
 ## Collecting output
 
@@ -5771,9 +5771,9 @@ input_category format: :csv
 
 To also parse every line when the file is uploaded, so that a file with a problem is found before it
 is processed, use `validate_rows: true`, see
-[Replace the :hash mode with validate_rows](#replace-the-hash-mode-with-validate_rows).
+[Replace the :hash mode and stream_mode](#replace-the-hash-mode-and-stream_mode).
 
-### Replace the :hash mode with validate_rows
+### Replace the :hash mode and stream_mode
 
 An input category's `mode: :hash`, and the `stream_mode:` of `upload`, are deprecated, and removed in
 v8. An input category's `validate_rows: true`, and the `validate_rows:` of `upload`, replace them: each

@@ -192,9 +192,9 @@ input_category format: :csv
 
 To also parse every line when the file is uploaded, so that a file with a problem is found before it
 is processed, use `validate_rows: true`, see
-[Replace the :hash mode with validate_rows](#replace-the-hash-mode-with-validate_rows).
+[Replace the :hash mode and stream_mode](#replace-the-hash-mode-and-stream_mode).
 
-### Replace the :hash mode with validate_rows
+### Replace the :hash mode and stream_mode
 
 An input category's `mode: :hash`, and the `stream_mode:` of `upload`, are deprecated, and removed in
 v8. An input category's `validate_rows: true`, and the `validate_rows:` of `upload`, replace them: each
