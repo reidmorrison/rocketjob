@@ -37,6 +37,14 @@ module Batch
         with_file(extension, data) { |file_name| job.upload(file_name, **) }
       end
 
+      # Saves the job with the supplied mode in its input category, as Rocket Job 7 saved it, and reads it back, as v8
+      # reads it from the database, see Category::Input#convert_saved_mode.
+      def saved_v7_mode(mode)
+        job.save!
+        TabularJob.collection.update_one({_id: job.id}, {"$set" => {"input_categories.0.mode" => mode.to_s}})
+        job.reload
+      end
+
       def input_records
         job.input.collect(&:to_a).flatten(1)
       end
@@ -70,12 +78,14 @@ module Batch
         end
 
         it "raises for the :array mode, which v8 removed, and uploads nothing" do
-          job.input_category.mode = :array
+          saved_v7_mode(:array)
 
           error = assert_raises(ArgumentError) { upload(".csv", csv) }
-          assert_equal "Input category main: mode: :array was removed in Rocket Job v8: the workers parse the lines " \
-                       "of a file in the category's format, and validate_rows: true also parses them when it is " \
-                       "uploaded, see #{RocketJob::Category::Base::REMOVED_OPTIONS_GUIDE}", error.message
+          assert_equal "Input category main: mode: was removed in Rocket Job v8: use validate_rows: true in place of " \
+                       "mode: :hash, which parses each row of a file in the category's format when it is uploaded, " \
+                       "and remove mode: :array, since the workers parse the lines of a file in the category's format, " \
+                       "see https://rocketjob.reidmorrison.com/upgrading.html#replace-the-hash-mode-with-validate_rows",
+                       error.message
           assert_raises(ArgumentError) do
             job.upload do |records|
               records << "Name,Age"
@@ -166,16 +176,16 @@ module Batch
             assert_equal 3, job.record_count
           end
 
-          it "is the :hash mode that Rocket Job 7 saved" do
-            job.input_category.mode = :hash
+          it "is read from the :hash mode that Rocket Job 7 saved" do
+            saved_v7_mode(:hash)
 
             assert_raises(CSV::MalformedCSVError) { upload(".csv", malformed) }
             assert_equal 3, upload(".csv", malformed, validate_rows: false)
           end
 
           it "of the category, when false, is used in place of the :hash mode that Rocket Job 7 saved" do
-            job.input_category.mode          = :hash
             job.input_category.validate_rows = false
+            saved_v7_mode(:hash)
 
             assert_equal 3, upload(".csv", malformed)
           end
@@ -202,7 +212,7 @@ module Batch
 
         it "uploads the lines of a file into a category without a format, also in the :hash mode that Rocket Job 7 saved" do
           job.input_category.format = nil
-          job.input_category.mode   = :hash
+          saved_v7_mode(:hash)
 
           assert_equal 3, upload(".csv", csv)
           assert_equal ["Name,Age,Extra", "Jack,21,x", "Jill,22,y"], output_records
@@ -477,7 +487,7 @@ module Batch
         end
 
         it "uploads each line in the :hash mode that Rocket Job 7 saved, after reading it, which the workers read by the schema" do
-          job.input_category.mode = :hash
+          saved_v7_mode(:hash)
           upload(".txt", "Jack      54321\nJill      12345\n")
 
           assert_equal ["Jack      54321", "Jill      12345"], input_records

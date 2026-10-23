@@ -196,6 +196,35 @@ module Plugins
             RocketJob::Job.destroy_all
           end
 
+          it "reads the :hash mode that Rocket Job 7 saved as validate_rows, without changing the job" do
+            job = PersistBatchJob.create!
+            PersistBatchJob.collection.update_one(
+              {_id: job.id},
+              {"$set" => {"input_categories.0.format" => "csv", "input_categories.0.mode" => "hash"}}
+            )
+            job = PersistBatchJob.find(job.id)
+
+            assert job.input_category.validate_rows
+            refute_predicate job, :changed?
+
+            job.description = "Saved again"
+            job.save!
+            saved = PersistBatchJob.collection.find(_id: job.id).first["input_categories"].first
+
+            assert_equal "hash", saved["mode"]
+            refute saved.key?("validate_rows")
+
+            job.create_restart!
+            restarted = RocketJob::Job.where(:id.ne => job.id).first
+            saved     = PersistBatchJob.collection.find(_id: restarted.id).first["input_categories"].first
+
+            assert restarted.input_category.validate_rows
+            assert saved["validate_rows"]
+            refute saved.key?("mode")
+          ensure
+            RocketJob::Job.destroy_all
+          end
+
           it "creates the next run of a job that Rocket Job 7 saved with the :array mode, whose upload raises" do
             job = PersistBatchJob.create!
             PersistBatchJob.collection.update_one({_id: job.id}, {"$set" => {"input_categories.0.mode" => "array"}})
@@ -204,11 +233,11 @@ module Plugins
 
             restarted = RocketJob::Job.where(:id.ne => job.id).first
 
-            assert_equal :array, restarted.input_category.mode
+            assert_equal "array", restarted.input_category.attributes["mode"]
             error = assert_raises(ArgumentError) do
               restarted.upload(StringIO.new("name\nJill\n"), file_name: "b.csv")
             end
-            assert_includes error.message, "mode: :array was removed in Rocket Job v8"
+            assert_includes error.message, "mode: was removed in Rocket Job v8"
           ensure
             RocketJob::Job.destroy_all
           end

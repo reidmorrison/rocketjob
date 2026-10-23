@@ -129,7 +129,7 @@ module RocketJob
         # Returns [Hash] the supplied properties of a category, such as those that a job class defines it with, or that
         # a Dirmon entry holds, without the options that Rocket Job v8 removed, see .removed_option_names, which are only
         # left out when they are blank, or at their default, see .removed_options. An option that is still a field, such
-        # as an input category's `mode`, is kept, since only some of its values were removed.
+        # as an input category's `columns`, is kept, since only some of its uses were removed.
         #
         # Raises ArgumentError, which names the removed options that are set, see .removed_options.
         def supported_properties(properties)
