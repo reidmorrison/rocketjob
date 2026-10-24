@@ -2683,6 +2683,26 @@ itself for a single column:
 job.upload(User.where(country_code: "US"), columns: %i[user_name zip_code])
 ~~~
 
+In an input category with a `format`, such as CSV or JSON, the rows are uploaded in that format
+instead, as a file of the query would hold them, after the names of the columns, by the category's
+schema, otherwise by the types of the columns. `#perform` then receives each row as the rows of a file
+in that format, such as a Hash of the columns:
+
+~~~ruby
+class ExportUsersJob < RocketJob::Job
+  include RocketJob::Batch
+
+  input_category format: :csv
+
+  def perform(user)
+    user["zip_code"]
+  end
+end
+
+job = ExportUsersJob.new
+job.upload(User.where(country_code: "US"), columns: %i[user_name zip_code])
+~~~
+
 The rows are uploaded in the order of the relation, and within its limit, and each column is read as
 `pluck` reads it. The query is read on a connection of its own, so the pool of the model needs a
 connection free besides that of the caller, and only the rows that were committed are uploaded,
@@ -2723,6 +2743,9 @@ job.upload(User.where(state: "FL"))
 # Upload a field instead
 job.upload(User.where(state: "FL"), columns: [:zip_code])
 ~~~
+
+In an input category with a `format`, the fields are uploaded in that format, after their names, as
+for an Active Record query.
 
 
 ### Integer ranges
@@ -6065,8 +6088,14 @@ same Hash for each line, so most jobs need no change, but:
   Array of the values of each row of CSV, after the Array of its header row, or a Hash into a JSON
   category, which v7 read as it read a line. Write each row as a line of the format instead, such as
   `row.to_csv` or `hash.to_json`, or upload it into a category without a format, whose `#perform`
-  receives it as it was written. The `:hash` and `:array` formats, whose rows are Ruby objects, and
-  formats whose rows are not lines, such as Parquet, still upload each record as it is.
+  receives it as it was written. The `:hash` format, whose rows are Ruby objects, and formats whose
+  rows are not lines, such as Parquet, still upload each record as it is. In the `:array` format the
+  first Array that the block writes is the header row, by which `#perform` receives each row after
+  it as a Hash, where v7 uploaded it as a record.
+* An Active Record or Mongoid query uploaded into a category with a format, such as CSV or JSON, is
+  uploaded in that format, after the names of its columns, so `#perform` receives each row as a
+  Hash, where v7 raised `ArgumentError` in a format with a header row. Without a format it is
+  uploaded as before.
 * The lines that the block of `upload` writes into such a category are read as UTF-8, and each
   character that is not valid in its line's encoding is handled as the category's `invalid_characters`
   says. So by default CSV and the other tabular formats remove it, as they do from a file, where v7
@@ -6080,7 +6109,8 @@ same Hash for each line, so most jobs need no change, but:
   worker raises `ArgumentError` for them. Write them to the block of `upload` instead, after the
   header row. Hashes, and the lines of a format without a header row, such as JSON, are still read.
 * A slice of an input category holds an `IOStreams::Slice` of rows, rather than an Array, for code
-  that reads the records of a slice itself, such as Mission Control. An `IOStreams::Slice` is not an
+  that reads the records of a slice itself, such as Mission Control, whatever was uploaded, apart from
+  the slices that `upload_slice` uploads, so a worker of v7 fails each slice that v8 uploads. An `IOStreams::Slice` is not an
   Array, so read the records through the slice itself, such as with `slice.each` or `slice.to_a`,
   and change them with `slice.replace_record` and `slice.delete_record`, which keep the line and
   record number of each row in its file.

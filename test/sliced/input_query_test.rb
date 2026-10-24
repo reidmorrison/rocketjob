@@ -96,6 +96,9 @@ module Sliced
         RocketJob::Sliced::Input.new(collection_name: collection_name, slice_size: 100)
       end
 
+      # An input category without a format, which uploads the value of each row of one column, otherwise an Array.
+      let(:category) { RocketJob::Category::Input.new }
+
       before do
         input.delete_all
         InputQueryPerson.delete_all
@@ -117,28 +120,28 @@ module Sliced
         end
 
         it "uploads the id of each record by default" do
-          count = input.upload_arel(InputQueryPerson.all)
+          count = input.upload_arel(InputQueryPerson.all, category: category)
 
           assert_equal 2, count
           assert_equal [@alice.id, @bob.id].sort, input.collect(&:to_a).flatten.sort
         end
 
         it "uploads a single named column" do
-          count = input.upload_arel(InputQueryPerson.all, columns: [:name])
+          count = input.upload_arel(InputQueryPerson.all, category: category, columns: [:name])
 
           assert_equal 2, count
           assert_equal %w[Alice Bob], input.collect(&:to_a).flatten.sort
         end
 
         it "uploads a column named by a String" do
-          input.upload_arel(InputQueryPerson.all, columns: ["name"])
+          input.upload_arel(InputQueryPerson.all, category: category, columns: ["name"])
 
           assert_equal %w[Alice Bob], input.collect(&:to_a).flatten.sort
         end
 
         it "quotes a String column as the name of a column, rather than running it as SQL" do
           begin
-            input.upload_arel(InputQueryPerson.all, columns: ["upper(name) AS uname"])
+            input.upload_arel(InputQueryPerson.all, category: category, columns: ["upper(name) AS uname"])
           rescue ActiveRecord::StatementInvalid
             nil # A database that rejects the name of a column that the table does not have.
           end
@@ -147,32 +150,32 @@ module Sliced
         end
 
         it "uploads multiple columns as arrays" do
-          input.upload_arel(InputQueryPerson.all, columns: %i[name age])
+          input.upload_arel(InputQueryPerson.all, category: category, columns: %i[name age])
           rows = input.collect(&:to_a).flatten(1).sort
 
           assert_equal [["Alice", 30], ["Bob", 40]], rows
         end
 
         it "uploads the rows in the order of the relation, and within its limit" do
-          assert_equal 1, input.upload_arel(InputQueryPerson.order(age: :desc).limit(1), columns: [:name])
+          assert_equal 1, input.upload_arel(InputQueryPerson.order(age: :desc).limit(1), category: category, columns: [:name])
           assert_equal ["Bob"], input.collect(&:to_a).flatten
         end
 
         it "uploads the columns that the batches of a relation select" do
-          count = input.upload_arel(InputQueryPerson.select(:name, :age).in_batches(of: 1))
+          count = input.upload_arel(InputQueryPerson.select(:name, :age).in_batches(of: 1), category: category)
 
           assert_equal 2, count
           assert_equal [["Alice", 30], ["Bob", 40]], input.collect(&:to_a).flatten(1).sort
         end
 
         it "uploads the value of the one column that the batches of a relation select" do
-          input.upload_arel(InputQueryPerson.select(:name).in_batches(of: 1))
+          input.upload_arel(InputQueryPerson.select(:name).in_batches(of: 1), category: category)
 
           assert_equal %w[Alice Bob], input.collect(&:to_a).flatten.sort
         end
 
         it "rejects the batches of a relation that selects no columns, rather than upload every column" do
-          error = assert_raises(ArgumentError) { input.upload_arel(InputQueryPerson.in_batches(of: 1)) }
+          error = assert_raises(ArgumentError) { input.upload_arel(InputQueryPerson.in_batches(of: 1), category: category) }
 
           assert_equal "Select the columns to upload before `in_batches`, such as `relation.select(:id).in_batches`",
                        error.message
@@ -181,7 +184,7 @@ module Sliced
 
         it "rejects columns for the batches of a relation" do
           error = assert_raises(ArgumentError) do
-            input.upload_arel(InputQueryPerson.in_batches(of: 1), columns: [:name])
+            input.upload_arel(InputQueryPerson.in_batches(of: 1), category: category, columns: [:name])
           end
 
           assert_equal "Select the columns to upload before `in_batches`, rather than with `columns:`", error.message
@@ -195,14 +198,14 @@ module Sliced
         end
 
         it "uploads the _id of each document by default" do
-          count = input.upload_mongo_query(InputQueryDoc.all)
+          count = input.upload_mongo_query(InputQueryDoc.all, category: category)
 
           assert_equal 2, count
           assert_equal [@alice.id, @bob.id].sort, input.collect(&:to_a).flatten.sort
         end
 
         it "uploads a single named column" do
-          input.upload_mongo_query(InputQueryDoc.all, columns: [:name])
+          input.upload_mongo_query(InputQueryDoc.all, category: category, columns: [:name])
 
           assert_equal %w[Alice Bob], input.collect(&:to_a).flatten.sort
         end
@@ -211,14 +214,14 @@ module Sliced
           criteria = InputQueryDoc.where(name: "Alice").only(:name)
           options  = criteria.options.deep_dup
 
-          input.upload_mongo_query(criteria, columns: [:age])
+          input.upload_mongo_query(criteria, category: category, columns: [:age])
 
           assert_equal options, criteria.options
           assert_equal ["Alice"], criteria.collect(&:name)
         end
 
         it "uploads multiple columns as arrays" do
-          input.upload_mongo_query(InputQueryDoc.all, columns: %i[name age])
+          input.upload_mongo_query(InputQueryDoc.all, category: category, columns: %i[name age])
           rows = input.collect(&:to_a).flatten(1).sort
 
           assert_equal [["Alice", 30], ["Bob", 40]], rows
@@ -228,14 +231,14 @@ module Sliced
           InputQueryChildDoc.create!(name: "Carol", age: 50)
           InputQueryGrandchildDoc.create!(name: "Gina", age: 55)
 
-          assert_equal 2, input.upload_mongo_query(InputQueryChildDoc.all, columns: [:name])
+          assert_equal 2, input.upload_mongo_query(InputQueryChildDoc.all, category: category, columns: [:name])
           assert_equal %w[Carol Gina], input.collect(&:to_a).flatten.sort
         end
 
         it "uploads from the collection that Mongoid reads the criteria from, such as within `with(collection:)`" do
           InputQueryDoc.with(collection: INPUT_QUERY_OTHER_COLLECTION) do |klass|
             klass.create!(name: "Dave", age: 60)
-            input.upload_mongo_query(klass.all, columns: [:name])
+            input.upload_mongo_query(klass.all, category: category, columns: [:name])
           end
 
           assert_equal %w[Dave], input.collect(&:to_a).flatten
@@ -243,20 +246,20 @@ module Sliced
 
         it "uploads from the collection that `with_collection` names" do
           InputQueryDoc.with(collection: INPUT_QUERY_OTHER_COLLECTION) { |klass| klass.create!(name: "Dave", age: 60) }
-          input.upload_mongo_query(InputQueryDoc.with_collection(INPUT_QUERY_OTHER_COLLECTION), columns: [:name])
+          input.upload_mongo_query(InputQueryDoc.with_collection(INPUT_QUERY_OTHER_COLLECTION), category: category, columns: [:name])
 
           assert_equal %w[Dave], input.collect(&:to_a).flatten
         end
 
         it "uploads none for a criteria that returns none" do
-          assert_equal 0, input.upload_mongo_query(InputQueryDoc.none, columns: [:name])
+          assert_equal 0, input.upload_mongo_query(InputQueryDoc.none, category: category, columns: [:name])
           assert_equal 0, input.count
         end
 
         it "raises for a criteria of embedded documents" do
           doc   = InputQueryDoc.create!(name: "Erin", phones: [InputQueryPhone.new(number: "555-0100")])
           error = assert_raises(ArgumentError) do
-            input.upload_mongo_query(doc.phones.where(number: "555-0100"), columns: [:number])
+            input.upload_mongo_query(doc.phones.where(number: "555-0100"), category: category, columns: [:number])
           end
 
           assert_equal "Upload a query of the documents that embed InputQueryPhone, since embedded documents are " \
@@ -269,13 +272,13 @@ module Sliced
             address: InputQueryAddress.new(city: "Boston"),
             phones:  [InputQueryPhone.new(number: "555-0100"), InputQueryPhone.new(number: "555-0101")]
           )
-          input.upload_mongo_query(InputQueryDoc.where(name: "Erin"), columns: ["address.city", "phones.number"])
+          input.upload_mongo_query(InputQueryDoc.where(name: "Erin"), category: category, columns: ["address.city", "phones.number"])
 
           assert_equal [["Boston", %w[555-0100 555-0101]]], input.collect(&:to_a).flatten(1)
         end
 
         it "replaces a projection of the criteria that excludes fields with the columns" do
-          input.upload_mongo_query(InputQueryDoc.without(:age), columns: [:name])
+          input.upload_mongo_query(InputQueryDoc.without(:age), category: category, columns: [:name])
 
           assert_equal %w[Alice Bob], input.collect(&:to_a).flatten.sort
         end
@@ -284,7 +287,7 @@ module Sliced
           InputQueryDoc.with_session do |session|
             # A read within this session raises Mongo::Error::SessionEnded.
             session.end_session
-            input.upload_mongo_query(InputQueryDoc.all, columns: [:name])
+            input.upload_mongo_query(InputQueryDoc.all, category: category, columns: [:name])
           end
 
           assert_equal %w[Alice Bob], input.collect(&:to_a).flatten.sort
@@ -292,13 +295,13 @@ module Sliced
 
         it "uploads a field by its alias" do
           InputQueryDoc.where(name: "Alice").update_all(c: "Boston")
-          input.upload_mongo_query(InputQueryDoc.where(name: "Alice"), columns: [:city])
+          input.upload_mongo_query(InputQueryDoc.where(name: "Alice"), category: category, columns: [:city])
 
           assert_equal %w[Boston], input.collect(&:to_a).flatten
         end
 
         it "uploads in the order of the criteria, and within its limit" do
-          input.upload_mongo_query(InputQueryDoc.order(age: :desc).limit(1), columns: [:name])
+          input.upload_mongo_query(InputQueryDoc.order(age: :desc).limit(1), category: category, columns: [:name])
 
           assert_equal %w[Bob], input.collect(&:to_a).flatten
         end
@@ -350,22 +353,30 @@ module Sliced
       describe "into a category whose format reads the header row of a file" do
         let(:job) { CsvUploadJob.new }
 
-        it "rejects an Active Record relation" do
-          error = assert_raises(ArgumentError) { job.upload(InputQueryPerson.all) }
-
-          assert_equal "Input category main: cannot upload an ActiveRecord::Relation in the :csv format, which reads " \
-                       "the header row of a file. Upload it into a category without a format", error.message
-          assert_equal 0, job.input.count
+        # Returns [Array] the header row, format and rows of each slice of the input, and the records that perform
+        # receives from them.
+        def uploaded
+          slices  = job.input.sort_by(&:first_record_number)
+          records = []
+          slices.each { |slice| job.input_category.parse_records(slice.records) { |record| records << record } }
+          [slices.collect { |slice| [slice.records.header, slice.records.format, slice.to_a] }, records]
         end
 
-        it "rejects the batches of an Active Record relation" do
-          assert_raises(ArgumentError) { job.upload(InputQueryPerson.select(:id).in_batches) }
-          assert_equal 0, job.input.count
+        it "writes an Active Record relation in the format, after the names of the columns, as a file of it holds" do
+          assert_equal 2, job.upload(InputQueryPerson.order(:name), columns: %i[name age])
+          assert_equal [[[%w[name age], :csv, %w[Alice,30 Bob,40]]],
+                        [{"name" => "Alice", "age" => "30"}, {"name" => "Bob", "age" => "40"}]], uploaded
         end
 
-        it "rejects a Mongoid query" do
-          assert_raises(ArgumentError) { job.upload(InputQueryDoc.all) }
-          assert_equal 0, job.input.count
+        it "writes the batches of an Active Record relation in the format" do
+          assert_equal 2, job.upload(InputQueryPerson.select(:name).in_batches(of: 1))
+          assert_equal %w[Alice Bob], uploaded.last.collect { |record| record["name"] }.sort
+        end
+
+        it "writes a Mongoid query in the format, after the names of the fields" do
+          assert_equal 2, job.upload(InputQueryDoc.order(name: 1), columns: %i[name age])
+          assert_equal [[[%w[name age], :csv, %w[Alice,30 Bob,40]]],
+                        [{"name" => "Alice", "age" => "30"}, {"name" => "Bob", "age" => "40"}]], uploaded
         end
 
         it "rejects a range" do

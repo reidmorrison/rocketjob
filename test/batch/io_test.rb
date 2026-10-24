@@ -211,6 +211,31 @@ module Batch
           end
         end
 
+        describe "block without a format" do
+          it "keeps each record as it is written, one per record, which IOStreams writes to the slices" do
+            job.input_category.slice_size = 10
+            records                       = ["two\nlines", 42, [1, 99], {"a" => 1}, nil]
+
+            assert_equal(5, job.upload { |io| records.each { |record| io << record } })
+            slice = job.input.first
+
+            assert_equal records, slice.to_a
+            assert_kind_of IOStreams::Slice, slice.records
+            assert_nil slice.records.format
+            assert_equal [1, 2, 3, 4, 5], Array.new(5) { |index| slice.record_number_at(index) }
+            assert_nil slice.line_number_at(0)
+          end
+
+          it "is stored as the rows of a slice, which a worker of Rocket Job 7 fails rather than processing none" do
+            job.upload { |io| io << "hello" }
+            stored   = job.input.collection.find.first["records"]
+            document = Hash.from_bson(BSON::ByteBuffer.new(Zlib::Inflate.inflate(stored.data)))
+
+            assert_equal RocketJob::Sliced::Slice::ROWS_GUARD, document["r"]
+            assert_equal %w[hello], document["s"]["rows"]
+          end
+        end
+
         describe "Range" do
           before do
             job.input_category.slice_size = 10

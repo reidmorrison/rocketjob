@@ -211,6 +211,26 @@ itself for a single column:
 job.upload(User.where(country_code: "US"), columns: %i[user_name zip_code])
 ~~~
 
+In an input category with a `format`, such as CSV or JSON, the rows are uploaded in that format
+instead, as a file of the query would hold them, after the names of the columns, by the category's
+schema, otherwise by the types of the columns. `#perform` then receives each row as the rows of a file
+in that format, such as a Hash of the columns:
+
+~~~ruby
+class ExportUsersJob < RocketJob::Job
+  include RocketJob::Batch
+
+  input_category format: :csv
+
+  def perform(user)
+    user["zip_code"]
+  end
+end
+
+job = ExportUsersJob.new
+job.upload(User.where(country_code: "US"), columns: %i[user_name zip_code])
+~~~
+
 The rows are uploaded in the order of the relation, and within its limit, and each column is read as
 `pluck` reads it. The query is read on a connection of its own, so the pool of the model needs a
 connection free besides that of the caller, and only the rows that were committed are uploaded,
@@ -252,6 +272,9 @@ job.upload(User.where(state: "FL"))
 # Upload a field instead
 job.upload(User.where(state: "FL"), columns: [:zip_code])
 ~~~
+
+In an input category with a `format`, the fields are uploaded in that format, after their names, as
+for an Active Record query.
 
 
 ### Integer ranges

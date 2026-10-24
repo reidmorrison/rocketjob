@@ -405,23 +405,44 @@ module Batch
         end
       end
 
-      describe "#slices?" do
-        it "uploads the lines of a format of text in slices, also without a schema" do
-          %i[csv psv json fixed].each do |format|
-            assert_predicate RocketJob::Category::Input.new(format: format), :slices?, format
-          end
+      describe "#write_slices" do
+        # A store of slices that keeps each slice that IOStreams writes to it.
+        let(:store) do
+          Class.new do
+            include IOStreams::Slice::Target
+
+            attr_reader :slices
+
+            def write_slice(slice)
+              (@slices ||= []) << slice
+            end
+          end.new
         end
 
-        it "uploads each record as it is without a format, or in a format whose rows are Ruby objects or not lines" do
-          [nil, :hash, :array, :parquet].each do |format|
-            refute_predicate RocketJob::Category::Input.new(format: format), :slices?, format.inspect
-          end
+        # Returns [Array] the header row, format and rows of the slice that the supplied category writes the records
+        # that the block writes to.
+        def written(category, &)
+          category.write_slices(store, &)
+          slice = store.slices.first
+          [slice.header, slice.format, slice.rows]
+        end
+
+        it "holds each record as it is without a format" do
+          assert_equal [nil, nil, ["two\nlines", [1, 99], {"a" => 1}]],
+                       written(RocketJob::Category::Input.new) { |io| io << "two\nlines" << [1, 99] << {"a" => 1} }
+        end
+
+        it "holds the lines of a format of text after the header row, also without a schema" do
+          assert_equal [%w[name], :csv, %w[Jack]], written(RocketJob::Category::Input.new(format: :csv)) { |io| io << "name" << "Jack" }
+        end
+
+        it "holds the records of a format whose rows are Ruby objects as they are" do
+          assert_equal [nil, :hash, [{"name" => "Jack"}]],
+                       written(RocketJob::Category::Input.new(format: :hash)) { |io| io << {"name" => "Jack"} }
         end
 
         it "reads a format of :auto from the file name, otherwise CSV" do
-          assert_predicate RocketJob::Category::Input.new(format: :auto), :slices?
-          assert_predicate RocketJob::Category::Input.new(format: :auto, file_name: "a.json"), :slices?
-          refute_predicate RocketJob::Category::Input.new(format: :auto, file_name: "a.parquet"), :slices?
+          assert_equal [%w[name], :csv, %w[Jack]], written(RocketJob::Category::Input.new(format: :auto)) { |io| io << "name" << "Jack" }
         end
       end
 

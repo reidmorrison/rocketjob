@@ -196,13 +196,9 @@ module RocketJob
           count =
             category.uploading do
               category.file_name = file_name if file_name
-              if category.slices?
-                # The block writes the lines of a file, which are read in slices, as the lines of a file are.
-                input_collection.upload(upload_id: rocketjob_upload_id) do |writer|
-                  category.write_slices(writer, validate_rows: validate_rows, &block)
-                end
-              else
-                input_collection.upload(upload_id: rocketjob_upload_id, &block)
+              # IOStreams writes the records that the block writes to the slices, as the category says.
+              input_collection.upload(upload_id: rocketjob_upload_id) do |writer|
+                category.write_slices(writer, validate_rows: validate_rows, &block)
               end
             end
           return rocketjob_add_record_count(count)
@@ -214,23 +210,27 @@ module RocketJob
         count =
           case object
           when Range
-            rocketjob_check_upload("a Range", ":category, or :slice_batch_size", category, file_options)
+            rocketjob_check_upload("a Range", ":category, or :slice_batch_size", file_options)
+            input_category(category).check_record_upload("a Range")
             rocketjob_upload_integer_range(input_collection, object, slice_batch_size || 1_000, rocketjob_upload_id)
           when Mongoid::Criteria
-            rocketjob_check_upload("a Mongoid::Criteria", ":category, :columns, or :slice_batch_size",
-                                   category, file_options)
-            input_collection.upload_mongo_query(object, columns: columns, slice_batch_size: slice_batch_size,
-                                                        upload_id: rocketjob_upload_id)
+            rocketjob_check_upload("a Mongoid::Criteria", ":category, :columns, or :slice_batch_size", file_options)
+            rocketjob_upload_query(category) do |input_category|
+              input_collection.upload_mongo_query(object, category: input_category, columns: columns,
+                                                          slice_batch_size: slice_batch_size, upload_id: rocketjob_upload_id)
+            end
           when ->(query) { rocketjob_active_record_query?(query) }
             if object.is_a?(ActiveRecord::Relation)
               rocketjob_check_upload("an ActiveRecord::Relation", ":category, :columns, or :slice_batch_size",
-                                     category, file_options)
+                                     file_options)
             else
               rocketjob_check_upload("the batches of an ActiveRecord::Relation", ":category, or :slice_batch_size",
-                                     category, file_options)
+                                     file_options)
             end
-            input_collection.upload_arel(object, columns: columns, slice_batch_size: slice_batch_size,
-                                                 upload_id: rocketjob_upload_id)
+            rocketjob_upload_query(category) do |input_category|
+              input_collection.upload_arel(object, category: input_category, columns: columns,
+                                                   slice_batch_size: slice_batch_size, upload_id: rocketjob_upload_id)
+            end
           else
             raise(ArgumentError, "Unknown keyword argument :columns when uploading a file") if columns
 
@@ -243,15 +243,9 @@ module RocketJob
               # Sets the format first when it is :auto, since the format determines whether there is a header line.
               path = category.upload_path(object, original_file_name: file_name)
 
-              if category.slices?
-                rocketjob_upload_slices(input_collection, category, path,
-                                        validate_rows:    validate_rows,
-                                        slice_batch_size: slice_batch_size)
-              else
-                input_collection.upload(slice_batch_size: slice_batch_size, upload_id: rocketjob_upload_id) do |io|
-                  category.each_record(path) { |record| io << record }
-                end
-              end
+              rocketjob_upload_slices(input_collection, category, path,
+                                      validate_rows:    validate_rows,
+                                      slice_batch_size: slice_batch_size)
             end
           end
         rocketjob_add_record_count(count)
@@ -525,14 +519,22 @@ module RocketJob
       end
 
       # Raises ArgumentError when an option that only applies to a file is supplied to upload the supplied kind of
-      # object, a range or a query, naming the options that it accepts, or when the input category of the supplied name
-      # cannot parse its records, see RocketJob::Category::Input#check_record_upload.
-      def rocketjob_check_upload(kind, accepts, category, file_options)
-        unless file_options.empty?
-          raise(ArgumentError, "Unknown keyword arguments when uploading #{kind}. Only accepts #{accepts}")
-        end
+      # object, a range or a query, naming the options that it accepts.
+      def rocketjob_check_upload(kind, accepts, file_options)
+        return if file_options.empty?
 
-        input_category(category).check_record_upload(kind)
+        raise(ArgumentError, "Unknown keyword arguments when uploading #{kind}. Only accepts #{accepts}")
+      end
+
+      # Yields the input category of the supplied name, which writes the rows of a query in its format, see
+      # RocketJob::Category::Input#copy_rows, restoring the format that an upload sets when the block raises, see
+      # RocketJob::Category::Input#uploading.
+      #
+      # Returns the result of the block.
+      def rocketjob_upload_query(category)
+        category = input_category(category)
+        category.check_upload
+        category.uploading { yield(category) }
       end
     end
   end
