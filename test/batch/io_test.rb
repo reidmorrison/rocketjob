@@ -160,6 +160,23 @@ module Batch
             assert_equal gzip_file.read, result
           end
 
+          it "raises for the options that read the lines of a file, which v8 removed, before anything is uploaded" do
+            error = assert_raises(ArgumentError) { job.upload(text_file, delimiter: "\n", embedded_within: '"') }
+
+            assert_equal "delimiter:, embedded_within: were removed in Rocket Job v8, which reads the lines of a file " \
+                         "itself: line endings are detected, and the input category's format reads a quoted value " \
+                         "with line breaks, see https://rocketjob.reidmorrison.com/upgrading.html#line-options-of-upload",
+                         error.message
+            assert_match(/\Abuffer_size: was removed/, assert_raises(ArgumentError) { job.upload(text_file, buffer_size: 1) }.message)
+            assert_equal 0, job.input.count
+          end
+
+          it "raises for an option that it does not take" do
+            error = assert_raises(ArgumentError) { job.upload(text_file, encoding: "UTF-8") }
+
+            assert_equal "Unknown keyword argument :encoding when uploading a file", error.message
+          end
+
           it "raw csv" do
             assert_equal 4, job.upload(csv_file)
             result = job.input.collect(&:to_a).join("\n") + "\n"

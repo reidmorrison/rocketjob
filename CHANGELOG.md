@@ -46,6 +46,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   row, such as JSON or fixed width, the lambda was called with the first record, which was then not uploaded: every
   record of such a file is uploaded, so to leave one out, upload with a block that writes the other lines. See the
   upgrade guide.
+- Removed the `delimiter:`, `buffer_size:` and `embedded_within:` options of `upload`, which Rocket Job 7.1 deprecates,
+  and which raise `ArgumentError`, as does any other option that `upload` of a file does not take. IOStreams detects
+  the line endings of a file, and the input category's format, such as CSV, reads a quoted value that holds line
+  breaks.
 - `upload` of an Active Record relation reads it with IOStreams 3.0, as one query that the database streams, rather
   than with `find_each`, without building a model for each row. The rows are uploaded in the order of the relation,
   and within its limit, where Rocket Job 7 uploaded them in the order of their ids. Each column is read as `pluck`

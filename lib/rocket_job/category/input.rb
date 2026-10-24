@@ -261,15 +261,8 @@ module RocketJob
       # written, so that a file with a value that is not valid raises before it is processed. Each slice still holds
       # the rows as they are.
       #
-      # Raises ArgumentError for any other options of the upload, such as `delimiter:`, which read the lines of a file
-      # without a format, see #each_record, since the lines of this category's files are read in its format. Also
-      # raises ArgumentError when this category cannot read a file, see #slice_target.
-      def copy_slices(path, writer, validate_rows: nil, **args)
-        unless args.empty?
-          raise(ArgumentError, "Input category #{name}: #{args.keys.map(&:inspect).join(', ')} cannot be supplied " \
-                               "when uploading a file in the #{format.inspect} format, whose lines are read in it")
-        end
-
+      # Raises ArgumentError when this category cannot read a file, see #slice_target.
+      def copy_slices(path, writer, validate_rows: nil)
         slice_target(writer).copy_from(path, mode: :line, validate: upload_validates_rows?(validate_rows))
       end
 
@@ -301,8 +294,8 @@ module RocketJob
       # Yields each record read from the supplied path, for a category whose files are not uploaded in slices, see
       # #slices?: each line without a format, whose records `#perform` receives as they are, see #parse, otherwise each
       # row as a Hash, read in the category's format, such as Parquet, whose rows are not lines.
-      def each_record(path, **args, &)
-        path.each(tabular? ? :hash : :line, **args, &)
+      def each_record(path, &)
+        path.each(tabular? ? :hash : :line, &)
       end
 
       # Returns [true|false] whether an upload into this category parses each row of its file as it uploads it: the

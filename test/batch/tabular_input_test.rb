@@ -367,11 +367,10 @@ module Batch
       end
 
       describe "without a schema" do
-        it "rejects the options of reading lines, since the lines are read in the format of the category" do
+        it "rejects the options of reading lines, which v8 removed, before anything is uploaded" do
           error = assert_raises(ArgumentError) { upload(".csv", csv, delimiter: "\r\n") }
 
-          assert_equal "Input category main: :delimiter cannot be supplied when uploading a file in the :csv format, " \
-                       "whose lines are read in it", error.message
+          assert_match(/\Adelimiter: was removed in Rocket Job v8, which reads the lines of a file itself/, error.message)
           assert_equal 0, job.input.count
         end
 
@@ -539,12 +538,11 @@ module Batch
           assert_equal [typed], output_records
         end
 
-        it "rejects the options of reading lines, since the lines are read in the format of the category" do
+        it "rejects the options of reading lines, which v8 removed, before anything is uploaded" do
           job.input_category.format = :auto
           error = assert_raises(ArgumentError) { upload(".csv", people, delimiter: "\r\n") }
 
-          assert_equal "Input category main: :delimiter cannot be supplied when uploading a file in the :csv format, " \
-                       "whose lines are read in it", error.message
+          assert_match(/\Adelimiter: was removed in Rocket Job v8, which reads the lines of a file itself/, error.message)
           assert_equal 0, job.input.count
           # The category is as it was, so that another file is read in its own format.
           assert_equal :auto, job.input_category.format
