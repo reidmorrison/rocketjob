@@ -177,6 +177,16 @@ module Batch
             assert_equal "Unknown keyword argument :encoding when uploading a file", error.message
           end
 
+          it "keeps the line of each line of a file without a format" do
+            job.input_category.slice_size = 10
+            job.upload(csv_file)
+            slice = job.input.first
+
+            assert_equal :none, slice.records.format
+            assert_equal [1, 2, 3, 4], Array.new(4) { |index| slice.line_number_at(index) }
+            assert_equal [1, 2, 3, 4], Array.new(4) { |index| slice.record_number_at(index) }
+          end
+
           it "raw csv" do
             assert_equal 4, job.upload(csv_file)
             result = job.input.collect(&:to_a).join("\n") + "\n"
@@ -221,7 +231,7 @@ module Batch
 
             assert_equal records, slice.to_a
             assert_kind_of IOStreams::Slice, slice.records
-            assert_nil slice.records.format
+            assert_equal :none, slice.records.format
             assert_equal [1, 2, 3, 4, 5], Array.new(5) { |index| slice.record_number_at(index) }
             assert_nil slice.line_number_at(0)
           end

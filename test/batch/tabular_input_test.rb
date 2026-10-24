@@ -933,19 +933,13 @@ module Batch
           assert_equal records, job.input.first.to_a
         end
 
-        it "uploads each Array written to a block in the :array format, after the first, its header row" do
+        it "uploads each Array written to a block in the :array format as it is" do
           job.input_category.format = :array
           rows                      = [%w[name age], ["Jack", 21]]
 
-          assert_equal(1, job.upload { |io| rows.each { |row| io << row } })
+          assert_equal(2, job.upload { |io| rows.each { |row| io << row } })
 
-          slice   = job.input.first
-          records = []
-          job.input_category.parse_records(slice.records) { |record| records << record }
-
-          assert_equal %w[name age], slice.records.header
-          assert_equal [["Jack", 21]], slice.to_a
-          assert_equal [{"name" => "Jack", "age" => 21}], records
+          assert_equal rows, job.input.first.to_a
         end
       end
 

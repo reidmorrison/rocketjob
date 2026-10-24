@@ -211,12 +211,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - IOStreams writes every upload to the input in slices, apart from `upload_slice`: the records of a category without a
   format, the records of a query, and the ranges of a `Range`, as well as the lines of a file, see
   `IOStreams::Slice::Target`. Each slice holds its rows as an `IOStreams::Slice`, with the record number of each one,
-  so a worker of Rocket Job 7 fails such a slice rather than processing none of it. A record that the block of
-  `upload` writes into a category without a format is kept as it is, one record each, such as a String that holds a
-  line break.
-- The block of `upload` into an input category in the `:array` format writes its header row first, as a file in that
-  format holds it, so that `#perform` receives each row after it as a Hash of the columns. Each Array was uploaded as
-  a record.
+  so a worker of Rocket Job 7 fails such a slice rather than processing none of it. The records of a category without a
+  format, or in a format whose rows are values, such as `:hash` or Parquet, are held as they are, in the IOStreams
+  `:none` format, so a record that the block of `upload` writes is kept as it is, one record each, such as a String
+  that holds a line break, and each line of a file without a format keeps its line number.
 
 - The line of its file that a record starts on: `rocket_job_line_number` while it is processed, a `line` log tag
   beside `record`, and `Sliced::Slice#line_number_at(index)`, for the rows of a file. It counts the header row, blank
