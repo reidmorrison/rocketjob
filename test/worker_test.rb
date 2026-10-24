@@ -640,7 +640,7 @@ class WorkerTest < Minitest::Test
 
       it "resets filter when time has passed" do
         worker.add_to_current_filter(:id.nin => ["1234"])
-        Time.stub(:now, 1.hour.from_now) do
+        stub_time_now(1.hour.from_now) do
           worker.reset_filter_if_expired
         end
 
@@ -650,7 +650,7 @@ class WorkerTest < Minitest::Test
       it "resets filter to default where filter" do
         RocketJob::Config.stub(:where_filter, {:id.nin => ["5678"]}) do
           worker.add_to_current_filter(:id.nin => ["1234"])
-          Time.stub(:now, 1.hour.from_now) do
+          stub_time_now(1.hour.from_now) do
             worker.reset_filter_if_expired
           end
 

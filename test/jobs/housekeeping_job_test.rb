@@ -17,36 +17,36 @@ module Jobs
       describe "job retention" do
         before do
           job = HousekeepingJobTest::TestJob.new
-          Time.stub(:now, 2.days.ago) do
+          stub_time_now(2.days.ago) do
             job.abort!
           end
           job = HousekeepingJobTest::TestJob.new
-          Time.stub(:now, 8.days.ago) do
+          stub_time_now(8.days.ago) do
             job.abort!
           end
 
           job = HousekeepingJobTest::TestJob.new
-          Time.stub(:now, 2.days.ago) do
+          stub_time_now(2.days.ago) do
             job.perform_now
             job.save!
           end
           job = HousekeepingJobTest::TestJob.new
-          Time.stub(:now, 8.days.ago) do
+          stub_time_now(8.days.ago) do
             job.perform_now
             job.save!
           end
 
           job = HousekeepingJobTest::TestJob.new
-          Time.stub(:now, 2.days.ago) do
+          stub_time_now(2.days.ago) do
             job.fail!
           end
           job = HousekeepingJobTest::TestJob.new
-          Time.stub(:now, 15.days.ago) do
+          stub_time_now(15.days.ago) do
             job.fail!
           end
 
           job = HousekeepingJobTest::TestJob.new
-          Time.stub(:now, 400.days.ago) do
+          stub_time_now(400.days.ago) do
             job.pause!
           end
           job = HousekeepingJobTest::TestJob.new
@@ -75,7 +75,7 @@ module Jobs
       describe "zombie cleanup" do
         before do
           server = RocketJob::Server.new
-          Time.stub(:now, 1.day.ago) do
+          stub_time_now(1.day.ago) do
             server.started!
           end
 

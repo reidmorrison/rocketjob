@@ -34,7 +34,7 @@ module Plugins
         describe "timezones are supported" do
           it "handles UTC" do
             time = Time.parse("2015-12-09 17:50:05 UTC")
-            Time.stub(:now, time) do
+            stub_time_now(time) do
               @job = ProcessingWindowJob.create!(processing_schedule: "0 1 * * * UTC", processing_duration: 1.hour)
             end
 
@@ -45,7 +45,7 @@ module Plugins
 
           it "handles Eastern" do
             time = Time.parse("2015-12-09 17:50:05 UTC")
-            Time.stub(:now, time) do
+            stub_time_now(time) do
               @job = ProcessingWindowJob.create!(processing_schedule: "0 1 * * * America/New_York", processing_duration: 1.hour)
             end
 
@@ -60,7 +60,7 @@ module Plugins
         it "returns true when in the processing window" do
           time   = Time.parse("2015-12-09 17:50:05 UTC")
           @job   = ProcessingWindowJob.new(processing_schedule: "0 17 * * * UTC", processing_duration: 1.hour)
-          result = Time.stub(:now, time) do
+          result = stub_time_now(time) do
             @job.rocket_job_processing_window_active?
           end
 
@@ -70,7 +70,7 @@ module Plugins
         it "returns false when not in the processing window" do
           time   = Time.parse("2015-12-09 16:50:05 UTC")
           @job   = ProcessingWindowJob.new(processing_schedule: "0 17 * * * UTC", processing_duration: 1.hour)
-          result = Time.stub(:now, time) do
+          result = stub_time_now(time) do
             @job.rocket_job_processing_window_active?
           end
 
@@ -104,7 +104,7 @@ module Plugins
       describe "re-queue" do
         it "if outside processing window" do
           time = Time.parse("2015-12-09 16:50:05 UTC")
-          Time.stub(:now, time) do
+          stub_time_now(time) do
             @job = ProcessingWindowJob.new(processing_schedule: "0 17 * * * UTC", processing_duration: 1.hour)
             @job.perform_now
           end
