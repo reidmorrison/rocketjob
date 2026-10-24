@@ -142,7 +142,9 @@ same Hash for each line, so most jobs need no change, but:
   says. So by default CSV and the other tabular formats remove it, as they do from a file, where v7
   raised once it saved the slice. Set `invalid_characters: :raise` to fail the upload instead, with
   `IOStreams::Errors::InvalidEncoding`, which names its line. The bytes of a binary line are read as
-  UTF-8, where v7 raised for one that is not ASCII.
+  UTF-8, where v7 raised for one that is not ASCII. Non-printable characters other than line endings,
+  such as a tab or an escape code, are removed as from a file, or replaced with spaces in a fixed width
+  format, where v7 kept them.
 * The lines of a file in a format with a header row, such as CSV, that `upload_slice` uploads after
   `upload` uploaded a file are not read by its header row, which the category no longer keeps, so a
   worker raises `ArgumentError` for them. Write them to the block of `upload` instead, after the

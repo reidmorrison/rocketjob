@@ -315,7 +315,9 @@ converted, and the bytes of a binary line are read as UTF-8. Each character that
 line's encoding is handled as the category's `invalid_characters` says. By default CSV and the other
 tabular formats remove it, as they do from a file, while a fixed width format raises
 `IOStreams::Errors::InvalidEncoding`. The error names the byte offset and line of the first one,
-counting the header row, and nothing is uploaded.
+counting the header row, and nothing is uploaded. Non-printable characters other than line endings,
+such as a tab or NUL, are removed as from a file too, or replaced with spaces in a fixed width format,
+so that the columns stay in place.
 
 ## Input categories
 

@@ -231,9 +231,7 @@ module RocketJob
           # another schema cannot be set on the supplied path, also when this category has none.
           check_path_schema(path)
           path.schema(schema_descriptor) if schema.present?
-          # Replace the non-printable characters of a fixed width file, such as NUL padding, so that the columns stay
-          # in place, and remove those of any other tabular format.
-          path.encoding(cleaner: format == :fixed ? FIXED_WIDTH_CLEANER : :printable)
+          path.encoding(cleaner: upload_cleaner)
         end
         apply_invalid_characters(path)
         path
@@ -285,7 +283,7 @@ module RocketJob
       # converted to UTF-8, and the bytes of a binary line are read as UTF-8. Each character that is not valid in its
       # line's encoding is removed or replaced, or raises IOStreams::Errors::InvalidEncoding, as #invalid_characters
       # says. The error names the byte offset and line that reading the lines from a file would, counting the header
-      # row, and nothing is uploaded.
+      # row, and nothing is uploaded. Each row is then cleaned as the text of a file is, see #upload_cleaner.
       #
       # When `validate_rows` is true, see #upload_validates_rows?, IOStreams also parses each line, after the header row,
       # before its slice is written.
@@ -294,7 +292,7 @@ module RocketJob
       # category cannot read the lines, see #slice_target.
       def write_slices(writer, validate_rows: nil, &)
         detect_format(file_name)
-        target      = slice_target(writer)
+        target      = slice_target(writer).encoding(cleaner: upload_cleaner)
         replacement = invalid_character_replacement
         target.encoding(replace: replacement) if replacement
         target.writer(:line, validate: upload_validates_rows?(validate_rows), &)
@@ -461,6 +459,14 @@ module RocketJob
       def invalid_character_replacement
         handling = invalid_characters || (tabular? && format != :fixed ? :remove : :raise)
         INVALID_CHARACTER_REPLACEMENTS[handling]
+      end
+
+      # Returns [Symbol|Proc] how an upload in this category's tabular format cleans the text of a file, see
+      # #upload_path, and the lines that the block of an upload writes, see #write_slices: each non-printable character
+      # other than a line ending, such as NUL padding or a tab, is replaced with a space in a fixed width format, so
+      # that the columns stay in place, and removed in any other tabular format.
+      def upload_cleaner
+        format == :fixed ? FIXED_WIDTH_CLEANER : :printable
       end
 
       # Without a schema, the tabular reads the columns as the header row of a file that Rocket Job 7 uploaded, see
