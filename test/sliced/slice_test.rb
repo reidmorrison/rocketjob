@@ -422,5 +422,77 @@ module Sliced
         end
       end
     end
+
+    describe "a failed slice saved by Rocket Job 7" do
+      let(:slices) { RocketJob::Sliced::Slice.with_collection(:slice_test_v7) }
+
+      before do
+        slices.delete_all
+      end
+
+      # Returns the records of a slice of the supplied class as Rocket Job 7 saved them: as they are, or the BSON of
+      # {"r" => records}, compressed, or compressed and encrypted.
+      def saved_by_v7(slice_class, records)
+        if slice_class == RocketJob::Sliced::CompressedSlice
+          BSON::Binary.new(Zlib::Deflate.deflate({"r" => records}.to_bson.to_s))
+        elsif slice_class == RocketJob::Sliced::EncryptedSlice
+          bson = {"r" => records}.to_bson.to_s
+          BSON::Binary.new(SymmetricEncryption.cipher.binary_encrypt(bson, random_iv: true, compress: true))
+        else
+          records
+        end
+      end
+
+      [RocketJob::Sliced::Slice, RocketJob::Sliced::CompressedSlice, RocketJob::Sliced::EncryptedSlice].each do |slice_class|
+        {
+          "lines"  => ["Jack,21", "", "Jill,22"],
+          "hashes" => [{"name" => "Jack"}, {"name" => "Jill"}, {"name" => "Joe"}]
+        }.each_pair do |kind, records|
+          describe "#{slice_class.name.demodulize} of #{kind}" do
+            let(:id) { BSON::ObjectId.new }
+
+            let(:slice) do
+              slices.collection.insert_one(
+                "_id"                      => id,
+                "_type"                    => slice_class.name,
+                "state"                    => "failed",
+                "first_record_number"      => 101,
+                "processing_record_number" => 2,
+                "failure_count"            => 1,
+                "exception"                => {"class_name" => "RuntimeError", "message" => "bad"},
+                "records"                  => saved_by_v7(slice_class, records)
+              )
+              slices.find(id)
+            end
+
+            it "reads its records as an Array" do
+              assert_instance_of slice_class, slice
+              assert_instance_of Array, slice.records
+              assert_equal records, slice.to_a
+              assert_equal records[1], slice.failed_record
+              assert_equal records[1..], slice.records_from(2)
+              assert_equal 102, slice.current_record_number
+            end
+
+            it "saves a replaced or removed record in the same form" do
+              slice.replace_record(1, records[0])
+
+              assert_equal records[2], slice.delete_record(2)
+              slice.save!
+              saved  = slices.find(id)
+              stored = slices.collection.find(_id: id).first["records"]
+
+              assert_equal [records[0], records[0]], saved.records
+              assert_instance_of Array, saved.records
+              if slice_class == RocketJob::Sliced::Slice
+                assert_equal [records[0], records[0]], stored
+              else
+                assert_kind_of BSON::Binary, stored
+              end
+            end
+          end
+        end
+      end
+    end
   end
 end
