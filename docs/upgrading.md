@@ -149,8 +149,6 @@ same Hash for each line, so most jobs need no change, but:
   `upload` uploaded a file are not read by its header row, which the category no longer keeps, so a
   worker raises `ArgumentError` for them. Write them to the block of `upload` instead, after the
   header row. Hashes, and the lines of a format without a header row, such as JSON, are still read.
-* Options that read the lines of a file, such as `delimiter:`, raise `ArgumentError` for a category
-  with a format, whose lines are read in it.
 * A slice of an input category holds an `IOStreams::Slice` of rows, rather than an Array, for code
   that reads the records of a slice itself, such as Mission Control. An `IOStreams::Slice` is not an
   Array, so read the records through the slice itself, such as with `slice.each` or `slice.to_a`,
@@ -343,6 +341,9 @@ These were deprecated or unused, and are removed in v8:
 * The `on_first:` option of `upload`, deprecated in v7.1, which raises `ArgumentError`. Every record
   of a file without a header row, such as JSON or fixed width, is uploaded, including the first,
   which `on_first` left out. See [Replace on_first](#replace-on_first).
+* The `delimiter:`, `buffer_size:` and `embedded_within:` options of `upload`, deprecated in v7.1,
+  which raise `ArgumentError`, as does any other option that `upload` does not take. See
+  [Line options of upload](#line-options-of-upload).
 
 ## Upgrading to v7.1
 
@@ -587,6 +588,30 @@ end
 
 The block reads the file itself, so when it is not UTF-8, give the path its encoding, such as
 `IOStreams.path(file_name).encoding("ISO-8859-1")`.
+
+### Line options of upload
+
+The `delimiter:`, `buffer_size:` and `embedded_within:` options of `upload` are deprecated, and
+removed in v8, which reads the lines of a file itself:
+
+* `delimiter:` IOStreams detects the line endings of a file, `\r\n` or `\n`, so remove it. A file
+  whose records are separated by something other than a line ending cannot be uploaded as a file in
+  v8: write its records in the block of `upload` instead.
+* `buffer_size:` only tuned how much IOStreams read at a time, so remove it.
+* `embedded_within:` kept a quoted value that holds line breaks in its line. In v8 the format of the
+  input category, such as CSV, reads such a value, so remove it and give the category its format.
+
+~~~ruby
+# Before (deprecated)
+job.upload(file_name, delimiter: "|")
+
+# After
+job.upload do |records|
+  IOStreams.path(file_name).read.split("|").each do |record|
+    records << record
+  end
+end
+~~~
 
 ### Text is read as UTF-8 with a schema
 

@@ -120,7 +120,7 @@ It has built-in support for:
 * `Zip` files (add the `rubyzip` gem on CRuby; JRuby uses native Java Zip)
 * `GZip` files
 * files encrypted with [Symmetric Encryption](https://encryption.reidmorrison.com)
-* delimited files (Windows CR/LF or Linux LF line endings, auto-detected, or a custom delimiter)
+* delimited files (Windows CR/LF or Linux LF line endings, auto-detected)
 * fixed-length record files
 
 ~~~ruby
@@ -143,7 +143,6 @@ Useful `upload` keyword options:
 | `category`     | Which input category to load into. Default: `:main`.
 | `validate_rows` | `true` to parse each row of the file while it is uploaded, so that a file with a row that cannot be read is rejected before processing starts. Default: the input category's `validate_rows`. See [input categories](#input-categories).
 | `file_name`    | Override the file name used to infer format and streams.
-| `delimiter`    | Record delimiter. Default: auto-detect line endings. Not for an input category with a `format`, whose lines are read in it.
 
 Files are read as UTF-8 text, since MongoDB only stores UTF-8 strings, and a UTF-8 byte order mark
 at the start of the file (as Excel writes) is removed. A file that is not valid UTF-8 raises
