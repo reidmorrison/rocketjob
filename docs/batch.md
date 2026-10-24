@@ -140,7 +140,7 @@ Useful `upload` keyword options:
 | `validate_rows` | `true` to parse each line of the file while it is uploaded, so that a file with a line that cannot be read uploads nothing. Default: the input category's `validate_rows`. See [input categories](#input-categories).
 | `stream_mode`  | Deprecated, and removed in v8, see [Replace the :hash mode and stream_mode](upgrading.html#replace-the-hash-mode-and-stream_mode). `:line` (default), `:array`, or `:hash`.
 | `file_name`    | Override the file name used to infer format and streams.
-| `delimiter`    | Record delimiter. Default: auto-detect line endings.
+| `delimiter`    | Deprecated, and removed in v8, see [Line options of upload](upgrading.html#line-options-of-upload). Record delimiter. Default: auto-detect line endings.
 | `on_first`     | Deprecated, and removed in v8, see [Replace on_first](upgrading.html#replace-on_first). A lambda called with the header row, or the first record of a file without one, such as JSON or fixed width, which is not uploaded.
 
 By default all data is converted to UTF-8 before being stored, since MongoDB only stores UTF-8
