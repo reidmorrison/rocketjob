@@ -213,6 +213,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   record in `before_perform`, and the result of `#perform` before it is rendered in `after_perform`, except for a
   perform callback defined before the job includes `RocketJob::Batch`, which now also sees the parsed record, and the
   result before it is rendered.
+- On JRuby, `upload` streams an Active Record relation on PostgreSQL, MySQL and SQLite with the adapters of AR-JDBC,
+  as IOStreams 3.0 reads it there, see [JRuby](https://iostreams.reidmorrison.com/queries#jruby), rather than raising
+  `ArgumentError` for SQLite, the only one of them that the tests of Rocket Job read. The JRuby tests of CI now fail the
+  build when they fail, rather than being ignored.
 - `upload` uploads the batches of an Active Record relation, `relation.in_batches(...)`, for a database whose driver
   cannot stream a query, such as MySQL with `trilogy`: the columns that the relation selects, such as
   `job.upload(User.select(:id).in_batches(of: 10_000))`, read on the connection of the caller. Batches whose
@@ -321,6 +325,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixes
 
+- On JRuby, a duration of less than a second, such as how long an active worker has run a job, or the age of a server
+  in `rocketjob --list`, is shown with the fractions of its milliseconds, such as `5.123ms`, as on MRI, rather than as
+  a whole number of milliseconds, `5ms`.
 - Removing a record from a slice of the rows of a file, such as with Mission Control, no longer renumbers the rows
   after it: the job and its logs name each row by the record number of the row in its file, which IOStreams keeps.
 

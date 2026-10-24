@@ -48,10 +48,11 @@ jobs:
           - mongoid: "9.1"
             ruby: "4.0"
 
-          # Non-blocking: JRuby support is best-effort (see :jruby gems in Appraisals).
+          # JRuby 10.0, since bson 5.2.0 cannot load on JRuby 10.1 (RUBY-3947, fixed on bson master). Its tests must
+          # pass, while a failure to install it, such as a JRuby release that the runner does not have yet, skips them.
           - mongoid: "9.0"
             ruby: "jruby-10.0"
-            experimental: true
+            best_effort_setup: true
 
     env:
       BUNDLE_GEMFILE: gemfiles/mongoid_${{ matrix.mongoid }}.gemfile
@@ -60,8 +61,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Set up Ruby
-        # JRuby is best-effort: swallow install failures so the entry never blocks.
-        continue-on-error: ${{ matrix.experimental || false }}
+        id: setup-ruby
+        # A failure to install JRuby or its gems skips its tests, rather than failing the build, see the matrix.
+        continue-on-error: ${{ matrix.best_effort_setup || false }}
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ matrix.ruby }}
@@ -75,7 +77,7 @@ jobs:
         run: ruby --version
 
       - name: Run Tests
-        continue-on-error: ${{ matrix.experimental || false }}
+        if: ${{ steps.setup-ruby.outcome == 'success' }}
         run: bundle exec rake test
 
       - name: Publish Coverage Badge

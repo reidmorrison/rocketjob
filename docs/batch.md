@@ -219,8 +219,9 @@ not those that an open transaction of the caller wrote. The query stays open unt
 uploaded, so upload a very large table in batches. A relation, and its batches, need Active Record
 7.2 or later.
 
-A database whose driver cannot stream a query, such as MySQL with `trilogy`, raises
-`ArgumentError`. Upload the batches of the relation instead, which are read on the connection of the
+On JRuby, PostgreSQL, MySQL and SQLite stream a query with the adapters of AR-JDBC, see
+[JRuby](https://iostreams.reidmorrison.com/queries#jruby). A database whose driver cannot stream a
+query, such as MySQL with `trilogy`, raises `ArgumentError`. Upload the batches of the relation instead, which are read on the connection of the
 caller. The batches upload the columns that the relation selects, so select them before
 `in_batches`. Batches whose relation selects no columns raise `ArgumentError`, rather than upload
 every column:

@@ -43,7 +43,7 @@ module Plugins
         describe "timezones are supported" do
           it "handles UTC" do
             time = Time.parse("2015-12-09 17:50:05 UTC")
-            Time.stub(:now, time) do
+            stub_time_now(time) do
               @job = CronJob.create!(cron_schedule: "0 1 * * * UTC")
             end
 
@@ -54,7 +54,7 @@ module Plugins
 
           it "handles Eastern" do
             time = Time.parse("2015-12-09 17:50:05 UTC")
-            Time.stub(:now, time) do
+            stub_time_now(time) do
               @job = CronJob.create!(cron_schedule: "0 1 * * * America/New_York")
             end
 

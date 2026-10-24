@@ -108,11 +108,7 @@ module RocketJob
       format("%.3fs", seconds)
     else
       duration = seconds * 1000
-      if defined? JRuby
-        "#{duration.to_i}ms"
-      else
-        duration < 10.0 ? format("%.3fms", duration) : format("%.1fms", duration)
-      end
+      duration < 10.0 ? format("%.3fms", duration) : format("%.1fms", duration)
     end
   end
 
