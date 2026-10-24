@@ -100,6 +100,10 @@ production stays quiet. A job read back from the database does not report one. S
   header row, or of an output category. The same options passed to `upload`, such as `allowed_columns:`, are
   deprecated too. With a schema, an input category's `columns` hold the header row read from the file, which is not
   deprecated.
+- The options of `upload` that read the lines of a file: `delimiter:`, `buffer_size:` and `embedded_within:`. Rocket
+  Job 8 reads the lines itself: IOStreams detects the line endings, `\r\n` or `\n`, and the input category's format,
+  such as CSV, reads a quoted value that holds line breaks. Records separated by something else are written in the
+  block of `upload` instead.
 - An input category's `mode: :array`, and the `stream_mode: :array` of `upload`. Use the default `:line` mode, or,
   with a schema, `:hash` to also parse every line when the file is uploaded. Without a schema, a category whose files
   have a header row, such as CSV, cannot be uploaded in the `:hash` mode.
