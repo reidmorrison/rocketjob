@@ -2782,6 +2782,13 @@ ISO-8859-1 from a database connection, is converted, but a binary string, or one
 UTF-8, raises an `EncodingError` that names the number of the first such record, and nothing is
 uploaded. Convert such text first, such as `text.encode("UTF-8", "Windows-1252")`.
 
+The lines written into a category with a format are read as UTF-8 too: a line in another encoding is
+converted, and the bytes of a binary line are read as UTF-8. Each character that is not valid in its
+line's encoding is handled as the category's `invalid_characters` says. By default CSV and the other
+tabular formats remove it, as they do from a file, while a fixed width format raises
+`IOStreams::Errors::InvalidEncoding`. The error names the byte offset and line of the first one,
+counting the header row, and nothing is uploaded.
+
 ## Input categories
 
 The `input_category` class method configures how uploaded data is sliced and parsed. With no
@@ -2809,7 +2816,7 @@ Input category options:
 | `format`           | `nil`       | Parse each record before `perform`: `nil` (raw line), `:auto`, or a tabular format such as `:csv`. See [Reading tabular files](#reading-tabular-files).
 | `schema`           | `nil`       | The fields of each record and their types, and which columns a file can and must have. Also gives the position of each field of a `:fixed` file. See [Typed values with a schema](#typed-values-with-a-schema) and [Validating columns](#validating-columns).
 | `encoding`         | `nil`       | The encoding of the files, such as `"Windows-1252"`, which is converted to UTF-8. `nil` reads UTF-8, or the format's own encoding, such as ASCII for `:fixed`. Name the byte order of UTF-16 or UTF-32, such as `"UTF-16LE"`. See [Files](#files).
-| `invalid_characters` | `nil`     | What to do with a character that is not valid in the file's encoding: `:remove`, `:replace` with U+FFFD, or `:raise`. `nil` removes them from tabular formats, such as CSV, and raises for `:fixed` and lines.
+| `invalid_characters` | `nil`     | What to do with a character that is not valid in the file's encoding, or in a line that the block of `upload` writes in the category's `format`: `:remove`, `:replace` with U+FFFD, or `:raise`. `nil` removes them from tabular formats, such as CSV, and raises for `:fixed` and lines.
 | `validate_rows`    | `nil`       | Parse each row of a file in the category's `format` while it is uploaded, so that a file with a row that cannot be read is rejected before processing starts. Needs a `format`. A job, Dirmon entry or `UploadFileJob` that v7 saved with `mode: :hash` and a `format` is read with `validate_rows: true`.
 | `columns`          | `nil`       | The header row of a file that Rocket Job 7 uploaded without a `schema`, which the workers read its lines by. Not set by v8, since each slice holds the header row of its file.
 
@@ -6015,6 +6022,12 @@ same Hash for each line, so most jobs need no change, but:
   `row.to_csv` or `hash.to_json`, or upload it into a category without a format, whose `#perform`
   receives it as it was written. The `:hash` and `:array` formats, whose rows are Ruby objects, and
   formats whose rows are not lines, such as Parquet, still upload each record as it is.
+* The lines that the block of `upload` writes into such a category are read as UTF-8, and each
+  character that is not valid in its line's encoding is handled as the category's `invalid_characters`
+  says. So by default CSV and the other tabular formats remove it, as they do from a file, where v7
+  raised once it saved the slice. Set `invalid_characters: :raise` to fail the upload instead, with
+  `IOStreams::Errors::InvalidEncoding`, which names its line. The bytes of a binary line are read as
+  UTF-8, where v7 raised for one that is not ASCII.
 * The lines of a file in a format with a header row, such as CSV, that `upload_slice` uploads after
   `upload` uploaded a file are not read by its header row, which the category no longer keeps, so a
   worker raises `ArgumentError` for them. Write them to the block of `upload` instead, after the

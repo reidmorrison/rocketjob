@@ -137,6 +137,12 @@ same Hash for each line, so most jobs need no change, but:
   `row.to_csv` or `hash.to_json`, or upload it into a category without a format, whose `#perform`
   receives it as it was written. The `:hash` and `:array` formats, whose rows are Ruby objects, and
   formats whose rows are not lines, such as Parquet, still upload each record as it is.
+* The lines that the block of `upload` writes into such a category are read as UTF-8, and each
+  character that is not valid in its line's encoding is handled as the category's `invalid_characters`
+  says. So by default CSV and the other tabular formats remove it, as they do from a file, where v7
+  raised once it saved the slice. Set `invalid_characters: :raise` to fail the upload instead, with
+  `IOStreams::Errors::InvalidEncoding`, which names its line. The bytes of a binary line are read as
+  UTF-8, where v7 raised for one that is not ASCII.
 * The lines of a file in a format with a header row, such as CSV, that `upload_slice` uploads after
   `upload` uploaded a file are not read by its header row, which the category no longer keeps, so a
   worker raises `ArgumentError` for them. Write them to the block of `upload` instead, after the

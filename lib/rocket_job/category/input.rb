@@ -61,7 +61,9 @@ module RocketJob
       # Reads the `mode` of a category that Rocket Job 7 saved, which v8 removed, see .removed_option_names.
       after_initialize :convert_saved_mode
 
-      # What `#upload` does with each character of a file that is not valid in the file's encoding, see #encoding:
+      # What `#upload` does with each character of a file that is not valid in the file's encoding, see #encoding, or of
+      # a line that the block of an upload writes in this category's format that is not valid in the line's encoding,
+      # see #write_slices:
       #   :remove
       #     Removes it.
       #   :replace
@@ -72,7 +74,9 @@ module RocketJob
       #   nil
       #     The format's own: tabular formats, such as CSV, remove it, while fixed width files and lines raise.
       #
-      # A `replace:` set on the path supplied to `#upload` is used instead.
+      # A `replace:` set on the path supplied to `#upload` is used instead. The records that the block of an upload
+      # writes into a category without a format, or in a format whose rows are not lines, such as :hash, are uploaded as
+      # they are, see Sliced::Writer::Input, so text in them that is not valid UTF-8 raises.
       # Default: nil
       field :invalid_characters, type: ::Mongoid::StringifiedSymbol
       validates_inclusion_of :invalid_characters, in: [nil, :remove, :replace, :raise]
@@ -277,16 +281,23 @@ module RocketJob
       # lines, and matched to the fields of the schema, and each slice holds it. A format of :auto is replaced with that
       # of the file name of the upload, otherwise CSV, as for a file, see #upload_path.
       #
+      # IOStreams reads the lines as UTF-8 text, as it reads a file: a line in another encoding, such as Windows-1252, is
+      # converted to UTF-8, and the bytes of a binary line are read as UTF-8. Each character that is not valid in its
+      # line's encoding is removed or replaced, or raises IOStreams::Errors::InvalidEncoding, as #invalid_characters
+      # says. The error names the byte offset and line that reading the lines from a file would, counting the header
+      # row, and nothing is uploaded.
+      #
       # When `validate_rows` is true, see #upload_validates_rows?, IOStreams also parses each line, after the header row,
       # before its slice is written.
       #
       # Raises ArgumentError for a record written to the writer that is not a line, such as a Hash, and when this
       # category cannot read the lines, see #slice_target.
-      def write_slices(writer, validate_rows: nil, &block)
+      def write_slices(writer, validate_rows: nil, &)
         detect_format(file_name)
-        slice_target(writer).writer(:line, validate: upload_validates_rows?(validate_rows)) do |lines|
-          block.call(EncodedLines.new(lines) { tabular.header? })
-        end
+        target      = slice_target(writer)
+        replacement = invalid_character_replacement
+        target.encoding(replace: replacement) if replacement
+        target.writer(:line, validate: upload_validates_rows?(validate_rows), &)
       end
 
       # Yields each record read from the supplied path, for a category whose files are not uploaded in slices, see
@@ -410,45 +421,6 @@ module RocketJob
         format == :auto ? file_name&.format || :csv : format
       end
 
-      # The writer of the lines that the block of an upload writes, see #write_slices, which numbers them, so that a line
-      # that is not valid in its encoding raises EncodingError naming the record, as IOStreams would only say that the
-      # text is not valid, before IOStreams reads it in the category's format. The supplied block returns whether the
-      # first line is a header row, which is only asked for such a line.
-      class EncodedLines
-        def initialize(lines, &header)
-          @lines  = lines
-          @header = header
-          @count  = 0
-        end
-
-        # Writes the supplied line, see `IOStreams::Slice::TargetStream#writer`.
-        #
-        # Raises EncodingError for a String that is not valid in its encoding, such as UTF-8 text with a byte of Latin-1,
-        # numbering the record as the job does, see Sliced::Writer::Input: after the header row, when the format has one.
-        def <<(line)
-          @count += 1
-          if line.is_a?(String) && !line.valid_encoding?
-            raise(EncodingError, "Cannot upload #{record_name}, since it is not valid #{line.encoding} text")
-          end
-
-          @lines << line
-          self
-        end
-
-        alias write <<
-
-        private
-
-        # Returns [String] the name of the line last written: the header, or the record that it is.
-        def record_name
-          return "record #{@count}" unless @header.call
-          return "the header" if @count == 1
-
-          "record #{@count - 1} after the header"
-        end
-      end
-      private_constant :EncodedLines
-
       # Returns [IOStreams::Stream] that writes lines to the supplied store of slices, see Sliced::Writer::Input, by this
       # category's schema, when it has one, in its format, which an upload has detected when it was :auto, see
       # #detect_format.
@@ -480,9 +452,15 @@ module RocketJob
       def apply_invalid_characters(path)
         return if path.setting(:encode)&.key?(:replace)
 
-        handling    = invalid_characters || (tabular? && format != :fixed ? :remove : :raise)
-        replacement = INVALID_CHARACTER_REPLACEMENTS[handling]
+        replacement = invalid_character_replacement
         path.encoding(replace: replacement) if replacement
+      end
+
+      # Returns [String|nil] the text that replaces each character of an upload that is not valid in its encoding, see
+      # #invalid_characters, or nil when such a character raises.
+      def invalid_character_replacement
+        handling = invalid_characters || (tabular? && format != :fixed ? :remove : :raise)
+        INVALID_CHARACTER_REPLACEMENTS[handling]
       end
 
       # Without a schema, the tabular reads the columns as the header row of a file that Rocket Job 7 uploaded, see
