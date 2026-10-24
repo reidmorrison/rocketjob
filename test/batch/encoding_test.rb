@@ -184,6 +184,37 @@ module Batch
             assert_equal 2, error.line_number
           end
 
+          it "removes non-printable characters, as from a tabular file" do
+            upload_lines("name,note", "Jack,a\tb", "Jill,x\e[1my\e[0m")
+
+            assert_equal ["Jack,ab", "Jill,x[1my[0m"], input_records
+          end
+
+          it "keeps the line endings within a quoted value" do
+            upload_lines("name,note", %(Jack,"a\n\tb"))
+
+            assert_equal [%(Jack,"a\nb")], input_records
+          end
+
+          it "reads a row of only non-printable characters as a blank row, as from a file" do
+            upload_lines("name,note", "Jack,1", "\0", "Jill,2")
+            block_records = input_records
+            job.cleanup!
+
+            with_file(".csv", "name,note\nJack,1\n\0\nJill,2\n") { |path| job.upload(path) }
+
+            assert_equal input_records, block_records
+            assert_equal 3, block_records.size
+          end
+
+          it "replaces non-printable characters with spaces in a fixed width format, so that the columns stay in place" do
+            job.input_category.format = :fixed
+            job.input_category.schema = NAME_ZIP_SCHEMA
+            upload_lines("Ja\x01ck     12345")
+
+            assert_equal ["Ja ck     12345"], input_records
+          end
+
           it "raises in a fixed width format by default" do
             job.input_category.format = :fixed
             job.input_category.schema = NAME_ZIP_SCHEMA

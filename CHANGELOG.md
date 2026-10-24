@@ -247,8 +247,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   it. Each line is read as UTF-8: a line in another encoding is converted, the bytes of a binary line are read as
   UTF-8, and each character that is not valid in its line's encoding is removed, replaced or raises
   `IOStreams::Errors::InvalidEncoding`, as the category's `invalid_characters` says, see below. The error names the
-  byte offset and line that reading the lines from a file would, counting the header row. The lines written before
-  the block breaks out are uploaded, as without a schema. Since the lines of a file are
+  byte offset and line that reading the lines from a file would, counting the header row. Non-printable characters
+  other than line endings are then removed from each row, or replaced with spaces in a fixed width format, as from
+  a file, where v7 kept them. The lines written before the block breaks out are uploaded, as without a schema. Since the lines of a file are
   read in the category's format, the options of reading lines, such as `delimiter:`, raise `ArgumentError` for such a
   category.
 - `CopyFileJob` converts the text of a file from its `source_encoding` to its `target_encoding`, such as
