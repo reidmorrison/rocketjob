@@ -110,40 +110,89 @@ module Batch
           end
         end
 
-        it "says that a binary record is numbered after the header" do
-          job.input_category.format = :csv
-          records                   = ["name", "Jack", "Jos\xE9".b]
+        describe "the lines written with a block in a format" do
+          before do
+            job.input_category.format = :csv
+          end
 
-          error = assert_raises(EncodingError) { job.upload { |io| records.each { |record| io << record } } }
+          def upload_lines(*lines)
+            job.upload do |io|
+              lines.each { |line| io << line }
+            end
+          end
 
-          assert_includes error.message, "Cannot upload record 2 after the header,"
-          assert_equal 0, job.input.count
-        end
+          it "converts a line in another encoding to UTF-8" do
+            upload_lines("name,city", "Jos\xE9,Z\xFCrich".dup.force_encoding("Windows-1252"))
 
-        it "numbers a line written with a block in a format that is not valid UTF-8, and leaves no partial upload" do
-          job.input_category.format = :csv
-          records                   = ["name", "Jack", "Jos\xE9"]
+            assert_equal ["José,Zürich"], input_records
+            assert_equal Encoding::UTF_8, input_records.first.encoding
+          end
 
-          error = assert_raises(EncodingError) { job.upload { |io| records.each { |record| io << record } } }
+          it "reads the bytes of a binary line as UTF-8" do
+            upload_lines("name", "José".b)
 
-          assert_equal "Cannot upload record 2 after the header, since it is not valid UTF-8 text", error.message
-          assert_equal 0, job.input.count
-        end
+            assert_equal ["José"], input_records
+            assert_equal Encoding::UTF_8, input_records.first.encoding
+          end
 
-        it "names a header row written with a block that is not valid UTF-8" do
-          job.input_category.format = :csv
+          it "removes characters that are not valid UTF-8 by default, as from a tabular file" do
+            upload_lines("name,city", "Jos\xE9,Z\xFCrich", "Jos\xE9".b)
 
-          error = assert_raises(EncodingError) { job.upload { |io| io << "nam\xE9" } }
+            assert_equal ["Jos,Zrich", "Jos"], input_records
+          end
 
-          assert_equal "Cannot upload the header, since it is not valid UTF-8 text", error.message
-        end
+          it "replaces them with U+FFFD" do
+            job.input_category.invalid_characters = :replace
+            upload_lines("name,city", "Jos\xE9,Z\xFCrich")
 
-        it "numbers a line without a header row written with a block that is not valid UTF-8" do
-          job.input_category.format = :json
+            assert_equal ["Jos�,Z�rich"], input_records
+          end
 
-          error = assert_raises(EncodingError) { job.upload { |io| io << %({"a":1}) << %({"a":"\xE9"}) } }
+          it "raises, naming the byte offset and line of the first one, and leaves no partial upload" do
+            job.input_category.invalid_characters = :raise
+            lines                                 = ["name", "Jack", "Jill", "Joe", "Jos\xE9"]
 
-          assert_equal "Cannot upload record 2, since it is not valid UTF-8 text", error.message
+            error = assert_raises(IOStreams::Errors::InvalidEncoding) { upload_lines(*lines) }
+
+            assert_equal %("\\xE9" is not valid UTF-8 at byte offset 22 on line 5), error.message
+            assert_equal 0, job.input.count
+          end
+
+          it "raises for a binary line that is not valid UTF-8" do
+            job.input_category.invalid_characters = :raise
+
+            error = assert_raises(IOStreams::Errors::InvalidEncoding) { upload_lines("name", "Jack", "Jos\xE9".b) }
+
+            assert_equal 3, error.line_number
+            assert_equal 0, job.input.count
+          end
+
+          it "numbers the header row as line 1" do
+            job.input_category.invalid_characters = :raise
+
+            error = assert_raises(IOStreams::Errors::InvalidEncoding) { upload_lines("nam\xE9") }
+
+            assert_equal 1, error.line_number
+          end
+
+          it "numbers the lines of a format without a header row" do
+            job.input_category.format             = :json
+            job.input_category.invalid_characters = :raise
+
+            error = assert_raises(IOStreams::Errors::InvalidEncoding) { upload_lines(%({"a":1}), %({"a":"\xE9"})) }
+
+            assert_equal 2, error.line_number
+          end
+
+          it "raises in a fixed width format by default" do
+            job.input_category.format = :fixed
+            job.input_category.schema = NAME_ZIP_SCHEMA
+
+            error = assert_raises(IOStreams::Errors::InvalidEncoding) { upload_lines("Jos\xE9      12345") }
+
+            assert_equal 1, error.line_number
+            assert_equal 0, job.input.count
+          end
         end
 
         it "names a binary record within a hash" do

@@ -244,7 +244,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   format, which a format of `:auto` is replaced with, as for a file: that of the `file_name:` of the upload, otherwise
   CSV. They are read after the header row read from the first lines, and a record written to it that is not a line, such
   as a Hash, raises `ArgumentError`. A line that holds a line ending is split into rows, as reading the file would split
-  it. The lines written before the block breaks out are uploaded, as without a schema. Since the lines of a file are
+  it. Each line is read as UTF-8: a line in another encoding is converted, the bytes of a binary line are read as
+  UTF-8, and each character that is not valid in its line's encoding is removed, replaced or raises
+  `IOStreams::Errors::InvalidEncoding`, as the category's `invalid_characters` says, see below. The error names the
+  byte offset and line that reading the lines from a file would, counting the header row. The lines written before
+  the block breaks out are uploaded, as without a schema. Since the lines of a file are
   read in the category's format, the options of reading lines, such as `delimiter:`, raise `ArgumentError` for such a
   category.
 - `CopyFileJob` converts the text of a file from its `source_encoding` to its `target_encoding`, such as
@@ -269,6 +273,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   valid in the file's encoding: `:remove` it, `:replace` it with U+FFFD, or `:raise`
   `IOStreams::Errors::InvalidEncoding`, which names the line of the first one, and upload nothing. By
   default tabular formats, such as CSV, still remove them, while fixed width files and lines still raise.
+  It also applies to the lines that the block of `upload` writes in the category's format, which v7 stored
+  as they were, so that a character that is not valid UTF-8 raised once the slice was saved.
   A `replace:` set on the path supplied to `upload` is now used instead, where a tabular upload replaced
   it with its own.
 - A Dirmon entry whose storage cannot be reached, such as an SFTP server that is restarting, is
@@ -387,9 +393,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   converter from UTF-8 to itself.
 - An upload of records, such as with a block, or of a query, that holds text that is
   binary or not valid UTF-8 raises an error that names the number of the first such record, such as
-  `Cannot upload record 4, since MongoDB only stores UTF-8 text: ...`, or `record 4 after the header`
-  when the upload started with a header row, since the record is then on the next line of the file.
-  Previously the error from BSON did not say which record it was. Nothing is uploaded, as before.
+  `Cannot upload record 4, since MongoDB only stores UTF-8 text: ...`. Previously the error from BSON did
+  not say which record it was. Nothing is uploaded, as before. The lines that a block writes in a format,
+  such as CSV, are read as UTF-8 instead, see `invalid_characters`.
 - A worker that resumes a slice whose output is written by the `:bz2` or `:encrypted_bz2` serializer, such
   as after its server restarted, appends the records that it writes as another BZip2 stream. Previously
   the compressed records already in the output slice were compressed again with the new ones, so the

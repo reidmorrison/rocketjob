@@ -113,7 +113,9 @@ module RocketJob
       #   end
       #
       # The block of an upload into an input category with a format, such as CSV, writes the lines of a file, its header
-      # row first, which are uploaded as a file is, and takes `validate_rows:` too.
+      # row first, which are uploaded as a file is, and takes `validate_rows:` too. Each line is read as UTF-8, converted
+      # from its encoding, and each character that is not valid in it is removed, replaced or raises, as the input
+      # category's `invalid_characters` says, see RocketJob::Category::Input#write_slices.
       #
       # Notes:
       # * Only call from one thread at a time against a single instance of this job.
