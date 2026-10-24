@@ -6,12 +6,14 @@ module RocketJob
       extend ActiveSupport::Concern
 
       included do
-        # While working on a slice, the current slice is available via this reader
-        attr_reader :rocket_job_slice, :rocket_job_record_number
+        # While working on a slice, the current slice is available via this reader, with the record number of the
+        # record being processed, and the line of its file that it starts on, or nil when it is not a line of a file,
+        # see Sliced::Slice#current_record_number and #current_line_number.
+        attr_reader :rocket_job_slice, :rocket_job_record_number, :rocket_job_line_number
 
         private
 
-        attr_writer :rocket_job_slice, :rocket_job_record_number
+        attr_writer :rocket_job_slice, :rocket_job_record_number, :rocket_job_line_number
       end
 
       # Processes records in each available slice for this job. Slices are processed
@@ -170,11 +172,13 @@ module RocketJob
         # The writer renders each result in its output category, see Sliced::Writer::Output.
         RocketJob::Sliced::Writer::Output.collect(self, input_slice: slice, append: append) do |writer|
           category.parse_records(slice.records_from(first)) do |record|
-            # `current_record_number` reads Mongoid fields, so compute it once per
-            # record and reuse it for both the log tag and `#perform`.
+            # The numbers read Mongoid fields, so compute them once per record and reuse them for both the log tags
+            # and `#perform`. The line is only tagged for the line of a file.
             record_number = slice.current_record_number
-            SemanticLogger.named_tagged(record: record_number) do
-              writer << rocket_job_batch_perform(slice, record, record_number, &block)
+            line_number   = slice.current_line_number
+            tags          = line_number ? {record: record_number, line: line_number} : {record: record_number}
+            SemanticLogger.named_tagged(**tags) do
+              writer << rocket_job_batch_perform(slice, record, record_number, line_number, &block)
               count += 1
             end
             slice.processing_record_number += 1 if slice.processing_record_number < last
@@ -185,8 +189,10 @@ module RocketJob
 
       # Perform a single record within the current slice, already parsed by its input category, see
       # Category::Input#parse, returning the result of `#perform` as the callbacks leave it.
-      def rocket_job_batch_perform(slice, record, record_number = slice.current_record_number)
+      def rocket_job_batch_perform(slice, record, record_number = slice.current_record_number,
+                                   line_number = slice.current_line_number)
         @rocket_job_record_number = record_number
+        @rocket_job_line_number   = line_number
 
         return block_given? ? yield(record) : perform(record) if _perform_callbacks.empty?
 

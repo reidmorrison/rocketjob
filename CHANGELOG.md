@@ -199,6 +199,13 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### New features
 
+- The line of its file that a record starts on: `rocket_job_line_number` while it is processed, a `line` log tag
+  beside `record`, and `Sliced::Slice#line_number_at(index)`, for the rows of a file. It counts the header row, blank
+  lines, and each line of a quoted value with line breaks, as a text editor does, from IOStreams 3.0, which holds the
+  numbers of each row in its slice. It is nil for records that are not the lines of a file, such as those of a query,
+  of Parquet, or of a slice that Rocket Job 7 uploaded. `Sliced::Slice#record_number_at(index)` answers the record
+  number of any record of a slice.
+
 - A batch job parses each record in its input category, and renders each result in its output category, in the
   loop that processes its slices, rather than in perform callbacks. So a batch job without perform callbacks of its
   own skips running them for each record, which doubled the records per second of a job whose `#perform` does no
@@ -313,6 +320,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   entry is not valid until both are changed.
 
 ### Fixes
+
+- Removing a record from a slice of the rows of a file, such as with Mission Control, no longer renumbers the rows
+  after it: the job and its logs name each row by the record number of the row in its file, which IOStreams keeps.
 
 - `upload` of a Mongoid query reads the documents that Mongoid's own query of the criteria returns:
   - A query of a subclass uploads only the documents of that subclass and its own subclasses. Previously it also

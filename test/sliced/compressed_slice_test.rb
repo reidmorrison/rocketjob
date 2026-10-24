@@ -89,7 +89,7 @@ module Sliced
           found = slices.find(slice.id)
 
           assert_kind_of IOStreams::Slice, found.records
-          assert_equal rows.to_a, found.records.to_a
+          assert_equal rows.rows, found.records.rows
           assert_equal %w[Name AGE], found.records.header
           assert_equal :csv, found.records.format
         end

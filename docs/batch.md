@@ -1052,6 +1052,45 @@ class SampleJob < RocketJob::Job
 end
 ~~~
 
+## Record and line numbers
+
+While a record is processed, `rocket_job_record_number` is its number in its upload, from 1, without
+the header row of its file, so that a blank row counts too. For the rows of a file,
+`rocket_job_line_number` is the line of the file that the record starts on, as a text editor numbers
+it, so the header row, and each line of a quoted value with line breaks, count too. It is nil for
+records that are not the lines of a file, such as those of a query or a Parquet file:
+
+~~~ruby
+class ImportJob < RocketJob::Job
+  include RocketJob::Batch
+
+  input_category format: :csv
+
+  def perform(row)
+    return if row.nil?
+
+    logger.info("Record #{rocket_job_record_number} is on line #{rocket_job_line_number}")
+  end
+end
+~~~
+
+Each log entry written while a record is processed is tagged with its `record`, and its `line` when it
+has one, so that support staff can find the row in its file.
+
+A slice answers the same numbers for each of its records, counting from 0, such as to find the row of a
+failed record:
+
+~~~ruby
+slice = job.input.failed.first
+index = slice.processing_record_number - 1
+
+slice.record_number_at(index)   # => 1205
+slice.line_number_at(index)     # => 1207
+~~~
+
+The rows of a file keep their numbers when a record is replaced or removed, see
+[Editing and retrying failed records](#editing-and-retrying-failed-records).
+
 ## Error handling
 
 Because a batch job is made of many slices, individual records can fail while others keep processing.
@@ -1101,15 +1140,17 @@ job.input.failed.each do |slice|
 end
 ~~~
 
-**Reading records within a slice.** A slice behaves like an array of its records, and carries metadata
-about how it was processed:
+**Reading records within a slice.** A slice is read like an array of its records, with `each`, `to_a`
+and the other `Enumerable` methods, and carries metadata about how it was processed. A slice of the
+rows of a file holds them in an `IOStreams::Slice` rather than an Array, so read them through the slice
+rather than through `slice.records`:
 
 ~~~ruby
 slice = job.input.failed.first
 
-slice.records                     # Array of records in this slice
+slice.to_a                        # Array of records in this slice
 slice.size                        # Number of records in the slice
-slice.first_record_number         # Line number of the first record in the original upload
+slice.first_record_number         # Record number of the first record in its upload
 slice.failure_count               # How many times this slice has failed
 slice.worker_name                 # Worker that last processed the slice
 slice.failed_record               # The specific record that raised the exception
@@ -1145,8 +1186,9 @@ All of the above work equally on `job.output` for jobs that collect output, and 
 
 Sometimes a slice fails because of bad data rather than a code bug. Rather than fixing the source file
 and re-uploading the whole job, the offending record can be corrected directly on the slice and the job
-retried. A slice behaves like a plain `Array` of records via `records`, and saving the slice persists the
-edited records.
+retried. Change a record with `replace_record` or remove one with `delete_record`, and saving the
+slice persists the edited records. Both keep the line and record number of each row of a file, see
+[Record and line numbers](#record-and-line-numbers).
 
 **Example: correct the failed record and retry the job.**
 `failed_record` returns the record that raised the exception, and `processing_record_number` is its
@@ -1158,9 +1200,9 @@ slice = job.input.failed.first
 
 slice.failed_record               # => "12345,,Jack"  (missing middle field)
 
-# Edit the record in place. `records` is a regular Array.
-index                = slice.processing_record_number - 1
-slice.records[index] = "12345,A,Jack"
+# Replace the record that failed.
+index = slice.processing_record_number - 1
+slice.replace_record(index, "12345,A,Jack")
 slice.save!
 
 # Retry the job: every failed slice is requeued and reprocessed.
@@ -1171,11 +1213,13 @@ On retry each slice resumes from `processing_record_number`, so records that alr
 successfully within the slice are not reprocessed. The corrected record is the next one processed.
 
 **Example: fix every record in a slice.**
-Any change to the `records` array is persisted by `save!`:
+Assigning an Array to `records` replaces them all, and is persisted by `save!`. The rows of a file
+keep the header row of their file, but not the line and record number of each row, which then count
+from `first_record_number`:
 
 ~~~ruby
-slice          = job.input.failed.first
-slice.records  = slice.records.map(&:strip)   # Clean up all records in the slice
+slice         = job.input.failed.first
+slice.records = slice.map(&:strip)   # Clean up all records in the slice
 slice.save!
 
 job.retry!
@@ -1187,7 +1231,7 @@ can be edited and requeued on its own without retrying the whole job. An active 
 
 ~~~ruby
 slice = job.input.failed.first
-slice.records[0] = "corrected value"
+slice.replace_record(0, "corrected value")
 slice.save!
 
 slice.retry!   # Move just this slice from failed back to queued

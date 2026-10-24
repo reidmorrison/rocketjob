@@ -62,7 +62,7 @@ module Batch
         assert_kind_of IOStreams::Slice, stored
         assert_equal %w[Name AGE], stored.header
         assert_equal :csv, stored.format
-        assert_equal ["Jack,21", "", "Jill,22"], stored.to_a
+        assert_equal ["Jack,21", "", "Jill,22"], stored.rows
 
         work
 
@@ -178,6 +178,48 @@ module Batch
           work
 
           assert_equal [{"name" => "Jack", "age" => 21}], output_records
+        end
+      end
+
+      describe "record and line numbers" do
+        # Returns, for each record that perform receives, its name, record number and line number, and the log tags.
+        def numbers_of_records
+          job.stub(:perform, lambda { |record|
+            [record&.fetch("name"), job.rocket_job_record_number, job.rocket_job_line_number, SemanticLogger.named_tags.slice(:record, :line)]
+          }) do
+            work
+          end
+          output_records
+        end
+
+        it "are those of each row in its file, across slices, after a blank row and a value with line breaks" do
+          job.input_category.slice_size = 2
+          upload("Name,AGE\nJack,21\n\n\"Jill\nSmith\",22\nJoe,23\n")
+
+          expected = [
+            ["Jack", 1, 2, {"record" => 1, "line" => 2}],
+            [nil, 2, 3, {"record" => 2, "line" => 3}],
+            ["Jill\nSmith", 3, 4, {"record" => 3, "line" => 4}],
+            ["Joe", 4, 6, {"record" => 4, "line" => 6}]
+          ]
+
+          assert_equal expected, numbers_of_records
+        end
+
+        it "of the rows after a record removed from a failed slice stay those in its file" do
+          upload("Name,AGE\nJack,21\nBad,1\nJill,22\n")
+          job.stub(:perform, ->(record) { raise(ArgumentError, "Bad") if record["name"] == "Bad" }) do
+            work
+          end
+          slice = job.input.failed.first
+
+          assert_equal 2, slice.current_record_number
+          assert_equal 3, slice.current_line_number
+          slice.delete_record(slice.processing_record_number - 1)
+          slice.save!
+          job.retry!
+
+          assert_equal [["Jill", 3, 4, {"record" => 3, "line" => 4}]], numbers_of_records
         end
       end
     end
