@@ -34,7 +34,8 @@ class ThreadWorkerTest < Minitest::Test
       refute_predicate worker, :alive?
     end
 
-    # Once the thread has started, since JRuby has no backtrace for a thread that has not, while MRI does.
+    # Once the thread has started, since JRuby has no backtrace for a thread that has not, while MRI does, see
+    # https://github.com/jruby/jruby/issues/9882.
     it "exposes the running thread backtrace" do
       worker   = new_worker
       deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 5
