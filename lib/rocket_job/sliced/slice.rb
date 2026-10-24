@@ -163,9 +163,37 @@ module RocketJob
       end
       def_instance_delegators :record_list, *(Enumerable.instance_methods - Module.methods)
 
-      # Returns [Integer] the record number of the record currently being processed relative to the entire file.
+      # Returns [Integer] the record number of the record currently being processed, see #processing_record_number and
+      # #record_number_at.
       def current_record_number
-        first_record_number + (processing_record_number || 1) - 1
+        record_number_at((processing_record_number || 1) - 1)
+      end
+
+      # Returns [Integer] the line of its file that the record currently being processed starts on, see
+      # #processing_record_number and #line_number_at.
+      # Returns nil when it is not a line of a file.
+      def current_line_number
+        line_number_at((processing_record_number || 1) - 1)
+      end
+
+      # Returns [Integer] the record number of the record at the supplied index, counting from 0: its number in its
+      # upload, from 1, without the header row of its file, so that a blank row counts.
+      #
+      # The rows of a file know their own record numbers, see IOStreams::Slice#record_number_at, which they keep when a
+      # record is replaced or removed, see #replace_record and #delete_record. Other records, and rows assigned in an
+      # Array, see #records=, are numbered by their place in the slice, from #first_record_number.
+      def record_number_at(index)
+        number = records.record_number_at(index) if rows_at?(index)
+        number || (first_record_number + index)
+      end
+
+      # Returns [Integer] the line of its file that the record at the supplied index starts on, counting from 1, as a
+      # text editor numbers it, so the header row, and the lines of a quoted value with line breaks, count too, see
+      # IOStreams::Slice#line_number_at.
+      # Returns nil when the record is not a line of a file, such as a record of a query, of Parquet, of a slice saved
+      # by Rocket Job 7, or of rows assigned in an Array, see #records=.
+      def line_number_at(index)
+        records.line_number_at(index) if rows_at?(index)
       end
 
       # Before Fail save the exception to this slice.
@@ -273,6 +301,12 @@ module RocketJob
       # rows, see #records=, rather than with a slice of rows of their own, or with records that are not rows: Hashes.
       def rows_of_file?(records)
         @records.is_a?(IOStreams::Slice) && !records.is_a?(IOStreams::Slice) && records.none?(Hash)
+      end
+
+      # Returns [true|false] whether the slice holds the rows of a file, see IOStreams::Slice, with a row at the supplied
+      # index, counting from 0, so that they answer its numbers, see #record_number_at and #line_number_at.
+      def rows_at?(index)
+        rows? && index >= 0 && index < records.size
       end
 
       # Returns [Array] the records, or the rows of a file without their numbers, see IOStreams::Slice#rows, which is not

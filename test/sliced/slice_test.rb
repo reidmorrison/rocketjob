@@ -258,6 +258,27 @@ module Sliced
         end
       end
 
+      describe "#record_number_at" do
+        it "numbers records that are not the rows of a file by their place, from the first record number" do
+          slice.first_record_number = 51
+          slice.records             = %w[a b c]
+
+          assert_equal [51, 53], [slice.record_number_at(0), slice.record_number_at(2)]
+          assert_nil slice.line_number_at(0)
+        end
+
+        it "numbers the record being processed, also in an empty slice" do
+          slice.first_record_number = 51
+
+          assert_equal 51, slice.current_record_number
+          assert_nil slice.current_line_number
+          slice.records                  = %w[a b c]
+          slice.processing_record_number = 3
+
+          assert_equal 53, slice.current_record_number
+        end
+      end
+
       describe "#delete_record" do
         it "removes only the record at the index, and saves it with the slice" do
           slice.records = %w[same same other]
@@ -336,6 +357,36 @@ module Sliced
           assert_equal "Jill,22", slice.at(2)
           assert_equal ["Jack,21"], slice.first(1)
           assert_equal [["Jack,21", 0], ["", 1], ["Jill,22", 2]], slice.each_with_index.to_a
+        end
+
+        it "answer their own record and line numbers, which they keep when a record is removed" do
+          slice.first_record_number = 51
+          slice.records             = rows
+          slice.delete_record(0)
+
+          assert_equal [2, 3], [slice.record_number_at(0), slice.record_number_at(1)]
+          assert_equal [3, 4], [slice.line_number_at(0), slice.line_number_at(1)]
+          slice.processing_record_number = 2
+
+          assert_equal 3, slice.current_record_number
+          assert_equal 4, slice.current_line_number
+        end
+
+        it "are numbered from the first record number, without lines, when assigned in an Array" do
+          slice.first_record_number = 51
+          slice.records             = rows
+          slice.records             = slice.map(&:upcase)
+
+          assert_equal 52, slice.record_number_at(1)
+          assert_nil slice.line_number_at(1)
+        end
+
+        it "are numbered from the first record number, without lines, when they have no numbers" do
+          slice.first_record_number = 51
+          slice.records             = IOStreams::Slice.new(["Jack,21"], header: %w[Name AGE], format: :csv)
+
+          assert_equal 51, slice.current_record_number
+          assert_nil slice.current_line_number
         end
 
         it "name the record that failed" do

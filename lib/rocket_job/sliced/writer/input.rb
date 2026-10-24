@@ -125,7 +125,7 @@ module RocketJob
             slice.each_with_index do |record, index|
               {"r" => record}.to_bson
             rescue EncodingError
-              return slice.first_record_number + index
+              return slice.record_number_at(index)
             end
           end
           nil

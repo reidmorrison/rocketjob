@@ -265,6 +265,19 @@ module Batch
           end
         end
 
+        it "gives records that are not the lines of a file a record number, without a line number" do
+          job = RecordNumberJob.new
+          job.upload do |records|
+            records << "first"
+            records << "second"
+          end
+          job.stub(:perform, ->(_record) { [job.rocket_job_line_number, SemanticLogger.named_tags.slice(:record, :line)] }) do
+            job.perform_now
+          end
+
+          assert_equal [[nil, {"record" => 1}], [nil, {"record" => 2}]], job.output.collect(&:to_a).flatten(1)
+        end
+
         it "process multi-record file with record_counts" do
           file_name = "test/sliced/files/text.txt"
           lines     = []

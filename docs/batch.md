@@ -1052,6 +1052,45 @@ class SampleJob < RocketJob::Job
 end
 ~~~
 
+## Record and line numbers
+
+While a record is processed, `rocket_job_record_number` is its number in its upload, from 1, without
+the header row of its file, so that a blank row counts too. For the rows of a file,
+`rocket_job_line_number` is the line of the file that the record starts on, as a text editor numbers
+it, so the header row, and each line of a quoted value with line breaks, count too. It is nil for
+records that are not the lines of a file, such as those of a query or a Parquet file:
+
+~~~ruby
+class ImportJob < RocketJob::Job
+  include RocketJob::Batch
+
+  input_category format: :csv
+
+  def perform(row)
+    return if row.nil?
+
+    logger.info("Record #{rocket_job_record_number} is on line #{rocket_job_line_number}")
+  end
+end
+~~~
+
+Each log entry written while a record is processed is tagged with its `record`, and its `line` when it
+has one, so that support staff can find the row in its file.
+
+A slice answers the same numbers for each of its records, counting from 0, such as to find the row of a
+failed record:
+
+~~~ruby
+slice = job.input.failed.first
+index = slice.processing_record_number - 1
+
+slice.record_number_at(index)   # => 1205
+slice.line_number_at(index)     # => 1207
+~~~
+
+The rows of a file keep their numbers when a record is replaced or removed, see
+[Editing and retrying failed records](#editing-and-retrying-failed-records).
+
 ## Error handling
 
 Because a batch job is made of many slices, individual records can fail while others keep processing.
@@ -1148,7 +1187,8 @@ All of the above work equally on `job.output` for jobs that collect output, and 
 Sometimes a slice fails because of bad data rather than a code bug. Rather than fixing the source file
 and re-uploading the whole job, the offending record can be corrected directly on the slice and the job
 retried. Change a record with `replace_record` or remove one with `delete_record`, and saving the
-slice persists the edited records. Both keep the line and record number of each row of a file.
+slice persists the edited records. Both keep the line and record number of each row of a file, see
+[Record and line numbers](#record-and-line-numbers).
 
 **Example: correct the failed record and retry the job.**
 `failed_record` returns the record that raised the exception, and `processing_record_number` is its
