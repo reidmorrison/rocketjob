@@ -245,8 +245,9 @@ streams, rather than with `find_each`, which built a model for each row, see
   `ArgumentError` for an earlier version: upgrade Active Record, or write the records in a block of
   `upload`, see below.
 * It needs a database whose driver streams a query: PostgreSQL,
-  MySQL with `mysql2`, or SQLite with `sqlite3`. Any other raises `ArgumentError`, such as MySQL with
-  `trilogy`, SQL Server, or SQLite on JRuby: upload the batches of the relation instead, selecting
+  MySQL with `mysql2`, or SQLite with `sqlite3`, or any of the three on JRuby with the adapters of
+  AR-JDBC. Any other raises `ArgumentError`, such as MySQL with `trilogy`, or SQL Server: upload the
+  batches of the relation instead, selecting
   the columns to upload before `in_batches`, without which they raise `ArgumentError`:
 
   ~~~ruby

@@ -15,22 +15,6 @@ end
 class InputQueryPerson < ActiveRecord::Base
 end
 
-# Whether IOStreams streams a query on the test database. It cannot on JRuby, whose SQLite adapter is not the sqlite3
-# gem, where a relation raises ArgumentError, and only its batches can be uploaded. Any other error is raised, so that
-# the tests of a streamed query fail rather than skip.
-QUERY_STREAMS =
-  begin
-    IOStreams.stream(InputQueryPerson.limit(0)).each(:array) { nil }
-    true
-  rescue ArgumentError => e
-    raise unless e.message.start_with?("IOStreams cannot stream a query on ")
-
-    false
-  end
-
-# Why a test of a streamed query is skipped, see QUERY_STREAMS.
-QUERY_STREAMS_SKIP = "IOStreams cannot stream a query on this database, such as SQLite on JRuby".freeze
-
 # An embedded document of InputQueryDoc, read with a dotted column.
 class InputQueryAddress
   include Mongoid::Document
@@ -133,8 +117,6 @@ module Sliced
         end
 
         it "uploads the id of each record by default" do
-          skip(QUERY_STREAMS_SKIP) unless QUERY_STREAMS
-
           count = input.upload_arel(InputQueryPerson.all)
 
           assert_equal 2, count
@@ -142,8 +124,6 @@ module Sliced
         end
 
         it "uploads a single named column" do
-          skip(QUERY_STREAMS_SKIP) unless QUERY_STREAMS
-
           count = input.upload_arel(InputQueryPerson.all, columns: [:name])
 
           assert_equal 2, count
@@ -151,16 +131,12 @@ module Sliced
         end
 
         it "uploads a column named by a String" do
-          skip(QUERY_STREAMS_SKIP) unless QUERY_STREAMS
-
           input.upload_arel(InputQueryPerson.all, columns: ["name"])
 
           assert_equal %w[Alice Bob], input.collect(&:to_a).flatten.sort
         end
 
         it "quotes a String column as the name of a column, rather than running it as SQL" do
-          skip(QUERY_STREAMS_SKIP) unless QUERY_STREAMS
-
           begin
             input.upload_arel(InputQueryPerson.all, columns: ["upper(name) AS uname"])
           rescue ActiveRecord::StatementInvalid
@@ -171,8 +147,6 @@ module Sliced
         end
 
         it "uploads multiple columns as arrays" do
-          skip(QUERY_STREAMS_SKIP) unless QUERY_STREAMS
-
           input.upload_arel(InputQueryPerson.all, columns: %i[name age])
           rows = input.collect(&:to_a).flatten(1).sort
 
@@ -180,8 +154,6 @@ module Sliced
         end
 
         it "uploads the rows in the order of the relation, and within its limit" do
-          skip(QUERY_STREAMS_SKIP) unless QUERY_STREAMS
-
           assert_equal 1, input.upload_arel(InputQueryPerson.order(age: :desc).limit(1), columns: [:name])
           assert_equal ["Bob"], input.collect(&:to_a).flatten
         end
@@ -352,8 +324,6 @@ module Sliced
       end
 
       it "uploads the columns of an Active Record relation" do
-        skip(QUERY_STREAMS_SKIP) unless QUERY_STREAMS
-
         assert_equal 2, job.upload(InputQueryPerson.all, columns: %i[name age])
         assert_equal 2, job.record_count
         assert_equal [["Alice", 30], ["Bob", 40]], job.input.collect(&:to_a).flatten(1).sort
