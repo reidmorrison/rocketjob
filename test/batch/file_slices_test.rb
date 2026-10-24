@@ -62,7 +62,7 @@ module Batch
         assert_kind_of IOStreams::Slice, stored
         assert_equal %w[Name AGE], stored.header
         assert_equal :csv, stored.format
-        assert_equal ["Jack,21", "", "Jill,22"], stored.to_a
+        assert_equal ["Jack,21", "", "Jill,22"], stored.rows
 
         work
 

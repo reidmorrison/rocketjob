@@ -277,7 +277,15 @@ module Sliced
       end
 
       describe "the rows of a file" do
-        let(:rows) { IOStreams::Slice.new(["Jack,21", "", "Jill,22"], header: %w[Name AGE], format: :csv) }
+        let(:rows) do
+          IOStreams::Slice.new(["Jack,21", "", "Jill,22"], header: %w[Name AGE], format: :csv, line_number: 2,
+                                                           record_number: 1)
+        end
+
+        # The line and record number of each row of the supplied slice of rows.
+        def numbers_of(rows)
+          rows.each.map { |_row, line_number, record_number| [line_number, record_number] }
+        end
 
         it "keep their header row when a record is replaced or removed" do
           slice.records = rows
@@ -286,8 +294,56 @@ module Sliced
           slice.save!
           found = slices.find(slice.id)
 
-          assert_equal ["Jack,22", "Jill,22"], found.records.to_a
+          assert_equal ["Jack,22", "Jill,22"], found.records.rows
           assert_equal %w[Name AGE], found.records.header
+        end
+
+        it "keep the line and record number of each row when a record is replaced or removed" do
+          slice.records = rows
+          slice.replace_record(-1, "Jill,23")
+
+          assert_equal "", slice.delete_record(1)
+          slice.save!
+          found = slices.find(slice.id)
+
+          assert_equal ["Jack,21", "Jill,23"], found.records.rows
+          assert_equal [[2, 1], [4, 3]], numbers_of(found.records)
+        end
+
+        it "raise for an index without a record, rather than change the rows" do
+          slice.records = rows
+
+          assert_raises(IndexError) { slice.replace_record(3, "Joe,23") }
+          assert_raises(IndexError) { slice.delete_record(-4) }
+          assert_equal rows, slice.records
+        end
+
+        it "keep the numbers of the rows after a quoted value with line breaks when saved" do
+          rows = IOStreams::Slice.new([], header: %w[Name NOTE], format: :csv)
+          rows.add("Jack,one", line_number: 2, record_number: 1)
+          rows.add("Jill,\"line one\nline two\"", line_number: 3, record_number: 2)
+          rows.add("Joe,three", line_number: 5, record_number: 3)
+          slice.records = rows
+          slice.save!
+
+          assert_equal [[2, 1], [3, 2], [5, 3]], numbers_of(slices.find(slice.id).records)
+        end
+
+        it "are read as an Array of rows by the slice" do
+          slice.records = rows
+
+          assert_equal rows.rows, slice.to_a
+          assert_equal "Jill,22", slice.at(2)
+          assert_equal ["Jack,21"], slice.first(1)
+          assert_equal [["Jack,21", 0], ["", 1], ["Jill,22", 2]], slice.each_with_index.to_a
+        end
+
+        it "name the record that failed" do
+          slice.records                  = rows
+          slice.processing_record_number = 3
+          slice.fail(RuntimeError.new("bad"))
+
+          assert_equal "Jill,22", slice.failed_record
         end
 
         it "keeps the header row and format that they carry" do
@@ -296,7 +352,7 @@ module Sliced
           found = slices.find(slice.id)
 
           assert_kind_of IOStreams::Slice, found.records
-          assert_equal rows.to_a, found.records.to_a
+          assert_equal rows.rows, found.records.rows
           assert_equal %w[Name AGE], found.records.header
           assert_equal :csv, found.records.format
         end
@@ -312,7 +368,7 @@ module Sliced
           saved = slices.find(slice.id).records
 
           assert_kind_of IOStreams::Slice, saved
-          assert_equal ["Jack,21", "", "Jill,23"], saved.to_a
+          assert_equal ["Jack,21", "", "Jill,23"], saved.rows
           assert_equal %w[Name AGE], saved.header
           assert_equal :csv, saved.format
         end
@@ -329,10 +385,11 @@ module Sliced
           slice.records = rows
           rest          = slice.records_from(2)
 
-          assert_equal ["", "Jill,22"], rest.to_a
+          assert_equal ["", "Jill,22"], rest.rows
+          assert_equal [[3, 2], [4, 3]], numbers_of(rest)
           assert_equal %w[Name AGE], rest.header
           assert_equal :csv, rest.format
-          assert_equal rows.to_a, slice.records_from(1).to_a
+          assert_equal rows.rows, slice.records_from(1).rows
           assert_empty slice.records_from(4)
         end
 

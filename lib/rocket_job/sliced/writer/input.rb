@@ -122,7 +122,7 @@ module RocketJob
         # Returns [Integer] the number of the first record in the supplied slices that BSON cannot store, or nil.
         def first_unstorable_record_number(slices)
           slices.each do |slice|
-            slice.records.each_with_index do |record, index|
+            slice.each_with_index do |record, index|
               {"r" => record}.to_bson
             rescue EncodingError
               return slice.first_record_number + index

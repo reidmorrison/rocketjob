@@ -6039,7 +6039,10 @@ same Hash for each line, so most jobs need no change, but:
 * Options that read the lines of a file, such as `delimiter:`, raise `ArgumentError` for a category
   with a format, whose lines are read in it.
 * A slice of an input category holds an `IOStreams::Slice` of rows, rather than an Array, for code
-  that reads the records of a slice itself, such as Mission Control.
+  that reads the records of a slice itself, such as Mission Control. An `IOStreams::Slice` is not an
+  Array, so read the records through the slice itself, such as with `slice.each` or `slice.to_a`,
+  and change them with `slice.replace_record` and `slice.delete_record`, which keep the line and
+  record number of each row in its file.
 * The next run of a batch job that `RocketJob::Plugins::Cron` creates after the job uploaded its
   file, such as one with `cron_after_start: false`, whose next run is created when it completes or
   fails, reads the header row of its own upload. v7 copied the header row that the upload read into
