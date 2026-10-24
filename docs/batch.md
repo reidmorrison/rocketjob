@@ -167,17 +167,17 @@ Supply a column name to upload that column instead of the id:
 job.upload(User.where(country_code: "US"), columns: [:zip_code])
 ~~~
 
-Supplying several columns uploads an Array of their values for each row, which v8 uploads as a
-Hash of the columns by name instead, so v7.1 reports a deprecation warning for it, see
-[Uploading a query](upgrading.html#uploading-a-query).
+Supplying several columns uploads an Array of their values for each row.
 
-Pass a block to transform each model into the record to upload. v8 passes each row to the block as
-a Hash of its columns by name, rather than a model, so read each column by its String name, which
-reads a model too. v7.1 reports a deprecation warning for a block passed with a relation:
+To upload what a method of the model returns, write the records in the block of `upload`. A block
+passed with the relation itself is deprecated, since v8 raises for it, see
+[Uploading a query](upgrading.html#uploading-a-query):
 
 ~~~ruby
-job.upload(User.where(country_code: "US")) do |user|
-  user["email"]
+job.upload do |records|
+  User.where(country_code: "US").find_each do |user|
+    records << user.email.downcase
+  end
 end
 ~~~
 
@@ -194,9 +194,11 @@ job.upload(User.where(state: "FL"))
 job.upload(User.where(state: "FL"), columns: [:zip_code])
 ~~~
 
-When a block is supplied it receives each document and returns the record to upload. The returned
-value must serialize to BSON (`Hash`, `Array`, `String`, `Integer`, `Float`, `Symbol`, `Regexp`,
-`Time`; not `Date`). With a `Hash`, keys must be strings, not symbols.
+A block passed with the criteria receives each document and returns the record to upload. It is
+deprecated, since v8 raises for it: write the records in the block of `upload` instead, see
+[Uploading a query](upgrading.html#uploading-a-query). A record must serialize to BSON (`Hash`,
+`Array`, `String`, `Integer`, `Float`, `Symbol`, `Regexp`, `Time`; not `Date`). With a `Hash`, keys
+must be strings, not symbols.
 
 ### Integer ranges
 

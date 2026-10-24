@@ -15,7 +15,7 @@ module RocketJob
       # Reports a deprecation warning, see QueryDeprecation, for what Rocket Job 8 uploads differently, without
       # changing what this upload stores.
       def upload_mongo_query(criteria, columns: [], slice_batch_size: nil, &block)
-        QueryDeprecation.warn_criteria(columns, block)
+        QueryDeprecation.warn_criteria(block)
         options = criteria.options
 
         # Without a block extract the fields from the supplied criteria
@@ -50,7 +50,7 @@ module RocketJob
       # Reports a deprecation warning, see QueryDeprecation, for what Rocket Job 8 uploads differently, without
       # changing what this upload stores.
       def upload_arel(arel, columns: nil, slice_batch_size: nil, &block)
-        QueryDeprecation.warn_relation(arel, columns, block)
+        QueryDeprecation.warn_relation(arel, block)
         unless block
           columns = columns.blank? ? [:id] : columns.collect(&:to_sym)
 
@@ -156,15 +156,14 @@ module RocketJob
       #
       # Rocket Job 8 reads an Active Record relation in one streamed query, with each value cast as `pluck` casts it,
       # and builds no models, so:
-      # - A block passed with a relation receives each row as a Hash of the columns that the relation selects, by name
-      #   with String keys, rather than a model. A block passed with a Mongoid criteria is unchanged: it already
-      #   receives each document as it is stored.
+      # - A block passed with a query, a relation or a Mongoid criteria, raises ArgumentError: the block of `upload`
+      #   writes the records instead, such as those of a query that it reads itself.
       # - A relation that eager loads its associations, with `includes`, `preload` or `eager_load`, raises
       #   ArgumentError.
-      # - Several columns, of a relation or of a criteria, upload each record as a Hash of the columns by name, with
-      #   String keys, rather than an Array of their values. One column still uploads its value.
       # - Each column uploads the value that it holds, as `pluck` returns it, rather than calling the reader of the
       #   model, which differs only when the model overrides the reader.
+      #
+      # The records of one column, the value of each row, and of several, an Array of their values, are unchanged.
       #
       # An upload reports each change that it depends on once, and the reader of each column at most once.
       class QueryDeprecation
@@ -172,33 +171,34 @@ module RocketJob
         EAGER_LOADING = %i[includes preload eager_load].freeze
 
         # Reports a deprecation warning for each change that the upload of the supplied Active Record relation, or
-        # model class, depends on: that it eager loads associations, and that the supplied block receives a Hash, or,
-        # without one, that the supplied columns, when there are several, are uploaded as a Hash.
+        # model class, depends on: that it eager loads associations, and that the supplied block is passed with it.
         #
         # Returns nil.
-        def self.warn_relation(relation, columns, block)
+        def self.warn_relation(relation, block)
           warn_eager_loading(relation)
-          if block
-            RocketJob::Deprecation.warn(
-              "a block passed with an Active Record relation receives each model, but in Rocket Job 8 it receives " \
-              "each row as a Hash of the columns that the relation selects, with String keys, such as row[\"email\"]: " \
-              "read the columns from it, selecting those that the block needs, joining other tables with joins, or " \
-              "upload the ids and do the work in perform, see #{RocketJob::Deprecation::UPGRADE_GUIDE}"
-            )
-          else
-            warn_several_columns(columns)
-          end
+          warn_block("an Active Record relation", "User.where(country_code: \"US\").find_each") if block
           nil
         end
 
-        # Reports a deprecation warning when the upload of a Mongoid criteria, without the supplied block, uploads the
-        # supplied columns, when there are several, as an Array. A block is unchanged.
+        # Reports a deprecation warning when the supplied block is passed with the upload of a Mongoid criteria.
         #
         # Returns nil.
-        def self.warn_criteria(columns, block)
-          warn_several_columns(columns) unless block
+        def self.warn_criteria(block)
+          warn_block("a Mongoid criteria", "User.where(state: \"FL\").each") if block
           nil
         end
+
+        # Reports a deprecation warning that a block passed with the supplied kind of query raises in Rocket Job 8, with
+        # an example that reads the query in the block of `upload` instead.
+        def self.warn_block(kind, query)
+          RocketJob::Deprecation.warn(
+            "a block passed with #{kind} raises ArgumentError in Rocket Job 8, which uploads the values of its " \
+            "columns: write the records in the block of upload instead, such as " \
+            "job.upload { |records| #{query} { |user| records << user.email.downcase } }, see " \
+            "#{RocketJob::Deprecation::UPGRADE_GUIDE}"
+          )
+        end
+        private_class_method :warn_block
 
         # Returns [Proc] the supplied block, which returns the record that 7.x uploads for a model, while deprecation
         # warnings are off, so that production does not pay for checking every model. Otherwise returns a Proc that
@@ -235,20 +235,6 @@ module RocketJob
         end
         private_class_method :warn_eager_loading
 
-        # Reports a deprecation warning when the supplied columns, uploaded without a block, are several, which upload
-        # each record as an Array of their values, naming the first of them, but not the values.
-        def self.warn_several_columns(columns)
-          return unless Array(columns).size > 1
-
-          RocketJob::Deprecation.warn(
-            "columns: with several names uploads each record as an Array of their values, but Rocket Job 8 uploads a " \
-            "Hash of the columns by name, with String keys, such as record[\"#{columns.first}\"]: read the record by " \
-            "name in perform, once the jobs whose input 7.x uploaded have finished, see " \
-            "#{RocketJob::Deprecation::UPGRADE_GUIDE}"
-          )
-        end
-        private_class_method :warn_several_columns
-
         # The supplied columns, whose readers are checked.
         def initialize(columns)
           @columns = columns.dup
@@ -269,9 +255,9 @@ module RocketJob
 
             RocketJob::Deprecation.warn(
               "#{model.class}##{column} returns a value other than the one that its column holds, which Rocket Job 8 " \
-              "uploads instead, as pluck returns it, rather than calling the reader: to keep the reader's value, pass " \
-              "a block, which in Rocket Job 8 receives each row as a Hash of the columns, and apply the reader's logic " \
-              "in it, or in perform, see #{RocketJob::Deprecation::UPGRADE_GUIDE}"
+              "uploads instead, as pluck returns it, rather than calling the reader: to keep the reader's value, write " \
+              "the records in the block of upload, which can call it, or apply the reader's logic in perform, see " \
+              "#{RocketJob::Deprecation::UPGRADE_GUIDE}"
             )
             true
           end
