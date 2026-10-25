@@ -45,6 +45,23 @@ reporters = [
 ]
 Minitest::Reporters.use!(reporters)
 
+# Stubs Time.now in a test, rather than Minitest's #stub, which undefines its stub before it restores the original, so
+# that another thread, such as one of the Mongo driver, which JRuby runs at the same time, can find Time.now undefined
+# in between, and raise NoMethodError.
+module StubTimeNow
+  # Yields with Time.now returning the supplied time, for every thread, as `Time.stub(:now, time)` does.
+  #
+  # Returns the result of the block.
+  def stub_time_now(time)
+    original = Time.singleton_class.instance_method(:now)
+    Time.singleton_class.define_method(:now) { |*_args, **_kwargs| time }
+    yield
+  ensure
+    Time.singleton_class.define_method(:now, original)
+  end
+end
+Minitest::Test.include(StubTimeNow)
+
 # Weed out usages of the BSON Symbol type
 class Symbol
   def bson_type
