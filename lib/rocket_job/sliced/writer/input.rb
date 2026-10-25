@@ -1,11 +1,11 @@
 module RocketJob
   module Sliced
     module Writer
-      # Internal class that stores the slices of an upload into input slices.
+      # Internal class for uploading records into input slices.
       #
-      # It is a store of slices, see `IOStreams::Slice::Target`, so that IOStreams writes the records of an upload to
-      # it in slices of `slice_size` rows, see #write_slice, such as the lines of a file, see Category::Input#copy_slices,
-      # or the records that the block of an upload writes, see Category::Input#write_slices.
+      # It is also a store of the slices of the rows of a file, see `IOStreams::Slice::Target`, so that IOStreams writes
+      # the lines of a file to it in slices of `slice_size` rows, see #write_slice and
+      # Category::Input#write_slices.
       class Input
         include IOStreams::Slice::Target
 
@@ -49,12 +49,26 @@ module RocketJob
           new_slice
         end
 
-        # Stores the supplied rows, see IOStreams::Slice, as a slice of their own, numbered after the records already
-        # written, so that they keep the header row and format that they carry, and the numbers of each row. They are
-        # neither split nor joined with other records, since IOStreams wrote them in slices of `slice_size` rows.
+        def <<(line)
+          @slice << line
+          @record_count += 1
+          if @slice.size >= @slice_size
+            save_slice
+            new_slice
+          end
+          self
+        end
+
+        # Stores the supplied rows of a file, see IOStreams::Slice, as a slice of their own, numbered after the records
+        # already written, so that they keep the header row and format that they carry. They are neither split nor
+        # joined with other records, since IOStreams read them in slices of `slice_size` rows.
         def write_slice(rows)
           return self if rows.empty?
 
+          unless @slice.records.empty?
+            save_slice
+            new_slice
+          end
           @slice.records = rows
           @record_count += rows.size
           save_slice
@@ -94,9 +108,8 @@ module RocketJob
         # binary or not valid UTF-8, raises BSON's error with the number of the first such record, which its message
         # does not include, as the job numbers it, see Slice#current_record_number.
         #
-        # Only records without a format, which IOStreams holds as they are, such as those that the block of an upload
-        # into a category without a format writes, can hold such text: IOStreams writes the lines of a format as UTF-8
-        # text, and raises for a character that is not valid with the line of the file it is on.
+        # Only the records written one at a time, see #<<, can hold such text: IOStreams writes the rows of a file as
+        # UTF-8 text, see #write_slice, and raises for a character that is not valid with the line of the file it is on.
         def save_slices(slices)
           yield
         rescue EncodingError => e

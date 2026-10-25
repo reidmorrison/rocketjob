@@ -182,7 +182,7 @@ module Batch
             job.upload(csv_file)
             slice = job.input.first
 
-            assert_equal :none, slice.records.format
+            assert_equal :lines, slice.records.format
             assert_equal [1, 2, 3, 4], Array.new(4) { |index| slice.line_number_at(index) }
             assert_equal [1, 2, 3, 4], Array.new(4) { |index| slice.record_number_at(index) }
           end
@@ -222,7 +222,7 @@ module Batch
         end
 
         describe "block without a format" do
-          it "keeps each record as it is written, one per record, which IOStreams writes to the slices" do
+          it "keeps each record as it is written, one per record, as Rocket Job 7 did" do
             job.input_category.slice_size = 10
             records                       = ["two\nlines", 42, [1, 99], {"a" => 1}, nil]
 
@@ -230,19 +230,19 @@ module Batch
             slice = job.input.first
 
             assert_equal records, slice.to_a
-            assert_kind_of IOStreams::Slice, slice.records
-            assert_equal :none, slice.records.format
+            assert_instance_of Array, slice.records
             assert_equal [1, 2, 3, 4, 5], Array.new(5) { |index| slice.record_number_at(index) }
-            assert_nil slice.line_number_at(0)
           end
+        end
 
-          it "is stored as the rows of a slice, which a worker of Rocket Job 7 fails rather than processing none" do
-            job.upload { |io| io << "hello" }
+        describe "file without a format" do
+          it "is stored as the lines of a slice, which a worker of Rocket Job 7 fails rather than processing none" do
+            job.upload(text_file)
             stored   = job.input.collection.find.first["records"]
             document = Hash.from_bson(BSON::ByteBuffer.new(Zlib::Inflate.inflate(stored.data)))
 
             assert_equal RocketJob::Sliced::Slice::ROWS_GUARD, document["r"]
-            assert_equal %w[hello], document["s"]["rows"]
+            assert_equal "lines", document["s"]["format"]
           end
         end
 

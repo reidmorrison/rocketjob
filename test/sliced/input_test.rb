@@ -21,18 +21,13 @@ module Sliced
         input.delete_all
       end
 
-      # Uploads the records that the block writes, which IOStreams writes to the input in slices, as they are.
-      def upload_records(&block)
-        input.upload { |writer| IOStreams.stream(writer).writer(:line, &block) }
-      end
-
       after do
         input.drop
       end
 
       describe "initialize" do
         it "create index" do
-          upload_records { |io| io << "hello" }
+          input.upload { |io| io << "hello" }
 
           assert input.collection.indexes.any? { |i| i["name"] == "state_1__id_1" }, "must have state and _id index"
         end
@@ -41,7 +36,7 @@ module Sliced
       describe "#upload with a block" do
         it "slice size 1" do
           input.slice_size = 1
-          count            = upload_records { |records| lines.each { |line| records << line } }
+          count            = input.upload { |records| lines.each { |line| records << line } }
 
           assert_equal 3, count
           assert_equal 3, input.count
@@ -54,7 +49,7 @@ module Sliced
 
         it "slice size 2" do
           input.slice_size = 2
-          count            = upload_records { |records| lines.each { |line| records << line } }
+          count            = input.upload { |records| lines.each { |line| records << line } }
 
           assert_equal 3, count
           assert_equal 2, input.count
@@ -67,7 +62,7 @@ module Sliced
 
         it "slice size 3" do
           input.slice_size = 3
-          count            = upload_records { |records| lines.each { |line| records << line } }
+          count            = input.upload { |records| lines.each { |line| records << line } }
 
           assert_equal 3, count
           assert_equal 1, input.count
@@ -78,7 +73,7 @@ module Sliced
         end
 
         it "upload records according to slice_size" do
-          count = upload_records do |records|
+          count = input.upload do |records|
             (1..10).each { |i| records << i }
           end
 
@@ -89,7 +84,7 @@ module Sliced
         end
 
         it "upload no records" do
-          count = upload_records do |_records|
+          count = input.upload do |_records|
             nil
           end
 
@@ -98,7 +93,7 @@ module Sliced
         end
 
         it "upload odd records according to slice_size" do
-          count = upload_records do |records|
+          count = input.upload do |records|
             (1..11).each { |i| records << i }
           end
 
@@ -114,7 +109,7 @@ module Sliced
           count = input.upload do |writer|
             assert_kind_of IOStreams::Slice::Target, writer
             assert_equal 2, writer.slice_size
-            IOStreams.stream(writer).format(:csv).writer(:line) { |io| io << "name" << "Jack" << "Jill" << "Bob" }
+            IOStreams.stream(writer).writer(:line) { |io| io << "name" << "Jack" << "Jill" << "Bob" }
           end
 
           assert_equal 3, count

@@ -332,6 +332,23 @@ module Sliced
         assert_equal [["Alice", 30], ["Bob", 40]], job.input.collect(&:to_a).flatten(1).sort
       end
 
+      it "gives perform the value of one column, or an Array of several, as Rocket Job 7 uploaded them" do
+        records = lambda do
+          list = []
+          job.input.each { |slice| job.input_category.parse_records(slice.records) { |record| list << record } }
+          job.input.delete_all
+          list.sort
+        end
+        job.upload(InputQueryPerson.all, columns: [:name])
+
+        # IOStreams holds the typed values of each row after the names of the columns.
+        assert_equal [:array, %w[name]], [job.input.first.records.format, job.input.first.records.header]
+        assert_equal %w[Alice Bob], records.call
+        job.upload(InputQueryDoc.all, columns: %i[name age])
+
+        assert_equal [["Alice", 30], ["Bob", 40]], records.call
+      end
+
       it "uploads the batches of an Active Record relation" do
         assert_equal 2, job.upload(InputQueryPerson.select(:id).in_batches(of: 1))
         assert_equal 2, job.record_count

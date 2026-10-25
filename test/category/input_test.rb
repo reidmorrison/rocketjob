@@ -427,17 +427,12 @@ module Batch
           [slice.header, slice.format, slice.rows]
         end
 
-        it "holds each record as it is without a format" do
-          assert_equal [nil, :none, ["two\nlines", [1, 99], {"a" => 1}]],
-                       written(RocketJob::Category::Input.new) { |io| io << "two\nlines" << [1, 99] << {"a" => 1} }
-        end
-
         it "holds the lines of a format of text after the header row, also without a schema" do
           assert_equal [%w[name], :csv, %w[Jack]], written(RocketJob::Category::Input.new(format: :csv)) { |io| io << "name" << "Jack" }
         end
 
-        it "holds the records of a format whose rows are Ruby objects as they are, in the :none format" do
-          assert_equal [nil, :none, [{"name" => "Jack"}]],
+        it "holds the records of a format whose rows are Ruby objects as they are" do
+          assert_equal [nil, :hash, [{"name" => "Jack"}]],
                        written(RocketJob::Category::Input.new(format: :hash)) { |io| io << {"name" => "Jack"} }
         end
 

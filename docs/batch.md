@@ -317,7 +317,8 @@ writes the lines of a file: its header row first, when the file has one, then it
 that each hold the header row. Writing anything other than a line, such as an `Array` of the values
 of a row, or a `Hash`, raises `ArgumentError`: write each row as a line of the format, such as
 `row.to_csv`, or upload it into a category without a `format`, which passes it to `perform` as it is. In the `:hash`
-and `:array` formats, whose rows are Ruby objects, the block writes each record as it is instead. With a `schema`, a header row that does not match it raises
+format, whose rows are Ruby objects, the block writes each record as a Hash instead, and in the `:array` format each
+row as an Array, after an Array of the names of the columns, by which `perform` receives each row as a Hash. With a `schema`, a header row that does not match it raises
 `IOStreams::Errors::InvalidHeader`, and nothing is uploaded:
 
 ~~~ruby

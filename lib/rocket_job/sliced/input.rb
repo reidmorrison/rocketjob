@@ -2,7 +2,8 @@ module RocketJob
   module Sliced
     class Input < Slices
       # Yields the store of slices of this input, see Writer::Input.collect, which IOStreams writes the slices of the
-      # upload to, see `IOStreams::Slice::Target`, and returns how many records they hold.
+      # upload to, see `IOStreams::Slice::Target`, or the records of a category without a format are written to one at
+      # a time, see Writer::Input#<<, and returns how many records they hold.
       #
       # When the upload raises, its slices are removed, and the slices of earlier uploads are kept: those of the
       # supplied `upload_id`, or when the collection already holds slices, of an id of its own, otherwise the whole
@@ -112,14 +113,25 @@ module RocketJob
         end
       end
 
-      # Yields the writer of the ranges of ids, each `[first_id, last_id]`, which IOStreams writes one per slice, as it
-      # is, to a store of slices without a format, see `IOStreams::Slice::TargetStream`.
+      # Yields the writer of the ranges of ids, each `[first_id, last_id]`, which IOStreams writes one per slice, as the
+      # typed row of a store of slices in the :array format, without a header row, see RANGE_SCHEMA.
       def upload_ranges(slice_batch_size, upload_id, &)
         upload(slice_size: 1, slice_batch_size: slice_batch_size, upload_id: upload_id) do |writer|
-          IOStreams.stream(writer).writer(:line, &)
+          IOStreams.stream(writer).format(:array).schema(RANGE_SCHEMA).writer(:array, &)
         end
       end
       private :upload_ranges
+
+      # The fields of the `[first_id, last_id]` row of each range of ids, see #upload_ranges, without a header row, so
+      # that each slice holds the range as it is, which a worker passes to `#perform` as it is.
+      RANGE_SCHEMA = {
+        "header" => false,
+        "fields" => [
+          {"name" => "first_id", "type" => "integer"},
+          {"name" => "last_id", "type" => "integer"}
+        ]
+      }.freeze
+      private_constant :RANGE_SCHEMA
 
       # Iterate over each failed record, if any
       # Since each slice can only contain 1 failed record, only the failed

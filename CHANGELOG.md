@@ -208,13 +208,18 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   hold them, so that `#perform` receives each row as the rows of a file in that format. In a format with a header
   row it raised `ArgumentError`. Without a format, the value of each row of one column, or an Array of its values, is
   uploaded as before.
-- IOStreams writes every upload to the input in slices, apart from `upload_slice`: the records of a category without a
-  format, the records of a query, and the ranges of a `Range`, as well as the lines of a file, see
-  `IOStreams::Slice::Target`. Each slice holds its rows as an `IOStreams::Slice`, with the record number of each one,
-  so a worker of Rocket Job 7 fails such a slice rather than processing none of it. The records of a category without a
-  format, or in a format whose rows are values, such as `:hash` or Parquet, are held as they are, in the IOStreams
-  `:none` format, so a record that the block of `upload` writes is kept as it is, one record each, such as a String
-  that holds a line break, and each line of a file without a format keeps its line number.
+- IOStreams writes the slices of every upload of a file or a query, and of a `Range`, see `IOStreams::Slice::Target`:
+  the lines of a file in its format, the lines of a file without a format as they are, in the IOStreams `:lines`
+  format, also for a file named `.csv`, the typed records of a file in the `:hash` or Parquet format, or the rows of
+  the `:array` format, the rows of a query, and one `[first_id, last_id]` per slice for a range. Each slice holds its
+  rows as an `IOStreams::Slice`, with the record number of each one, and for the lines of a file their line numbers, so
+  a worker of Rocket Job 7 fails such a slice rather than processing none of it. The records that the block of `upload`
+  writes into a category without a format, which can be any object, are still stored as they are, as Rocket Job 7
+  stored them, as are those of `upload_slice`. A spreadsheet, such as `.xlsx`, uploaded into a category without a
+  format raises `ArgumentError`, since its rows are not lines: give the category a format, such as `:auto`.
+- The block of `upload` into an input category in the `:array` format writes its header row first, as a file in that
+  format holds it, so that `#perform` receives each row after it as a Hash of the columns. Each Array was uploaded as
+  a record.
 
 - The line of its file that a record starts on: `rocket_job_line_number` while it is processed, a `line` log tag
   beside `record`, and `Sliced::Slice#line_number_at(index)`, for the rows of a file. It counts the header row, blank

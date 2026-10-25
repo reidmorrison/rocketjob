@@ -158,12 +158,10 @@ module RocketJob
       # Category::Base#check_removed_options, which is checked once for each instance of the category, rather than for
       # each slice that a worker processes, since the options that a saved category holds do not change.
       def parse_records(records, &)
-        # Records that are not the rows of a file in a format, such as those of a category without a format, which a
-        # slice holds as they are in the :none format, are each parsed on their own. A slice yields each row alone to a
-        # block of one argument.
-        if !records.is_a?(IOStreams::Slice) || [nil, :none].include?(records.format)
-          return records.each { |record| yield parse(record) }
-        end
+        # Records that are not the rows of a slice, such as those that the block of an upload without a format writes,
+        # are each parsed on their own. A slice yields each row alone to a block of one argument.
+        return records.each { |record| yield parse(record) } unless records.is_a?(IOStreams::Slice)
+        return parse_rows(records, &) if rows_parsed_alone?(records)
 
         @removed_options_checked ||= check_removed_options || true
         IOStreams.stream(records).schema(schema_descriptor).each(:hash, &)
@@ -250,10 +248,11 @@ module RocketJob
       #   match raises IOStreams::Errors::InvalidHeader before any slice. Each slice carries the header row of its file,
       #   so that more than one file can be uploaded into this category, and the workers read each row by it, see
       #   #parse_records.
-      # - In a format whose rows are values, such as Parquet, the records of the file, as IOStreams reads them, as they
-      #   are, in the `:none` format, as for a query, which the workers parse one at a time, see #parse.
-      # - Without a format, each line of the file, as it is, with its line, in the `:none` format, since the records of
-      #   this category are not parsed, see #parse, also when the file name gives a format, such as `.csv`.
+      # - In a format whose rows are values, such as :hash or Parquet, the typed records of the file, as IOStreams reads
+      #   them, in a store of the :hash format, or the rows of the :array format, see #typed_target.
+      # - Without a format, each line of the file, as it is, with its line, in the IOStreams :lines format, since the
+      #   records of this category are not parsed, see #parse, also when the file name gives a format, such as `.csv`.
+      #   A spreadsheet, whose rows IOStreams reads as CSV text, raises ArgumentError, since its rows are not lines.
       #
       # When `validate_rows` is true, see #upload_validates_rows?, IOStreams also parses each row before its slice is
       # written, so that a file with a value that is not valid raises before it is processed. Each slice still holds
@@ -261,44 +260,32 @@ module RocketJob
       #
       # Raises ArgumentError when this category cannot read a file, see #slice_target.
       def copy_slices(path, writer, validate_rows: nil)
-        return slice_target(writer).copy_from(path, mode: :line, validate: upload_validates_rows?(validate_rows)) if formatted?
+        validate = upload_validates_rows?(validate_rows)
+        return slice_target(writer).copy_from(path, mode: :line, validate: validate) if formatted?
+        return typed_target(writer).copy_from(path, mode: typed_mode, validate: validate) if tabular?
 
-        # The :none format holds each line, or record, as it is, also when the file name gives a format, such as `.csv`.
-        IOStreams.stream(writer).format(:none).copy_from(path, mode: tabular? ? :hash : :line)
+        # The :lines format holds each line as it is, also when the file name gives a format, such as `.csv`.
+        IOStreams.stream(writer).copy_from(path.format(:lines), mode: :line)
       end
 
       # Writes the rows of the supplied stream of a query, such as of an Active Record relation, see `IOStreams.stream`,
       # to the supplied store of slices, see Sliced::Writer::Input: in this category's format, such as the lines of CSV
       # after the names of the columns, as a file of the query would hold them, by this category's schema, otherwise by
       # the schema of the columns of the query, so that the workers read them as the rows of a file. Without a format,
-      # the record of each row is the value of its column when it has one, otherwise an Array of its values, see
-      # RowRecords.
+      # IOStreams holds the typed values of each row after the names of the columns, see #rows_target, and the record
+      # of each row is the value of its column when it has one, otherwise an Array of its values, see #parse_rows.
       def copy_rows(stream, writer)
         detect_format(file_name)
-        return slice_target(writer).copy_from(stream, mode: :array) if formatted?
-
-        write_rows(writer) do |rows|
-          header = nil
-          stream.each(:array) do |row|
-            if header
-              rows << row
-            else
-              # The first row is the header row of the names of the columns.
-              rows.write_header(header = row)
-            end
-          end
-        end
+        rows_target(writer).copy_from(stream, mode: :array)
       end
 
       # Yields the writer of the rows of a query, such as of a Mongoid criteria, see Sliced::Input#upload_mongo_query,
       # which takes the names of the columns first, with `#write_header(columns)`, and then each row as an Array of its
       # values, with `<<`, which IOStreams writes to the supplied store of slices, see Sliced::Writer::Input, as
       # #copy_rows does.
-      def write_rows(writer, &block)
+      def write_rows(writer, &)
         detect_format(file_name)
-        return slice_target(writer).writer(:array, &block) if formatted?
-
-        IOStreams.stream(writer).writer(:line) { |records| block.call(RowRecords.new(records)) }
+        rows_target(writer).writer(:array, &)
       end
 
       # Yields to the supplied block of an upload, see RocketJob::Batch::IO#upload, the writer of the lines of a file,
@@ -316,20 +303,26 @@ module RocketJob
       # When `validate_rows` is true, see #upload_validates_rows?, IOStreams also parses each line, after the header row,
       # before its slice is written.
       #
-      # Without a format, or in a format whose rows are values, such as :hash, :array or Parquet, the block writes each
-      # record as it is, whatever it is, which IOStreams holds as it is, in the `:none` format, and the workers parse one
-      # at a time, see #parse.
+      # In a format whose rows are values, the block writes Hashes, for :hash and Parquet, or for :array, Arrays after a
+      # header row, which IOStreams holds as they are, see #typed_target. Without a format, the block writes each record
+      # as it is, whatever it is, to the store of slices itself, see Sliced::Writer::Input#<<, which `#perform`
+      # receives, see #parse.
       #
       # Raises ArgumentError for a record written to the writer that is not a line, such as a Hash, in a format whose
       # rows are lines, and when this category cannot read the lines, see #slice_target.
       def write_slices(writer, validate_rows: nil, &)
+        # Records written without a format can be any object, such as an Integer or nil, so they are written as they
+        # are, to the store of slices itself, see Sliced::Writer::Input#<<.
+        return yield(writer) unless tabular?
+
         detect_format(file_name)
-        return IOStreams.stream(writer).writer(:line, &) unless formatted?
+        validate = upload_validates_rows?(validate_rows)
+        return typed_target(writer).writer(typed_mode, validate: validate, &) unless formatted?
 
         target      = slice_target(writer).encoding(cleaner: upload_cleaner)
         replacement = invalid_character_replacement
         target.encoding(replace: replacement) if replacement
-        target.writer(:line, validate: upload_validates_rows?(validate_rows), &)
+        target.writer(:line, validate: validate, &)
       end
 
       # Returns [true|false] whether an upload into this category parses each row of its file as it uploads it: the
@@ -450,35 +443,51 @@ module RocketJob
       end
 
       # Returns [true|false] whether IOStreams writes the records of an upload into this category in its format, see
-      # #copy_slices: when it has a format whose rows are lines of text. Otherwise IOStreams holds each record as it is,
-      # in the `:none` format: without a format, and in a format whose rows are values, such as :hash, :array or
-      # Parquet, whose records the workers parse one at a time, see #parse, as they did in Rocket Job 7.
+      # #copy_slices: when it has a format whose rows are lines of text. Otherwise the records are held as they are:
+      # without a format, see #copy_slices and #write_slices, and in a format whose rows are values, such as :hash,
+      # :array or Parquet, see #typed_target.
       def formatted?
         tabular? && rows_are_lines?
       end
 
-      # Writes each row of a query to the writer of a store of slices without a format, see #write_rows, as the record
-      # that a category without a format holds: the value of its column when the query has one column, otherwise an
-      # Array of its values, as Rocket Job 7 uploaded it, which `#perform` receives as it is, see #parse.
-      class RowRecords
-        def initialize(records)
-          @records = records
-          @single  = false
-        end
-
-        # Takes the names of the columns of the query, which are not a record, only how many there are.
-        def write_header(columns)
-          @single = columns.size == 1
-          self
-        end
-
-        # Writes the record of the supplied row.
-        def <<(row)
-          @records << (@single ? row.first : row)
-          self
-        end
+      # Returns [IOStreams::Stream] that writes the records of an upload in a format whose rows are values, see
+      # #formatted?: Hashes for :hash and Parquet, whose records are typed, as those of a query are, and Arrays for
+      # :array, after their header row, see #typed_mode, by this category's schema, when it has one.
+      def typed_target(writer)
+        slice_target(writer).format(typed_mode == :array ? :array : :hash)
       end
-      private_constant :RowRecords
+
+      # Returns [Symbol] the mode that IOStreams writes the records of an upload in, in a format whose rows are values,
+      # see #typed_target.
+      def typed_mode
+        format == :array ? :array : :hash
+      end
+
+      # Returns [IOStreams::Stream] that writes the rows of a query, see #copy_rows and #write_rows: in this category's
+      # format when its rows are lines, see #formatted?, otherwise as the typed values of each row, after the names of
+      # the columns, in the :array format, which #parse_rows reads.
+      def rows_target(writer)
+        formatted? ? slice_target(writer) : IOStreams.stream(writer).format(:array)
+      end
+
+      # Returns [true|false] whether the rows of the supplied slice are each parsed on their own, see #parse_rows, rather
+      # than read by IOStreams by the header row and format that the slice carries: the lines of a file without a
+      # format, in the :lines format, the rows of a query in a category without a format, and the typed rows of a slice
+      # without a header row, such as the ranges of a Range.
+      def rows_parsed_alone?(slice)
+        return true if slice.format == :lines || !tabular?
+        return false if IOStreams::Tabular.parser_class(slice.format).value_form != :typed
+
+        slice.header.nil?
+      end
+
+      # Yields the record of each row of the supplied slice, see #rows_parsed_alone?, as `#perform` receives it, see
+      # #parse: in a category without a format, the row of a query of one column, see #rows_target, is its value, as
+      # Rocket Job 7 uploaded it.
+      def parse_rows(slice)
+        value = !tabular? && slice.header&.size == 1
+        slice.each { |row| yield parse(value ? row.first : row) }
+      end
 
       # Returns [Symbol] this category's format, or the format of its file name when it is :auto, otherwise CSV, which an
       # upload replaces :auto with, see #detect_format.
