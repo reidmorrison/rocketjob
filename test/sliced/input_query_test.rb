@@ -122,8 +122,7 @@ module Sliced
           rows     = input.collect(&:to_a).flatten(1).sort
 
           assert_equal [["Alice", 30], ["Bob", 40]], rows
-          assert_equal 1, warnings.size, warnings.inspect
-          assert_includes warnings.first, "columns: with several names uploads each record as an Array"
+          assert_empty warnings
         end
 
         it "honors a supplied block" do
@@ -133,7 +132,7 @@ module Sliced
 
           assert_equal %w[ALICE BOB], input.collect(&:to_a).flatten.sort
           assert_equal 1, warnings.size, warnings.inspect
-          assert_includes warnings.first, "a block passed with an Active Record relation receives each model"
+          assert_includes warnings.first, "a block passed with an Active Record relation raises ArgumentError"
         end
       end
 
@@ -161,8 +160,7 @@ module Sliced
           rows     = input.collect(&:to_a).flatten(1).sort
 
           assert_equal [["Alice", 30], ["Bob", 40]], rows
-          assert_equal 1, warnings.size, warnings.inspect
-          assert_includes warnings.first, "columns: with several names uploads each record as an Array"
+          assert_empty warnings
         end
 
         it "honors a supplied block" do
@@ -195,7 +193,7 @@ module Sliced
         end
 
         describe "with a block" do
-          it "passes the block to upload, as Rocket Job 8 does, which still receives each model, and warns" do
+          it "passes the block to upload, which receives each model, and warns that Rocket Job 8 raises for it" do
             warnings = deprecation_warnings do
               job.upload(InputQueryMember.all) { |member| member["name"].upcase }
             end
@@ -203,14 +201,16 @@ module Sliced
             assert_equal %w[JACK JILL], records
             assert_equal 2, job.record_count
             assert_equal 1, warnings.size, warnings.inspect
-            assert_includes warnings.first, "a block passed with an Active Record relation receives each model"
+            assert_includes warnings.first, "a block passed with an Active Record relation raises ArgumentError in " \
+                                            "Rocket Job 8"
           end
 
-          it "passes the block to upload for a Mongoid criteria, without a warning" do
+          it "passes the block to upload for a Mongoid criteria, and warns" do
             warnings = deprecation_warnings { job.upload(InputQueryDoc.all) { |document| document["name"] } }
 
             assert_equal %w[Alice Bob], records.sort
-            assert_empty warnings
+            assert_equal 1, warnings.size, warnings.inspect
+            assert_includes warnings.first, "a block passed with a Mongoid criteria raises ArgumentError in Rocket Job 8"
           end
 
           it "still raises for a block with an object that is not a query" do
@@ -219,7 +219,7 @@ module Sliced
             assert_equal "Cannot supply both an object to upload, and a block.", error.message
           end
 
-          it "warns once, at the line that uploads it, that the block receives a Hash of each row" do
+          it "warns once, at the line that uploads it, that the block raises in Rocket Job 8" do
             line     = __LINE__ + 2
             warnings = deprecation_warnings do
               job.upload(InputQueryMember.all) { |member| member.name.upcase }
@@ -228,18 +228,20 @@ module Sliced
             assert_equal %w[JACK JILL], records
             assert_equal 1, warnings.size, warnings.inspect
             assert warnings.first.start_with?("#{__FILE__}:#{line}: warning: Rocket Job: a block passed with an " \
-                                              "Active Record relation receives each model"),
+                                              "Active Record relation raises ArgumentError in Rocket Job 8"),
                    warnings.first
-            assert_includes warnings.first, "in Rocket Job 8 it receives each row as a Hash of the columns that the " \
-                                            "relation selects, with String keys, such as row[\"email\"]"
+            assert_includes warnings.first, "write the records in the block of upload instead, such as job.upload { " \
+                                            "|records| User.where(country_code: \"US\").find_each { |user| records " \
+                                            "<< user.email.downcase } }"
             assert_includes warnings.first, RocketJob::Deprecation::UPGRADE_GUIDE
           end
 
-          it "does not warn for a Mongoid criteria, whose block already receives each document" do
+          it "warns for a Mongoid criteria too, whose block raises in Rocket Job 8 as well" do
             warnings = deprecation_warnings { job.upload(InputQueryDoc.all) { |document| document["name"] } }
 
             assert_equal %w[Alice Bob], records.sort
-            assert_empty warnings
+            assert_equal 1, warnings.size, warnings.inspect
+            assert_includes warnings.first, "User.where(state: \"FL\").each { |user|"
           end
         end
 
@@ -275,44 +277,25 @@ module Sliced
         end
 
         describe "of several columns" do
-          it "warns once that Rocket Job 8 uploads a Hash of each relation's row" do
-            warnings = deprecation_warnings { job.upload(InputQueryMember.all, columns: %i[name status]) }
+          it "does not warn, since Rocket Job 8 uploads an Array of their values too" do
+            warnings = deprecation_warnings do
+              job.upload(InputQueryMember.all, columns: %i[name status])
+              job.upload(InputQueryDoc.all, columns: %i[name age])
+            end
 
-            assert_equal [%w[Jack active], %w[Jill inactive]], records
-            assert_equal 1, warnings.size, warnings.inspect
-            assert_includes warnings.first, "columns: with several names uploads each record as an Array of their " \
-                                            "values, but Rocket Job 8 uploads a Hash of the columns by name, with " \
-                                            "String keys, such as record[\"name\"]"
+            assert_equal 4, job.record_count
+            assert_empty warnings
           end
 
-          it "warns once that Rocket Job 8 uploads a Hash of each document of a Mongoid criteria" do
-            warnings = deprecation_warnings { job.upload(InputQueryDoc.all, columns: %i[name age]) }
+          it "warns through the upload_arel and upload_mongo_query of a job only that Rocket Job 8 removes them" do
+            warnings = deprecation_warnings do
+              job.upload_arel(InputQueryMember.all, :name, :status)
+              job.upload_mongo_query(InputQueryDoc.all, :name, :age)
+            end
 
-            assert_equal [["Alice", 30], ["Bob", 40]], records.sort
-            assert_equal 1, warnings.size, warnings.inspect
-            assert_includes warnings.first, "columns: with several names uploads each record as an Array"
-          end
-
-          it "warns through the upload_mongo_query of a job, which also warns that Rocket Job 8 removes it" do
-            line     = __LINE__ + 1
-            warnings = deprecation_warnings { job.upload_mongo_query(InputQueryDoc.all, :name, :age) }
-
-            assert_equal [["Alice", 30], ["Bob", 40]], records.sort
-            assert_equal 2, warnings.size, warnings.inspect
-            assert_equal "#{__FILE__}:#{line}: warning: Rocket Job: upload_mongo_query is deprecated, and removed in " \
-                         "Rocket Job 8: call upload with the criteria, with the fields to upload as columns:, such as " \
-                         "upload(User.where(state: \"FL\"), columns: [:zip_code]), see " \
-                         "#{RocketJob::Deprecation::UPGRADE_GUIDE}\n", warnings.first
-            assert_includes warnings.last, "columns: with several names"
-          end
-
-          it "warns through the upload_arel of a job, which also warns that Rocket Job 8 removes it" do
-            warnings = deprecation_warnings { job.upload_arel(InputQueryMember.all, :name, :status) }
-
-            assert_equal [%w[Jack active], %w[Jill inactive]], records
             assert_equal 2, warnings.size, warnings.inspect
             assert_includes warnings.first, "upload_arel is deprecated, and removed in Rocket Job 8"
-            assert_includes warnings.last, "columns: with several names"
+            assert_includes warnings.last, "upload_mongo_query is deprecated, and removed in Rocket Job 8"
           end
         end
 
@@ -340,9 +323,9 @@ module Sliced
             assert_equal 1, warnings.size, warnings.inspect
             assert_equal "#{__FILE__}:#{line}: warning: Rocket Job: InputQueryMember#nickname returns a value other " \
                          "than the one that its column holds, which Rocket Job 8 uploads instead, as pluck returns " \
-                         "it, rather than calling the reader: to keep the reader's value, pass a block, which in " \
-                         "Rocket Job 8 receives each row as a Hash of the columns, and apply the reader's logic in " \
-                         "it, or in perform, see #{RocketJob::Deprecation::UPGRADE_GUIDE}\n",
+                         "it, rather than calling the reader: to keep the reader's value, write the records in the " \
+                         "block of upload, which can call it, or apply the reader's logic in perform, see " \
+                         "#{RocketJob::Deprecation::UPGRADE_GUIDE}\n",
                          warnings.first
           end
 
@@ -350,9 +333,8 @@ module Sliced
             warnings = deprecation_warnings { job.upload(InputQueryMember.all, columns: %i[name nickname]) }
 
             assert_equal [%w[Jack jj], %w[Jill none]], records
-            assert_equal 2, warnings.size, warnings.inspect
-            assert_includes warnings.first, "columns: with several names"
-            assert_includes warnings.last, "InputQueryMember#nickname returns a value other than"
+            assert_equal 1, warnings.size, warnings.inspect
+            assert_includes warnings.first, "InputQueryMember#nickname returns a value other than"
           end
 
           it "warns through upload_arel" do
