@@ -279,6 +279,30 @@ end
 The block reads the file itself, so when it is not UTF-8, give the path its encoding, such as
 `IOStreams.path(file_name).encoding("ISO-8859-1")`.
 
+### Line options of upload
+
+The `delimiter:`, `buffer_size:` and `embedded_within:` options of `upload` are deprecated, and
+removed in v8, which reads the lines of a file itself:
+
+* `delimiter:` IOStreams detects the line endings of a file, `\r\n` or `\n`, so remove it. A file
+  whose records are separated by something other than a line ending cannot be uploaded as a file in
+  v8: write its records in the block of `upload` instead.
+* `buffer_size:` only tuned how much IOStreams read at a time, so remove it.
+* `embedded_within:` kept a quoted value that holds line breaks in its line. In v8 the format of the
+  input category, such as CSV, reads such a value, so remove it and give the category its format.
+
+~~~ruby
+# Before (deprecated)
+job.upload(file_name, delimiter: "|")
+
+# After
+job.upload do |records|
+  IOStreams.path(file_name).read.split("|").each do |record|
+    records << record
+  end
+end
+~~~
+
 ### Text is read as UTF-8 with a schema
 
 The text of a file uploaded into a category with a schema is read as UTF-8, so letters that are not

@@ -2583,7 +2583,7 @@ Useful `upload` keyword options:
 | `validate_rows` | `true` to parse each line of the file while it is uploaded, so that a file with a line that cannot be read uploads nothing. Default: the input category's `validate_rows`. See [input categories](#input-categories).
 | `stream_mode`  | Deprecated, and removed in v8, see [Replace the :hash mode and stream_mode](upgrading.html#replace-the-hash-mode-and-stream_mode). `:line` (default), `:array`, or `:hash`.
 | `file_name`    | Override the file name used to infer format and streams.
-| `delimiter`    | Record delimiter. Default: auto-detect line endings.
+| `delimiter`    | Deprecated, and removed in v8, see [Line options of upload](upgrading.html#line-options-of-upload). Record delimiter. Default: auto-detect line endings.
 | `on_first`     | Deprecated, and removed in v8, see [Replace on_first](upgrading.html#replace-on_first). A lambda called with the header row, or the first record of a file without one, such as JSON or fixed width, which is not uploaded.
 
 By default all data is converted to UTF-8 before being stored, since MongoDB only stores UTF-8
@@ -5857,6 +5857,30 @@ end
 
 The block reads the file itself, so when it is not UTF-8, give the path its encoding, such as
 `IOStreams.path(file_name).encoding("ISO-8859-1")`.
+
+### Line options of upload
+
+The `delimiter:`, `buffer_size:` and `embedded_within:` options of `upload` are deprecated, and
+removed in v8, which reads the lines of a file itself:
+
+* `delimiter:` IOStreams detects the line endings of a file, `\r\n` or `\n`, so remove it. A file
+  whose records are separated by something other than a line ending cannot be uploaded as a file in
+  v8: write its records in the block of `upload` instead.
+* `buffer_size:` only tuned how much IOStreams read at a time, so remove it.
+* `embedded_within:` kept a quoted value that holds line breaks in its line. In v8 the format of the
+  input category, such as CSV, reads such a value, so remove it and give the category its format.
+
+~~~ruby
+# Before (deprecated)
+job.upload(file_name, delimiter: "|")
+
+# After
+job.upload do |records|
+  IOStreams.path(file_name).read.split("|").each do |record|
+    records << record
+  end
+end
+~~~
 
 ### Text is read as UTF-8 with a schema
 

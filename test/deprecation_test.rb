@@ -273,6 +273,29 @@ class DeprecationTest < Minitest::Test
         assert columns.start_with?("#{__FILE__}:#{line}: warning: Rocket Job: allowed_columns: is deprecated"), columns
       end
 
+      it "warns at the line that uploads a file with the options that read its lines, and still reads them" do
+        job.input_category.format = nil
+        line                      = __LINE__ + 2
+        warnings = deprecation_warnings do
+          job.upload(StringIO.new("name|Jack|Jill"), delimiter: "|", buffer_size: 1024)
+        end
+
+        assert_equal ["#{__FILE__}:#{line}: warning: Rocket Job: delimiter:, buffer_size: are deprecated, and removed " \
+                      "in Rocket Job 8, which reads the lines of a file itself: line endings are detected, and the " \
+                      "input category's format reads a quoted value with line breaks, see " \
+                      "#{RocketJob::Deprecation::UPGRADE_GUIDE}\n"], warnings
+        assert_equal [%w[name Jack Jill]], job.input.collect(&:to_a)
+      end
+
+      it "warns for embedded_within: alone" do
+        warnings = deprecation_warnings do
+          job.upload(StringIO.new("name\n\"Jack\nSmith\"\n"), file_name: "people.csv", embedded_within: '"')
+        end
+
+        assert_equal 1, warnings.size, warnings.inspect
+        assert_includes warnings.first, "Rocket Job: embedded_within: is deprecated, and removed in Rocket Job 8"
+      end
+
       describe "stream_mode" do
         it "warns at the line that uploads a file with it" do
           line     = __LINE__ + 2

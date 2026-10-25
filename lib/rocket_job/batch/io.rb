@@ -80,6 +80,7 @@ module RocketJob
       #     Or, an IOStreams path such as IOStreams::Paths::File, or IOStreams::Paths::S3
       #
       #   delimiter[String]
+      #     Deprecated, and removed in Rocket Job 8, which detects the line endings of a file.
       #     Line / Record delimiter to use to break the stream up into records
       #       Any string to break the stream up by
       #       The records when saved will not include this delimiter
@@ -349,6 +350,7 @@ module RocketJob
             end
 
             rocketjob_warn_deprecated_upload_options(args)
+            rocketjob_warn_line_upload_options(args)
             rocketjob_warn_on_first if on_first
             category = input_category(category)
             category.warn_deprecated_stream_mode(stream_mode) if stream_mode
@@ -441,6 +443,12 @@ module RocketJob
       # RocketJob::Category::Input#schema.
       DEPRECATED_UPLOAD_OPTIONS = %i[allowed_columns required_columns skip_unknown cleanse_header].freeze
       private_constant :DEPRECATED_UPLOAD_OPTIONS
+
+      # The options that IOStreams reads the lines of a file with, which are deprecated, since Rocket Job 8 reads the
+      # lines itself: IOStreams detects the line endings of a file, and the format of the input category reads a quoted
+      # value that holds line breaks, see #rocketjob_warn_line_upload_options.
+      DEPRECATED_LINE_UPLOAD_OPTIONS = %i[delimiter buffer_size embedded_within].freeze
+      private_constant :DEPRECATED_LINE_UPLOAD_OPTIONS
 
       # Download the output data into the supplied file, io, IOStreams::Path, or IOStreams::Stream.
       # Returns [Integer] the number of records / lines downloaded.
@@ -564,6 +572,21 @@ module RocketJob
         return if [nil, false].include?(validate_rows)
 
         raise(ArgumentError, "validate_rows: #{validate_rows.inspect} cannot be supplied when uploading #{what}")
+      end
+
+      # Reports a deprecation warning, see RocketJob::Deprecation, at the line of the application that uploads a file
+      # with options that read its lines, which Rocket Job 8 removes: IOStreams detects the line endings of a file, \r\n
+      # or \n, the size of the buffer that it reads with is its own, and the format of the input category, such as CSV,
+      # reads a quoted value that holds line breaks.
+      def rocketjob_warn_line_upload_options(args)
+        names = args.keys & DEPRECATED_LINE_UPLOAD_OPTIONS
+        return if names.empty?
+
+        RocketJob::Deprecation.warn(
+          "#{names.collect { |name| "#{name}:" }.join(', ')} #{names.size == 1 ? 'is' : 'are'} deprecated, and removed " \
+          "in Rocket Job 8, which reads the lines of a file itself: line endings are detected, and the input " \
+          "category's format reads a quoted value with line breaks, see #{RocketJob::Deprecation::UPGRADE_GUIDE}"
+        )
       end
 
       # Reports a deprecation warning, see RocketJob::Deprecation, at the line of the application that uploads a file
