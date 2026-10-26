@@ -211,7 +211,7 @@ module RocketJob
           case object
           when Range
             rocketjob_check_upload("a Range", ":category, or :slice_batch_size", file_options)
-            input_category(category).check_record_upload("a Range")
+            input_category(category).check_record_upload("a Range", input_collection.range_slice)
             rocketjob_upload_integer_range(input_collection, object, slice_batch_size || 1_000, rocketjob_upload_id)
           when Mongoid::Criteria
             rocketjob_check_upload("a Mongoid::Criteria", ":category, :columns, or :slice_batch_size", file_options)

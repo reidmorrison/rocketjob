@@ -113,14 +113,40 @@ module RocketJob
         end
       end
 
-      # Yields the writer of the ranges of ids, each `[first_id, last_id]`, which IOStreams writes one per slice, as the
-      # typed row of a store of slices in the :array format, without a header row, see RANGE_SCHEMA.
+      # Returns [IOStreams::Slice] a slice of one range of ids, written as #upload_ranges writes each one, so that an
+      # input category can check that it parses them before they are uploaded, see Category::Input#check_record_upload.
+      def range_slice
+        store = SliceHolder.new
+        write_ranges(store) { |ranges| ranges << [1, 1] }
+        store.slice
+      end
+
+      # Yields the writer of the ranges of ids, each `[first_id, last_id]`, one per slice, see #write_ranges.
       def upload_ranges(slice_batch_size, upload_id, &)
         upload(slice_size: 1, slice_batch_size: slice_batch_size, upload_id: upload_id) do |writer|
-          IOStreams.stream(writer).format(:array).schema(RANGE_SCHEMA).writer(:array, &)
+          write_ranges(writer, &)
         end
       end
       private :upload_ranges
+
+      # Yields the writer of ranges of ids to the supplied store of slices, see `IOStreams::Slice::Target`, which
+      # IOStreams writes as the typed rows of the :array format, without a header row, see RANGE_SCHEMA.
+      def write_ranges(store, &)
+        IOStreams.stream(store).format(:array).schema(RANGE_SCHEMA).writer(:array, &)
+      end
+      private :write_ranges
+
+      # Holds the slice that IOStreams writes to it, see #range_slice.
+      class SliceHolder
+        include IOStreams::Slice::Target
+
+        attr_reader :slice
+
+        def write_slice(slice)
+          @slice = slice
+        end
+      end
+      private_constant :SliceHolder
 
       # The fields of the `[first_id, last_id]` row of each range of ids, see #upload_ranges, without a header row, so
       # that each slice holds the range as it is, which a worker passes to `#perform` as it is.

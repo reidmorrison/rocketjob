@@ -328,40 +328,35 @@ module Batch
 
       describe "#check_record_upload" do
         let(:schema) { {"fields" => [{"name" => "first_id", "type" => "integer"}, {"name" => "last_id", "type" => "integer"}]} }
+        let(:ranges) { RocketJob::Sliced::Input.new(collection_name: "rocket_job.inputs.check_record_upload").range_slice }
+
+        # Returns [ArgumentError] that the category of the supplied properties raises for the upload of a range.
+        def range_error(**properties)
+          assert_raises(ArgumentError) { RocketJob::Category::Input.new(**properties).check_record_upload("a Range", ranges) }
+        end
 
         it "accepts a range into a category without a format" do
-          assert_nil RocketJob::Category::Input.new.check_record_upload("a Range")
+          RocketJob::Category::Input.new.check_record_upload("a Range", ranges)
         end
 
         it "accepts a range in a format without a header row, whose schema names its values in order" do
           [{format: :json, schema: schema}, {format: :hash, schema: schema},
            {format: :csv, schema: schema.merge("header" => false)}].each do |properties|
-            assert_nil RocketJob::Category::Input.new(**properties).check_record_upload("a Range")
+            RocketJob::Category::Input.new(**properties).check_record_upload("a Range", ranges)
           end
         end
 
         it "raises for a range in a format that reads the header row of a file" do
-          error = assert_raises(ArgumentError) do
-            RocketJob::Category::Input.new(format: :csv, schema: schema).check_record_upload("a Range")
-          end
-          assert_equal "Input category main: cannot upload a Range in the :csv format, which reads the header row of " \
-                       "a file. Upload it into a category without a format", error.message
+          assert_equal "Input category main: cannot upload a Range in the :csv format. It reads the header row of a " \
+                       "file. Upload it into a category without a format", range_error(format: :csv, schema: schema).message
         end
 
-        it "raises for a range in a format without a schema, which would name its values" do
-          %i[json hash].each do |format|
-            error = assert_raises(ArgumentError) do
-              RocketJob::Category::Input.new(format: format).check_record_upload("a Range")
-            end
-            assert_equal "Input category main: cannot upload a Range in the #{format.inspect} format without a " \
-                         "schema to name its values. Upload it into a category without a format", error.message
+        it "raises what IOStreams raises for a range that it cannot read by the schema, such as without one" do
+          [{format: :json}, {format: :hash}, {format: :json, schema: schema.merge("fieldsMatch" => "subset")}].each do |properties|
+            message = range_error(**properties).message
+
+            assert message.start_with?("Input category main: cannot upload a Range in the #{properties[:format].inspect} format. "), message
           end
-        end
-
-        it "raises for a range in a format whose schema does not name its values in order" do
-          category = RocketJob::Category::Input.new(format: :json, schema: schema.merge("fieldsMatch" => "subset"))
-
-          assert_raises(ArgumentError) { category.check_record_upload("a Range") }
         end
       end
 

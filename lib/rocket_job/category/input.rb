@@ -351,18 +351,17 @@ module RocketJob
       end
 
       # Raises ArgumentError when this category cannot parse the records of the supplied kind of object, such as a range,
-      # whose records are `[first_id, last_id]`, rather than the rows of a file. In a category with a format, IOStreams
-      # reads each of them by the fields of this category's schema, in order, see #parse_records, so its format must not
-      # read a header row, as CSV does, and its schema must name the values in order, see
-      # `IOStreams::Schema#check_fields_in_order`. Otherwise every slice would fail once a worker parsed it. The rows of
-      # a query are written in the format instead, see #copy_rows.
-      def check_record_upload(kind)
+      # whose records are `[first_id, last_id]`, rather than the rows of a file, as a worker parses the supplied slice of
+      # them, see #parse_records: in a format that reads the header row of a file, such as CSV, or when IOStreams cannot
+      # read them by this category's schema, such as without one. Otherwise every slice would fail once a worker parsed
+      # it. The rows of a query are written in the format instead, see #copy_rows.
+      def check_record_upload(kind, slice)
         return unless tabular?
-        return tabular_schema.check_fields_in_order if schema.present? && !tabular.header?
+        raise(ArgumentError, "It reads the header row of a file. Upload it into a category without a format") if tabular.header?
 
-        problem = tabular.header? ? ", which reads the header row of a file" : " without a schema to name its values"
-        raise(ArgumentError, "Input category #{name}: cannot upload #{kind} in the #{format.inspect} format#{problem}. " \
-                             "Upload it into a category without a format")
+        parse_records(slice) { nil }
+      rescue ArgumentError => e
+        raise(ArgumentError, "Input category #{name}: cannot upload #{kind} in the #{format.inspect} format. #{e.message}")
       end
 
       # Yields to upload a file into this category, see RocketJob::Batch::IO#upload. When the upload raises, its records
