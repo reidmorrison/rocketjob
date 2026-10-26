@@ -139,10 +139,10 @@ same Hash for each line, so most jobs need no change, but:
   rows are not lines, such as Parquet, still upload each record as it is. In the `:array` format the
   first Array that the block writes is the header row, by which `#perform` receives each row after
   it as a Hash, where v7 uploaded it as a record.
-* A spreadsheet, such as `.xlsx`, uploaded into a category without a format raises
-  `ArgumentError`, since its rows are not lines of text. v7 uploaded the lines of its CSV text,
-  header line included. Give the category a format, such as `:auto`, so that `#perform` receives
-  each row as a Hash.
+* A spreadsheet, such as `.xlsx`, uploaded into a category without a format is still uploaded as
+  the CSV text of each row, header row included, as v7 did, but a cell that holds a line break now
+  stays in its row, where v7 split it into two records. Give the category a format, such as
+  `:auto`, so that `#perform` receives each row as a Hash.
 * An Active Record or Mongoid query uploaded into a category with a format, such as CSV or JSON, is
   uploaded in that format, after the names of its columns, so `#perform` receives each row as a
   Hash, where v7 raised `ArgumentError` in a format with a header row. Without a format it is

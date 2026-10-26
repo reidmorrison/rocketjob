@@ -182,7 +182,7 @@ module Batch
             job.upload(csv_file)
             slice = job.input.first
 
-            assert_equal :lines, slice.records.format
+            assert_equal :text, slice.records.format
             assert_equal [1, 2, 3, 4], Array.new(4) { |index| slice.line_number_at(index) }
             assert_equal [1, 2, 3, 4], Array.new(4) { |index| slice.record_number_at(index) }
           end
@@ -242,7 +242,23 @@ module Batch
             document = Hash.from_bson(BSON::ByteBuffer.new(Zlib::Inflate.inflate(stored.data)))
 
             assert_equal RocketJob::Sliced::Slice::ROWS_GUARD, document["r"]
-            assert_equal "lines", document["s"]["format"]
+            assert_equal "text", document["s"]["format"]
+          end
+
+          it "is stored as the CSV text of each row of a spreadsheet, its header row too, as Rocket Job 7 uploaded it" do
+            job.input_category.slice_size = 10
+            spreadsheet = IOStreams.path(File.dirname(__FILE__), "files", "multiline_cell.xlsx")
+            rows        = ["first column,second column,third column", %(data 1,data 2,"more\ndata")]
+
+            assert_equal 2, job.upload(spreadsheet)
+            slice = job.input.first
+
+            assert_equal rows, slice.to_a, "A cell that holds a line break stays in its row"
+            assert_equal [nil, nil], [slice.line_number_at(0), slice.line_number_at(1)]
+
+            job.perform_now
+
+            assert_equal rows, job.output.flat_map(&:to_a)
           end
         end
 

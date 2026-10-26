@@ -17,6 +17,8 @@ gem "rake"
 gem "rubyzip", platform: :ruby
 # BZip2 file support
 gem "bzip2-ffi"
+# Excel spreadsheet support, for reading `.xlsx` files
+gem "creek"
 
 # v1.8.9 blows up with `NoMethodError: undefined method 'deep_merge!' for {}:Concurrent::Hash` on JRuby
 # gem "i18n", "1.8.7"

@@ -209,14 +209,15 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   row it raised `ArgumentError`. Without a format, the value of each row of one column, or an Array of its values, is
   uploaded as before.
 - IOStreams writes the slices of every upload of a file or a query, and of a `Range`, see `IOStreams::Slice::Target`:
-  the lines of a file in its format, the lines of a file without a format as they are, in the IOStreams `:lines`
-  format, also for a file named `.csv`, the typed records of a file in the `:hash` or Parquet format, or the rows of
+  the lines of a file in its format, the text of each row of a file without a format as it is, in the IOStreams
+  `:text` format, also for a file named `.csv`, the typed records of a file in the `:hash` or Parquet format, or the rows of
   the `:array` format, the rows of a query, and one `[first_id, last_id]` per slice for a range. Each slice holds its
   rows as an `IOStreams::Slice`, with the record number of each one, and for the lines of a file their line numbers, so
   a worker of Rocket Job 7 fails such a slice rather than processing none of it. The records that the block of `upload`
   writes into a category without a format, which can be any object, are still stored as they are, as Rocket Job 7
   stored them, as are those of `upload_slice`. A spreadsheet, such as `.xlsx`, uploaded into a category without a
-  format raises `ArgumentError`, since its rows are not lines: give the category a format, such as `:auto`.
+  format is uploaded as the CSV text of each row, its header row too, as Rocket Job 7 uploaded it, but a cell that
+  holds a line break stays in its row, where Rocket Job 7 split it into two records.
 - The block of `upload` into an input category in the `:array` format writes its header row first, as a file in that
   format holds it, so that `#perform` receives each row after it as a Hash of the columns. Each Array was uploaded as
   a record.

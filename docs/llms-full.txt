@@ -2710,8 +2710,9 @@ not those that an open transaction of the caller wrote. The query stays open unt
 uploaded, so upload a very large table in batches. A relation, and its batches, need Active Record
 7.2 or later.
 
-A database whose driver cannot stream a query, such as MySQL with `trilogy`, raises
-`ArgumentError`. Upload the batches of the relation instead, which are read on the connection of the
+On JRuby, PostgreSQL, MySQL and SQLite stream a query with the adapters of AR-JDBC, see
+[JRuby](https://iostreams.reidmorrison.com/queries#jruby). A database whose driver cannot stream a
+query, such as MySQL with `trilogy`, raises `ArgumentError`. Upload the batches of the relation instead, which are read on the connection of the
 caller. The batches upload the columns that the relation selects, so select them before
 `in_batches`. Batches whose relation selects no columns raise `ArgumentError`, rather than upload
 every column:
@@ -6093,10 +6094,10 @@ same Hash for each line, so most jobs need no change, but:
   rows are not lines, such as Parquet, still upload each record as it is. In the `:array` format the
   first Array that the block writes is the header row, by which `#perform` receives each row after
   it as a Hash, where v7 uploaded it as a record.
-* A spreadsheet, such as `.xlsx`, uploaded into a category without a format raises
-  `ArgumentError`, since its rows are not lines of text. v7 uploaded the lines of its CSV text,
-  header line included. Give the category a format, such as `:auto`, so that `#perform` receives
-  each row as a Hash.
+* A spreadsheet, such as `.xlsx`, uploaded into a category without a format is still uploaded as
+  the CSV text of each row, header row included, as v7 did, but a cell that holds a line break now
+  stays in its row, where v7 split it into two records. Give the category a format, such as
+  `:auto`, so that `#perform` receives each row as a Hash.
 * An Active Record or Mongoid query uploaded into a category with a format, such as CSV or JSON, is
   uploaded in that format, after the names of its columns, so `#perform` receives each row as a
   Hash, where v7 raised `ArgumentError` in a format with a header row. Without a format it is
@@ -6208,8 +6209,9 @@ streams, rather than with `find_each`, which built a model for each row, see
   `ArgumentError` for an earlier version: upgrade Active Record, or write the records in a block of
   `upload`, see below.
 * It needs a database whose driver streams a query: PostgreSQL,
-  MySQL with `mysql2`, or SQLite with `sqlite3`. Any other raises `ArgumentError`, such as MySQL with
-  `trilogy`, SQL Server, or SQLite on JRuby: upload the batches of the relation instead, selecting
+  MySQL with `mysql2`, or SQLite with `sqlite3`, or any of the three on JRuby with the adapters of
+  AR-JDBC. Any other raises `ArgumentError`, such as MySQL with `trilogy`, or SQL Server: upload the
+  batches of the relation instead, selecting
   the columns to upload before `in_batches`, without which they raise `ArgumentError`:
 
   ~~~ruby
