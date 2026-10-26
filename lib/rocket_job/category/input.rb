@@ -250,9 +250,11 @@ module RocketJob
       #   #parse_records.
       # - In a format whose rows are values, such as :hash or Parquet, the typed records of the file, as IOStreams reads
       #   them, in a store of the :hash format, or the rows of the :array format, see #typed_target.
-      # - Without a format, each line of the file, as it is, with its line, in the IOStreams :lines format, since the
-      #   records of this category are not parsed, see #parse, also when the file name gives a format, such as `.csv`.
-      #   A spreadsheet, whose rows IOStreams reads as CSV text, raises ArgumentError, since its rows are not lines.
+      # - Without a format, the text of each row of the file, as it is, in the IOStreams :text format, since the
+      #   records of this category are not parsed, see #parse, also when the file name gives a format, such as `.csv`:
+      #   each line of a file, with its line, and the CSV text of each row of a spreadsheet, its header row too, as
+      #   Rocket Job 7 uploaded it, which IOStreams splits by its quotes, so that a cell that holds a line break stays in
+      #   its row.
       #
       # When `validate_rows` is true, see #upload_validates_rows?, IOStreams also parses each row before its slice is
       # written, so that a file with a value that is not valid raises before it is processed. Each slice still holds
@@ -264,8 +266,8 @@ module RocketJob
         return slice_target(writer).copy_from(path, mode: :line, validate: validate) if formatted?
         return typed_target(writer).copy_from(path, mode: typed_mode, validate: validate) if tabular?
 
-        # The :lines format holds each line as it is, also when the file name gives a format, such as `.csv`.
-        IOStreams.stream(writer).copy_from(path.format(:lines), mode: :line)
+        # The :text format holds the text of each row as it is, also when the file name gives a format, such as `.csv`.
+        IOStreams.stream(writer).copy_from(path.format(:text), mode: :line)
       end
 
       # Writes the rows of the supplied stream of a query, such as of an Active Record relation, see `IOStreams.stream`,
@@ -471,11 +473,11 @@ module RocketJob
       end
 
       # Returns [true|false] whether the rows of the supplied slice are each parsed on their own, see #parse_rows, rather
-      # than read by IOStreams by the header row and format that the slice carries: the lines of a file without a
-      # format, in the :lines format, the rows of a query in a category without a format, and the typed rows of a slice
+      # than read by IOStreams by the header row and format that the slice carries: the rows of a file without a
+      # format, in the :text format, the rows of a query in a category without a format, and the typed rows of a slice
       # without a header row, such as the ranges of a Range.
       def rows_parsed_alone?(slice)
-        return true if slice.format == :lines || !tabular?
+        return true if slice.format == :text || !tabular?
         return false if IOStreams::Tabular.parser_class(slice.format).value_form != :typed
 
         slice.header.nil?
