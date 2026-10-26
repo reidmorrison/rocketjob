@@ -472,13 +472,11 @@ module RocketJob
 
       # Returns [true|false] whether the rows of the supplied slice are each parsed on their own, see #parse_rows, rather
       # than read by IOStreams by the header row and format that the slice carries: the lines of a file without a
-      # format, in the :lines format, the rows of a query in a category without a format, and the typed rows of a slice
-      # without a header row, such as the ranges of a Range.
+      # format, in the :lines format, and the rows of a slice in a category without a format, such as those of a query
+      # or the ranges of a Range. IOStreams reads every other slice, also one without a header row, such as the typed
+      # rows of the :array format, by the fields of this category's schema, in order.
       def rows_parsed_alone?(slice)
-        return true if slice.format == :lines || !tabular?
-        return false if IOStreams::Tabular.parser_class(slice.format).value_form != :typed
-
-        slice.header.nil?
+        slice.format == :lines || !tabular?
       end
 
       # Yields the record of each row of the supplied slice, see #rows_parsed_alone?, as `#perform` receives it, see

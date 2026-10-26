@@ -475,6 +475,36 @@ module Batch
           assert_equal ["Jack,21", 5], parse_records(RocketJob::Category::Input.new, ["Jack,21", 5])
         end
 
+        describe "the typed rows of a slice without a header row" do
+          let(:in_order) { schema.merge("fieldsMatch" => "exact") }
+          let(:rows) { IOStreams::Slice.new([%w[Jack 21], %w[Jill 22]], format: :array) }
+
+          it "reads every row by the fields of the schema, in order" do
+            category = RocketJob::Category::Input.new(format: :array, schema: in_order)
+
+            assert_equal [{"name" => "Jack", "age" => 21}, {"name" => "Jill", "age" => 22}], parse_records(category, rows)
+          end
+
+          it "raises without a schema, which would name their columns, rather than reading the first row as the header row" do
+            error = assert_raises(ArgumentError) { parse_records(RocketJob::Category::Input.new(format: :array), rows) }
+
+            assert_includes error.message, "set one, whose fields name them"
+          end
+
+          it "keeps every row of a category without a format, such as the ranges of a Range" do
+            ranges = IOStreams::Slice.new([[1, 100], [101, 200]], format: :array)
+
+            assert_equal [[1, 100], [101, 200]], parse_records(RocketJob::Category::Input.new, ranges)
+          end
+
+          it "reads the records of the :hash format by the schema" do
+            category = RocketJob::Category::Input.new(format: :hash, schema: schema)
+            records  = IOStreams::Slice.new([{"name" => "Jack", "age" => 21}], format: :hash)
+
+            assert_equal [{"name" => "Jack", "age" => 21}], parse_records(category, records)
+          end
+        end
+
         it "raises for a record that cannot be read, after yielding the records before it" do
           category = RocketJob::Category::Input.new(format: :csv, schema: schema)
           rows     = IOStreams::Slice.new(["Jack,21", "Jill,x"], header: %w[name age], format: :csv)
