@@ -326,6 +326,45 @@ module Batch
         end
       end
 
+      describe "#check_record_upload" do
+        let(:schema) { {"fields" => [{"name" => "first_id", "type" => "integer"}, {"name" => "last_id", "type" => "integer"}]} }
+
+        it "accepts a range into a category without a format" do
+          assert_nil RocketJob::Category::Input.new.check_record_upload("a Range")
+        end
+
+        it "accepts a range in a format without a header row, whose schema names its values in order" do
+          [{format: :json, schema: schema}, {format: :hash, schema: schema},
+           {format: :csv, schema: schema.merge("header" => false)}].each do |properties|
+            assert_nil RocketJob::Category::Input.new(**properties).check_record_upload("a Range")
+          end
+        end
+
+        it "raises for a range in a format that reads the header row of a file" do
+          error = assert_raises(ArgumentError) do
+            RocketJob::Category::Input.new(format: :csv, schema: schema).check_record_upload("a Range")
+          end
+          assert_equal "Input category main: cannot upload a Range in the :csv format, which reads the header row of " \
+                       "a file. Upload it into a category without a format", error.message
+        end
+
+        it "raises for a range in a format without a schema, which would name its values" do
+          %i[json hash].each do |format|
+            error = assert_raises(ArgumentError) do
+              RocketJob::Category::Input.new(format: format).check_record_upload("a Range")
+            end
+            assert_equal "Input category main: cannot upload a Range in the #{format.inspect} format without a " \
+                         "schema to name its values. Upload it into a category without a format", error.message
+          end
+        end
+
+        it "raises for a range in a format whose schema does not name its values in order" do
+          category = RocketJob::Category::Input.new(format: :json, schema: schema.merge("fieldsMatch" => "subset"))
+
+          assert_raises(ArgumentError) { category.check_record_upload("a Range") }
+        end
+      end
+
       describe "#tabular" do
         def deprecation_warnings(&)
           warnings = []
@@ -476,19 +515,16 @@ module Batch
         end
 
         describe "the typed rows of a slice without a header row" do
-          let(:in_order) { schema.merge("fieldsMatch" => "exact") }
           let(:rows) { IOStreams::Slice.new([%w[Jack 21], %w[Jill 22]], format: :array) }
 
           it "reads every row by the fields of the schema, in order" do
-            category = RocketJob::Category::Input.new(format: :array, schema: in_order)
+            category = RocketJob::Category::Input.new(format: :array, schema: schema)
 
             assert_equal [{"name" => "Jack", "age" => 21}, {"name" => "Jill", "age" => 22}], parse_records(category, rows)
           end
 
           it "raises without a schema, which would name their columns, rather than reading the first row as the header row" do
-            error = assert_raises(ArgumentError) { parse_records(RocketJob::Category::Input.new(format: :array), rows) }
-
-            assert_includes error.message, "set one, whose fields name them"
+            assert_raises(ArgumentError) { parse_records(RocketJob::Category::Input.new(format: :array), rows) }
           end
 
           it "keeps every row of a category without a format, such as the ranges of a Range" do

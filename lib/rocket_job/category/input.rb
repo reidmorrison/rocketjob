@@ -351,14 +351,18 @@ module RocketJob
       end
 
       # Raises ArgumentError when this category cannot parse the records of the supplied kind of object, such as a range,
-      # whose records are `[first_id, last_id]`, rather than the rows of a file: in a format whose header row is still
-      # to be read, such as CSV, see #parse_record. Otherwise every slice would fail once a worker parsed it. The rows of
+      # whose records are `[first_id, last_id]`, rather than the rows of a file. In a category with a format, IOStreams
+      # reads each of them by the fields of this category's schema, in order, see #parse_records, so its format must not
+      # read a header row, as CSV does, and its schema must name the values in order, see
+      # `IOStreams::Schema#check_fields_in_order`. Otherwise every slice would fail once a worker parsed it. The rows of
       # a query are written in the format instead, see #copy_rows.
       def check_record_upload(kind)
-        return unless tabular? && tabular.header?
+        return unless tabular?
+        return tabular_schema.check_fields_in_order if schema.present? && !tabular.header?
 
-        raise(ArgumentError, "Input category #{name}: cannot upload #{kind} in the #{format.inspect} format, which " \
-                             "reads the header row of a file. Upload it into a category without a format")
+        problem = tabular.header? ? ", which reads the header row of a file" : " without a schema to name its values"
+        raise(ArgumentError, "Input category #{name}: cannot upload #{kind} in the #{format.inspect} format#{problem}. " \
+                             "Upload it into a category without a format")
       end
 
       # Yields to upload a file into this category, see RocketJob::Batch::IO#upload. When the upload raises, its records
@@ -473,8 +477,9 @@ module RocketJob
       # Returns [true|false] whether the rows of the supplied slice are each parsed on their own, see #parse_rows, rather
       # than read by IOStreams by the header row and format that the slice carries: the lines of a file without a
       # format, in the :lines format, and the rows of a slice in a category without a format, such as those of a query
-      # or the ranges of a Range. IOStreams reads every other slice, also one without a header row, such as the typed
-      # rows of the :array format, by the fields of this category's schema, in order.
+      # or the ranges of a Range. IOStreams reads every other slice by this category's schema, as the slice says: by its
+      # header row, by the keys of its records, such as those of the :hash format, or, without either, such as the
+      # typed rows of the :array format, by the fields of the schema in order.
       def rows_parsed_alone?(slice)
         slice.format == :lines || !tabular?
       end

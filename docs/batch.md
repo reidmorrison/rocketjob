@@ -291,6 +291,11 @@ job.upload(1_000_000..1)
 Each integer counts as one record in the job's `record_count`, so `percent_complete` follows the ranges
 as they are processed.
 
+In an input category without a format, `#perform` receives each `[first_id, last_id]` as it is. In a
+format without a header row, such as JSON, the category's schema names the two values, in order, so
+that `#perform` receives a Hash of them. `upload` raises `ArgumentError` for a range in a format
+that reads a header row, such as CSV, or without a schema.
+
 `upload_arel`, `upload_mongo_query`, `upload_integer_range` and
 `upload_integer_range_in_reverse_order`, which uploaded a query or a range before `upload` accepted
 them, are removed in v8, see [Upgrading to v8](upgrading.html#removed).

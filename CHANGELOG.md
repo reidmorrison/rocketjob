@@ -371,7 +371,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
     by the time limit of a transaction.
 - `upload` of a query or a range raises `ArgumentError` for an input category whose format reads the header row of a
   file, such as `format: :csv`, since its records are values rather than lines. Previously they were uploaded, and
-  every slice failed when a worker parsed it.
+  every slice failed when a worker parsed it. A range raises the same way in a format without a header row, such as
+  JSON, unless the category has a schema whose fields name its two values in order.
 - `upload` of a Mongoid query leaves the query as it was. Previously it changed the fields that the query loads, so
   after `job.upload(criteria, columns: [:zip_code])`, `criteria.to_a` loaded only `_id` and `zip_code`.
 - When an upload raises, only the slices that it stored are removed, so the slices of an earlier upload into the same
