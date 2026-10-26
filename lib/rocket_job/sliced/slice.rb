@@ -324,9 +324,10 @@ module RocketJob
         raise(IndexError, "index #{index} outside of the records of the slice: #{-count}...#{count}")
       end
 
-      # Returns [IOStreams::Slice] the supplied rows, with the header row and format of the supplied rows of a file.
+      # Returns [IOStreams::Slice] the supplied rows, described as the supplied rows of a file are, such as by their header
+      # row and format, see IOStreams::Slice#with_rows.
       def rows_like(slice, rows)
-        IOStreams::Slice.new(rows, header: slice.header, format: slice.format)
+        slice.with_rows(rows)
       end
 
       # Returns [Hash] the document that holds the records: the rows of a file as the Hash that they return, see

@@ -947,6 +947,66 @@ module Batch
           assert_equal [["Jack", 21]], slice.to_a
           assert_equal [{"name" => "Jack", "age" => 21}], records
         end
+
+        # The schema renders the values of these records when they are uploaded, so the workers read them as MongoDB
+        # stored them, without casting them again: a duration is stored as its seconds and a date as a Time, which the
+        # schema would not read back as the same values, and a record whose values are all blank is kept.
+        describe "read back from MongoDB" do
+          let(:schema) do
+            {
+              "fields" => [
+                {"name" => "name"},
+                {"name" => "wait", "type" => "duration"},
+                {"name" => "born", "type" => "date"}
+              ]
+            }
+          end
+          let(:stored) do
+            [{"name" => "Jack", "wait" => 300, "born" => Time.utc(2000, 1, 2)}, {"name" => nil, "wait" => nil, "born" => nil}]
+          end
+
+          # Returns [Array] the records that the workers parse from the slices of the job saved in MongoDB.
+          def parsed_records
+            job.save!
+            saved   = TabularJob.find(job.id)
+            records = []
+            saved.input.each { |slice| saved.input_category.parse_records(slice.records) { |record| records << record } }
+            records
+          end
+
+          it "parses each Hash of the :hash format as it was stored" do
+            job.input_category.format = :hash
+            job.input_category.schema = schema
+
+            job.upload do |io|
+              io << {"name" => "Jack", "wait" => "PT5M", "born" => Date.new(2000, 1, 2)}
+              io << {"name" => nil, "wait" => nil, "born" => nil}
+            end
+
+            assert_equal stored, parsed_records
+          end
+
+          it "parses each Array of the :array format by the header row of the schema, as it was stored" do
+            job.input_category.format = :array
+            job.input_category.schema = schema
+
+            job.upload do |io|
+              io << ["Jack", "PT5M", Date.new(2000, 1, 2)]
+              io << [nil, nil, nil]
+            end
+
+            assert_equal stored, parsed_records
+          end
+
+          it "is processed by perform" do
+            job.input_category.format = :hash
+            job.input_category.schema = schema
+            job.upload { |io| io << {"name" => "Jack", "wait" => "PT5M", "born" => Date.new(2000, 1, 2)} }
+
+            assert_equal [stored.first], output_records
+            assert_predicate job, :completed?, job.state
+          end
+        end
       end
 
       describe "a schema in place of the column options" do
