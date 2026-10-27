@@ -12,6 +12,8 @@ gem "appraisal"
 gem "rake"
 gem "rubyzip", platform: :ruby
 gem "bzip2-ffi"
+# Excel spreadsheet support, for reading `.xlsx` files
+gem "creek"
 
 group :development do
   gem "rubocop"
