@@ -118,6 +118,17 @@ module Sliced
         end
       end
 
+      describe "#range_slice" do
+        it "holds one range, as an upload of a range stores each one" do
+          input.upload_integer_range(1, 1)
+          stored = input.first.records
+          sample = input.range_slice
+
+          assert_equal [[1, 1]], sample.rows
+          assert_equal [stored.header, stored.format, stored.blank_rows?], [sample.header, sample.format, sample.blank_rows?]
+        end
+      end
+
       describe "#upload_integer_range" do
         before do
           input.slice_size = 10

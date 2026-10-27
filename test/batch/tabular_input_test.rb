@@ -367,11 +367,10 @@ module Batch
       end
 
       describe "without a schema" do
-        it "rejects the options of reading lines, since the lines are read in the format of the category" do
+        it "rejects the options of reading lines, which v8 removed, before anything is uploaded" do
           error = assert_raises(ArgumentError) { upload(".csv", csv, delimiter: "\r\n") }
 
-          assert_equal "Input category main: :delimiter cannot be supplied when uploading a file in the :csv format, " \
-                       "whose lines are read in it", error.message
+          assert_match(/\Adelimiter: was removed in Rocket Job v8, which reads the lines of a file itself/, error.message)
           assert_equal 0, job.input.count
         end
 
@@ -539,12 +538,11 @@ module Batch
           assert_equal [typed], output_records
         end
 
-        it "rejects the options of reading lines, since the lines are read in the format of the category" do
+        it "rejects the options of reading lines, which v8 removed, before anything is uploaded" do
           job.input_category.format = :auto
           error = assert_raises(ArgumentError) { upload(".csv", people, delimiter: "\r\n") }
 
-          assert_equal "Input category main: :delimiter cannot be supplied when uploading a file in the :csv format, " \
-                       "whose lines are read in it", error.message
+          assert_match(/\Adelimiter: was removed in Rocket Job v8, which reads the lines of a file itself/, error.message)
           assert_equal 0, job.input.count
           # The category is as it was, so that another file is read in its own format.
           assert_equal :auto, job.input_category.format
@@ -935,13 +933,79 @@ module Batch
           assert_equal records, job.input.first.to_a
         end
 
-        it "uploads each Array written to a block in the :array format as it is" do
+        it "uploads each Array written to a block in the :array format, after the first, its header row" do
           job.input_category.format = :array
           rows                      = [%w[name age], ["Jack", 21]]
 
-          assert_equal(2, job.upload { |io| rows.each { |row| io << row } })
+          assert_equal(1, job.upload { |io| rows.each { |row| io << row } })
 
-          assert_equal rows, job.input.first.to_a
+          slice   = job.input.first
+          records = []
+          job.input_category.parse_records(slice.records) { |record| records << record }
+
+          assert_equal %w[name age], slice.records.header
+          assert_equal [["Jack", 21]], slice.to_a
+          assert_equal [{"name" => "Jack", "age" => 21}], records
+        end
+
+        # The schema renders the values of these records when they are uploaded, so the workers read them as MongoDB
+        # stored them, without casting them again: a duration is stored as its seconds and a date as a Time, which the
+        # schema would not read back as the same values, and a record whose values are all blank is kept.
+        describe "read back from MongoDB" do
+          let(:schema) do
+            {
+              "fields" => [
+                {"name" => "name"},
+                {"name" => "wait", "type" => "duration"},
+                {"name" => "born", "type" => "date"}
+              ]
+            }
+          end
+          let(:stored) do
+            [{"name" => "Jack", "wait" => 300, "born" => Time.utc(2000, 1, 2)}, {"name" => nil, "wait" => nil, "born" => nil}]
+          end
+
+          # Returns [Array] the records that the workers parse from the slices of the job saved in MongoDB.
+          def parsed_records
+            job.save!
+            saved   = TabularJob.find(job.id)
+            records = []
+            saved.input.each { |slice| saved.input_category.parse_records(slice.records) { |record| records << record } }
+            records
+          end
+
+          it "parses each Hash of the :hash format as it was stored" do
+            job.input_category.format = :hash
+            job.input_category.schema = schema
+
+            job.upload do |io|
+              io << {"name" => "Jack", "wait" => "PT5M", "born" => Date.new(2000, 1, 2)}
+              io << {"name" => nil, "wait" => nil, "born" => nil}
+            end
+
+            assert_equal stored, parsed_records
+          end
+
+          it "parses each Array of the :array format by the header row of the schema, as it was stored" do
+            job.input_category.format = :array
+            job.input_category.schema = schema
+
+            job.upload do |io|
+              io << ["Jack", "PT5M", Date.new(2000, 1, 2)]
+              io << [nil, nil, nil]
+            end
+
+            assert_equal stored, parsed_records
+          end
+
+          it "is processed by perform" do
+            job.input_category.format = :hash
+            job.input_category.schema = schema
+            job.upload { |io| io << {"name" => "Jack", "wait" => "PT5M", "born" => Date.new(2000, 1, 2)} }
+
+            assert_equal [stored.first], output_records
+            assert_predicate job, :completed?, job.state
+          end
         end
       end
 

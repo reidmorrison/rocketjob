@@ -424,6 +424,21 @@ module Sliced
           assert_equal :csv, saved.format
         end
 
+        it "keep how they are read when a changed copy of typed rows is assigned back, such as rows not to cast again" do
+          slice.records = IOStreams::Slice.new([["Jack", 21], [nil, nil]], header: %w[name age], format: :array,
+                                                                            typed: true, blank_rows: false)
+          slice.save!
+          found         = slices.find(slice.id)
+          records       = found.to_a.dup
+          records[0]    = ["Jack", 22]
+          found.records = records
+          found.save!
+          saved = slices.find(slice.id).records
+
+          assert_equal [["Jack", 22], [nil, nil]], saved.rows
+          assert_equal [%w[name age], :array, true, false], [saved.header, saved.format, saved.typed?, saved.blank_rows?]
+        end
+
         it "are replaced as they are by records that are not rows" do
           slice.records = rows
           slice.records = [{"name" => "Jack"}]

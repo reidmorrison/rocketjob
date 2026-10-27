@@ -326,6 +326,40 @@ module Batch
         end
       end
 
+      describe "#check_record_upload" do
+        let(:schema) { {"fields" => [{"name" => "first_id", "type" => "integer"}, {"name" => "last_id", "type" => "integer"}]} }
+        let(:ranges) { RocketJob::Sliced::Input.new(collection_name: "rocket_job.inputs.check_record_upload").range_slice }
+
+        # Returns [ArgumentError] that the category of the supplied properties raises for the upload of a range.
+        def range_error(**properties)
+          assert_raises(ArgumentError) { RocketJob::Category::Input.new(**properties).check_record_upload("a Range", ranges) }
+        end
+
+        it "accepts a range into a category without a format" do
+          RocketJob::Category::Input.new.check_record_upload("a Range", ranges)
+        end
+
+        it "accepts a range in a format without a header row, whose schema names its values in order" do
+          [{format: :json, schema: schema}, {format: :hash, schema: schema},
+           {format: :csv, schema: schema.merge("header" => false)}].each do |properties|
+            RocketJob::Category::Input.new(**properties).check_record_upload("a Range", ranges)
+          end
+        end
+
+        it "raises for a range in a format that reads the header row of a file" do
+          assert_equal "Input category main: cannot upload a Range in the :csv format. It reads the header row of a " \
+                       "file. Upload it into a category without a format", range_error(format: :csv, schema: schema).message
+        end
+
+        it "raises what IOStreams raises for a range that it cannot read by the schema, such as without one" do
+          [{format: :json}, {format: :hash}, {format: :json, schema: schema.merge("fieldsMatch" => "subset")}].each do |properties|
+            message = range_error(**properties).message
+
+            assert message.start_with?("Input category main: cannot upload a Range in the #{properties[:format].inspect} format. "), message
+          end
+        end
+      end
+
       describe "#tabular" do
         def deprecation_warnings(&)
           warnings = []
@@ -405,23 +439,39 @@ module Batch
         end
       end
 
-      describe "#slices?" do
-        it "uploads the lines of a format of text in slices, also without a schema" do
-          %i[csv psv json fixed].each do |format|
-            assert_predicate RocketJob::Category::Input.new(format: format), :slices?, format
-          end
+      describe "#write_slices" do
+        # A store of slices that keeps each slice that IOStreams writes to it.
+        let(:store) do
+          Class.new do
+            include IOStreams::Slice::Target
+
+            attr_reader :slices
+
+            def write_slice(slice)
+              (@slices ||= []) << slice
+            end
+          end.new
         end
 
-        it "uploads each record as it is without a format, or in a format whose rows are Ruby objects or not lines" do
-          [nil, :hash, :array, :parquet].each do |format|
-            refute_predicate RocketJob::Category::Input.new(format: format), :slices?, format.inspect
-          end
+        # Returns [Array] the header row, format and rows of the slice that the supplied category writes the records
+        # that the block writes to.
+        def written(category, &)
+          category.write_slices(store, &)
+          slice = store.slices.first
+          [slice.header, slice.format, slice.rows]
+        end
+
+        it "holds the lines of a format of text after the header row, also without a schema" do
+          assert_equal [%w[name], :csv, %w[Jack]], written(RocketJob::Category::Input.new(format: :csv)) { |io| io << "name" << "Jack" }
+        end
+
+        it "holds the records of a format whose rows are Ruby objects as they are" do
+          assert_equal [nil, :hash, [{"name" => "Jack"}]],
+                       written(RocketJob::Category::Input.new(format: :hash)) { |io| io << {"name" => "Jack"} }
         end
 
         it "reads a format of :auto from the file name, otherwise CSV" do
-          assert_predicate RocketJob::Category::Input.new(format: :auto), :slices?
-          assert_predicate RocketJob::Category::Input.new(format: :auto, file_name: "a.json"), :slices?
-          refute_predicate RocketJob::Category::Input.new(format: :auto, file_name: "a.parquet"), :slices?
+          assert_equal [%w[name], :csv, %w[Jack]], written(RocketJob::Category::Input.new(format: :auto)) { |io| io << "name" << "Jack" }
         end
       end
 
@@ -457,6 +507,33 @@ module Batch
 
         it "keeps the records of a category without a format" do
           assert_equal ["Jack,21", 5], parse_records(RocketJob::Category::Input.new, ["Jack,21", 5])
+        end
+
+        describe "the typed rows of a slice without a header row" do
+          let(:rows) { IOStreams::Slice.new([%w[Jack 21], %w[Jill 22]], format: :array) }
+
+          it "reads every row by the fields of the schema, in order" do
+            category = RocketJob::Category::Input.new(format: :array, schema: schema)
+
+            assert_equal [{"name" => "Jack", "age" => 21}, {"name" => "Jill", "age" => 22}], parse_records(category, rows)
+          end
+
+          it "raises without a schema, which would name their columns, rather than reading the first row as the header row" do
+            assert_raises(ArgumentError) { parse_records(RocketJob::Category::Input.new(format: :array), rows) }
+          end
+
+          it "keeps every row of a category without a format, such as the ranges of a Range" do
+            ranges = IOStreams::Slice.new([[1, 100], [101, 200]], format: :array)
+
+            assert_equal [[1, 100], [101, 200]], parse_records(RocketJob::Category::Input.new, ranges)
+          end
+
+          it "reads the records of the :hash format by the schema" do
+            category = RocketJob::Category::Input.new(format: :hash, schema: schema)
+            records  = IOStreams::Slice.new([{"name" => "Jack", "age" => 21}], format: :hash)
+
+            assert_equal [{"name" => "Jack", "age" => 21}], parse_records(category, records)
+          end
         end
 
         it "raises for a record that cannot be read, after yielding the records before it" do

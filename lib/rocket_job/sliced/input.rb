@@ -1,7 +1,9 @@
 module RocketJob
   module Sliced
     class Input < Slices
-      # Uploads the records that the block writes, see Writer::Input.collect, and returns how many it wrote.
+      # Yields the store of slices of this input, see Writer::Input.collect, which IOStreams writes the slices of the
+      # upload to, see `IOStreams::Slice::Target`, or the records of a category without a format are written to one at
+      # a time, see Writer::Input#<<, and returns how many records they hold.
       #
       # When the upload raises, its slices are removed, and the slices of earlier uploads are kept: those of the
       # supplied `upload_id`, or when the collection already holds slices, of an id of its own, otherwise the whole
@@ -22,8 +24,9 @@ module RocketJob
       end
 
       # Uploads the documents of the supplied Mongoid criteria, read with the driver of MongoDB without building a model
-      # for each one: the value of the field of each document when one field is uploaded, by default its `_id`,
-      # otherwise an Array of the values of the fields. Returns how many it uploaded.
+      # for each one, as the rows of the fields, by default its `_id`, which the supplied input category writes, see
+      # Category::Input#write_rows: in its format, after the names of the fields, otherwise the value of the field of
+      # each document when one field is uploaded, or an Array of the values of the fields. Returns how many it uploaded.
       #
       # The documents are those that Mongoid's own query of the criteria returns, see `Mongoid::Contextual::Mongo#view`:
       # from the collection that Mongoid reads it from, of the class of the criteria and its subclasses only, rather
@@ -37,16 +40,18 @@ module RocketJob
       # The documents are read outside any session or transaction of the caller, so that a large upload is not bound by
       # the time limit of a transaction. Raises ArgumentError for a criteria of embedded documents, which are read
       # within the documents that embed them rather than queried.
-      def upload_mongo_query(criteria, columns: [], slice_batch_size: nil, upload_id: nil)
+      def upload_mongo_query(criteria, category:, columns: [], slice_batch_size: nil, upload_id: nil)
         columns = columns.blank? ? ["_id"] : columns.collect { |column| criteria.klass.database_field_name(column) }
         view    = mongo_query_view(criteria, columns)
         paths   = columns.collect { |column| column.split(".") }
 
-        upload(slice_batch_size: slice_batch_size, upload_id: upload_id) do |records|
-          # Drop down to the mongo driver level to avoid constructing a Model for each document returned
-          view&.each do |document|
-            record = paths.size == 1 ? mongo_value(document, paths.first) : paths.collect { |p| mongo_value(document, p) }
-            records << record
+        upload(slice_batch_size: slice_batch_size, upload_id: upload_id) do |writer|
+          category.write_rows(writer) do |rows|
+            rows.write_header(columns)
+            # Drop down to the mongo driver level to avoid constructing a Model for each document returned
+            view&.each do |document|
+              rows << paths.collect { |path| mongo_value(document, path) }
+            end
           end
         end
       end
@@ -54,14 +59,15 @@ module RocketJob
       # Uploads the rows of the supplied Active Record relation, which IOStreams reads as one query that the database
       # streams, without building a model for each row, see `IOStreams.stream`, or the rows of the batches that
       # `relation.in_batches(...)` returns, which IOStreams reads in those batches, for a database that cannot stream a
-      # query: the value of each row when it has one column, otherwise an Array of its values. A relation reads the
-      # supplied columns, by default the id, and batches read the columns that their relation selects. Returns how many
-      # it uploaded.
+      # query, which the supplied input category writes, see Category::Input#copy_rows: in its format, as a file of the
+      # query would hold them, otherwise the value of each row when it has one column, or an Array of its values. A
+      # relation reads the supplied columns, by default the id, and batches read the columns that their relation
+      # selects. Returns how many it uploaded.
       #
       # Raises ArgumentError for columns supplied with batches, whose relation selects the columns instead, and for
       # batches whose relation selects no columns, which would upload every column of each row, where a relation
       # uploads only the id.
-      def upload_arel(query, columns: nil, slice_batch_size: nil, upload_id: nil)
+      def upload_arel(query, category:, columns: nil, slice_batch_size: nil, upload_id: nil)
         if query.is_a?(ActiveRecord::Batches::BatchEnumerator)
           if columns.present?
             raise(ArgumentError, "Select the columns to upload before `in_batches`, rather than with `columns:`")
@@ -76,43 +82,82 @@ module RocketJob
         end
 
         stream = IOStreams.stream(query)
-        upload(slice_batch_size: slice_batch_size, upload_id: upload_id) do |records|
-          record = nil
-          stream.each(:array) do |row|
-            if record
-              records << record.call(row)
-            else
-              # The first row is the header row of the names of the columns.
-              record = row.size == 1 ? :first.to_proc : :itself.to_proc
-            end
-          end
+        upload(slice_batch_size: slice_batch_size, upload_id: upload_id) do |writer|
+          category.copy_rows(stream, writer)
         end
       end
 
+      # Uploads the supplied ids as one `[first_id, last_id]` record per slice, of up to `slice_size` ids each, which
+      # IOStreams writes to the slices as it is, without a format, see #upload_ranges.
       def upload_integer_range(start_id, last_id, slice_batch_size: 1_000, upload_id: nil)
-        # Each "record" is actually a range of Integers which makes up each slice
-        upload(slice_size: 1, slice_batch_size: slice_batch_size, upload_id: upload_id) do |records|
+        upload_ranges(slice_batch_size, upload_id) do |ranges|
           while start_id <= last_id
             end_id = start_id + slice_size - 1
             end_id = last_id if end_id > last_id
-            records << [start_id, end_id]
+            ranges << [start_id, end_id]
             start_id += slice_size
           end
         end
       end
 
+      # Uploads the supplied ids as #upload_integer_range does, starting with the last slice.
       def upload_integer_range_in_reverse_order(start_id, last_id, slice_batch_size: 1_000, upload_id: nil)
-        # Each "record" is actually a range of Integers which makes up each slice
-        upload(slice_size: 1, slice_batch_size: slice_batch_size, upload_id: upload_id) do |records|
+        upload_ranges(slice_batch_size, upload_id) do |ranges|
           end_id = last_id
           while end_id >= start_id
             first_id = end_id - slice_size + 1
             first_id = start_id if first_id < start_id
-            records << [first_id, end_id]
+            ranges << [first_id, end_id]
             end_id -= slice_size
           end
         end
       end
+
+      # Returns [IOStreams::Slice] a slice of one range of ids, written as #upload_ranges writes each one, so that an
+      # input category can check that it parses them before they are uploaded, see Category::Input#check_record_upload.
+      def range_slice
+        store = SliceHolder.new
+        write_ranges(store) { |ranges| ranges << [1, 1] }
+        store.slice
+      end
+
+      # Yields the writer of the ranges of ids, each `[first_id, last_id]`, one per slice, see #write_ranges.
+      def upload_ranges(slice_batch_size, upload_id, &)
+        upload(slice_size: 1, slice_batch_size: slice_batch_size, upload_id: upload_id) do |writer|
+          write_ranges(writer, &)
+        end
+      end
+      private :upload_ranges
+
+      # Yields the writer of ranges of ids to the supplied store of slices, see `IOStreams::Slice::Target`, which
+      # IOStreams writes as the typed rows of the :array format, without a header row, see RANGE_SCHEMA.
+      def write_ranges(store, &)
+        IOStreams.stream(store).format(:array).schema(RANGE_SCHEMA).writer(:array, &)
+      end
+      private :write_ranges
+
+      # Holds the slice that IOStreams writes to it, see #range_slice.
+      class SliceHolder
+        include IOStreams::Slice::Target
+
+        attr_reader :slice
+
+        def write_slice(slice)
+          @slice = slice
+        end
+      end
+      private_constant :SliceHolder
+
+      # The fields of the `[first_id, last_id]` row of each range of ids, see #upload_ranges, without a header row, so
+      # that each slice holds the range as it is, which a worker passes to `#perform` as it is.
+      RANGE_SCHEMA = {
+        "header" => false,
+        "fields" => [
+          {"name" => "first_id", "type" => "integer"},
+          {"name" => "last_id", "type" => "integer"}
+        ]
+      }.freeze
+      private_constant :RANGE_SCHEMA
 
       # Iterate over each failed record, if any
       # Since each slice can only contain 1 failed record, only the failed

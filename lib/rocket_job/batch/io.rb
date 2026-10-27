@@ -43,17 +43,6 @@ module RocketJob
       #     Or, an IO Stream that responds to: :read
       #     Or, an IOStreams path such as IOStreams::Paths::File, or IOStreams::Paths::S3
       #
-      #   delimiter[String]
-      #     Line / Record delimiter to use to break the stream up into records
-      #       Any string to break the stream up by
-      #       The records when saved will not include this delimiter
-      #     Default: nil
-      #       Automatically detect line endings and break up by line
-      #       Searches for the first "\r\n" or "\n" and then uses that as the
-      #       delimiter for all subsequent records
-      #     Only for an input category without a format, since the lines of a file in a format, such as CSV, are read
-      #     in it.
-      #
       #   validate_rows: [true | false]
       #     Whether to parse each row of the file in the input category's format, such as CSV, as it is uploaded, so
       #     that a file with a row that cannot be read, or with a value that is not valid for its field, is rejected
@@ -207,13 +196,9 @@ module RocketJob
           count =
             category.uploading do
               category.file_name = file_name if file_name
-              if category.slices?
-                # The block writes the lines of a file, which are read in slices, as the lines of a file are.
-                input_collection.upload(upload_id: rocketjob_upload_id) do |writer|
-                  category.write_slices(writer, validate_rows: validate_rows, &block)
-                end
-              else
-                input_collection.upload(upload_id: rocketjob_upload_id, &block)
+              # IOStreams writes the records that the block writes to the slices, as the category says.
+              input_collection.upload(upload_id: rocketjob_upload_id) do |writer|
+                category.write_slices(writer, validate_rows: validate_rows, &block)
               end
             end
           return rocketjob_add_record_count(count)
@@ -225,23 +210,27 @@ module RocketJob
         count =
           case object
           when Range
-            rocketjob_check_upload("a Range", ":category, or :slice_batch_size", category, file_options)
+            rocketjob_check_upload("a Range", ":category, or :slice_batch_size", file_options)
+            input_category(category).check_record_upload("a Range", input_collection.range_slice)
             rocketjob_upload_integer_range(input_collection, object, slice_batch_size || 1_000, rocketjob_upload_id)
           when Mongoid::Criteria
-            rocketjob_check_upload("a Mongoid::Criteria", ":category, :columns, or :slice_batch_size",
-                                   category, file_options)
-            input_collection.upload_mongo_query(object, columns: columns, slice_batch_size: slice_batch_size,
-                                                        upload_id: rocketjob_upload_id)
+            rocketjob_check_upload("a Mongoid::Criteria", ":category, :columns, or :slice_batch_size", file_options)
+            rocketjob_upload_query(category) do |input_category|
+              input_collection.upload_mongo_query(object, category: input_category, columns: columns,
+                                                          slice_batch_size: slice_batch_size, upload_id: rocketjob_upload_id)
+            end
           when ->(query) { rocketjob_active_record_query?(query) }
             if object.is_a?(ActiveRecord::Relation)
               rocketjob_check_upload("an ActiveRecord::Relation", ":category, :columns, or :slice_batch_size",
-                                     category, file_options)
+                                     file_options)
             else
               rocketjob_check_upload("the batches of an ActiveRecord::Relation", ":category, or :slice_batch_size",
-                                     category, file_options)
+                                     file_options)
             end
-            input_collection.upload_arel(object, columns: columns, slice_batch_size: slice_batch_size,
-                                                 upload_id: rocketjob_upload_id)
+            rocketjob_upload_query(category) do |input_category|
+              input_collection.upload_arel(object, category: input_category, columns: columns,
+                                                   slice_batch_size: slice_batch_size, upload_id: rocketjob_upload_id)
+            end
           else
             raise(ArgumentError, "Unknown keyword argument :columns when uploading a file") if columns
 
@@ -254,15 +243,9 @@ module RocketJob
               # Sets the format first when it is :auto, since the format determines whether there is a header line.
               path = category.upload_path(object, original_file_name: file_name)
 
-              if category.slices?
-                rocketjob_upload_slices(input_collection, category, path,
-                                        validate_rows:    validate_rows,
-                                        slice_batch_size: slice_batch_size, **args)
-              else
-                input_collection.upload(slice_batch_size: slice_batch_size, upload_id: rocketjob_upload_id) do |io|
-                  category.each_record(path, **args) { |record| io << record }
-                end
-              end
+              rocketjob_upload_slices(input_collection, category, path,
+                                      validate_rows:    validate_rows,
+                                      slice_batch_size: slice_batch_size)
             end
           end
         rocketjob_add_record_count(count)
@@ -396,6 +379,16 @@ module RocketJob
       REMOVED_UPLOAD_OPTION_NAMES = %i[allowed_columns required_columns skip_unknown cleanse_header].freeze
       private_constant :REMOVED_UPLOAD_OPTION_NAMES
 
+      # The options of #upload that read the lines of a file, which Rocket Job v8 removed, since it reads the lines
+      # itself: IOStreams detects their line endings, and the format of the input category reads a quoted value that
+      # holds line breaks, see #rocketjob_check_upload_file_options.
+      REMOVED_LINE_OPTION_NAMES = %i[delimiter buffer_size embedded_within].freeze
+      private_constant :REMOVED_LINE_OPTION_NAMES
+
+      # Where the upgrade guide says what replaces the options of #upload that read the lines of a file.
+      LINE_OPTIONS_GUIDE = "https://rocketjob.reidmorrison.com/upgrading.html#line-options-of-upload".freeze
+      private_constant :LINE_OPTIONS_GUIDE
+
       # Where the upgrade guide says what replaces `on_first`, which Rocket Job v8 removed.
       ON_FIRST_GUIDE = "https://rocketjob.reidmorrison.com/upgrading.html#replace-on_first".freeze
       private_constant :ON_FIRST_GUIDE
@@ -469,14 +462,25 @@ module RocketJob
               "Hashes, set the format of the input category, such as to :auto, see #{RocketJob::Category::Input::VALIDATE_ROWS_GUIDE}")
       end
 
-      # Raises ArgumentError for the options that describe the columns of the file, which Rocket Job v8 removed, see
-      # REMOVED_UPLOAD_OPTION_NAMES, also when nil, naming the schema that replaces them, rather than leaving IOStreams
-      # to reject them as options that it does not take.
+      # Raises ArgumentError for any option of #upload of a file that is not named, since IOStreams reads the file as the
+      # input category says: those that describe the columns of the file, see REMOVED_UPLOAD_OPTION_NAMES, naming the
+      # schema that replaces them, and those that read its lines, see REMOVED_LINE_OPTION_NAMES, which Rocket Job v8
+      # removed, also when nil, and any other.
       def rocketjob_check_upload_file_options(args)
         names = args.keys & REMOVED_UPLOAD_OPTION_NAMES
-        return if names.empty?
+        raise(ArgumentError, Category::Input.removed_options_message(names.collect { |name| "#{name}:" })) if names.any?
 
-        raise(ArgumentError, Category::Input.removed_options_message(names.collect { |name| "#{name}:" }))
+        names = args.keys & REMOVED_LINE_OPTION_NAMES
+        if names.any?
+          raise(ArgumentError, "#{names.collect { |name| "#{name}:" }.join(', ')} #{names.size == 1 ? 'was' : 'were'} " \
+                               "removed in Rocket Job v8, which reads the lines of a file itself: line endings are " \
+                               "detected, and the input category's format reads a quoted value with line breaks, see " \
+                               "#{LINE_OPTIONS_GUIDE}")
+        end
+        return if args.empty?
+
+        raise(ArgumentError, "Unknown keyword #{args.size == 1 ? 'argument' : 'arguments'} " \
+                             "#{args.keys.map(&:inspect).join(', ')} when uploading a file")
       end
 
       # Uploads the file that the supplied path reads into the supplied input category, which has a format, in the slices
@@ -484,9 +488,9 @@ module RocketJob
       # Category::Input#copy_slices.
       #
       # Returns [Integer] the number of records uploaded.
-      def rocketjob_upload_slices(input_collection, category, path, validate_rows:, slice_batch_size:, **args)
+      def rocketjob_upload_slices(input_collection, category, path, validate_rows:, slice_batch_size:)
         input_collection.upload(slice_batch_size: slice_batch_size, upload_id: rocketjob_upload_id) do |writer|
-          category.copy_slices(path, writer, validate_rows: validate_rows, **args)
+          category.copy_slices(path, writer, validate_rows: validate_rows)
         end
       end
 
@@ -515,14 +519,22 @@ module RocketJob
       end
 
       # Raises ArgumentError when an option that only applies to a file is supplied to upload the supplied kind of
-      # object, a range or a query, naming the options that it accepts, or when the input category of the supplied name
-      # cannot parse its records, see RocketJob::Category::Input#check_record_upload.
-      def rocketjob_check_upload(kind, accepts, category, file_options)
-        unless file_options.empty?
-          raise(ArgumentError, "Unknown keyword arguments when uploading #{kind}. Only accepts #{accepts}")
-        end
+      # object, a range or a query, naming the options that it accepts.
+      def rocketjob_check_upload(kind, accepts, file_options)
+        return if file_options.empty?
 
-        input_category(category).check_record_upload(kind)
+        raise(ArgumentError, "Unknown keyword arguments when uploading #{kind}. Only accepts #{accepts}")
+      end
+
+      # Yields the input category of the supplied name, which writes the rows of a query in its format, see
+      # RocketJob::Category::Input#copy_rows, restoring the format that an upload sets when the block raises, see
+      # RocketJob::Category::Input#uploading.
+      #
+      # Returns the result of the block.
+      def rocketjob_upload_query(category)
+        category = input_category(category)
+        category.check_upload
+        category.uploading { yield(category) }
       end
     end
   end

@@ -160,6 +160,33 @@ module Batch
             assert_equal gzip_file.read, result
           end
 
+          it "raises for the options that read the lines of a file, which v8 removed, before anything is uploaded" do
+            error = assert_raises(ArgumentError) { job.upload(text_file, delimiter: "\n", embedded_within: '"') }
+
+            assert_equal "delimiter:, embedded_within: were removed in Rocket Job v8, which reads the lines of a file " \
+                         "itself: line endings are detected, and the input category's format reads a quoted value " \
+                         "with line breaks, see https://rocketjob.reidmorrison.com/upgrading.html#line-options-of-upload",
+                         error.message
+            assert_match(/\Abuffer_size: was removed/, assert_raises(ArgumentError) { job.upload(text_file, buffer_size: 1) }.message)
+            assert_equal 0, job.input.count
+          end
+
+          it "raises for an option that it does not take" do
+            error = assert_raises(ArgumentError) { job.upload(text_file, encoding: "UTF-8") }
+
+            assert_equal "Unknown keyword argument :encoding when uploading a file", error.message
+          end
+
+          it "keeps the line of each line of a file without a format" do
+            job.input_category.slice_size = 10
+            job.upload(csv_file)
+            slice = job.input.first
+
+            assert_equal :text, slice.records.format
+            assert_equal [1, 2, 3, 4], Array.new(4) { |index| slice.line_number_at(index) }
+            assert_equal [1, 2, 3, 4], Array.new(4) { |index| slice.record_number_at(index) }
+          end
+
           it "raw csv" do
             assert_equal 4, job.upload(csv_file)
             result = job.input.collect(&:to_a).join("\n") + "\n"
@@ -191,6 +218,47 @@ module Batch
             result = job.input.collect(&:to_a).join("\n") + "\n"
 
             assert_equal csv_file.read, csv_columns.to_csv + result
+          end
+        end
+
+        describe "block without a format" do
+          it "keeps each record as it is written, one per record, as Rocket Job 7 did" do
+            job.input_category.slice_size = 10
+            records                       = ["two\nlines", 42, [1, 99], {"a" => 1}, nil]
+
+            assert_equal(5, job.upload { |io| records.each { |record| io << record } })
+            slice = job.input.first
+
+            assert_equal records, slice.to_a
+            assert_instance_of Array, slice.records
+            assert_equal [1, 2, 3, 4, 5], Array.new(5) { |index| slice.record_number_at(index) }
+          end
+        end
+
+        describe "file without a format" do
+          it "is stored as the lines of a slice, which a worker of Rocket Job 7 fails rather than processing none" do
+            job.upload(text_file)
+            stored   = job.input.collection.find.first["records"]
+            document = Hash.from_bson(BSON::ByteBuffer.new(Zlib::Inflate.inflate(stored.data)))
+
+            assert_equal RocketJob::Sliced::Slice::ROWS_GUARD, document["r"]
+            assert_equal "text", document["s"]["format"]
+          end
+
+          it "is stored as the CSV text of each row of a spreadsheet, its header row too, as Rocket Job 7 uploaded it" do
+            job.input_category.slice_size = 10
+            spreadsheet = IOStreams.path(File.dirname(__FILE__), "files", "multiline_cell.xlsx")
+            rows        = ["first column,second column,third column", %(data 1,data 2,"more\ndata")]
+
+            assert_equal 2, job.upload(spreadsheet)
+            slice = job.input.first
+
+            assert_equal rows, slice.to_a, "A cell that holds a line break stays in its row"
+            assert_equal [nil, nil], [slice.line_number_at(0), slice.line_number_at(1)]
+
+            job.perform_now
+
+            assert_equal rows, job.output.flat_map(&:to_a)
           end
         end
 

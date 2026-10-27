@@ -135,8 +135,21 @@ same Hash for each line, so most jobs need no change, but:
   Array of the values of each row of CSV, after the Array of its header row, or a Hash into a JSON
   category, which v7 read as it read a line. Write each row as a line of the format instead, such as
   `row.to_csv` or `hash.to_json`, or upload it into a category without a format, whose `#perform`
-  receives it as it was written. The `:hash` and `:array` formats, whose rows are Ruby objects, and
-  formats whose rows are not lines, such as Parquet, still upload each record as it is.
+  receives it as it was written. The `:hash` format, whose rows are Ruby objects, and formats whose
+  rows are not lines, such as Parquet, still upload each record as it is. A schema casts its values
+  when it is uploaded, and not again when it is processed, so `#perform` receives each record as
+  MongoDB stored it, such as a date as a `Time`, also when all of its values are blank. In the
+  `:array` format without a schema, the first Array that the block writes is the header row, by
+  which `#perform` receives each row after it as a Hash, where v7 uploaded it as a record. With a
+  schema, each Array holds the values of its fields, in order.
+* A spreadsheet, such as `.xlsx`, uploaded into a category without a format is still uploaded as
+  the CSV text of each row, header row included, as v7 did, but a cell that holds a line break now
+  stays in its row, where v7 split it into two records. Give the category a format, such as
+  `:auto`, so that `#perform` receives each row as a Hash.
+* An Active Record or Mongoid query uploaded into a category with a format, such as CSV or JSON, is
+  uploaded in that format, after the names of its columns, so `#perform` receives each row as a
+  Hash, where v7 raised `ArgumentError` in a format with a header row. Without a format it is
+  uploaded as before.
 * The lines that the block of `upload` writes into such a category are read as UTF-8, and each
   character that is not valid in its line's encoding is handled as the category's `invalid_characters`
   says. So by default CSV and the other tabular formats remove it, as they do from a file, where v7
@@ -149,10 +162,9 @@ same Hash for each line, so most jobs need no change, but:
   `upload` uploaded a file are not read by its header row, which the category no longer keeps, so a
   worker raises `ArgumentError` for them. Write them to the block of `upload` instead, after the
   header row. Hashes, and the lines of a format without a header row, such as JSON, are still read.
-* Options that read the lines of a file, such as `delimiter:`, raise `ArgumentError` for a category
-  with a format, whose lines are read in it.
 * A slice of an input category holds an `IOStreams::Slice` of rows, rather than an Array, for code
-  that reads the records of a slice itself, such as Mission Control. An `IOStreams::Slice` is not an
+  that reads the records of a slice itself, such as Mission Control, whatever was uploaded, apart from
+  the slices that `upload_slice` uploads, so a worker of v7 fails each slice that v8 uploads. An `IOStreams::Slice` is not an
   Array, so read the records through the slice itself, such as with `slice.each` or `slice.to_a`,
   and change them with `slice.replace_record` and `slice.delete_record`, which keep the line and
   record number of each row in its file.
@@ -343,6 +355,9 @@ These were deprecated or unused, and are removed in v8:
 * The `on_first:` option of `upload`, deprecated in v7.1, which raises `ArgumentError`. Every record
   of a file without a header row, such as JSON or fixed width, is uploaded, including the first,
   which `on_first` left out. See [Replace on_first](#replace-on_first).
+* The `delimiter:`, `buffer_size:` and `embedded_within:` options of `upload`, deprecated in v7.1,
+  which raise `ArgumentError`, as does any other option that `upload` does not take. See
+  [Line options of upload](#line-options-of-upload).
 
 ## Upgrading to v7.1
 
@@ -587,6 +602,30 @@ end
 
 The block reads the file itself, so when it is not UTF-8, give the path its encoding, such as
 `IOStreams.path(file_name).encoding("ISO-8859-1")`.
+
+### Line options of upload
+
+The `delimiter:`, `buffer_size:` and `embedded_within:` options of `upload` are deprecated, and
+removed in v8, which reads the lines of a file itself:
+
+* `delimiter:` IOStreams detects the line endings of a file, `\r\n` or `\n`, so remove it. A file
+  whose records are separated by something other than a line ending cannot be uploaded as a file in
+  v8: write its records in the block of `upload` instead.
+* `buffer_size:` only tuned how much IOStreams read at a time, so remove it.
+* `embedded_within:` kept a quoted value that holds line breaks in its line. In v8 the format of the
+  input category, such as CSV, reads such a value, so remove it and give the category its format.
+
+~~~ruby
+# Before (deprecated)
+job.upload(file_name, delimiter: "|")
+
+# After
+job.upload do |records|
+  IOStreams.path(file_name).read.split("|").each do |record|
+    records << record
+  end
+end
+~~~
 
 ### Text is read as UTF-8 with a schema
 

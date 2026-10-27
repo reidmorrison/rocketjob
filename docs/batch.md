@@ -120,7 +120,7 @@ It has built-in support for:
 * `Zip` files (add the `rubyzip` gem on CRuby; JRuby uses native Java Zip)
 * `GZip` files
 * files encrypted with [Symmetric Encryption](https://encryption.reidmorrison.com)
-* delimited files (Windows CR/LF or Linux LF line endings, auto-detected, or a custom delimiter)
+* delimited files (Windows CR/LF or Linux LF line endings, auto-detected)
 * fixed-length record files
 
 ~~~ruby
@@ -143,7 +143,6 @@ Useful `upload` keyword options:
 | `category`     | Which input category to load into. Default: `:main`.
 | `validate_rows` | `true` to parse each row of the file while it is uploaded, so that a file with a row that cannot be read is rejected before processing starts. Default: the input category's `validate_rows`. See [input categories](#input-categories).
 | `file_name`    | Override the file name used to infer format and streams.
-| `delimiter`    | Record delimiter. Default: auto-detect line endings. Not for an input category with a `format`, whose lines are read in it.
 
 Files are read as UTF-8 text, since MongoDB only stores UTF-8 strings, and a UTF-8 byte order mark
 at the start of the file (as Excel writes) is removed. A file that is not valid UTF-8 raises
@@ -212,6 +211,26 @@ itself for a single column:
 job.upload(User.where(country_code: "US"), columns: %i[user_name zip_code])
 ~~~
 
+In an input category with a `format`, such as CSV or JSON, the rows are uploaded in that format
+instead, as a file of the query would hold them, after the names of the columns, by the category's
+schema, otherwise by the types of the columns. `#perform` then receives each row as the rows of a file
+in that format, such as a Hash of the columns:
+
+~~~ruby
+class ExportUsersJob < RocketJob::Job
+  include RocketJob::Batch
+
+  input_category format: :csv
+
+  def perform(user)
+    user["zip_code"]
+  end
+end
+
+job = ExportUsersJob.new
+job.upload(User.where(country_code: "US"), columns: %i[user_name zip_code])
+~~~
+
 The rows are uploaded in the order of the relation, and within its limit, and each column is read as
 `pluck` reads it. The query is read on a connection of its own, so the pool of the model needs a
 connection free besides that of the caller, and only the rows that were committed are uploaded,
@@ -254,6 +273,9 @@ job.upload(User.where(state: "FL"))
 job.upload(User.where(state: "FL"), columns: [:zip_code])
 ~~~
 
+In an input category with a `format`, the fields are uploaded in that format, after their names, as
+for an Active Record query.
+
 
 ### Integer ranges
 
@@ -268,6 +290,11 @@ job.upload(1_000_000..1)
 
 Each integer counts as one record in the job's `record_count`, so `percent_complete` follows the ranges
 as they are processed.
+
+In an input category without a format, `#perform` receives each `[first_id, last_id]` as it is. In a
+format without a header row, such as JSON, the category's schema names the two values, in order, so
+that `#perform` receives a Hash of them. `upload` raises `ArgumentError` for a range in a format
+that reads a header row, such as CSV, or without a schema.
 
 `upload_arel`, `upload_mongo_query`, `upload_integer_range` and
 `upload_integer_range_in_reverse_order`, which uploaded a query or a range before `upload` accepted
@@ -295,7 +322,8 @@ writes the lines of a file: its header row first, when the file has one, then it
 that each hold the header row. Writing anything other than a line, such as an `Array` of the values
 of a row, or a `Hash`, raises `ArgumentError`: write each row as a line of the format, such as
 `row.to_csv`, or upload it into a category without a `format`, which passes it to `perform` as it is. In the `:hash`
-and `:array` formats, whose rows are Ruby objects, the block writes each record as it is instead. With a `schema`, a header row that does not match it raises
+format, whose rows are Ruby objects, the block writes each record as a Hash instead, and in the `:array` format each
+row as an Array, after an Array of the names of the columns, by which `perform` receives each row as a Hash. With a `schema`, a header row that does not match it raises
 `IOStreams::Errors::InvalidHeader`, and nothing is uploaded:
 
 ~~~ruby
