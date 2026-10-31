@@ -242,19 +242,25 @@ Input category options:
 | `format`           | `nil`       | Parse each record before `perform`: `nil` (raw line), `:auto`, or a tabular format such as `:csv`. See [Reading tabular files](#reading-tabular-files).
 | `format_options`   | `nil`       | Format-specific options, for example a `:layout` for `:fixed`.
 | `columns`          | `nil`       | Header columns, when the file has no header row.
-| `mode`             | `:line`     | How a file is uploaded: `:line`, `:array`, or `:hash`.
+| `mode`             | `:line`     | How a file is uploaded into a category with a schema: `:line` or `:hash`. See below.
 | `allowed_columns`  | `nil`       | Restrict tabular input to these columns; others are returned as nil.
 | `required_columns` | `nil`       | Tabular columns that must be present, or an exception is raised.
 | `skip_unknown`     | `false`     | When `allowed_columns` is set, ignore unknown columns instead of raising.
 | `header_cleanser`  | `:default`  | Cleanse tabular header column names (`:default`) or leave them as-is (`:none`).
 
-The `mode` option controls how a file is read during upload:
+The `mode` option controls how a file is uploaded into a category with a schema, see
+[Typed values with a schema](#typed-values-with-a-schema):
 
-* `:line` (default) uploads a raw line (String) at a time. This is the most performant, since each
-  worker parses its own lines.
-* `:array` parses each line into an Array before uploading. The whole file is parsed up front, so an
-  invalid file is detected before processing starts. Not recommended for very large files.
-* `:hash` parses each line into a Hash before uploading. Like `:array`, but slightly less efficient.
+* `:line` (default) uploads the lines of the file. This is the most performant, since each worker
+  parses its own lines.
+* `:hash` also parses every line during the upload, so that a file with a value that is not valid is
+  rejected before any worker runs. Not recommended for very large files.
+* `:array` cannot be used with a schema.
+
+Without a schema, `mode` does not change how a file is uploaded: its lines are uploaded. To parse each
+line into an Array or a Hash during the upload instead, pass `stream_mode: :array` or
+`stream_mode: :hash` to `upload`. Without a schema, a file with a header row, such as CSV, cannot be
+uploaded with `stream_mode: :hash`.
 
 ## Collecting output
 

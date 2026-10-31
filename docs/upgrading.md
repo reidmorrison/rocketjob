@@ -181,7 +181,11 @@ Use the default `:line` mode, in which each worker parses its lines, or `:hash` 
 line when the file is uploaded, so that a file with a problem is found before it is processed. Both
 upload the lines of the file, so that `#perform` receives each value as its type, such as a `Date`.
 
-Without a schema, `:array` still works as in v7.0.
+Without a schema, a category's `mode` does not change how a file is uploaded: its lines are uploaded.
+`stream_mode: :array` still parses each line into an Array, as in v7.0, except that IOStreams 2.2
+deprecates reading a JSON file as Arrays. For an upload of a JSON file with `stream_mode: :array`,
+IOStreams reports `each(:array)` as deprecated at a line of Rocket Job (`category/input.rb`), not of
+your application: use `stream_mode: :hash`, which uploads the same Hashes.
 
 ### Text is read as UTF-8 with a schema
 

@@ -95,6 +95,9 @@ module RocketJob
       #       Parses each line from the file as an Array and uploads each array for processing by workers.
       #     :hash
       #       Parses each line from the file into a Hash and uploads each hash for processing by workers.
+      #     Default: :line
+      #     With a schema, the default is the mode of the input category, and the lines of the file are uploaded
+      #     in the :line and :hash modes, see RocketJob::Category::Input#mode.
       #     See IOStreams::Stream#each.
       #
       #   category [Symbol|RocketJob::Category::Input]
