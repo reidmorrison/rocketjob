@@ -419,7 +419,7 @@ module RocketJob
 
       # Returns [true|false] whether the supplied `mode` that Rocket Job 7 saved, see #convert_saved_mode, is read as
       # `validate_rows: true` in a category with the supplied format and `validate_rows`: :hash in a format, unless
-      # `validate_rows` was set too, which then applies, as in Rocket Job 7.1. Without a format it had no effect, as in
+      # `validate_rows` was set too, which then applies, as in Rocket Job 7.2. Without a format it had no effect, as in
       # Rocket Job 7.0, which only parsed a file into Hashes for the `stream_mode: :hash` of `#upload`.
       def mode_validates_rows?(mode, format, validate_rows)
         mode.to_s == "hash" && format.present? && validate_rows.nil?

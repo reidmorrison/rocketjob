@@ -3,7 +3,7 @@ layout: default
 title: Upgrading Rocket Job
 description: >-
   The upgrade steps that need code or data changes when moving between
-  versions, for v8, v7.1, v6 and v3, and why to upgrade one version at a time.
+  versions, for v8, v7.2, v7.1, v6 and v3, and why to upgrade one version at a time.
 ---
 
 **Contents**
@@ -17,9 +17,9 @@ upgrade steps that need code or data changes when moving between versions.
 
 ## Upgrade one version at a time
 
-Upgrade through each version in turn, such as from v7.0 to v7.1, and then to v8, rather than from
-v7.0 straight to v8. After each upgrade, fix every deprecation warning that it reports before you
-upgrade to the next version:
+Upgrade through each version in turn, such as from v7.0 to v7.1, to v7.2, and then to v8, rather
+than from v7.0 straight to v8. After each upgrade, fix every deprecation warning that it reports
+before you upgrade to the next version:
 
 1. Upgrade to the next version, following its section below.
 2. Run your tests with Ruby's deprecation warnings on, see
@@ -39,10 +39,11 @@ stops working.
 
 ## Upgrading to v8
 
-Upgrade to v7.1 first, and fix every deprecation warning that it reports, see
-[Upgrading to v7.1](#upgrading-to-v71). v7.1 deprecates the category options that a schema replaces,
-which v8 removes, and runs on IOStreams 2.2 and Ruby 3.2, so those changes can be made, and tested,
-before v8 changes Ruby, IOStreams and how files are read.
+Upgrade to v7.1, and then to v7.2, first, and fix every deprecation warning that each reports, see
+[Upgrading to v7.1](#upgrading-to-v71) and [Upgrading to v7.2](#upgrading-to-v72). v7.1 deprecates
+the category options that a schema replaces, and v7.2 the other options that v8 removes. Both run on
+IOStreams 2.2 and Ruby 3.2, so those changes can be made, and tested, before v8 changes Ruby,
+IOStreams and how files are read.
 
 Rocket Job v8 requires IOStreams 3.0, and so Ruby 3.3 or later, which IOStreams 3.0 requires. On
 JRuby that is JRuby 10.0 or later. Upgrade Ruby before upgrading Rocket Job.
@@ -55,8 +56,8 @@ retried once every worker runs v8.
 
 ### The deprecated category options are removed
 
-v8 removes the category options that v7.1 deprecates, since a category's `schema` replaces them.
-Replace each one while v7.1 still reads it, as its upgrade steps describe:
+v8 removes the category options that v7.1 and v7.2 deprecate, since a category's `schema` and
+`validate_rows` replace them. Replace each one while v7 still reads it, as its upgrade steps describe:
 
 * A category's `format_options`, the layout of a fixed width file, see
   [Replace format_options with a schema](#replace-format_options-with-a-schema). A category with
@@ -101,8 +102,8 @@ every input category, and which Mission Control can save in the properties of a 
 fails, even where Rocket Job 7 did not apply it, such as `skip_unknown: true` without
 `allowed_columns`.
 
-v8 reports no deprecation warnings, and has no `RocketJob::SchemaProposal`, which v7.1 adds for the
-move to v8. So find the deprecated options with v7.1, before upgrading: its deprecation warnings name
+v8 reports no deprecation warnings, and has no `RocketJob::SchemaProposal`, which v7.2 adds for the
+move to v8. So find the deprecated options with v7.2, before upgrading: its deprecation warnings name
 each line of code that uses one, see
 [Find the deprecated options that you use](#find-the-deprecated-options-that-you-use), and
 `RocketJob::SchemaProposal.report` lists each saved job, Dirmon entry and `UploadFileJob` that holds
@@ -216,7 +217,7 @@ job.upload("people.csv", validate_rows: true)
   it can be changed like any other setting. The next run of a scheduled job is saved with it.
 * A job class that still sets `mode: :hash` raises `ArgumentError`, as does a Dirmon entry or an
   `UploadFileJob` that is created with it, as for the other removed options, see
-  [The deprecated category options are removed](#the-deprecated-category-options-are-removed). v7.1
+  [The deprecated category options are removed](#the-deprecated-category-options-are-removed). v7.2
   reports a deprecation warning for it, see
   [Replace the :hash mode and stream_mode](#replace-the-hash-mode-and-stream_mode).
 * `stream_mode:` raises `ArgumentError`, with any value, since `validate_rows:` replaces it.
@@ -352,153 +353,23 @@ These were deprecated or unused, and are removed in v8:
   `job.input_category.file_name = "orders.csv"`. The `upload_file_name` of an `UploadFileJob`, and a
   field of that name on a simple job, are not affected. Mission Control showed and logged it, so
   upgrade Mission Control to a release that supports v8.
-* The `on_first:` option of `upload`, deprecated in v7.1, which raises `ArgumentError`. Every record
+* The `on_first:` option of `upload`, deprecated in v7.2, which raises `ArgumentError`. Every record
   of a file without a header row, such as JSON or fixed width, is uploaded, including the first,
   which `on_first` left out. See [Replace on_first](#replace-on_first).
-* The `delimiter:`, `buffer_size:` and `embedded_within:` options of `upload`, deprecated in v7.1,
+* The `delimiter:`, `buffer_size:` and `embedded_within:` options of `upload`, deprecated in v7.2,
   which raise `ArgumentError`, as does any other option that `upload` does not take. See
   [Line options of upload](#line-options-of-upload).
 
-## Upgrading to v7.1
+## Upgrading to v7.2
 
-v7.1 prepares an application for v8. It adds a category's `schema`, which replaces the options that
-v8 removes, and reports a deprecation warning wherever the application uses one of those, or uploads
-a query that v8 uploads differently, see [Uploading a query](#uploading-a-query). Nothing else
-changes: a job that does not use a schema reads and writes its files as it did in v7.0, and the
-deprecated options keep working. The other pages of this site describe the latest release; the pages
-for v7.1 are on its [v7 branch](https://github.com/reidmorrison/rocketjob/tree/v7/docs).
-
-v7.1 requires IOStreams 2.2, which `bundle update rocketjob` installs. IOStreams 2.2 reports its own
-deprecation warnings for what IOStreams 3.0, which v8 requires, removes, see
-[Upgrading IOStreams to v2.2](https://iostreams.reidmorrison.com/upgrading.html#upgrading-to-v22).
-
-Servers running v7.0 and v7.1 can run together, but upgrade every server before giving any job,
-Dirmon entry or `UploadFileJob` a schema. A v7.0 worker ignores a category's schema, so it would read
-the records of such a job by the header row as it is in the file, with every value as text.
-
-### Replace format_options with a schema
-
-A category's `format_options` is deprecated, and replaced by its `schema`, which IOStreams uses for
-every tabular format, see [Typed values with a schema](batch.html#typed-values-with-a-schema). A
-fixed width layout becomes a schema with the `width` of each field:
-
-~~~ruby
-# Before (deprecated)
-input_category format:         :fixed,
-               format_options: {
-                 layout: [
-                   {size: 10, key: "name"},
-                   {size: 5, key: "zip", type: :integer}
-                 ]
-               }
-
-# After
-input_category format: :fixed,
-               schema: {
-                 "fieldsMatch" => "subset",
-                 "fields"      => [
-                   {"name" => "name", "type" => "string", "width" => 10, "truncate" => true},
-                   {"name" => "zip", "type" => "integer", "width" => 5}
-                 ]
-               }
-~~~
-
-Each column of the layout is a field of the schema: its `key` is the `name`, its `size` the
-`width`, and its `type` the `type`, with `"truncate" => true` on a `string` field, as a layout
-truncates a longer value. The table in IOStreams'
-[Moving a layout to a schema](https://iostreams.reidmorrison.com/upgrading.html#moving-a-layout-to-a-schema)
-gives each of them, including fillers and `:float`. `"fieldsMatch" => "subset"` makes writing skip
-the keys of a record that the layout does not list, as a layout did. Leave it out to raise
-`IOStreams::Errors::InvalidHeader` for such a key instead, so that a misspelled key is not silently
-left out.
-
-A schema reads a fixed width file differently from a layout, so check each job as you move it:
-
-* The keys of the records are the names of the fields, which are Strings. A layout with Symbol keys,
-  such as `key: :name`, gave records with Symbol keys, also once a worker read the job back, so add
-  `"keyType" => "symbol"` to its schema to keep them, or change `record[:name]` to `record["name"]`
-  in `#perform`.
-* A value that is not of the type of its field, such as letters in an `integer` field, fails its
-  record with `IOStreams::Errors::InvalidValue`.
-* The text is read as UTF-8, see [Text is read as UTF-8 with a schema](#text-is-read-as-utf-8-with-a-schema).
-* The column options, such as `columns`, cannot be set with a schema. An input category's `columns`
-  that narrowed the records of a layout to some of its keys become the fields of the schema.
-
-A layout cannot be set with a schema, since IOStreams would reject them rather than apply one and
-ignore the other.
-
-### Replace the column options with a schema
-
-The schema also describes the columns of a file, so the options that described them are deprecated:
-an input category's `allowed_columns`, `required_columns`, `skip_unknown` and `header_cleanser`, and the
-`columns` of a file without a header row, or of the output to write. So are the same options passed
-to `upload`, such as `allowed_columns:`. See [Validating columns](batch.html#validating-columns) and
-[Filtering output columns](batch.html#filtering-output-columns).
-
-~~~ruby
-# Before (deprecated)
-input_category  format:           :csv,
-                allowed_columns:  %w[login last_login name state],
-                required_columns: %w[login],
-                skip_unknown:     true
-output_category format: :csv, columns: %w[login last_login]
-
-# After
-input_category  format: :csv,
-                schema: {
-                  "fieldsMatch" => "partial",
-                  "fields"      => [
-                    {"name" => "login", "constraints" => {"required" => true}, "allowBlank" => true},
-                    {"name" => "last_login"},
-                    {"name" => "name"},
-                    {"name" => "state"}
-                  ]
-                }
-output_category format: :csv,
-                schema: {
-                  "fieldsMatch" => "subset",
-                  "fields"      => [
-                    {"name" => "login"},
-                    {"name" => "last_login"}
-                  ]
-                }
-~~~
-
-`"allowBlank" => true` keeps a record whose `login` is blank, as `required_columns` did, which only
-checked that the file had the column. Leave it out to reject such a record too.
-
-The schema that replaces each option, and each combination of them:
-
-* `"keyType" => "cleansed"` keeps the keys of each record cleansed, as `header_cleanser: :default`,
-  the default, did. A column that is not a field, which `"extraColumns" => "keep"` keeps, is keyed
-  the same way.
-* `required_columns` alone kept every column of the file, so its schema needs `"fieldsMatch" =>
-  "subset"` and `"extraColumns" => "keep"`, which keeps them after the fields.
-* `header_cleanser: :none` alone becomes `"fieldsMatch" => "subset"`, `"extraColumns" => "keep"` and
-  `"fields" => []`, which keeps every column, named as it is in the file.
-* A `nil` in the `columns` of a file without a header row becomes a field with `"skip" => true`.
-* 7.0 did not apply `allowed_columns`, `required_columns` or `skip_unknown` to JSON records, to the
-  `columns` of a file without a header row, or with `header_cleanser: :none`, so leave them out of
-  the schema there. With `format: :auto` they applied to CSV and PSV files, but not to JSON files.
-* A schema keeps the letters that are not ASCII in a column's name, where 7.0 removed them, so rename
-  a field such as `prnom`, for the column `Prénom`, to `prénom`. Otherwise `"partial"`, `"subset"`
-  and `"superset"` skip that column without an error.
-
-Before applying a schema to a job, read a recent file of the job with it, and compare the records
-with those that the job receives now.
-
-With a schema, the keys of each record are the names of its fields, and the columns of the header row
-are matched to them whatever their case, spaces and punctuation, rather than cleansed. So a field
-named `last_login` reads the column `Last Login`, and a field named `Last Login` keeps that key.
-`fieldsMatch` defaults to `"exact"`: the columns must be the fields, in order, and a column that is not
-a field raises `IOStreams::Errors::InvalidHeader`. Use `"subset"` or `"partial"` to skip the other
-columns, as `skip_unknown: true` did. See
-[Moving the column options to a schema](https://iostreams.reidmorrison.com/upgrading.html#moving-the-column-options-to-a-schema).
-
-The deprecated options cannot be set with a schema, and a category that sets both is not valid. An
-input category's `columns` can still be set with a schema, and are not deprecated with one: `upload`
-sets them to the header row read from the file, as it is in the file, which the workers match to the
-fields.
+v7.2 prepares an application for v8. Upgrade to v7.1 first, see
+[Upgrading to v7.1](#upgrading-to-v71). v7.2 reports a deprecation warning for each of the other
+options that v8 removes, and for each upload of a query that v8 uploads differently, see
+[Uploading a query](#uploading-a-query), and adds what replaces them, such as `validate_rows`. The
+deprecated options keep working. Its warnings are reported as v7.1 reports its own, see
+[Find the deprecated options that you use](#find-the-deprecated-options-that-you-use), and
+`RocketJob::SchemaProposal` lists the saved documents that still hold an option that v8 removes, see
+[Propose the schema of each category](#propose-the-schema-of-each-category).
 
 ### Replace the :array upload mode
 
@@ -541,16 +412,14 @@ job.upload("people.csv", validate_rows: true)
 * A category without a format, which `stream_mode: :hash` read a file into Hashes for, gives the
   category `format: :auto` instead, so that the workers read each line into a Hash, in the format of
   the file name. Leave out `stream_mode: :line`, which is the default.
-* `upload` with a block does not validate the records that it writes in 7.1, and raises for
+* `upload` with a block does not validate the records that it writes in 7.2, and raises for
   `validate_rows: true`. v8 also validates the lines that the block writes.
 * Until it is removed, `stream_mode:` decides alone whether a file is validated, over the category's
   `validate_rows`. So in a category with `validate_rows: true`, replace `stream_mode: :line` by
   `validate_rows: false`, rather than leave it out.
-* In a category with a format, 7.1 uploads the lines of a file in `stream_mode: :hash`, reading its
-  header row, and parses each one first, as `validate_rows: true` does. 7.0 raised
-  `IOStreams::Errors::TypeMismatch` for a file with a header row, such as CSV, without a schema. 7.1
-  also reads the header row in `mode: :hash`, which 7.0 uploaded as a record, and in `mode: :array`,
-  which raised in 7.0.
+* In a category with a format, 7.2 uploads the lines of a file in `stream_mode: :hash`, reading its
+  header row, and parses each one first, as `validate_rows: true` does. 7.1 raised
+  `IOStreams::Errors::TypeMismatch` for a file with a header row, such as CSV, without a schema.
 * v8 reads a job saved with `mode: :hash` in a category with a format as `validate_rows: true`, unless
   its `validate_rows` is false. With a schema that is what `mode: :hash` did, so such a job need not
   change. Without a schema `mode: :hash` did not validate the lines, so remove it, rather than replace
@@ -558,8 +427,8 @@ job.upload("people.csv", validate_rows: true)
   [schema proposals](#propose-the-schema-of-each-category) make both changes, in job classes and in
   saved jobs, Dirmon entries and `UploadFileJob`s.
 
-Servers running v7.0 cannot read `validate_rows`, so upgrade every server before giving any Dirmon
-entry or `UploadFileJob` one.
+Servers running v7.0 or v7.1 cannot read `validate_rows`, so upgrade every server before giving any
+Dirmon entry or `UploadFileJob` one.
 
 ### Replace on_first
 
@@ -627,20 +496,12 @@ job.upload do |records|
 end
 ~~~
 
-### Text is read as UTF-8 with a schema
-
-The text of a file uploaded into a category with a schema is read as UTF-8, so letters that are not
-ASCII, such as `José`, are kept, and text that is not valid UTF-8 raises
-`IOStreams::Errors::InvalidEncoding`, and uploads nothing. Without a schema, a tabular upload still
-removes every character that is not ASCII, as in v7.0, so moving a job to a schema keeps letters that
-it used to lose. An encoding set on the path that is uploaded is used instead.
-
 ### Uploading a query
 
 v8 uploads an Active Record relation in one streamed query, read with IOStreams 3.0 rather than
 `find_each`, and builds no models, so that uploading millions of rows does not build a model for
 each one. Each value is cast as `pluck` casts it. The records are the same: the value of one column,
-the id by default, or an Array of the values of several columns. Three things change. v7.1 reports
+the id by default, or an Array of the values of several columns. Three things change. v7.2 reports
 a deprecation warning, at the line that uploads the query, for each one that an upload depends on,
 and still uploads the same records as v7.0.
 
@@ -707,7 +568,7 @@ job.upload(User.where(id: Post.where(published: true).select(:user_id)))
 **A column is uploaded without its reader.** v8 uploads the value that each column holds, as `pluck`
 and `read_attribute` return it, rather than calling the reader of the model. They differ only where
 the model overrides the reader. `normalizes`, `enum`, `serialize` and `alias_attribute` give the
-same value both ways. While deprecation warnings are on, v7.1 compares them for each row until they
+same value both ways. While deprecation warnings are on, v7.2 compares them for each row until they
 differ, and names the model and the column, never the values. To keep the reader's value, write the
 records in the block of `upload`, which calls it, or apply the reader's logic in `perform`:
 
@@ -729,11 +590,17 @@ job.upload do |records|
 end
 ~~~
 
+v7.2 reports each of these at the line that uploads the query, once for each change, for example:
+
+~~~
+app/jobs/export_job.rb:12: warning: Rocket Job: User#nickname returns a value other than the one that its column holds, which Rocket Job 8 uploads instead, as pluck returns it, rather than calling the reader: to keep the reader's value, write the records in the block of upload, which can call it, or apply the reader's logic in perform, see https://rocketjob.reidmorrison.com/upgrading.html#upgrading-to-v72
+~~~
+
 ### Call upload with a query or a range
 
 `upload_arel`, `upload_mongo_query`, `upload_integer_range` and
 `upload_integer_range_in_reverse_order`, deprecated since v6, report a deprecation warning, since v8
-removes them. Call `upload` with the relation, the criteria or the range instead, which v7.1 and v8
+removes them. Call `upload` with the relation, the criteria or the range instead, which v7 and v8
 both accept. A block passed with a query is deprecated too, see [Uploading a query](#uploading-a-query):
 
 ~~~ruby
@@ -753,38 +620,12 @@ job.upload(1_000_000..1)
 A range is uploaded in the direction that it is written. `upload_integer_range(first, last)`
 uploaded nothing when `last` was less than `first`, while `upload(first..last)` uploads that range
 from its last id, so where the bounds are computed, check for that first. A range that excludes its
-end, such as `1...100`, uploads its end in v7.1, but not in v8, so write it as `1..99`.
+end, such as `1...100`, uploads its end in v7, but not in v8, so write it as `1..99`.
 
 The `before_code` of an `OnDemandBatchJob` that calls one of them, as its documentation showed,
 reports the warning when the job runs, and raises `NoMethodError` in v8: change it to call `upload`,
 including in the jobs that are already saved, such as a scheduled one, which copies its
 `before_code` to its next run.
-
-### Find the deprecated options that you use
-
-Rocket Job reports a Ruby deprecation warning for each deprecated category option that it is given,
-naming the line of the job class that defines the category, or of the call to `upload` that supplies
-one, such as `stream_mode:` or `allowed_columns:`, for example:
-
-~~~
-app/jobs/import_job.rb:5: warning: Rocket Job: allowed_columns:, skip_unknown: are deprecated, describe the columns of the file with schema: instead, see https://rocketjob.reidmorrison.com/upgrading.html#upgrading-to-v71
-~~~
-
-A Dirmon entry or an `UploadFileJob` whose properties hold a deprecated option reports one when it
-builds its job, without the line of a job class.
-
-An upload of a query that v8 uploads differently reports one at the line that uploads it, once for
-each change, see [Uploading a query](#uploading-a-query), for example:
-
-~~~
-app/jobs/export_job.rb:12: warning: Rocket Job: User#nickname returns a value other than the one that its column holds, which Rocket Job 8 uploads instead, as pluck returns it, rather than calling the reader: to keep the reader's value, write the records in the block of upload, which can call it, or apply the reader's logic in perform, see https://rocketjob.reidmorrison.com/upgrading.html#upgrading-to-v71
-~~~
-
-The warnings are only reported while Ruby's deprecation warnings are on, which they are in tests run
-by Minitest, or with `ruby -W:deprecated` or `RUBYOPT=-W:deprecated`, so production stays quiet. A job
-that was saved with a deprecated option, and is read back, does not report one. IOStreams reports its
-own deprecation warnings, prefixed `IOStreams:`, for the methods and options that the application
-calls on it.
 
 ### Propose the schema of each category
 
@@ -828,6 +669,267 @@ Then apply it by hand: in the job class, replace the deprecated options with the
 saved job, Dirmon entry or `UploadFileJob`, set the same in its category, or its properties. Mission
 Control 7.0 cannot show or set a schema, and saving a Dirmon entry in it rebuilds the entry's
 properties without one, so set the schema on the job class where you can, or from a console.
+
+## Upgrading to v7.1
+
+v7.1 moves Rocket Job to IOStreams 2.2, which `bundle update rocketjob` installs. IOStreams 2.2
+deprecates what IOStreams 3.0 removes, and reports a deprecation warning wherever the application uses
+one of those, see
+[Upgrading IOStreams to v2.2](https://iostreams.reidmorrison.com/upgrading.html#upgrading-to-v22).
+Rocket Job 7.1 no longer uses any of them itself.
+
+An application sets some of them through Rocket Job, rather than on IOStreams: a category's
+`format_options`, and the options that describe the columns of a file, such as `allowed_columns`.
+IOStreams does not report those that a category passes to it, so Rocket Job reports them instead, and
+adds a category's `schema`, which replaces them, as IOStreams' `#schema` replaces them. The deprecated
+options keep working.
+
+A job that does not use a schema reads and writes its files as it did in v7.0, apart from these
+fixes:
+
+* An upload of a path whose streams were set with `#stream`, such as `stream(:gz)`, into a category
+  with a format reads the file, where v7.0 raised or read the wrong text.
+* Blank lines before the header row of a tabular file are skipped, where v7.0 took the first one as
+  the header row.
+* A `format: :auto` upload of a JSON or fixed width file keeps its first record, so `record_count` is
+  one more than in v7.0.
+* A category in the `:array` or `:hash` mode reads the header row of a file such as CSV, where v7.0
+  raised, or failed every slice.
+
+Servers running v7.0 and v7.1 can run together, but upgrade every server before giving any job,
+Dirmon entry or `UploadFileJob` a schema. A v7.0 worker ignores a category's schema, so it would read
+the records of such a job by the header row as it is in the file, with every value as text.
+
+### Replace format_options with a schema
+
+A category's `format_options` is deprecated, and replaced by its `schema`, which IOStreams uses for
+every tabular format, see [Describing a file with a schema](batch.html#typed-values-with-a-schema). A
+fixed width layout becomes a schema with the `width` of each field:
+
+~~~ruby
+# Before (deprecated)
+input_category format:         :fixed,
+               format_options: {
+                 layout: [
+                   {size: 10, key: "name"},
+                   {size: 5, key: "zip", type: :integer}
+                 ]
+               }
+
+# After
+input_category format: :fixed,
+               schema: {
+                 "fieldsMatch" => "subset",
+                 "fields"      => [
+                   {"name" => "name", "type" => "string", "width" => 10, "truncate" => true},
+                   {"name" => "zip", "type" => "integer", "width" => 5}
+                 ]
+               }
+~~~
+
+Each column of the layout is a field of the schema: its `key` is the `name`, its `size` the
+`width`, and its `type` the `type`, with `"truncate" => true` on a `string` field, as a layout
+truncates a longer value. The table in IOStreams'
+[Moving a layout to a schema](https://iostreams.reidmorrison.com/upgrading.html#moving-a-layout-to-a-schema)
+gives each of them, including fillers and `:float`. `"fieldsMatch" => "subset"` makes writing skip
+the keys of a record that the layout does not list, as a layout did. Leave it out to raise
+`IOStreams::Errors::InvalidHeader` for such a key instead, so that a misspelled key is not silently
+left out.
+
+A schema reads a fixed width file differently from a layout, so check each job as you move it:
+
+* The keys of the records are the names of the fields, which are Strings. A layout with Symbol keys,
+  such as `key: :name`, gave records with Symbol keys, also once a worker read the job back, so add
+  `"keyType" => "symbol"` to its schema to keep them, or change `record[:name]` to `record["name"]`
+  in `#perform`.
+* A value that is not of the type of its field, such as letters in an `integer` field, fails its
+  record with `IOStreams::Errors::InvalidValue`.
+* The text is read as UTF-8, see [Text is read as UTF-8 with a schema](#text-is-read-as-utf-8-with-a-schema).
+* The column options, such as `columns`, cannot be set with a schema. An input category's `columns`
+  that narrowed the records of a layout to some of its keys become the fields of the schema.
+
+A layout cannot be set with a schema, since IOStreams would reject them rather than apply one and
+ignore the other.
+
+### Replace the column options with a schema
+
+The schema also describes the columns of a file, so the options that described them are deprecated:
+an input category's `allowed_columns`, `required_columns`, `skip_unknown` and `header_cleanser`, and the
+`columns` of a file without a header row, or of the output to write. So are the same options passed
+to `upload`, such as `allowed_columns:`. See
+[Validating columns](batch.html#validating-columns) and
+[Filtering output columns](batch.html#filtering-output-columns).
+
+~~~ruby
+# Before (deprecated)
+input_category  format:           :csv,
+                allowed_columns:  %w[login last_login name state],
+                required_columns: %w[login],
+                skip_unknown:     true
+output_category format: :csv, columns: %w[login last_login]
+
+# After
+input_category  format: :csv,
+                schema: {
+                  "fieldsMatch" => "partial",
+                  "fields"      => [
+                    {"name" => "login", "constraints" => {"required" => true}, "allowBlank" => true},
+                    {"name" => "last_login"},
+                    {"name" => "name"},
+                    {"name" => "state"}
+                  ]
+                }
+output_category format: :csv,
+                schema: {
+                  "fieldsMatch" => "subset",
+                  "fields"      => [
+                    {"name" => "login"},
+                    {"name" => "last_login"}
+                  ]
+                }
+~~~
+
+`"allowBlank" => true` keeps a record whose `login` is blank, as `required_columns` did, which only
+checked that the file had the column. Leave it out to reject such a record too.
+
+The schema property that replaces each option, and each combination of them:
+
+| Option                                      | With a schema
+|:--------------------------------------------|:-------------
+| `header_cleanser: :default`, the default    | `"keyType" => "cleansed"`, so that the keys of each record are cleansed, as before. A column that is not a field, which `"extraColumns" => "keep"` keeps, is keyed the same way.
+| `allowed_columns`                           | `"fieldsMatch" => "superset"`, which accepts a file without some of the fields, as `allowed_columns` does, or `"equal"` when `required_columns` lists every allowed column.
+| `allowed_columns` with `skip_unknown: true` | `"fieldsMatch" => "partial"`, which accepts a file without some of the fields, as `allowed_columns` does, or `"subset"` when `required_columns` lists every allowed column.
+| `required_columns` with `allowed_columns`   | `"constraints" => {"required" => true}` with `"allowBlank" => true` on each required field, which needs the column but not a value, as `required_columns` did. Without `allowBlank`, a blank value raises too.
+| `required_columns` alone                    | A field for each of them, with `"constraints" => {"required" => true}` and `"allowBlank" => true`, and `"fieldsMatch" => "subset"` with `"extraColumns" => "keep"`, which keeps the other columns of the file, after the fields, as `required_columns` did. Add `"keyType" => "cleansed"` to keep their keys cleansed, such as `last_login` for the column `Last Login`: without it they are keyed as they are in the file, so `record["last_login"]` is nil, without an error.
+| `header_cleanser: :none`                    | `"fieldsMatch" => "subset"`, `"extraColumns" => "keep"` and `"fields" => []`, which keeps every column, named as it is in the file, without `keyType`.
+| `columns`, for a file without a header row  | `"header" => false`, with a field for each column, in order, named as the column was, without `keyType`. A `nil` column is a field with `"skip" => true`, which holds its place.
+| `format_options` with a fixed width layout  | The `width` of each field, and `"keyType" => "symbol"` when the keys of the layout are Symbols.
+
+7.0 did not apply `allowed_columns`, `required_columns` or `skip_unknown` in three cases, so leave them
+out of the schema there, rather than describe them, or the schema starts rejecting or dropping columns
+that 7.0 kept:
+
+* to JSON records, which keep every key, as they are named,
+* to `columns` supplied for a file without a header row, and
+* with `header_cleanser: :none`.
+
+With `format: :auto` they applied to a CSV or PSV file but not to a JSON file, which one schema cannot
+do, so choose what each kind of file needs.
+
+A schema keeps the letters that are not ASCII in a column's name, where 7.0 removed them, so rename a
+field such as `prnom`, for the column `Prénom`, to `prénom`. Otherwise `"partial"`, `"subset"` and
+`"superset"` skip that column without an error.
+
+Before applying a schema to a job, read a recent file of the job with it, and compare the records
+with those that the job receives now.
+
+With a schema, the keys of each record are the names of its fields, and the columns of the header row
+are matched to them whatever their case, spaces and punctuation, rather than cleansed. So a field
+named `last_login` reads the column `Last Login`, and a field named `Last Login` keeps that key.
+`fieldsMatch` defaults to `"exact"`: the columns must be the fields, in order, and a column that is not
+a field raises `IOStreams::Errors::InvalidHeader`. Use `"subset"` or `"partial"` to skip the other
+columns, as `skip_unknown: true` did. See
+[Moving the column options to a schema](https://iostreams.reidmorrison.com/upgrading.html#moving-the-column-options-to-a-schema).
+
+The deprecated options cannot be set with a schema, and a category that sets both is not valid. An
+input category's `columns` can still be set with a schema, and are not deprecated with one: `upload`
+sets them to the header row read from the file, as it is in the file, which the workers match to the
+fields.
+
+### Upload modes with a schema
+
+A category with a schema cannot use the `:array` mode, nor be uploaded with `stream_mode: :array`.
+Use the default `:line` mode, in which each worker parses its lines, or `:hash` to also parse every
+line when the file is uploaded, so that a file with a problem is found before it is processed. Both
+upload the lines of the file, so that `#perform` receives each value as its type, such as a `Date`.
+
+Without a schema, a category's `mode` does not change how a file is uploaded: its lines are uploaded.
+`stream_mode: :array` still parses each line into an Array, as in v7.0, except that IOStreams 2.2
+deprecates reading a JSON file as Arrays. For an upload of a JSON file with `stream_mode: :array`,
+IOStreams reports `each(:array)` as deprecated at a line of Rocket Job (`category/input.rb`), not of
+your application: use `stream_mode: :hash`, which uploads the same Hashes.
+
+### Text is read as UTF-8 with a schema
+
+The text of a file uploaded into a category with a schema is read as UTF-8, so letters that are not
+ASCII, such as `José`, are kept, and text that is not valid UTF-8 raises
+`IOStreams::Errors::InvalidEncoding`, and uploads nothing. Without a schema, a tabular upload still
+removes every character that is not ASCII, as in v7.0, so moving a job to a schema keeps letters that
+it used to lose. An encoding set on the path that is uploaded is used instead.
+
+### Find the deprecated options that you use
+
+Rocket Job reports a Ruby deprecation warning for each deprecated category option that it is given,
+naming the line of the job class that defines the category, or of the call to `upload` that supplies
+one, such as `allowed_columns:`, for example:
+
+~~~
+app/jobs/import_job.rb:5: warning: Rocket Job: allowed_columns:, skip_unknown: are deprecated, describe the columns of the file with schema: instead, see https://rocketjob.reidmorrison.com/upgrading.html#upgrading-to-v71
+~~~
+
+A Dirmon entry or an `UploadFileJob` whose properties hold a deprecated option reports one when it
+builds its job, without the line of a job class.
+
+An option passed to `upload`, such as `allowed_columns:`, is reported twice: by Rocket Job, at the
+line that calls `upload`, and by IOStreams, since Rocket Job passes it on. Change the call to `upload`
+that Rocket Job's warning names.
+
+IOStreams also reports what Rocket Job passes on from a call to `upload` or `download`, such as a
+deprecated form of a path, like `job.upload("~/in.csv")`, or a JSON file uploaded with
+`stream_mode: :array`, see [Upload modes with a schema](#upload-modes-with-a-schema). Such a warning
+names a line of Rocket Job, such as `lib/rocket_job/category/input.rb`, rather than of your
+application, so find the call to `upload` or `download` that supplied it, and change that.
+
+The warnings are only reported while Ruby's deprecation warnings are on, which they are in tests run
+by Minitest, or with `ruby -W:deprecated` or `RUBYOPT=-W:deprecated`, so production stays quiet. A job
+that was saved with a deprecated option, and is read back, does not report one. IOStreams reports its
+own deprecation warnings, prefixed `IOStreams:`, for the methods and options that the application
+calls on it.
+
+### Check the paths and stream options saved in the database
+
+IOStreams 2.2 also deprecates some forms of paths and stream options, such as a local file name that
+starts with `~/`, see
+[Deprecated, and what replaces it](https://iostreams.reidmorrison.com/upgrading.html#deprecated-and-what-replaces-it).
+IOStreams reports one only when the path is used, so tests seldom report those that are saved in the
+database. Rocket Job passes these to IOStreams:
+
+* the `pattern` and `archive_directory` of each Dirmon entry, and the paths in its `properties`,
+* the `source_url`, `target_url`, arguments and streams of each `CopyFileJob`,
+* the `upload_file_name` and `original_file_name` of each `UploadFileJob`,
+* the `file_name` of each category of a batch job, and
+* each field of your own of type `IOStreams::Path`.
+
+To have IOStreams report most of them, run this in a console of the application, such as
+`bin/rails console`. It reads each Dirmon entry and job, and builds its paths without opening them:
+
+~~~ruby
+Warning[:deprecated] = true
+
+RocketJob::DirmonEntry.each do |entry|
+  puts "Dirmon entry #{entry.name}:"
+  IOStreams.path(entry.pattern)
+  IOStreams.path(entry.archive_directory) if entry.archive_directory.present?
+end
+
+RocketJob::Job.each do |job|
+  puts "#{job.class.name} #{job.id}:"
+  case job
+  when RocketJob::Jobs::CopyFileJob
+    job.source_path if job.source_url
+    job.target_path
+  when RocketJob::Jobs::UploadFileJob
+    job.upload_file_name
+  when RocketJob::Batch
+    job.input_categories.each(&:file_name)
+    job.output_categories.each(&:file_name)
+  end
+end
+~~~
+
+Each warning follows the name of the Dirmon entry or job that holds the path. Check the paths in the
+`properties` of Dirmon entries, the `original_file_name` of each `UploadFileJob`, and your own fields
+by hand.
 
 ## Upgrading to v6
 
