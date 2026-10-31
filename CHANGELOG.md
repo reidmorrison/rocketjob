@@ -74,6 +74,11 @@ from the database does not report one. See the upgrade guide.
 - An input category with `format: :auto` uploads the first record of a JSON or fixed width file. Previously it was
   dropped, as though it were a header row, since the upload checked for a header row before it took the format from
   the file name, so `record_count` was one short.
+- An input category in the `:array` or `:hash` mode, without a schema, reads the header row of a file, such as a CSV
+  file, and uploads its lines, as in the `:line` mode. Previously the upload raised, such as `NoMethodError`, in the
+  `:array` mode, and in the `:hash` mode the header row was uploaded as a record, so every slice failed. Without a
+  schema the mode does not change how a file is uploaded: `stream_mode: :array` or `stream_mode: :hash` on `upload`
+  parses each line first.
 - On Mongoid 8, a change to a category of a batch job read from the database is saved. Previously reading the job
   marked its whole `input_categories` as changed, so MongoDB rejected the save as a conflict, such as
   "Updating the path 'input_categories.0.schema' would create a conflict at 'input_categories'".

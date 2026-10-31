@@ -106,12 +106,6 @@ class DeprecationTest < Minitest::Test
         assert_includes warnings.first, "format_options: is deprecated, use schema: instead"
       end
 
-      it "does not warn for the :array mode, which only a schema rules out" do
-        warnings = deprecation_warnings { Class.new(DeprecatedCategoryJob) { input_category format: :csv, mode: :array } }
-
-        assert_empty warnings
-      end
-
       it "does not warn for a category defined with a schema, or in the :line or :hash mode" do
         warnings = deprecation_warnings do
           Class.new(DeprecatedCategoryJob) do
@@ -155,17 +149,6 @@ class DeprecationTest < Minitest::Test
         job.cleanup!
       end
 
-      it "does not warn for an upload in the :array mode" do
-        warnings = deprecation_warnings do
-          job.upload(StringIO.new("name\nJack\n"), file_name: "people.csv", stream_mode: :array)
-        rescue StandardError
-          # v7 does not read a header row in the :array mode.
-          nil
-        end
-
-        assert_empty warnings
-      end
-
       it "warns at the line that uploads a file with the options that describe its columns" do
         # v7 reads the header row of a category with a format in :line mode only, so this one has none.
         job.input_category.format = nil
@@ -181,6 +164,28 @@ class DeprecationTest < Minitest::Test
 
       it "does not warn for an upload without one" do
         assert_empty(deprecation_warnings { job.upload(StringIO.new("name\nJack\n"), file_name: "people.csv") })
+      end
+    end
+
+    describe "the :array mode, which only a schema rules out" do
+      it "does not warn for a category in the :array mode" do
+        warnings = deprecation_warnings { Class.new(DeprecatedCategoryJob) { input_category format: :csv, mode: :array } }
+
+        assert_empty warnings
+      end
+
+      it "does not warn for an upload in the :array mode" do
+        job      = Class.new(DeprecatedCategoryJob) { input_category format: :csv }.new
+        count    = nil
+        warnings = deprecation_warnings do
+          count = job.upload(StringIO.new("name\nJack\n"), file_name: "people.csv", stream_mode: :array)
+        end
+
+        assert_empty warnings
+        assert_equal 1, count
+        assert_equal %w[name], job.input_category.columns
+      ensure
+        job&.cleanup!
       end
     end
 
