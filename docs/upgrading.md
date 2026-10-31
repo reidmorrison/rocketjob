@@ -36,14 +36,18 @@ stops working.
 
 ## Upgrading to v7.1
 
-v7.1 prepares an application for v8. It adds a category's `schema`, which replaces the options that
-v8 removes, and reports a deprecation warning wherever the application uses one of those. Nothing
-else changes: a job that does not use a schema reads and writes its files as it did in v7.0, and the
-deprecated options keep working.
-
-v7.1 requires IOStreams 2.2, which `bundle update rocketjob` installs. IOStreams 2.2 reports its own
-deprecation warnings for what IOStreams 3.0, which v8 requires, removes, see
+v7.1 moves Rocket Job to IOStreams 2.2, which `bundle update rocketjob` installs. IOStreams 2.2
+deprecates what IOStreams 3.0 removes, and reports a deprecation warning wherever the application uses
+one of those, see
 [Upgrading IOStreams to v2.2](https://iostreams.reidmorrison.com/upgrading.html#upgrading-to-v22).
+Rocket Job 7.1 no longer uses any of them itself.
+
+An application sets some of them through Rocket Job, rather than on IOStreams: a category's
+`format_options`, and the options that describe the columns of a file, such as `allowed_columns`.
+IOStreams does not report the options that Rocket Job passes to it, so Rocket Job reports them
+instead, and adds a category's `schema`, which replaces them, as IOStreams' `#schema` replaces them.
+Nothing else changes: a job that does not use a schema reads and writes its files as it did in v7.0,
+and the deprecated options keep working.
 
 Servers running v7.0 and v7.1 can run together, but upgrade every server before giving any job,
 Dirmon entry or `UploadFileJob` a schema. A v7.0 worker ignores a category's schema, so it would read
@@ -52,7 +56,7 @@ the records of such a job by the header row as it is in the file, with every val
 ### Replace format_options with a schema
 
 A category's `format_options` is deprecated, and replaced by its `schema`, which IOStreams uses for
-every tabular format, see [Typed values with a schema](batch.html#typed-values-with-a-schema). A
+every tabular format, see [Describing a file with a schema](batch.html#describing-a-file-with-a-schema). A
 fixed width layout becomes a schema with the `width` of each field:
 
 ~~~ruby
@@ -140,23 +144,33 @@ output_category format: :csv,
 `"allowBlank" => true` keeps a record whose `login` is blank, as `required_columns` did, which only
 checked that the file had the column. Leave it out to reject such a record too.
 
-The table in [Validating columns](batch.html#validating-columns) gives the schema that replaces each
-option, and each combination of them. In particular:
+The schema property that replaces each option, and each combination of them:
 
-* `"keyType" => "cleansed"` keeps the keys of each record cleansed, as `header_cleanser: :default`,
-  the default, did. A column that is not a field, which `"extraColumns" => "keep"` keeps, is keyed
-  the same way.
-* `required_columns` alone kept every column of the file, so its schema needs `"fieldsMatch" =>
-  "subset"` and `"extraColumns" => "keep"`, which keeps them after the fields.
-* `header_cleanser: :none` alone becomes `"fieldsMatch" => "subset"`, `"extraColumns" => "keep"` and
-  `"fields" => []`, which keeps every column, named as it is in the file.
-* A `nil` in the `columns` of a file without a header row becomes a field with `"skip" => true`.
-* 7.0 did not apply `allowed_columns`, `required_columns` or `skip_unknown` to JSON records, to the
-  `columns` of a file without a header row, or with `header_cleanser: :none`, so leave them out of
-  the schema there. With `format: :auto` they applied to CSV and PSV files, but not to JSON files.
-* A schema keeps the letters that are not ASCII in a column's name, where 7.0 removed them, so rename
-  a field such as `prnom`, for the column `Prénom`, to `prénom`. Otherwise `"partial"`, `"subset"`
-  and `"superset"` skip that column without an error.
+| Option                                      | With a schema
+|:--------------------------------------------|:-------------
+| `header_cleanser: :default`, the default    | `"keyType" => "cleansed"`, so that the keys of each record are cleansed, as before.
+| `allowed_columns`                           | `"fieldsMatch" => "superset"`, which accepts a file without some of the fields, as `allowed_columns` does, or `"equal"` when `required_columns` lists every allowed column.
+| `allowed_columns` with `skip_unknown: true` | `"fieldsMatch" => "partial"`, which accepts a file without some of the fields, as `allowed_columns` does, or `"subset"` when `required_columns` lists every allowed column.
+| `required_columns` with `allowed_columns`   | `"constraints" => {"required" => true}` with `"allowBlank" => true` on each required field, which needs the column but not a value, as `required_columns` did. Without `allowBlank`, a blank value raises too.
+| `required_columns` alone                    | A field for each of them, with `"constraints" => {"required" => true}` and `"allowBlank" => true`, and `"fieldsMatch" => "subset"` with `"extraColumns" => "keep"`, which keeps the other columns of the file, after the fields, as `required_columns` did.
+| `header_cleanser: :none`                    | `"fieldsMatch" => "subset"`, `"extraColumns" => "keep"` and `"fields" => []`, which keeps every column, named as it is in the file, without `keyType`.
+| `columns`, for a file without a header row  | `"header" => false`, with a field for each column, in order, named as the column was, without `keyType`. A `nil` column is a field with `"skip" => true`, which holds its place.
+| `format_options` with a fixed width layout  | The `width` of each field, and `"keyType" => "symbol"` when the keys of the layout are Symbols.
+
+7.0 did not apply `allowed_columns`, `required_columns` or `skip_unknown` in three cases, so leave them
+out of the schema there, rather than describe them, or the schema starts rejecting or dropping columns
+that 7.0 kept:
+
+* to JSON records, which keep every key, as they are named,
+* to `columns` supplied for a file without a header row, and
+* with `header_cleanser: :none`.
+
+With `format: :auto` they applied to a CSV or PSV file but not to a JSON file, which one schema cannot
+do, so choose what each kind of file needs.
+
+A schema keeps the letters that are not ASCII in a column's name, where 7.0 removed them, so rename a
+field such as `prnom`, for the column `Prénom`, to `prénom`. Otherwise `"partial"`, `"subset"` and
+`"superset"` skip that column without an error.
 
 Before applying a schema to a job, read a recent file of the job with it, and compare the records
 with those that the job receives now.
@@ -209,6 +223,20 @@ by Minitest, or with `ruby -W:deprecated` or `RUBYOPT=-W:deprecated`, so product
 that was saved with a deprecated option, and is read back, does not report one. IOStreams reports its
 own deprecation warnings, prefixed `IOStreams:`, for the methods and options that the application
 calls on it.
+
+### Check the paths and stream options saved in the database
+
+IOStreams 2.2 also deprecates some forms of paths and stream options, whose meaning IOStreams 3.0
+changes, or which it rejects, such as an SFTP url without a path, like `sftp://host`, a local file name
+that starts with `~/`, a `file://` url, an S3 url with a port, an option that a stream does not take,
+such as a misspelled one, and the Zip writer's `zip_file_name`, see
+[Deprecated, and what replaces it](https://iostreams.reidmorrison.com/upgrading.html#deprecated-and-what-replaces-it).
+
+Rocket Job passes the paths and stream options that are saved in the database to IOStreams: the
+`pattern` and `archive_directory` of each Dirmon entry, the `source_url`, `target_url`, arguments and
+streams of each `CopyFileJob`, and the `upload_file_name` of each `UploadFileJob`. IOStreams reports
+them only while deprecation warnings are on, at a line of Rocket Job rather than of the application,
+and tests seldom read the saved values, so check them against that table.
 
 ## Upgrading to v6
 
