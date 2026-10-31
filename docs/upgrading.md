@@ -174,25 +174,14 @@ input category's `columns` can still be set with a schema, and are not deprecate
 sets them to the header row read from the file, as it is in the file, which the workers match to the
 fields.
 
-### Replace the :array upload mode
+### Upload modes with a schema
 
-An input category's `mode: :array`, and the `stream_mode: :array` of `upload`, are deprecated, and
-cannot be used with a schema. Use the default `:line` mode, in which each worker parses its lines:
+A category with a schema cannot use the `:array` mode, nor be uploaded with `stream_mode: :array`.
+Use the default `:line` mode, in which each worker parses its lines, or `:hash` to also parse every
+line when the file is uploaded, so that a file with a problem is found before it is processed. Both
+upload the lines of the file, so that `#perform` receives each value as its type, such as a `Date`.
 
-~~~ruby
-# Before (deprecated)
-input_category format: :csv, mode: :array
-
-# After
-input_category format: :csv
-~~~
-
-To also parse every line when the file is uploaded, so that a file with a problem is found before it
-is processed, give the category a schema and use `:hash`. Without a schema, a category whose files
-have a header row, such as CSV, cannot be uploaded in the `:hash` mode in 7.x.
-
-With a schema, both modes upload the lines of the file, so that `#perform` receives each value as its
-type, such as a `Date`.
+Without a schema, `:array` still works as in v7.0.
 
 ### Text is read as UTF-8 with a schema
 
@@ -206,7 +195,7 @@ it used to lose. An encoding set on the path that is uploaded is used instead.
 
 Rocket Job reports a Ruby deprecation warning for each deprecated category option that it is given,
 naming the line of the job class that defines the category, or of the call to `upload` that supplies
-one, such as `stream_mode: :array` or `allowed_columns:`, for example:
+one, such as `allowed_columns:`, for example:
 
 ~~~
 app/jobs/import_job.rb:5: warning: Rocket Job: allowed_columns:, skip_unknown: are deprecated, describe the columns of the file with schema: instead, see https://rocketjob.reidmorrison.com/upgrading.html#upgrading-to-v71

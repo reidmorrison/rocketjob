@@ -106,12 +106,10 @@ class DeprecationTest < Minitest::Test
         assert_includes warnings.first, "format_options: is deprecated, use schema: instead"
       end
 
-      it "warns for the :array mode" do
+      it "does not warn for the :array mode, which only a schema rules out" do
         warnings = deprecation_warnings { Class.new(DeprecatedCategoryJob) { input_category format: :csv, mode: :array } }
 
-        assert_equal 1, warnings.size
-        assert_includes warnings.first, "mode: :array is deprecated, use :line, the default"
-        assert_includes warnings.first, "or with a schema :hash"
+        assert_empty warnings
       end
 
       it "does not warn for a category defined with a schema, or in the :line or :hash mode" do
@@ -157,17 +155,15 @@ class DeprecationTest < Minitest::Test
         job.cleanup!
       end
 
-      it "warns at the line that uploads a file in the :array mode" do
-        line     = __LINE__ + 2
+      it "does not warn for an upload in the :array mode" do
         warnings = deprecation_warnings do
           job.upload(StringIO.new("name\nJack\n"), file_name: "people.csv", stream_mode: :array)
         rescue StandardError
-          # v7 does not read a header row in the :array mode, which is what the warning is about.
+          # v7 does not read a header row in the :array mode.
           nil
         end
 
-        assert(warnings.any? { |w| w.start_with?("#{__FILE__}:#{line}: warning: Rocket Job: stream_mode: :array") },
-               warnings.inspect)
+        assert_empty warnings
       end
 
       it "warns at the line that uploads a file with the options that describe its columns" do

@@ -42,8 +42,9 @@ See [Upgrading to v7.1](https://rocketjob.reidmorrison.com/upgrading.html#upgrad
   parses every line during the upload. Its `columns` hold the header row of the file uploaded, as it is in the file,
   read again by each upload, such as that of a job scheduled again. A category with a schema needs a `format`, and
   cannot be set with the options that it replaces: `format_options`, the `columns` of an output category, and the
-  `allowed_columns`, `required_columns`, `skip_unknown`, `header_cleanser` and `:array` mode of an input category.
-  Without a schema, files are read and written as before. See "Typed values with a schema" in the batch guide.
+  `allowed_columns`, `required_columns`, `skip_unknown` and `header_cleanser` of an input category, which cannot use
+  the `:array` mode with one either. Without a schema, files are read and written as before. See "Typed values with a
+  schema" in the batch guide.
 
 ### Deprecated
 
@@ -59,9 +60,6 @@ database does not report one. See the upgrade guide.
   header row, or of an output category. The same options passed to `upload`, such as `allowed_columns:`, are
   deprecated too. With a schema, an input category's `columns` hold the header row read from the file, which is not
   deprecated.
-- An input category's `mode: :array`, and the `stream_mode: :array` of `upload`. Use the default `:line` mode, or,
-  with a schema, `:hash` to also parse every line when the file is uploaded. Without a schema, a category whose files
-  have a header row, such as CSV, cannot be uploaded in the `:hash` mode.
 
 ### Fixes
 
