@@ -7,7 +7,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Breaking changes
 
-- Removed the category options that Rocket Job 7.1 deprecates, since a category's `schema` replaces them:
+- Removed the category options that Rocket Job 7.1 and 7.2 deprecate, since a category's `schema` replaces them:
   - `format_options`, the layout of a fixed width file. A category with `format: :fixed` needs a schema, with the
     `width` of each field, without which IOStreams 3.0 raises `ArgumentError`.
   - An input category's `allowed_columns`, `required_columns`, `skip_unknown` and `header_cleanser`, and an output
@@ -29,8 +29,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   when it is saved. A category that was saved with one, such as that of a scheduled job, raises `ArgumentError` when it
   reads or writes its records, rather than reading them as though the option were not set. An option that is blank, or
   at its default, such as a blank `format_options`, or `skip_unknown: false`, which Rocket Job 7 saved with every
-  input category, is ignored. Upgrade to 7.1 first, and replace each one there, since its deprecation warnings and
-  `RocketJob::SchemaProposal.report` find them, which v8 does not have, see the upgrade guide.
+  input category, is ignored. Upgrade to 7.1 and then 7.2 first, and replace each one there, since their deprecation
+  warnings and 7.2's `RocketJob::SchemaProposal.report` find them, which v8 does not have, see the upgrade guide.
 - Removed `RocketJob::Plugins::Restart`, deprecated in v6, use `RocketJob::Plugins::Cron`; `RocketJob::LookupCollection`,
   which was unused, and whose `upload` always raised `ArgumentError`; and `#work_first_slice` of a batch job,
   deprecated in v6. A batch job saved by v5, and never saved since, is no longer translated into v6 categories when
@@ -41,12 +41,12 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   the `before_code` of an `OnDemandBatchJob`, whose documentation showed `upload_arel`. Also removed
   `upload_file_name` and `upload_file_name=` of a batch job, deprecated in v6, which read and set the `file_name` of
   its input category: use `input_category.file_name` instead. See the upgrade guide.
-- Removed the `on_first:` option of `upload`, which Rocket Job 7.1 deprecates, and which raises `ArgumentError`.
+- Removed the `on_first:` option of `upload`, which Rocket Job 7.2 deprecates, and which raises `ArgumentError`.
   Rocket Job reads the header row itself, and the category's schema checks its columns. For a file without a header
   row, such as JSON or fixed width, the lambda was called with the first record, which was then not uploaded: every
   record of such a file is uploaded, so to leave one out, upload with a block that writes the other lines. See the
   upgrade guide.
-- Removed the `delimiter:`, `buffer_size:` and `embedded_within:` options of `upload`, which Rocket Job 7.1 deprecates,
+- Removed the `delimiter:`, `buffer_size:` and `embedded_within:` options of `upload`, which Rocket Job 7.2 deprecates,
   and which raise `ArgumentError`, as does any other option that `upload` of a file does not take. IOStreams detects
   the line endings of a file, and the input category's format, such as CSV, reads a quoted value that holds line
   breaks.
@@ -499,6 +499,87 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   `IOStreams::Errors::NotFound`, so this applies to every storage, now that IOStreams 3.0 raises it
   from `#size` for a missing S3, SFTP or HTTP file, where 2.x returned nil. A missing archive
   location, such as an S3 bucket that does not exist, still fails the entry.
+
+## [7.1.0] Unreleased
+
+7.1 moves Rocket Job to IOStreams 2.2, which deprecates what IOStreams 3.0 removes. Rocket Job no longer uses any of it
+itself, and a category's new `schema` replaces the category options that IOStreams 2.2 deprecates: `format_options`,
+and the options that describe the columns of a file. Rocket Job reports a deprecation warning where an application
+uses one of those, since IOStreams does not report those that a category passes to it. Apart from the changes and
+fixes below, a job that does not use a schema reads and writes its files as in v7.0.
+
+Upgrade one version at a time: move to 7.1, fix each deprecation warning that Rocket Job and IOStreams report, and only
+then upgrade to the next version. See
+[Upgrading to v7.1](https://rocketjob.reidmorrison.com/upgrading.html#upgrading-to-v71).
+
+### Changed
+
+- Require IOStreams 2.2, which adds the schemas that describe the files of a category, and reports deprecation
+  warnings for what IOStreams 3.0 removes. Rocket Job 7.0 also runs on IOStreams 2.2 unchanged.
+- An upload of a path whose streams the application set with `#stream`, such as
+  `IOStreams.path("data").stream(:gz)`, into a category with a format reads the file. Previously the encode stream
+  that removes non-printable characters was applied to the bytes as they are stored, before the other streams, so the
+  upload raised, such as `Zlib::GzipFile::Error`, or read the wrong text.
+- Rocket Job no longer uses what IOStreams 2.2 deprecates, so it reports no IOStreams deprecation warning of its own:
+  tabular uploads remove non-printable characters with `#encoding` rather than `option(:encode)`, with the same
+  results, `CopyFileJob` reads and writes a file as it is stored with `#raw` rather than `stream(:none)`, which its
+  `source_streams` and `target_streams` still default to, and a category checks its `format` against
+  `IOStreams.tabular_formats`.
+
+### New features
+
+- A category's `schema` describes its files for IOStreams: the columns of a file, the type of each field, and the
+  width of each field of a fixed width file, as IOStreams 2.2's `#schema` does, see
+  [Schema](https://iostreams.reidmorrison.com/formats.html#schema). It is a
+  [Frictionless Table Schema](https://datapackage.org/standard/table-schema/), as a Hash, or as the path or url of a
+  JSON file, which is read when the category is first used. It replaces the options that IOStreams 2.2 deprecates,
+  which cannot be set with it: `format_options`, the `columns` of an output category, and the `allowed_columns`,
+  `required_columns`, `skip_unknown` and `header_cleanser` of an input category. Records are read as typed values, such
+  as an Integer, a BigDecimal or a Date, keyed by the names of the fields, and written in the text form of each type,
+  for every tabular format. A category with a schema needs a `format`. Without a schema, files are read and written as
+  before. See "Describing a file with a schema" in the batch guide.
+
+  An input category with a schema matches the columns of a header row to the fields, and raises
+  `IOStreams::Errors::InvalidHeader` during the upload for a header row that does not match. It reads the text of its
+  files as UTF-8, keeping letters that are not ASCII, and raises `IOStreams::Errors::InvalidEncoding` for text that is
+  not valid UTF-8. It uploads the lines of the file in the `:line` and `:hash` modes, which the workers parse, so that
+  `perform` receives a `date` as a Date, and in `:hash` mode it also parses every line during the upload. It cannot
+  use the `:array` mode. Its `columns` hold the header row of the file uploaded, as it is in the file, read again by
+  each upload, such as that of a job scheduled again.
+
+### Deprecated
+
+These still work as in 7.0. IOStreams 2.2 deprecates them, and IOStreams 3.0 removes them. Rocket Job reports a Ruby
+deprecation warning for each one: at the line of the application for one that a job class defines a category with, or
+that is passed to `upload`, which IOStreams reports too, and without a line for one that a Dirmon entry or an
+`UploadFileJob` builds a job with. The warnings are only reported while Ruby's deprecation warnings are on, such as in
+tests run by Minitest, so production stays quiet. A job read back from the database does not report one. See the
+upgrade guide.
+
+- A category's `format_options`, replaced by its `schema`, which gives the width of each field of a fixed width file.
+- The options that describe the columns of a file, replaced by the category's `schema`: an input category's
+  `allowed_columns`, `required_columns`, `skip_unknown` and `header_cleanser`, and the `columns` of a file without a
+  header row, or of an output category. The same options passed to `upload`, such as `allowed_columns:`, are
+  deprecated too. With a schema, an input category's `columns` hold the header row read from the file, which is not
+  deprecated.
+
+### Fixes
+
+- An upload of a tabular file that starts with blank lines, such as a CSV file, skips them and reads the header row
+  after them, as IOStreams does when it reads the header row itself. Previously the first blank line was taken as the
+  header row, so the header row was uploaded as a record, and every slice then failed, since the job had no columns.
+  The `on_first` lambda is called with the header row.
+- An input category with `format: :auto` uploads the first record of a JSON or fixed width file. Previously it was
+  dropped, as though it were a header row, since the upload checked for a header row before it took the format from
+  the file name, so `record_count` was one short.
+- An input category in the `:array` or `:hash` mode, without a schema, reads the header row of a file, such as a CSV
+  file, and uploads its lines, as in the `:line` mode. Previously the upload raised, such as `NoMethodError`, in the
+  `:array` mode, and in the `:hash` mode the header row was uploaded as a record, so every slice failed. Without a
+  schema the mode does not change how a file is uploaded: `stream_mode: :array` or `stream_mode: :hash` on `upload`
+  parses each line first.
+- On Mongoid 8, a change to a category of a batch job read from the database is saved. Previously reading the job
+  marked its whole `input_categories` as changed, so MongoDB rejected the save as a conflict, such as
+  "Updating the path 'input_categories.0.schema' would create a conflict at 'input_categories'".
 
 ## [7.0.0] 2026-09-05
 
