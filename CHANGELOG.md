@@ -8,8 +8,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 7.1 moves Rocket Job to IOStreams 2.2, which deprecates what IOStreams 3.0 removes. Rocket Job no longer uses any of it
 itself, and a category's new `schema` replaces the category options that IOStreams 2.2 deprecates: `format_options`,
 and the options that describe the columns of a file. Rocket Job reports a deprecation warning where an application
-uses one of those, since IOStreams does not report the options that Rocket Job passes to it. It changes no existing
-behavior: a job that does not use a schema reads and writes its files as in v7.0.
+uses one of those, since IOStreams does not report those that a category passes to it. Apart from the changes and
+fixes below, a job that does not use a schema reads and writes its files as in v7.0.
 
 Upgrade one version at a time: move to 7.1, fix each deprecation warning that Rocket Job and IOStreams report, and only
 then upgrade to the next version. See
@@ -53,10 +53,11 @@ then upgrade to the next version. See
 ### Deprecated
 
 These still work as in 7.0. IOStreams 2.2 deprecates them, and IOStreams 3.0 removes them. Rocket Job reports a Ruby
-deprecation warning, at the line of the application, for each one that a job class defines a category with, that a
-Dirmon entry or an `UploadFileJob` builds a job with, or that is passed to `upload`. The warnings are only reported
-while Ruby's deprecation warnings are on, such as in tests run by Minitest, so production stays quiet. A job read back
-from the database does not report one. See the upgrade guide.
+deprecation warning for each one: at the line of the application for one that a job class defines a category with, or
+that is passed to `upload`, which IOStreams reports too, and without a line for one that a Dirmon entry or an
+`UploadFileJob` builds a job with. The warnings are only reported while Ruby's deprecation warnings are on, such as in
+tests run by Minitest, so production stays quiet. A job read back from the database does not report one. See the
+upgrade guide.
 
 - A category's `format_options`, replaced by its `schema`, which gives the width of each field of a fixed width file.
 - The options that describe the columns of a file, replaced by the category's `schema`: an input category's

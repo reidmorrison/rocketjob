@@ -24,7 +24,7 @@ upgrade to the next version:
 1. Upgrade to the next version, following its section below.
 2. Run your tests with Ruby's deprecation warnings on, see
    [Find the deprecated options that you use](#find-the-deprecated-options-that-you-use), and
-   change each line that a warning names, until none are left.
+   change what each warning reports, until none are left.
 3. Change the saved documents that still hold a deprecated option, such as Dirmon entries, scheduled
    jobs and `UploadFileJob`s, since reading one back reports no warning.
 4. Deploy, and only then upgrade to the next version.
@@ -44,10 +44,21 @@ Rocket Job 7.1 no longer uses any of them itself.
 
 An application sets some of them through Rocket Job, rather than on IOStreams: a category's
 `format_options`, and the options that describe the columns of a file, such as `allowed_columns`.
-IOStreams does not report the options that Rocket Job passes to it, so Rocket Job reports them
-instead, and adds a category's `schema`, which replaces them, as IOStreams' `#schema` replaces them.
-Nothing else changes: a job that does not use a schema reads and writes its files as it did in v7.0,
-and the deprecated options keep working.
+IOStreams does not report those that a category passes to it, so Rocket Job reports them instead, and
+adds a category's `schema`, which replaces them, as IOStreams' `#schema` replaces them. The deprecated
+options keep working.
+
+A job that does not use a schema reads and writes its files as it did in v7.0, apart from these
+fixes:
+
+* An upload of a path whose streams were set with `#stream`, such as `stream(:gz)`, into a category
+  with a format reads the file, where v7.0 raised or read the wrong text.
+* Blank lines before the header row of a tabular file are skipped, where v7.0 took the first one as
+  the header row.
+* A `format: :auto` upload of a JSON or fixed width file keeps its first record, so `record_count` is
+  one more than in v7.0.
+* A category in the `:array` or `:hash` mode reads the header row of a file such as CSV, where v7.0
+  raised, or failed every slice.
 
 Servers running v7.0 and v7.1 can run together, but upgrade every server before giving any job,
 Dirmon entry or `UploadFileJob` a schema. A v7.0 worker ignores a category's schema, so it would read
@@ -56,7 +67,7 @@ the records of such a job by the header row as it is in the file, with every val
 ### Replace format_options with a schema
 
 A category's `format_options` is deprecated, and replaced by its `schema`, which IOStreams uses for
-every tabular format, see [Describing a file with a schema](batch.html#describing-a-file-with-a-schema). A
+every tabular format, see [Describing a file with a schema](batch.html#typed-values-with-a-schema). A
 fixed width layout becomes a schema with the `width` of each field:
 
 ~~~ruby
@@ -109,8 +120,9 @@ ignore the other.
 The schema also describes the columns of a file, so the options that described them are deprecated:
 an input category's `allowed_columns`, `required_columns`, `skip_unknown` and `header_cleanser`, and the
 `columns` of a file without a header row, or of the output to write. So are the same options passed
-to `upload`, such as `allowed_columns:`. See [Validating columns](batch.html#validating-columns) and
-[Filtering output columns](batch.html#filtering-output-columns).
+to `upload`, such as `allowed_columns:`. See
+[Matching columns to the fields of a schema](batch.html#matching-columns-to-the-fields-of-a-schema)
+and [Filtering output columns](batch.html#filtering-output-columns).
 
 ~~~ruby
 # Before (deprecated)
@@ -148,11 +160,11 @@ The schema property that replaces each option, and each combination of them:
 
 | Option                                      | With a schema
 |:--------------------------------------------|:-------------
-| `header_cleanser: :default`, the default    | `"keyType" => "cleansed"`, so that the keys of each record are cleansed, as before.
+| `header_cleanser: :default`, the default    | `"keyType" => "cleansed"`, so that the keys of each record are cleansed, as before. A column that is not a field, which `"extraColumns" => "keep"` keeps, is keyed the same way.
 | `allowed_columns`                           | `"fieldsMatch" => "superset"`, which accepts a file without some of the fields, as `allowed_columns` does, or `"equal"` when `required_columns` lists every allowed column.
 | `allowed_columns` with `skip_unknown: true` | `"fieldsMatch" => "partial"`, which accepts a file without some of the fields, as `allowed_columns` does, or `"subset"` when `required_columns` lists every allowed column.
 | `required_columns` with `allowed_columns`   | `"constraints" => {"required" => true}` with `"allowBlank" => true` on each required field, which needs the column but not a value, as `required_columns` did. Without `allowBlank`, a blank value raises too.
-| `required_columns` alone                    | A field for each of them, with `"constraints" => {"required" => true}` and `"allowBlank" => true`, and `"fieldsMatch" => "subset"` with `"extraColumns" => "keep"`, which keeps the other columns of the file, after the fields, as `required_columns` did.
+| `required_columns` alone                    | A field for each of them, with `"constraints" => {"required" => true}` and `"allowBlank" => true`, and `"fieldsMatch" => "subset"` with `"extraColumns" => "keep"`, which keeps the other columns of the file, after the fields, as `required_columns` did. Add `"keyType" => "cleansed"` to keep their keys cleansed, such as `last_login` for the column `Last Login`: without it they are keyed as they are in the file, so `record["last_login"]` is nil, without an error.
 | `header_cleanser: :none`                    | `"fieldsMatch" => "subset"`, `"extraColumns" => "keep"` and `"fields" => []`, which keeps every column, named as it is in the file, without `keyType`.
 | `columns`, for a file without a header row  | `"header" => false`, with a field for each column, in order, named as the column was, without `keyType`. A `nil` column is a field with `"skip" => true`, which holds its place.
 | `format_options` with a fixed width layout  | The `width` of each field, and `"keyType" => "symbol"` when the keys of the layout are Symbols.
@@ -222,6 +234,16 @@ app/jobs/import_job.rb:5: warning: Rocket Job: allowed_columns:, skip_unknown: a
 A Dirmon entry or an `UploadFileJob` whose properties hold a deprecated option reports one when it
 builds its job, without the line of a job class.
 
+An option passed to `upload`, such as `allowed_columns:`, is reported twice: by Rocket Job, at the
+line that calls `upload`, and by IOStreams, since Rocket Job passes it on. Change the call to `upload`
+that Rocket Job's warning names.
+
+IOStreams also reports what Rocket Job passes on from a call to `upload` or `download`, such as a
+deprecated form of a path, like `job.upload("~/in.csv")`, or a JSON file uploaded with
+`stream_mode: :array`, see [Upload modes with a schema](#upload-modes-with-a-schema). Such a warning
+names a line of Rocket Job, such as `lib/rocket_job/category/input.rb`, rather than of your
+application, so find the call to `upload` or `download` that supplied it, and change that.
+
 The warnings are only reported while Ruby's deprecation warnings are on, which they are in tests run
 by Minitest, or with `ruby -W:deprecated` or `RUBYOPT=-W:deprecated`, so production stays quiet. A job
 that was saved with a deprecated option, and is read back, does not report one. IOStreams reports its
@@ -230,17 +252,48 @@ calls on it.
 
 ### Check the paths and stream options saved in the database
 
-IOStreams 2.2 also deprecates some forms of paths and stream options, whose meaning IOStreams 3.0
-changes, or which it rejects, such as an SFTP url without a path, like `sftp://host`, a local file name
-that starts with `~/`, a `file://` url, an S3 url with a port, an option that a stream does not take,
-such as a misspelled one, and the Zip writer's `zip_file_name`, see
+IOStreams 2.2 also deprecates some forms of paths and stream options, such as a local file name that
+starts with `~/`, see
 [Deprecated, and what replaces it](https://iostreams.reidmorrison.com/upgrading.html#deprecated-and-what-replaces-it).
+IOStreams reports one only when the path is used, so tests seldom report those that are saved in the
+database. Rocket Job passes these to IOStreams:
 
-Rocket Job passes the paths and stream options that are saved in the database to IOStreams: the
-`pattern` and `archive_directory` of each Dirmon entry, the `source_url`, `target_url`, arguments and
-streams of each `CopyFileJob`, and the `upload_file_name` of each `UploadFileJob`. IOStreams reports
-them only while deprecation warnings are on, at a line of Rocket Job rather than of the application,
-and tests seldom read the saved values, so check them against that table.
+* the `pattern` and `archive_directory` of each Dirmon entry, and the paths in its `properties`,
+* the `source_url`, `target_url`, arguments and streams of each `CopyFileJob`,
+* the `upload_file_name` and `original_file_name` of each `UploadFileJob`,
+* the `file_name` of each category of a batch job, and
+* each field of your own of type `IOStreams::Path`.
+
+To have IOStreams report most of them, run this in a console of the application, such as
+`bin/rails console`. It reads each Dirmon entry and job, and builds its paths without opening them:
+
+~~~ruby
+Warning[:deprecated] = true
+
+RocketJob::DirmonEntry.each do |entry|
+  puts "Dirmon entry #{entry.name}:"
+  IOStreams.path(entry.pattern)
+  IOStreams.path(entry.archive_directory) if entry.archive_directory.present?
+end
+
+RocketJob::Job.each do |job|
+  puts "#{job.class.name} #{job.id}:"
+  case job
+  when RocketJob::Jobs::CopyFileJob
+    job.source_path if job.source_url
+    job.target_path
+  when RocketJob::Jobs::UploadFileJob
+    job.upload_file_name
+  when RocketJob::Batch
+    job.input_categories.each(&:file_name)
+    job.output_categories.each(&:file_name)
+  end
+end
+~~~
+
+Each warning follows the name of the Dirmon entry or job that holds the path. Check the paths in the
+`properties` of Dirmon entries, the `original_file_name` of each `UploadFileJob`, and your own fields
+by hand.
 
 ## Upgrading to v6
 

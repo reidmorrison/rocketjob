@@ -240,17 +240,17 @@ Input category options:
 | `slice_size`       | `100`       | Number of records per slice.
 | `serializer`       | `:compress` | Slice serialization: `:none`, `:compress`, or `:encrypt`. See [Compression and encryption](#compression-and-encryption).
 | `format`           | `nil`       | Parse each record before `perform`: `nil` (raw line), `:auto`, or a tabular format such as `:csv`. See [Reading tabular files](#reading-tabular-files).
-| `schema`           | `nil`       | Describes the file: its columns, the type of each field, and the width of each field of a fixed width file. See [Describing a file with a schema](#describing-a-file-with-a-schema).
+| `schema`           | `nil`       | Describes the file: its columns, the type of each field, and the width of each field of a fixed width file. See [Describing a file with a schema](#typed-values-with-a-schema).
 | `mode`             | `:line`     | How a file is uploaded into a category with a schema: `:line` or `:hash`. See below.
 | `format_options`   | `nil`       | Deprecated, use `schema`. Format-specific options, for example a `:layout` for `:fixed`.
-| `columns`          | `nil`       | Deprecated, use `schema`. Header columns, when the file has no header row.
+| `columns`          | `nil`       | Header columns, when the file has no header row. Deprecated without a schema, use `schema`. With a schema, `upload` sets it to the header row of the file, which is not deprecated.
 | `allowed_columns`  | `nil`       | Deprecated, use `schema`. Restrict tabular input to these columns; others are returned as nil.
 | `required_columns` | `nil`       | Deprecated, use `schema`. Tabular columns that must be present, or an exception is raised.
-| `skip_unknown`     | `false`     | Deprecated, use `schema`. When `allowed_columns` is set, ignore unknown columns instead of raising.
-| `header_cleanser`  | `:default`  | Deprecated, use `schema`. Cleanse tabular header column names (`:default`) or leave them as-is (`:none`).
+| `skip_unknown`     | `false`     | When `allowed_columns` is set, ignore unknown columns instead of raising. `true` is deprecated, use `schema`.
+| `header_cleanser`  | `:default`  | Cleanse tabular header column names (`:default`) or leave them as-is (`:none`). `:none` is deprecated, use `schema`.
 
 The `mode` option controls how a file is uploaded into a category with a schema, see
-[Describing a file with a schema](#describing-a-file-with-a-schema):
+[Describing a file with a schema](#typed-values-with-a-schema):
 
 * `:line` (default) uploads the lines of the file. This is the most performant, since each worker
   parses its own lines.
@@ -432,7 +432,7 @@ TabularJob.new.tap { |j| j.upload("really_big.xlsx") }.save!
 TabularJob.new.tap { |j| j.upload("really_big.json") }.save!
 ~~~
 
-### Describing a file with a schema
+### Describing a file with a schema {#typed-values-with-a-schema}
 
 A category's `schema` describes its files: the columns of a file, the type of each field, and the
 width of each field of a fixed width file. It is a
@@ -502,12 +502,26 @@ upload, so that a file with a value that is not valid is rejected before any wor
 
 Each column of the header row is matched to a field by its name, or one of its `aliases`, whatever
 its case, spaces and punctuation, so `First Name`, `first_name` and `FIRST.NAME` are the same column,
-and the keys of each record are the names of the fields. `fieldsMatch` says which other columns a file
-can have, and a field with `"constraints" => {"required" => true}` must be one of its columns, see
+and the keys of each record are the names of the fields.
+
+`fieldsMatch` says which columns a file can have, and in what order:
+
+| `fieldsMatch` | The columns of the file
+|:--------------|:-----------------------
+| `"exact"`     | Are the fields, in the same order. The default.
+| `"equal"`     | Are the fields, in any order.
+| `"subset"`    | Include every field. Other columns are skipped.
+| `"superset"`  | Are all fields, but a field can be missing.
+| `"partial"`   | Include at least one field. Other columns are skipped.
+
+So with the default, the `PeopleJob` above rejects a file whose columns are in another order, or that
+has another column. A field with `"constraints" => {"required" => true}` must be one of the columns,
+whatever the `fieldsMatch`, and must have a value in every record, unless it also has
+`"allowBlank" => true`. See
 [Matching columns to fields](https://iostreams.reidmorrison.com/formats.html#matching-columns-to-fields),
 [fieldsMatch](https://iostreams.reidmorrison.com/formats.html#fieldsmatch) and
 [Required fields](https://iostreams.reidmorrison.com/formats.html#required-fields) in the IOStreams
-guide:
+guide.
 
 ~~~ruby
 input_category format: :csv,
@@ -523,19 +537,19 @@ input_category format: :csv,
 ~~~
 
 A header row is checked during the upload, so a file whose columns do not match the schema raises
-`IOStreams::Errors::InvalidHeader` and uploads nothing, before any worker runs. Each upload reads the
-header row of its own file, which the input category holds in its `columns`, as it is in the file.
+`IOStreams::Errors::InvalidHeader` and uploads nothing, before any worker runs. A required field
+without a value raises `IOStreams::Errors::InvalidValue` when its line is parsed: by a worker, which
+fails that record, or during the upload in the `:hash` mode. Each upload reads the header row of its
+own file, which the input category holds in its `columns`, as it is in the file.
 
 ### Validating columns
 
-A schema validates the columns of a file during upload, see
-[Matching columns to the fields of a schema](#matching-columns-to-the-fields-of-a-schema), so a
-malformed file is rejected before any worker runs.
-
-Before 7.1 the columns of an input category were validated with the options below. IOStreams 2.2
-deprecates them, so Rocket Job 7.1 deprecates them too: they still work without a schema, a category
-cannot set them with one, and a job class that defines a category with one reports a deprecation
-warning. [Replace the column options with a schema](upgrading.html#replace-the-column-options-with-a-schema)
+A schema validates the columns of a file, see
+[Matching columns to the fields of a schema](#matching-columns-to-the-fields-of-a-schema). Before 7.1
+the columns of an input category were validated with the options below. IOStreams 2.2 deprecates
+them, so Rocket Job 7.1 deprecates them too: they still work without a schema, a category cannot set
+them with one, and a job class that defines a category with one reports a deprecation warning.
+[Replace the column options with a schema](upgrading.html#replace-the-column-options-with-a-schema)
 gives the schema that replaces each one.
 
 ~~~ruby
