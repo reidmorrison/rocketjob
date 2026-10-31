@@ -35,8 +35,26 @@ development:
 test:
   clients:
     default: &default_test
-      # TEST_DATABASE in test/test_helper.rb sets it for each git worktree.
-      uri: mongodb://127.0.0.1:27017/<%= ENV.fetch("ROCKETJOB_TEST_DATABASE", "rocketjob_test") %>
+      <%
+        # The tests drop the collections of this database when they start. So each git worktree, whose .git is a
+        # file rather than a directory, gets a database of its own, named after its directory, and the tests of
+        # worktrees that run at the same time do not drop each other's collections. The main checkout, and CI, use
+        # rocketjob_test. Set ROCKETJOB_TEST_DATABASE to choose another. This file is loaded from the root of the
+        # repository, so that is the current directory.
+        require "digest"
+        test_database = ENV["ROCKETJOB_TEST_DATABASE"].to_s.strip
+        if test_database.empty?
+          root          = Dir.pwd
+          test_database =
+            if File.file?(File.join(root, ".git"))
+              name = File.basename(root).gsub(/[^A-Za-z0-9_-]/, "_")[0, 30]
+              "rocketjob_test_#{name}_#{Digest::SHA256.hexdigest(root)[0, 6]}"
+            else
+              "rocketjob_test"
+            end
+        end
+      %>
+      uri: mongodb://127.0.0.1:27017/<%= test_database %>
       options:
         <<: *client_options
     rocketjob:
