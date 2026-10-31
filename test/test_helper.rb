@@ -22,6 +22,9 @@ RocketJob::Config.load!("test", "test/config/mongoid.yml", "test/config/symmetri
 Mongoid.logger       = SemanticLogger[Mongoid]
 Mongo::Logger.logger = SemanticLogger[Mongo]
 
+# The MongoDB database that the tests use, which test/config/mongoid.yml names for each git worktree.
+TEST_DATABASE = Mongoid::Clients.default.database.name
+
 # Cleanup test collections
 RocketJob::Job.collection.database.collections.each(&:drop)
 

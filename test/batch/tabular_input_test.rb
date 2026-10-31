@@ -256,10 +256,37 @@ module Batch
       end
 
       describe "without a schema" do
+        let(:csv) { "Name,Age\nJack,21\n" }
+
         it "removes the letters that are not ASCII, as before" do
           upload(".csv", "Name\nJosé\n")
 
           assert_equal ["Jos"], input_records
+        end
+
+        it "uploads the lines of a file into a category in the :array mode" do
+          job.input_category.mode = :array
+
+          assert_equal 1, upload(".csv", csv)
+          assert_equal %w[name age], job.input_category.columns
+          assert_equal ["Jack,21"], input_records
+          assert_equal [{"name" => "Jack", "age" => "21"}], output_records
+        end
+
+        it "uploads each row as an Array with stream_mode: :array" do
+          assert_equal 1, upload(".csv", csv, stream_mode: :array)
+          assert_equal %w[name age], job.input_category.columns
+          assert_equal [%w[Jack 21]], input_records
+          assert_equal [{"name" => "Jack", "age" => "21"}], output_records
+        end
+
+        it "uploads each row as an Array with stream_mode: :array into a category in the :array mode" do
+          job.input_category.mode = :array
+
+          assert_equal 1, upload(".csv", csv, stream_mode: :array)
+          assert_equal %w[name age], job.input_category.columns
+          assert_equal [%w[Jack 21]], input_records
+          assert_equal [{"name" => "Jack", "age" => "21"}], output_records
         end
       end
 

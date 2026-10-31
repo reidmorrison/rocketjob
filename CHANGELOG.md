@@ -5,12 +5,15 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [7.1.0] Unreleased
 
-7.1 prepares applications for Rocket Job 8: it adds the settings that replace those that v8 removes, and reports a
-deprecation warning where an application uses one of those, so that it can move to them before it upgrades. It changes
-no existing behavior: a job that does not use what is new reads and writes its files as in v7.0.
+7.1 moves Rocket Job to IOStreams 2.2, which deprecates what IOStreams 3.0 removes. Rocket Job no longer uses any of it
+itself, and a category's new `schema` replaces the category options that IOStreams 2.2 deprecates: `format_options`,
+and the options that describe the columns of a file. Rocket Job reports a deprecation warning where an application
+uses one of those, since IOStreams does not report those that a category passes to it. Apart from the changes and
+fixes below, a job that does not use a schema reads and writes its files as in v7.0.
 
-Upgrade one version at a time: move to 7.1, fix each deprecation warning that it reports, and only then upgrade to 8.
-See [Upgrading to v7.1](https://rocketjob.reidmorrison.com/upgrading.html#upgrading-to-v71).
+Upgrade one version at a time: move to 7.1, fix each deprecation warning that Rocket Job and IOStreams report, and only
+then upgrade to the next version. See
+[Upgrading to v7.1](https://rocketjob.reidmorrison.com/upgrading.html#upgrading-to-v71).
 
 ### Changed
 
@@ -28,30 +31,33 @@ See [Upgrading to v7.1](https://rocketjob.reidmorrison.com/upgrading.html#upgrad
 
 ### New features
 
-- A category's `schema` describes the fields of its files, and the type of each one, as a
+- A category's `schema` describes its files for IOStreams: the columns of a file, the type of each field, and the
+  width of each field of a fixed width file, as IOStreams 2.2's `#schema` does, see
+  [Schema](https://iostreams.reidmorrison.com/formats.html#schema). It is a
   [Frictionless Table Schema](https://datapackage.org/standard/table-schema/), as a Hash, or as the path or url of a
-  JSON file, which is read when the category is first used. Records are read as typed values, such as an Integer, a
-  BigDecimal or a Date, keyed by the names of the fields, and written in the text form of each type, for every tabular
-  format. The schema gives the width of each field of a fixed width file, describes a file without a header row with
-  `"header": false`, and says which columns a file can have with `fieldsMatch`, and must have with
-  `constraints: {required: true}`. The columns of a header row are matched to the fields whatever their case, spaces
-  and punctuation, and a header row that does not match raises `IOStreams::Errors::InvalidHeader` during the upload.
-  An input category with a schema reads the text of its files as UTF-8, keeping letters that are not ASCII, and raises
-  `IOStreams::Errors::InvalidEncoding` for text that is not valid UTF-8. It uploads the lines of the file in the `:line`
-  and `:hash` modes, which the workers parse, so that `perform` receives a `date` as a Date, and in `:hash` mode it also
-  parses every line during the upload. Its `columns` hold the header row of the file uploaded, as it is in the file,
-  read again by each upload, such as that of a job scheduled again. A category with a schema needs a `format`, and
-  cannot be set with the options that it replaces: `format_options`, the `columns` of an output category, and the
-  `allowed_columns`, `required_columns`, `skip_unknown`, `header_cleanser` and `:array` mode of an input category.
-  Without a schema, files are read and written as before. See "Typed values with a schema" in the batch guide.
+  JSON file, which is read when the category is first used. It replaces the options that IOStreams 2.2 deprecates,
+  which cannot be set with it: `format_options`, the `columns` of an output category, and the `allowed_columns`,
+  `required_columns`, `skip_unknown` and `header_cleanser` of an input category. Records are read as typed values, such
+  as an Integer, a BigDecimal or a Date, keyed by the names of the fields, and written in the text form of each type,
+  for every tabular format. A category with a schema needs a `format`. Without a schema, files are read and written as
+  before. See "Describing a file with a schema" in the batch guide.
+
+  An input category with a schema matches the columns of a header row to the fields, and raises
+  `IOStreams::Errors::InvalidHeader` during the upload for a header row that does not match. It reads the text of its
+  files as UTF-8, keeping letters that are not ASCII, and raises `IOStreams::Errors::InvalidEncoding` for text that is
+  not valid UTF-8. It uploads the lines of the file in the `:line` and `:hash` modes, which the workers parse, so that
+  `perform` receives a `date` as a Date, and in `:hash` mode it also parses every line during the upload. It cannot
+  use the `:array` mode. Its `columns` hold the header row of the file uploaded, as it is in the file, read again by
+  each upload, such as that of a job scheduled again.
 
 ### Deprecated
 
-These still work as in 7.0, and will be removed in Rocket Job 8. Rocket Job reports a Ruby deprecation warning, at
-the line of the application, for each one that a job class defines a category with, that a Dirmon entry or an
-`UploadFileJob` builds a job with, or that is passed to `upload`. The warnings are only reported while Ruby's
-deprecation warnings are on, such as in tests run by Minitest, so production stays quiet. A job read back from the
-database does not report one. See the upgrade guide.
+These still work as in 7.0. IOStreams 2.2 deprecates them, and IOStreams 3.0 removes them. Rocket Job reports a Ruby
+deprecation warning for each one: at the line of the application for one that a job class defines a category with, or
+that is passed to `upload`, which IOStreams reports too, and without a line for one that a Dirmon entry or an
+`UploadFileJob` builds a job with. The warnings are only reported while Ruby's deprecation warnings are on, such as in
+tests run by Minitest, so production stays quiet. A job read back from the database does not report one. See the
+upgrade guide.
 
 - A category's `format_options`, replaced by its `schema`, which gives the width of each field of a fixed width file.
 - The options that describe the columns of a file, replaced by the category's `schema`: an input category's
@@ -59,9 +65,6 @@ database does not report one. See the upgrade guide.
   header row, or of an output category. The same options passed to `upload`, such as `allowed_columns:`, are
   deprecated too. With a schema, an input category's `columns` hold the header row read from the file, which is not
   deprecated.
-- An input category's `mode: :array`, and the `stream_mode: :array` of `upload`. Use the default `:line` mode, or,
-  with a schema, `:hash` to also parse every line when the file is uploaded. Without a schema, a category whose files
-  have a header row, such as CSV, cannot be uploaded in the `:hash` mode.
 
 ### Fixes
 
@@ -72,6 +75,14 @@ database does not report one. See the upgrade guide.
 - An input category with `format: :auto` uploads the first record of a JSON or fixed width file. Previously it was
   dropped, as though it were a header row, since the upload checked for a header row before it took the format from
   the file name, so `record_count` was one short.
+- An input category in the `:array` or `:hash` mode, without a schema, reads the header row of a file, such as a CSV
+  file, and uploads its lines, as in the `:line` mode. Previously the upload raised, such as `NoMethodError`, in the
+  `:array` mode, and in the `:hash` mode the header row was uploaded as a record, so every slice failed. Without a
+  schema the mode does not change how a file is uploaded: `stream_mode: :array` or `stream_mode: :hash` on `upload`
+  parses each line first.
+- On Mongoid 8, a change to a category of a batch job read from the database is saved. Previously reading the job
+  marked its whole `input_categories` as changed, so MongoDB rejected the save as a conflict, such as
+  "Updating the path 'input_categories.0.schema' would create a conflict at 'input_categories'".
 
 ## [7.0.0] 2026-09-05
 

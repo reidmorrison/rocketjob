@@ -49,33 +49,22 @@ module RocketJob
       field :skip_unknown, type: ::Mongoid::Boolean, default: false
       validates_inclusion_of :skip_unknown, in: [true, false]
 
-      # When `#upload` is called with a file_name, it uploads the file using any of the following approaches:
+      # How `#upload` reads a file into a category with a schema, see #schema, unless the upload is given a
+      # `stream_mode:`:
       # :line
-      #   Uploads the file a line (String) at a time for processing by workers.
-      #   This is the default behavior and is the most performant since it leaves the parsing of each line
-      #   up to the workers themselves.
-      # :array
-      #   Deprecated, use :line, or with a schema :hash, which also parses every line when the file is uploaded.
-      #   Parses each line from the file as an Array and uploads each array for processing by workers.
-      #   Every line in the input file is parsed and converted into an array before uploading.
-      #   This approach ensures that the entire files is valid before starting to process it.
-      #   Ideal for when files may contain invalid lines.
-      #   Not recommended for large files since the CSV or other parsing is performed sequentially during the
-      #   upload process.
+      #   Uploads the lines of the file, which the workers parse by the schema, so that each value reaches `#perform` as
+      #   its type, such as a Date. This is the default, and the most performant, since the workers parse the lines.
       # :hash
-      #   Parses each line from the file into a Hash and uploads each hash for processing by workers.
-      #   Similar to :array above in that the entire file is parsed before processing is started.
-      #   Slightly less efficient than :array since it stores every record as a hash with both the key and value.
+      #   Also parses every line by the schema when it is uploaded, so that a file with a value that is not valid is not
+      #   uploaded at all. The lines are uploaded, as in :line mode. Not recommended for large files, since the lines
+      #   are parsed one after the other during the upload.
+      # :array
+      #   Cannot be used with a schema.
       #
-      # Use :hash with a schema when the entire file must be parsed/validated before processing is started, and upload
-      # time is not important. Without a schema, a category with a format whose files have a header row, such as CSV,
-      # cannot be uploaded in the :hash mode.
-      # See IOStreams#each for more details.
-      #
-      # With a schema, see #schema, the lines of the file are uploaded in the :line and :hash modes, which the workers
-      # parse by the schema, so that each value reaches `#perform` as its type, such as a Date. In :hash mode every line
-      # is also parsed when it is uploaded, so that a file with a value that is not valid is not uploaded at all. The
-      # :array mode cannot be used with a schema.
+      # Without a schema the mode does not change how a file is uploaded: its lines are uploaded, unless the upload is
+      # given `stream_mode: :array` or `stream_mode: :hash`, which parses each line into an Array or a Hash first, see
+      # RocketJob::Batch::IO#upload. A category with a format whose files have a header row, such as CSV, cannot be
+      # uploaded with `stream_mode: :hash` without a schema.
       field :mode, type: ::Mongoid::StringifiedSymbol, default: :line
       validates_inclusion_of :mode, in: %i[line array hash]
 
@@ -99,22 +88,6 @@ module RocketJob
       validates :header_cleanser, inclusion: %i[default none]
 
       validates_inclusion_of :serializer, in: %i[none compress encrypt]
-
-      # Reports a deprecation warning, see RocketJob::Deprecation, for the deprecated options in the supplied
-      # properties of an input category, see Category::Base.warn_deprecated_options, and for its :array `mode`.
-      def self.warn_deprecated_options(properties)
-        super
-        warn_array_mode if properties.to_h.stringify_keys["mode"].to_s == "array"
-      end
-
-      # Reports a deprecation warning, see RocketJob::Deprecation, for the :array mode of an upload, see #mode, set as
-      # the supplied option, such as the `stream_mode:` of `upload`.
-      def self.warn_array_mode(option = :mode)
-        RocketJob::Deprecation.warn(
-          "#{option}: :array is deprecated, use :line, the default, which the workers parse, or with a schema :hash, " \
-          "which also parses every line when the file is uploaded, see #{RocketJob::Deprecation::UPGRADE_GUIDE}"
-        )
-      end
 
       # Returns [Array<String>] the names of the deprecated options in the supplied properties of an input category,
       # with String keys, see Category::Base.deprecated_column_options: `allowed_columns`, `required_columns`,
@@ -223,30 +196,22 @@ module RocketJob
       #
       # A blank line before the header row is skipped, as IOStreams skips it when it reads the header row itself, such
       # as in :hash mode, so that the header row is not stored as a record.
+      #
+      # The header row is a line, or an Array when the upload parses each line with `stream_mode: :array`, which the
+      # format returns as it is.
       def extract_header_callback(on_first)
         return schema_header_callback(on_first) if schema.present?
         return first_record_callback(on_first) unless tabular? && tabular.header?
 
-        case mode
-        when :line
-          lambda do |line|
-            next false if line.blank?
+        lambda do |line|
+          next false if line.blank?
 
-            tabular.parse_header(line)
-            cleanse_header!
-            self.columns = tabular.header.columns
-            # Call chained on_first if present
-            on_first&.call(line)
-            true
-          end
-        when :array
-          lambda do |row|
-            tabular.header.columns = row
-            cleanse_header!
-            self.columns = category.tabular.header.columns
-            # Call chained on_first if present
-            on_first&.call(line)
-          end
+          tabular.parse_header(line)
+          cleanse_header!
+          self.columns = tabular.header.columns
+          # Call chained on_first if present
+          on_first&.call(line)
+          true
         end
       end
 

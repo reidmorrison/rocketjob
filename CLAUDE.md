@@ -21,7 +21,7 @@ A class diagram of the core relationships, and the architecture overview, is in 
 
 ## Commands
 
-Tests require a running MongoDB on `127.0.0.1:27017` (see `docker-compose.yml`: `docker compose up -d`). Test config is `test/config/mongoid.yml` and the suite drops/recreates collections on load.
+Tests require a running MongoDB on `127.0.0.1:27017` (see `docker-compose.yml`: `docker compose up -d`). Test config is `test/config/mongoid.yml` and the suite drops/recreates collections on load. Each git worktree tests against its own database (named in `test/config/mongoid.yml` after the worktree's directory, so `test/performance/batch_benchmark.rb` uses it too), so worktrees can run the suite at the same time; the main checkout and CI use `rocketjob_test`, and `ROCKETJOB_TEST_DATABASE` overrides it. Two runs in the same checkout still share one.
 
 - Run full suite (against current `Gemfile`): `bundle exec rake test`
 - Run one test file: `bundle exec ruby -Itest -Ilib test/job_test.rb`
