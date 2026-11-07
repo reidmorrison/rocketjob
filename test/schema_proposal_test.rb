@@ -22,6 +22,22 @@ class SchemaProposalTest < Minitest::Test
     end
   end
 
+  # Raises the error that it names when it is read back, as the after_initialize of an application's job can.
+  class RaisingJob < RocketJob::Job
+    field :raises, type: String
+
+    after_initialize :raise_named_error, unless: :new_record?
+
+    def perform
+    end
+
+    private
+
+    def raise_named_error
+      raise(Object.const_get(raises), "raised as it is read") if raises
+    end
+  end
+
   # A header with mixed case, spaces and punctuation, and a column that allowed_columns leaves out.
   CSV = "First Name,Last-Name,Zip Code,Extra\nJack,Jones,12345,x\nJill,,54321,y\n".freeze
 
@@ -257,12 +273,62 @@ class SchemaProposalTest < Minitest::Test
         assert_nil category.schema_proposal("ProposalJob 1 (queued)", defined: input(format: :csv), uploaded: true)
       end
 
+      it "proposes no schema for the header row of its own upload, whose columns are the same key" do
+        category = input(format: :csv, columns: %w[a a b], allowed_columns: %w[a b])
+        proposal = category.schema_proposal("ProposalJob 1 (queued)", defined: input(format: :csv), uploaded: true)
+
+        assert_empty proposal.changes
+        assert_includes proposal.notes.first,
+                        "a header row that the proposed schema cannot read, so that each slice would raise " \
+                        "IOStreams::Errors::InvalidHeader: The columns \"a\" and \"a\" are both the field \"a\""
+        assert_match(/Let it finish, or abort it, before applying a schema/, proposal.notes.first)
+        error = assert_raises(ArgumentError) { proposal.dry_run(StringIO.new("a,b\n1,2\n")) }
+        assert_equal "Only a proposal that changes an input category can read a file", error.message
+      end
+
+      it "proposes no schema for the header row of its own upload, two of whose columns match one field" do
+        # 7.0 cleansed a header row of FirstName,First Name,zip to these columns.
+        category = input(format: :csv, columns: %w[firstname first_name zip], required_columns: %w[first_name])
+        proposal = category.schema_proposal("ProposalJob 1 (queued)", defined: input(format: :csv), uploaded: true)
+
+        assert_empty proposal.changes
+        assert_includes proposal.notes.first,
+                        "IOStreams::Errors::InvalidHeader: The columns \"firstname\" and \"first_name\" are both the " \
+                        "field \"first_name\""
+        assert_match(/Let it finish, or abort it, before applying a schema/, proposal.notes.first)
+      end
+
+      it "proposes a schema with the header row of its own upload, whose columns are different keys" do
+        category = input(format: :csv, columns: %w[a b], allowed_columns: %w[a b])
+        proposal = category.schema_proposal("ProposalJob 1 (queued)", defined: input(format: :csv), uploaded: true)
+
+        assert_equal %w[allowed_columns schema], proposal.changes.keys
+        assert_equal %w[a b], proposal.proposed_category.columns
+      end
+
       it "drops columns copied from an earlier upload, when the job class sets none" do
-        category = input(format: :csv, columns: %w[first_name zip_code])
+        category = input(format: :csv, columns: ["first_name", nil, "zip_code"])
+        proposal = category.schema_proposal("ProposalJob 1 (queued), input category main", defined: input(format: :csv))
+        headerless = {
+          "header" => false,
+          "fields" => [{"name" => "first_name"}, {"name" => "column_2", "skip" => true}, {"name" => "zip_code"}]
+        }
+
+        assert_equal({"columns" => nil}, proposal.changes)
+        assert_match(/\AIf its columns hold the header row of an earlier upload/, proposal.notes.first)
+        assert_includes proposal.notes.first,
+                        "If the application set them for a file without a header row, use this schema instead, " \
+                        "which reads such a file as they did: #{headerless.inspect}"
+      end
+
+      it "drops copied columns that repeat a name, without a schema for a file without a header row, which cannot hold them" do
+        category = input(format: :csv, columns: %w[a a b])
         proposal = category.schema_proposal("ProposalJob 1 (queued), input category main", defined: input(format: :csv))
 
         assert_equal({"columns" => nil}, proposal.changes)
-        assert_match(/hold the header row of an earlier upload/, proposal.notes.first)
+        assert_equal "If its columns hold the header row of an earlier upload, which a scheduled job copies to its " \
+                     "next run, they are removed, so that each upload reads the header row of its own file.",
+                     proposal.notes.first
       end
     end
 
@@ -340,6 +406,22 @@ class SchemaProposalTest < Minitest::Test
         end
       end
 
+      it "does not list a record that is read the same way, such as a blank line" do
+        category = input(format: :csv, allowed_columns: %w[prnom zip_code], skip_unknown: true)
+
+        assert_equal ["Record 1: keys no longer read: [\"prnom\"]", "Record 3: keys no longer read: [\"prnom\"]"],
+                     dry_run(category, "Prénom,Zip Code\nJosé,12345\n\nJill,54321\n")
+      end
+
+      it "gives both messages of an error that is raised with another message" do
+        differences = dry_run(input(format: :csv, required_columns: %w[zip_code]), "Name,Other\nJack,1\n")
+
+        assert_equal 1, differences.size
+        assert_match(/\ARaises IOStreams::Errors::InvalidHeader with another message: The header row does not match/,
+                     differences.first)
+        assert_match(/, rather than: Missing columns after cleansing: zip_code\z/, differences.first)
+      end
+
       it "says when the file cannot be read either way" do
         differences = proposal(input(format: :csv, allowed_columns: %w[a])).dry_run("/no/such/file.csv")
 
@@ -365,6 +447,19 @@ class SchemaProposalTest < Minitest::Test
         job.input_category.columns = %w[first_name zip_code]
 
         assert_empty job.schema_proposals
+      end
+
+      it "tells a queued job that uploaded a header row whose columns are the same key to finish first" do
+        job = ProposalJob.new(record_count: 1)
+        job.input_category.format          = :csv
+        job.input_category.allowed_columns = %w[a b]
+        job.input_category.columns         = %w[a a b]
+
+        proposals = job.schema_proposals
+
+        assert_equal 1, proposals.size
+        assert_nil proposals.first.schema
+        assert_match(/Let it finish, or abort it, before applying a schema/, proposals.first.notes.first)
       end
 
       it "tells a running job to finish first" do
@@ -402,6 +497,21 @@ class SchemaProposalTest < Minitest::Test
         assert_equal 1, job.schema_proposals.size
       end
 
+      it "naming a category that the job class does not have say so, rather than propose a schema" do
+        entry = RocketJob::DirmonEntry.new(
+          name:           "Imports",
+          job_class_name: ProposalJob.name,
+          properties:     {"output_categories" => [{"name" => "other", "format" => "csv", "columns" => %w[a]}]}
+        )
+
+        proposal = entry.schema_proposals.first
+
+        assert_equal "Dirmon entry \"Imports\" #{entry.id}, output category other, in its properties", proposal.where
+        assert_empty proposal.changes
+        assert_match(/\ASchemaProposalTest::ProposalJob has no output category other, so a job cannot be built/,
+                     proposal.error)
+      end
+
       it "without a deprecated option propose nothing" do
         entry = RocketJob::DirmonEntry.new(job_class_name: ProposalJob.name,
                                            properties:     {"input_categories" => [{"name" => "main", "format" => "csv"}]})
@@ -420,6 +530,46 @@ class SchemaProposalTest < Minitest::Test
     end
 
     describe ".all" do
+      it "lists a saved job whose class cannot be loaded, rather than stopping" do
+        job = ProposalJob.new
+        job.input_category.format       = :csv
+        job.input_category.skip_unknown = true
+        job.save!
+        id = BSON::ObjectId.new
+        RocketJob::Job.collection.insert_one("_id" => id, "_type" => "SchemaProposalTest::NoSuchJob", "state" => "queued")
+
+        wheres = RocketJob::SchemaProposal.all.map(&:where)
+
+        assert_includes wheres, "Job #{id}"
+        assert_includes wheres, "SchemaProposalTest::ProposalJob #{job.id} (queued), input category main"
+      ensure
+        # Other tests load every saved job, which raises for this one.
+        RocketJob::Job.collection.delete_many("_type" => "SchemaProposalTest::NoSuchJob")
+      end
+
+      it "lists a saved job that raises when it is read, rather than stopping or saying that its class cannot be loaded" do
+        argument  = RaisingJob.create!(raises: "ArgumentError")
+        no_method = RaisingJob.create!(raises: "NoMethodError")
+        job       = ProposalJob.new
+        job.input_category.format       = :csv
+        job.input_category.skip_unknown = true
+        job.save!
+
+        proposals = RocketJob::SchemaProposal.all
+
+        assert_equal "Its categories could not be read: ArgumentError: raised as it is read",
+                     proposals.find { |proposal| proposal.where == "Job #{argument.id}" }.error
+        no_method_proposal = proposals.find { |proposal| proposal.where == "Job #{no_method.id}" }
+
+        assert_equal "Its categories could not be read: NoMethodError: raised as it is read", no_method_proposal.error
+        assert_empty no_method_proposal.notes
+        assert_includes proposals.map(&:where),
+                        "SchemaProposalTest::ProposalJob #{job.id} (queued), input category main"
+      ensure
+        # Other tests load every saved job, which raises for these.
+        RocketJob::Job.collection.delete_many("_type" => RaisingJob.name)
+      end
+
       it "lists a Dirmon entry whose properties cannot be read, rather than stopping" do
         RocketJob::DirmonEntry.create!(
           name:              "Bad",

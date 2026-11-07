@@ -78,7 +78,7 @@ module RocketJob
         # Returns [Array<RocketJob::SchemaProposal>] the schemas proposed to replace the deprecated options in the
         # supplied properties of a job of this class, such as those that a Dirmon entry or an UploadFileJob holds, at
         # the supplied place. Each is proposed for the category that the properties build, with the job class's own
-        # settings.
+        # settings, or says that a job of this class has no category of that name, for which #from_properties raises.
         def property_schema_proposals(properties, where)
           properties = properties.to_h.stringify_keys
           {"input_categories" => RocketJob::Category::Input, "output_categories" => RocketJob::Category::Output}.flat_map do |key, klass|
@@ -88,8 +88,16 @@ module RocketJob
               category_properties = category_properties.stringify_keys
               next if rocketjob_deprecated_properties(klass, category_properties).empty?
 
-              category = rocketjob_category_from(klass, category_properties)
-              category.schema_proposal("#{where}, #{rocketjob_category_label(category)}, in its properties")
+              category = klass.new(name: (category_properties["name"] || :main).to_sym)
+              label    = "#{where}, #{rocketjob_category_label(category)}, in its properties"
+              built    = rocketjob_category_from(category, category_properties)
+              next built.schema_proposal(label) if built
+
+              RocketJob::SchemaProposal.new(
+                where: label,
+                error: "#{name} has no #{rocketjob_category_label(category)}, so a job cannot be built from these " \
+                       "properties. Remove them, or define that category in the job class."
+              )
             end
           end
         end
@@ -100,10 +108,17 @@ module RocketJob
         end
 
         # Returns [RocketJob::Category::Input|RocketJob::Category::Output] the category of the supplied class that a job
-        # of this class starts with, by the name of the supplied category, see #rocketjob_categories_assign.
+        # of this class starts with, by the name of the supplied category, see #rocketjob_categories_assign, or nil when
+        # it starts without one.
         def rocketjob_defined_category(category)
-          defined = category.is_a?(RocketJob::Category::Input) ? defined_input_categories : defined_output_categories
+          defined = category.is_a?(RocketJob::Category::Input) ? rocketjob_initial_input_categories : defined_output_categories
           defined&.find { |candidate| candidate.name == category.name }
+        end
+
+        # Returns [Array<RocketJob::Category::Input>] the input categories that a job of this class starts with: those
+        # that it defines, or the main one when it defines none. Copy them before changing them.
+        def rocketjob_initial_input_categories
+          defined_input_categories || [RocketJob::Category::Input.new]
         end
 
         private
@@ -120,13 +135,12 @@ module RocketJob
         end
 
         # Returns the category that the supplied properties build for a job of this class, from its own category of
-        # that name, see #merge_input_categories, without reporting a deprecation warning.
-        def rocketjob_category_from(klass, properties)
-          name     = (properties["name"] || :main).to_sym
-          defined  = klass == RocketJob::Category::Input ? defined_input_categories : defined_output_categories
-          category = defined&.find { |candidate| candidate.name == name }&.deep_dup || klass.new(name: name)
-          properties.each_pair { |key, value| category.public_send(:"#{key}=", value) }
-          category
+        # the class and name of the supplied one, see #merge_input_categories, without reporting a deprecation warning,
+        # or nil when a job of this class has no such category.
+        def rocketjob_category_from(category, properties)
+          built = rocketjob_defined_category(category)&.deep_dup
+          properties.each_pair { |key, value| built.public_send(:"#{key}=", value) } if built
+          built
         end
 
         def rocketjob_categories_set(category, categories)
@@ -243,15 +257,7 @@ module RocketJob
       end
 
       def rocketjob_categories_assign
-        # Input categories defaults to :main if none was set in the class
-        if input_categories.empty?
-          self.input_categories =
-            if self.class.defined_input_categories
-              self.class.defined_input_categories.deep_dup
-            else
-              [RocketJob::Category::Input.new]
-            end
-        end
+        self.input_categories = self.class.rocketjob_initial_input_categories.deep_dup if input_categories.empty?
 
         return if !output_categories.empty? || !self.class.defined_output_categories
 

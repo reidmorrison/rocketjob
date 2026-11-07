@@ -24,8 +24,9 @@ module RocketJob
       #
       # `defined` is the category of the same name that the job class defines, for a saved job: when it has no columns,
       # the columns of this category, in a format with a header row, hold the header row of a file, which an upload read,
-      # rather than columns that the application set. They are kept for a job that has `uploaded` its input, and removed
-      # otherwise, since a scheduled job copies them from its last run, so that each upload reads its own header row.
+      # rather than columns that the application set. They are kept for a job that has `uploaded` its input, unless the
+      # proposed schema cannot read them, and removed otherwise, since a scheduled job copies them from its last run, so
+      # that each upload reads its own header row.
       def schema_proposal(where, defined: nil, uploaded: false)
         names = deprecated_options_set
         names << "mode" if mode == :array
@@ -33,15 +34,18 @@ module RocketJob
 
         notes   = []
         columns = self.columns
+        kept    = false
         if names.include?("columns") && defined && defined.columns.blank? && header_row_format?
           columns = nil
           names.delete("columns")
-          unless uploaded
+          if uploaded
+            return if names.empty?
+
+            kept = true
+          else
             names << "columns"
-            notes << "Its columns hold the header row of an earlier upload, which a scheduled job copies to its next " \
-                     "run. They are removed, so that each upload reads the header row of its own file."
+            notes << copied_columns_note
           end
-          return if names.empty?
         end
         return schema_kept_proposal(where, names) if schema.present?
 
@@ -49,10 +53,46 @@ module RocketJob
         # A layout that cannot be translated keeps its settings until its schema is written by hand.
         changes = error ? {} : default_settings(names)
         changes["schema"] = schema if schema
-        RocketJob::SchemaProposal.new(where: where, category: self, changes: changes, notes: notes, error: error)
+        proposal = RocketJob::SchemaProposal.new(where: where, category: self, changes: changes, notes: notes, error: error)
+        kept ? uploaded_header_proposal(proposal) : proposal
       end
 
       private
+
+      # Returns [String] what a proposal says of columns that it removes, which are read as the header row of an earlier
+      # upload, and the schema to use instead when the application set them for a file without a header row, unless
+      # IOStreams cannot hold such a schema, such as for columns that repeat a name.
+      def copied_columns_note
+        note       = "If its columns hold the header row of an earlier upload, which a scheduled job copies to its next " \
+                     "run, they are removed, so that each upload reads the header row of its own file."
+        headerless = headerless_schema(columns)
+        # Raises ArgumentError for a schema that IOStreams cannot hold.
+        IOStreams::Schema.new(headerless)
+        "#{note} If the application set them for a file without a header row, use this schema instead, which reads " \
+          "such a file as they did: #{headerless.inspect}"
+      rescue ArgumentError
+        note
+      end
+
+      # Returns [RocketJob::SchemaProposal] the supplied proposal for a job that has uploaded its input, whose workers
+      # read each line by the header row that the upload kept, see #columns, or one that changes nothing when the
+      # proposed schema cannot read that header row, such as one with two columns that are the same field, for which
+      # IOStreams raises as each slice is read.
+      def uploaded_header_proposal(proposal)
+        # The tabular of a category with a schema reads the header row that the upload kept.
+        proposal.proposed_category.tabular
+        proposal
+      rescue IOStreams::Errors::InvalidHeader => e
+        RocketJob::SchemaProposal.new(
+          where:    proposal.where,
+          category: self,
+          notes:    [
+            "It has uploaded its input from a header row that the proposed schema cannot read, so that each slice " \
+            "would raise #{e.class}: #{e.message}. Let it finish, or abort it, before applying a schema, rather than " \
+            "change it."
+          ]
+        )
+      end
 
       # The proposal for a category that already has a schema, such as one that a Dirmon entry's properties merge into a
       # job class with a schema, whose deprecated options are only removed.

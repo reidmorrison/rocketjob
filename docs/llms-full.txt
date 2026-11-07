@@ -5623,9 +5623,13 @@ ImportJob, input category main
 Each proposal reads the files as the options did in 7.0, which is not always what they say: options
 that 7.0 never applied, such as `allowed_columns` for JSON records, are removed rather than described
 in the schema, and the proposal says so. It also says what to check, and when it cannot translate a
-category, such as a layout with two columns that have one key, or a job that is already running, which
-should finish first. Columns that a scheduled job copied from the header row of an earlier upload are
-removed, rather than read as the columns of a file without a header row.
+category, such as a layout with two columns that have one key, or a job that should finish first: one
+that is already running, or a queued job that has uploaded a header row that the schema cannot read,
+such as one with two columns that match one field, like `a` and `A`, or `FirstName` and `First Name`
+for a field `first_name`. Columns that a scheduled job copied from the header row of an earlier
+upload are removed, rather than read as the columns of a file without a header row. The proposal also
+shows the schema to use instead, should the application have set those columns for a file without a
+header row, unless they repeat a name, which a schema cannot hold.
 
 Before applying a proposal, read a recent file of the job with it. `#dry_run` reads the first records
 of a file both ways, and lists what differs, such as a key that is no longer read:
@@ -5638,8 +5642,12 @@ proposal.dry_run("/data/in/orders_20261020.csv")
 
 Then apply it by hand: in the job class, replace the deprecated options with the schema, and for a
 saved job, Dirmon entry or `UploadFileJob`, set the same in its category, or its properties. Mission
-Control 7.1 shows and sets the schema of a category, in the job and Dirmon entry forms. Mission
-Control 7.0 cannot, and saving a Dirmon entry in it rebuilds the entry's properties without one.
+Control 7.1 shows and sets the schema of a category, in the job and Dirmon entry forms. Its forms
+cannot clear `format_options` or `columns`, nor edit `allowed_columns`, `required_columns` or
+`header_cleanser`, so a proposal that changes one of those cannot be applied there: apply it in the
+job class, or from a console. A category that still holds one of them, other than the `columns` of
+an input category, fails validation once it is given a schema. Mission Control 7.0 cannot set a
+schema, and saving a Dirmon entry in it rebuilds the entry's properties without one.
 
 ## Upgrading to v7.1
 

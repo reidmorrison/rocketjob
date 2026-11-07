@@ -33,7 +33,7 @@ module RocketJob
       # Returns [RocketJob::SchemaProposal] the schema proposed to replace this category's deprecated options, its
       # `columns` or `format_options`, at the supplied place, such as "ImportJob, output category main", or nil when it
       # sets neither. The other keys of each record are skipped, as the columns skipped them. Changes nothing.
-      def schema_proposal(where, defined: nil) # rubocop:disable Lint/UnusedMethodArgument
+      def schema_proposal(where)
         names = deprecated_options_set
         return if names.empty?
 
