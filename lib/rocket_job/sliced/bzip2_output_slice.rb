@@ -28,7 +28,7 @@ module RocketJob
         lines = lines.encode(encoding) if encoding
         # Binary, since compressed data is bytes, so that it can follow the compressed records of a slice read back.
         s     = StringIO.new("".b)
-        IOStreams::Bzip2::Writer.stream(s) { |io| io.write(lines) }
+        IOStreams.stream(s).stream(:bz2).writer { |io| io.write(lines) }
         s.string
       end
 
