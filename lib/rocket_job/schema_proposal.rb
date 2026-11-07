@@ -63,15 +63,9 @@ module RocketJob
 
         proposals.concat(owned_by(klass.name) { klass.schema_proposals })
       end
-      RocketJob::Job.where(:state.in => RUNNABLE_JOB_STATES).pluck(:id).each do |id|
-        job = saved_job(id)
-        next if job.nil?
-
-        unless job
-          proposals << new(where: "Job #{id}", notes: ["Its class cannot be loaded, so its categories cannot be read."])
-          next
-        end
-        proposals.concat(owned_by("#{job.class.name} #{id}") { job.schema_proposals })
+      RocketJob::Job.collection.find("state" => {"$in" => RUNNABLE_JOB_STATES}).each do |document|
+        where = "Job #{document['_id']}"
+        proposals.concat(owned_by(where) { saved_job_proposals(document, where) })
       end
       RocketJob::DirmonEntry.each do |entry|
         proposals.concat(owned_by("Dirmon entry #{entry.name.inspect} #{entry.id}") { entry.schema_proposals })
@@ -98,14 +92,18 @@ module RocketJob
       [*proposals.map(&:to_s), "For every category moved to a schema, check its files, see #dry_run:", *checks].join("\n\n")
     end
 
-    # Returns [RocketJob::Job] the saved job with the supplied id, nil when it was removed since it was found, or false
-    # when its class cannot be loaded in this process.
-    def self.saved_job(id)
-      RocketJob::Job.where(id: id).first
-    rescue NameError, Mongoid::Errors::MongoidError
-      false
+    # Returns [Array<RocketJob::SchemaProposal>] the proposals of the saved job that the supplied document holds, or one
+    # at the supplied place that says that its class cannot be loaded in this process. Each document is read on its own,
+    # so that one whose class cannot be loaded does not stop the others from being read. What else reading the job, or
+    # its proposals, raises is not rescued here, so that .all lists it as an error of the job.
+    def self.saved_job_proposals(document, where)
+      job = Mongoid::Factory.from_db(RocketJob::Job, document)
+    rescue Mongoid::Errors::UnknownModel
+      [new(where: where, notes: ["Its class cannot be loaded, so its categories cannot be read."])]
+    else
+      job.schema_proposals
     end
-    private_class_method :saved_job
+    private_class_method :saved_job_proposals
 
     # Returns [Hash] the schema proposed, or nil when the deprecated options are removed without one, such as column
     # options that never applied to JSON records.
@@ -136,7 +134,7 @@ module RocketJob
     # Raises ArgumentError for a proposal that is not for an input category, or that has no changes.
     def dry_run(stream, limit: 100)
       unless category.is_a?(RocketJob::Category::Input) && changes.any?
-        raise(ArgumentError, "Only the proposal for an input category can read a file")
+        raise(ArgumentError, "Only a proposal that changes an input category can read a file")
       end
 
       before = read(category, stream, limit)
@@ -165,14 +163,8 @@ module RocketJob
     end
 
     def compare(before, after)
-      # Hashes are equal whatever the order of their keys, which a record's keys keep.
       return [] if in_order(before) == in_order(after)
-      if before.is_a?(Exception) && after.instance_of?(before.class) && after.message == before.message
-        return ["Raises #{after.class}, as it does now: #{after.message}"]
-      end
-      return ["Now raises #{after.class}: #{after.message}"] if after.is_a?(Exception) && !before.is_a?(Exception)
-      return ["No longer raises #{before.class}: #{before.message}"] if before.is_a?(Exception) && !after.is_a?(Exception)
-      return ["Raises #{after.class} rather than #{before.class}: #{after.message}"] if before.is_a?(Exception)
+      return [compare_errors(before, after)] if before.is_a?(Exception) || after.is_a?(Exception)
 
       differences = []
       differences << "Reads #{after.size} records rather than #{before.size}" if before.size != after.size
@@ -183,15 +175,30 @@ module RocketJob
       differences
     end
 
+    # Returns [String] how what the proposal raises differs from what the category raises, or reads, now.
+    def compare_errors(before, after)
+      return "Now raises #{after.class}: #{after.message}" unless before.is_a?(Exception)
+      return "No longer raises #{before.class}: #{before.message}" unless after.is_a?(Exception)
+      return "Raises #{after.class} rather than #{before.class}: #{after.message}" unless after.instance_of?(before.class)
+      return "Raises #{after.class}, as it does now: #{after.message}" if after.message == before.message
+
+      "Raises #{after.class} with another message: #{after.message}, rather than: #{before.message}"
+    end
+
     def in_order(records)
       return records unless records.is_a?(Array)
 
-      records.map { |record| record.is_a?(Hash) ? record.to_a : record }
+      records.map { |record| in_order_record(record) }
+    end
+
+    # Hashes are equal whatever the order of their keys, which a record's keys keep.
+    def in_order_record(record)
+      record.is_a?(Hash) ? record.to_a : record
     end
 
     def compare_record(old, new)
+      return if in_order_record(old) == in_order_record(new)
       return "#{new.inspect} rather than #{old.inspect}" unless old.is_a?(Hash) && new.is_a?(Hash)
-      return if old == new && old.keys == new.keys
       return "keys in another order: #{new.keys.inspect} rather than #{old.keys.inspect}" if old == new
 
       compare_keys(old, new).join("; ")
