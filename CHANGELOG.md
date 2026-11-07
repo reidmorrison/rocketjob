@@ -33,10 +33,11 @@ production stays quiet. A job read back from the database does not report one. S
 
 - An input category's `mode: :array`, and the `stream_mode: :array` of `upload`, which Rocket Job 8 removes. Use the
   default `:line` mode, in which each worker parses its lines. A category with a schema already could not use them.
-- The `on_first:` option of `upload`, which Rocket Job 8 removes. Rocket Job reads the header row itself, and the
-  category's schema checks its columns. For a file without a header row, such as JSON or fixed width, the lambda
-  was called with the first record, which was then not uploaded: to leave it out, upload with a block that writes
-  the other lines instead.
+- The `on_first:` option of `upload`, which Rocket Job 8 removes. Rocket Job 8 raises `ArgumentError` whenever
+  `on_first:` is passed, also as nil, whatever is uploaded, so 7.2 warns whenever it is passed. Rocket Job reads the
+  header row itself, and the category's schema checks its columns. For a file without a header row, such as JSON or fixed width, the
+  lambda was called with the first record, which was then not uploaded: to leave it out, upload with a block that
+  writes the other lines instead.
 - A block passed with a query, an Active Record relation or a Mongoid criteria, such as to `upload_arel`, which
   returns the record to upload for each model or document. Rocket Job 8 uploads the values of the columns of a query,
   and raises `ArgumentError` for a block: write the records in the block of `upload` instead, reading the query there.

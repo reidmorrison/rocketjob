@@ -246,8 +246,53 @@ class DeprecationTest < Minitest::Test
                warnings.first
       end
 
+      # Rocket Job 8 raises ArgumentError whenever on_first: is passed, also as nil, whatever is uploaded.
+      it "warns at the line that uploads a file with on_first as nil, and still reads its header row" do
+        line     = __LINE__ + 2
+        warnings = deprecation_warnings do
+          job.upload(StringIO.new("name\nJack\n"), file_name: "people.csv", on_first: nil)
+        end
+
+        assert_equal %w[name], job.input_category.columns
+        assert_equal ["Jack"], job.input.first.to_a
+        assert_equal 1, warnings.size, warnings.inspect
+        assert warnings.first.start_with?("#{__FILE__}:#{line}: warning: Rocket Job: on_first: is deprecated"),
+               warnings.first
+        assert_includes warnings.first, "also when nil"
+      end
+
+      it "warns at the line that uploads a block with on_first as nil, and still reads its header row" do
+        line     = __LINE__ + 2
+        warnings = deprecation_warnings do
+          job.upload(on_first: nil) do |lines|
+            lines << "name"
+            lines << "Jack"
+          end
+        end
+
+        assert_equal %w[name], job.input_category.columns
+        assert_equal ["Jack"], job.input.first.to_a
+        assert_equal 1, warnings.size, warnings.inspect
+        assert warnings.first.start_with?("#{__FILE__}:#{line}: warning: Rocket Job: on_first: is deprecated"),
+               warnings.first
+      end
+
+      it "warns at the line that uploads a Range with on_first as nil, and still uploads it" do
+        line     = __LINE__ + 1
+        warnings = deprecation_warnings { job.upload(1..10, on_first: nil) }
+
+        assert_equal [[1, 10]], job.input.first.to_a
+        assert_equal 1, warnings.size, warnings.inspect
+        assert warnings.first.start_with?("#{__FILE__}:#{line}: warning: Rocket Job: on_first: is deprecated"),
+               warnings.first
+      end
+
       it "does not warn for an upload without one" do
         assert_empty(deprecation_warnings { job.upload(StringIO.new("name\nJack\n"), file_name: "people.csv") })
+      end
+
+      it "does not warn for an upload of a Range without one" do
+        assert_empty(deprecation_warnings { job.upload(1..10) })
       end
 
       it "does not warn for an upload with a block that leaves out the first record, which replaces on_first" do

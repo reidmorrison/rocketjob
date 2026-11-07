@@ -205,8 +205,14 @@ module RocketJob
       #   is the number of `[first_id, last_id]` ranges, one per slice.
       # * If an exception is raised while uploading data, the input collection is cleared out, so that if the job is
       #   retried, its data is not duplicated.
-      def upload(object = nil, category: :main, file_name: nil, stream_mode: nil, on_first: nil, columns: nil,
+      def upload(object = nil, category: :main, file_name: nil, stream_mode: nil, on_first: ON_FIRST_OMITTED, columns: nil,
                  slice_batch_size: nil, **args, &block)
+        # Rocket Job 8 raises for on_first whenever it is passed, also as nil, whatever is uploaded.
+        if on_first.equal?(ON_FIRST_OMITTED)
+          on_first = nil
+        else
+          rocketjob_warn_on_first
+        end
         input_collection = input(category)
 
         # A block uploads the records that it writes, unless it is passed with a query, whose models or documents it
@@ -219,7 +225,6 @@ module RocketJob
                   "Unknown keyword arguments when uploading a block. Only accepts :category, :file_name, or :on_first")
           end
 
-          rocketjob_warn_on_first if on_first
           category           = input_category(category)
           category.file_name = file_name if file_name
 
@@ -268,7 +273,6 @@ module RocketJob
             raise(ArgumentError, "Unknown keyword argument :columns when uploading a file") if columns
 
             rocketjob_warn_deprecated_upload_options(stream_mode, args)
-            rocketjob_warn_on_first if on_first
             category = input_category(category)
 
             # The path sets the format of a category whose format is :auto, which decides whether the file has a
@@ -358,6 +362,11 @@ module RocketJob
       # RocketJob::Category::Input#schema.
       DEPRECATED_UPLOAD_OPTIONS = %i[allowed_columns required_columns skip_unknown cleanse_header].freeze
       private_constant :DEPRECATED_UPLOAD_OPTIONS
+
+      # The default of the `on_first:` option of #upload, which tells an upload without it from one that passes it, also
+      # as nil, which is deprecated, see #rocketjob_warn_on_first.
+      ON_FIRST_OMITTED = Object.new.freeze
+      private_constant :ON_FIRST_OMITTED
 
       # Download the output data into the supplied file, io, IOStreams::Path, or IOStreams::Stream.
       # Returns [Integer] the number of records / lines downloaded.
@@ -465,13 +474,15 @@ module RocketJob
       end
 
       # Reports a deprecation warning, see RocketJob::Deprecation, at the line of the application that uploads with
-      # `on_first`, which Rocket Job 8 removes: Rocket Job reads the header row itself, and a file without one, such as
-      # JSON or fixed width, loses its first record, which a block that writes the other lines leaves out instead.
+      # `on_first`, also as nil, whatever it uploads, since Rocket Job 8 removes it, and raises ArgumentError for it: Rocket
+      # Job reads the header row itself, and a file without one, such as JSON or fixed width, loses its first record,
+      # which a block that writes the other lines leaves out instead.
       def rocketjob_warn_on_first
         RocketJob::Deprecation.warn(
-          "on_first: is deprecated, and removed in Rocket Job 8: Rocket Job reads the header row itself, which the " \
-          "category's schema checks, and to leave out the first record of a file without a header row, upload with " \
-          "a block that writes the other lines, see #{RocketJob::Deprecation::UPGRADE_GUIDE_V72}"
+          "on_first: is deprecated, and removed in Rocket Job 8, which raises for it, also when nil: Rocket Job reads " \
+          "the header row itself, which the category's schema checks, and to leave out the first record of a file " \
+          "without a header row, upload with a block that writes the other lines, see " \
+          "#{RocketJob::Deprecation::UPGRADE_GUIDE_V72}"
         )
       end
 
