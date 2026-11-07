@@ -592,7 +592,7 @@ module Batch
 
         it "raises ArgumentError for a schema file that is not a valid schema" do
           IOStreams.temp_file("input_test", ".json") do |path|
-            path.write(JSON.generate("fields" => [{"name" => "name"}], "unknown" => 1))
+            path.write(JSON.generate("fields" => [{"name" => "name"}], "fieldMatch" => "exact"))
             category = RocketJob::Category::Input.new(format: :csv, schema: path.to_s)
 
             error = assert_raises(ArgumentError) { category.tabular }
