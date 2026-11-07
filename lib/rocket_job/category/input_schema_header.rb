@@ -57,15 +57,33 @@ module RocketJob
         end
       end
 
-      # Raises ArgumentError when the supplied header row of a file differs from the columns that the records already in
-      # the input were uploaded with, since the workers read every record of the input by one header row, see
-      # Input#columns.
+      # Raises ArgumentError when the supplied header row of a file reads its columns as other fields of the schema, or
+      # in another order, than the columns that the records already in the input were uploaded with, since the workers
+      # read every record of the input by one header row, see Input#columns. A header row that the schema reads the
+      # same, such as one that differs only in the case or spaces of a column, is accepted.
       def check_uploaded_header(header_columns)
-        return if header_columns == columns
+        return if header_fields(header_columns) == header_fields(columns)
 
         raise(ArgumentError,
               "Input category #{name} holds records read by the header row #{columns.inspect}, so a file whose header " \
-              "row is #{header_columns.inspect} cannot be uploaded into it")
+              "row is #{header_columns.inspect}, whose columns are other fields, cannot be uploaded into it")
+      end
+
+      # Returns [Array<String>] what the schema of the tabular reads each of the supplied columns as: the name of the
+      # field that it is, otherwise the key of a column that the schema keeps, see `extraColumns`, or nil for a blank
+      # column, or one that it skips. The nils at the end are left out, since the workers read no value from them.
+      def header_fields(header_columns)
+        file_schema = tabular.schema
+        fields      = header_columns.collect do |column|
+          next if IOStreams::Utils.blank_value?(column)
+
+          field = file_schema.field_for(column)
+          next field.name if field
+
+          file_schema.key_for(column) if file_schema.keep_extra?
+        end
+        fields.pop while !fields.empty? && fields.last.nil?
+        fields
       end
     end
   end

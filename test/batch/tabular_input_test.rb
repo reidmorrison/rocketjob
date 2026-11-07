@@ -315,9 +315,52 @@ module Batch
             error = assert_raises(ArgumentError) { upload(".csv", "Joined,Name,Age\n2026-10-22,Jane,23\n") }
             assert_match(/holds records read by the header row \["Name", "Age", "Joined"\], so a file whose header row is/,
                          error.message)
+            assert_match(/whose columns are other fields/, error.message)
             assert_equal %w[Name Age Joined], job.input_category.columns
             assert_equal 2, job.record_count
             assert_equal records, output_records
+          end
+
+          it "is read by a header row that differs only in case or spaces, and validates its lines" do
+            upload(".csv", csv)
+
+            assert_equal 1, upload(".csv", "NAME, age ,Joined\nJane,23,2026-10-22\n", validate_rows: true)
+            assert_equal %w[Name Age Joined], job.input_category.columns
+            assert_equal records + [{"name" => "Jane", "age" => 23, "joined" => Date.new(2026, 10, 22)}],
+                         output_records
+          end
+
+          it "is read by a header row with blank columns at its end" do
+            upload(".csv", csv)
+
+            assert_equal 1, upload(".csv", "Name,Age,Joined,\nJane,23,2026-10-22,\n")
+            assert_equal %w[Name Age Joined], job.input_category.columns
+          end
+
+          it "is read by a header row with other columns that the schema skips" do
+            job.input_category.schema = schema.merge("fieldsMatch" => "subset")
+            upload(".csv", "Name,Age,Joined,Notes\nJack,21,2026-10-20,a\n")
+
+            assert_equal 1, upload(".csv", "Name,Age,Joined,Comments\nJill,22,2026-10-21,b\n")
+            assert_equal 1, upload(".csv", "Name,Age,Joined\nJane,23,2026-10-22\n")
+          end
+
+          it "raises for other columns that the schema keeps" do
+            job.input_category.schema = schema.merge("fieldsMatch" => "subset", "extraColumns" => "keep")
+            upload(".csv", "Name,Age,Joined,Notes\nJack,21,2026-10-20,a\n")
+
+            assert_raises(ArgumentError) { upload(".csv", "Name,Age,Joined,Comments\nJill,22,2026-10-21,b\n") }
+          end
+
+          it "calls on_first only once the header row is accepted" do
+            job.input_category.schema = schema.merge("fieldsMatch" => "equal")
+            upload(".csv", csv)
+            headers = []
+
+            assert_raises(ArgumentError) do
+              upload(".csv", "Joined,Name,Age\n2026-10-22,Jane,23\n", on_first: ->(line) { headers << line })
+            end
+            assert_empty headers
           end
 
           it "raises when a block writes a header row that differs" do

@@ -5913,15 +5913,25 @@ including in the jobs that are already saved, such as a scheduled one, which cop
 
 The workers read every record of an input category by one header row, the one that its upload read,
 see `input_category.columns`. So in v7.2 a second file uploaded into an input category with a schema,
-whose input already holds the records of a first file, raises `ArgumentError` when its header row
-differs from the first file's, and uploads nothing. v7.1 read the records of both files by the second
-file's header row, giving values to the wrong fields. A file with the same header row, in the same
-order, is uploaded as before:
+whose input already holds the records of a first file, uploads nothing when its header row reads its
+columns as other fields than the first file's, or in another order. v7.1 read the records of both
+files by the second file's header row, giving values to the wrong fields:
+
+* A header row that does not match the schema raises `IOStreams::Errors::InvalidHeader`, as before.
+  With the default `fieldsMatch` "exact", which needs every field in its order, a header row either
+  matches the schema, and so reads the same fields in the same order, or raises it.
+* A header row that matches the schema, but whose columns are other fields, or in another order, such
+  as with `fieldsMatch` "equal", raises `ArgumentError`.
+* A header row that the schema reads the same, such as one that differs only in the case or spaces
+  of a column, or in a column that the schema skips, is uploaded as before.
 
 ~~~ruby
 job.upload("people_1.csv")
-job.upload("people_2.csv") # raises ArgumentError when its header row differs
+job.upload("people_2.csv") # raises when its header row reads other fields
 ~~~
+
+When either raises, the job keeps the records of the first file, and the header row that they are
+read by.
 
 Upload a file whose header row differs into a job of its own. Without a schema, v7.2 still stores the
 header row of a second file as a record, and reads its records by the first file's header row, as v7.0
