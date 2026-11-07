@@ -471,7 +471,7 @@ module RocketJob
         RocketJob::Deprecation.warn(
           "on_first: is deprecated, and removed in Rocket Job 8: Rocket Job reads the header row itself, which the " \
           "category's schema checks, and to leave out the first record of a file without a header row, upload with " \
-          "a block that writes the other lines, see #{RocketJob::Deprecation::UPGRADE_GUIDE}"
+          "a block that writes the other lines, see #{RocketJob::Deprecation::UPGRADE_GUIDE_V72}"
         )
       end
 
