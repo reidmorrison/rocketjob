@@ -225,6 +225,7 @@ class DeprecationTest < Minitest::Test
         assert_equal 1, warnings.size, warnings.inspect
         assert warnings.first.start_with?("#{__FILE__}:#{line}: warning: Rocket Job: on_first: is deprecated, and " \
                                           "removed in Rocket Job 8"), warnings.first
+        assert_includes warnings.first, RocketJob::Deprecation::UPGRADE_GUIDE_V72
       end
 
       it "warns at the line that uploads a block with on_first, and still leaves out the first record of JSON" do
