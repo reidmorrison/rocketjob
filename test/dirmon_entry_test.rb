@@ -277,8 +277,10 @@ class DirmonEntryTest < Minitest::Test
         IOStreams.path("sftp://user:secret@sftp.example.org/in").send(:child_path, name)
       end
 
-      it "returns the display name of a file" do
+      it "returns the url of a file whose name a url can hold, as it is" do
         assert_equal "sftp://sftp.example.org/in/data.csv.gz", dirmon_entry.file_display_name(sftp_file("data.csv.gz"))
+        assert_equal "sftp://sftp.example.org/in/a-b_c~d;e=f.2026.csv",
+                     dirmon_entry.file_display_name(sftp_file("a-b_c~d;e=f.2026.csv"))
       end
 
       it "returns the display name of a local file" do
@@ -287,31 +289,54 @@ class DirmonEntryTest < Minitest::Test
         assert_equal "/var/sftp/in/data.csv", dirmon_entry.file_display_name(path)
       end
 
-      it "returns the url of a file with its path percent-encoded, when its display name leaves out part of its name" do
+      it "returns the display name of a local file whose name a url cannot hold, as it is" do
+        path = IOStreams.path("/var/sftp/in/données a+b%20[1]#c?d.csv")
+
+        assert_equal "/var/sftp/in/données a+b%20[1]#c?d.csv", dirmon_entry.file_display_name(path)
+      end
+
+      it "returns the url of a file with its path percent-encoded, which IOStreams reads back as the same path" do
         warnings = iostreams_deprecation_warnings do
           {
+            # IOStreams 2.2 cannot build a path from these urls unless they are encoded.
+            "données.csv.gz"   => "sftp://sftp.example.org/in/donn%C3%A9es.csv.gz",
+            "data[1].csv"      => "sftp://sftp.example.org/in/data%5B1%5D.csv",
+            # It reads these as other names unless they are encoded.
+            "a b.csv"          => "sftp://sftp.example.org/in/a%20b.csv",
+            "a+b.csv"          => "sftp://sftp.example.org/in/a%2Bb.csv",
+            "100%.csv"         => "sftp://sftp.example.org/in/100%25.csv",
+            "a%20b.csv"        => "sftp://sftp.example.org/in/a%2520b.csv",
             "data#2026.csv.gz" => "sftp://sftp.example.org/in/data%232026.csv.gz",
             "data?2026.csv.gz" => "sftp://sftp.example.org/in/data%3F2026.csv.gz",
             "a+b%20#c d.csv"   => "sftp://sftp.example.org/in/a%2Bb%2520%23c%20d.csv",
             "données#1.csv"    => "sftp://sftp.example.org/in/donn%C3%A9es%231.csv"
           }.each_pair do |file_name, display_name|
-            assert_equal display_name, dirmon_entry.file_display_name(sftp_file(file_name))
-            # IOStreams reads the name back as the same path.
-            assert_equal "/in/#{file_name}", IOStreams.path(display_name).path
+            name = dirmon_entry.file_display_name(sftp_file(file_name))
+
+            assert_equal display_name, name
+            assert_predicate name, :valid_encoding?
+            assert_equal "/in/#{file_name}", IOStreams.path(name).path
           end
         end
 
         assert_empty warnings
       end
 
-      it "returns the url of a file with its path percent-encoded, when its display name leaves out part of its directory" do
-        assert_equal "sftp://sftp.example.org/in/a%23b/data.csv", dirmon_entry.file_display_name(sftp_file("a#b/data.csv"))
+      it "returns the url of a file with the directories in its path percent-encoded" do
+        assert_equal "sftp://sftp.example.org/in/a%23b/r%C3%A9sum%C3%A9s/data.csv",
+                     dirmon_entry.file_display_name(sftp_file("a#b/résumés/data.csv"))
       end
 
       it "keeps the port of the url, but not its credentials" do
-        path = IOStreams.path("sftp://user:secret@sftp.example.org:2222/in").send(:child_path, "data#2026.csv.gz")
+        path = IOStreams.path("sftp://user:secret@sftp.example.org:2222/in").send(:child_path, "données.csv.gz")
 
-        assert_equal "sftp://sftp.example.org:2222/in/data%232026.csv.gz", dirmon_entry.file_display_name(path)
+        assert_equal "sftp://sftp.example.org:2222/in/donn%C3%A9es.csv.gz", dirmon_entry.file_display_name(path)
+      end
+
+      it "leaves out the credentials of a url that names the file" do
+        path = IOStreams.path("sftp://user:secret@sftp.example.org/in/data.csv")
+
+        assert_equal "sftp://sftp.example.org/in/data.csv", dirmon_entry.file_display_name(path)
       end
 
       it "returns a name that is valid UTF-8, for a file whose name is not" do
@@ -319,15 +344,29 @@ class DirmonEntryTest < Minitest::Test
 
         assert_predicate name, :valid_encoding?
         assert_equal Encoding::UTF_8, name.encoding
-        assert_equal "sftp://sftp.example.org/in/caf\\xE9.csv", name
+        assert_equal "sftp://sftp.example.org/in/caf%E9.csv", name
+        assert_equal "/in/caf\xE9.csv".b, IOStreams.path(name).path.b
       end
 
-      it "returns a name that is valid UTF-8, for a file whose name is not, when its display name leaves out part of it" do
+      it "returns a name that is valid UTF-8, for a file whose name is not, and that holds a #" do
         name = dirmon_entry.file_display_name(sftp_file("caf\xE9#1.csv".b))
 
         assert_predicate name, :valid_encoding?
         assert_equal "sftp://sftp.example.org/in/caf%E9%231.csv", name
         assert_equal "/in/caf\xE9#1.csv".b, IOStreams.path(name).path.b
+      end
+
+      it "returns a name that is valid UTF-8, for a local file whose name is not" do
+        name = dirmon_entry.file_display_name(IOStreams.path("/var/sftp/in/caf\xE9.csv".b))
+
+        assert_predicate name, :valid_encoding?
+        assert_equal "/var/sftp/in/caf\\xE9.csv", name
+      end
+
+      it "returns a name that is shown as it is, see RocketJob.path_display_name" do
+        name = dirmon_entry.file_display_name(sftp_file("données #1.csv"))
+
+        assert_equal "sftp://sftp.example.org/in/donn%C3%A9es%20%231.csv", RocketJob.path_display_name(name)
       end
     end
 
@@ -661,6 +700,20 @@ class DirmonEntryTest < Minitest::Test
 
           assert_equal "sftp://sftp.example.org/files/data%232026.csv.gz", job.original_file_name
           assert_equal "#{dirmon_entry.name}: data#2026.csv.gz", job.description
+        end
+
+        it "records the original file name percent-encoded, when IOStreams cannot read its url back" do
+          sftp = IOStreams.path("sftp://jack:secret@sftp.example.org/files").send(:child_path, "données.csv.gz")
+          sftp.define_singleton_method(:move_to) do |target|
+            target.write("data")
+            target
+          end
+
+          job = dirmon_entry.later(sftp)
+
+          assert_equal "sftp://sftp.example.org/files/donn%C3%A9es.csv.gz", job.original_file_name
+          assert_equal "/files/données.csv.gz", IOStreams.path(job.original_file_name).path
+          assert_equal "#{dirmon_entry.name}: données.csv.gz", job.description
         end
 
         it "enqueues batch job" do

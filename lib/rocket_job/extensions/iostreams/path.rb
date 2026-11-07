@@ -7,10 +7,18 @@ module IOStreams
 
     # Get the object as it was stored in the database, and instantiate
     # this custom class from it.
+    #
+    # A stored url that IOStreams cannot parse, such as an SFTP url with a non-ASCII letter in its file name, is
+    # returned as stored, a String, rather than raising, so that the name can still be read, such as for its
+    # extensions, or to show it. For example the `file_name` of a category, which an UploadFileJob that Dirmon created
+    # in Rocket Job 7.1 set from the unencoded url of an SFTP file, see RocketJob::DirmonEntry#file_display_name.
+    # IOStreams raises when the String is used as a path, such as with IOStreams.new.
     def self.demongoize(object)
       return if object.nil?
 
       IOStreams.new(object)
+    rescue URI::Error
+      object
     end
 
     # Takes any possible object and converts it to how it would be

@@ -160,18 +160,33 @@ production stays quiet. A job read back from the database does not report one. S
   the line raised `IOStreams::Errors::InvalidLineLength`. Each byte of a character that is not ASCII is still replaced
   with a space, other formats, such as CSV, still remove non-printable characters, and a category with a schema still
   reads each line as it is.
+- The `UploadFileJob` that Dirmon creates for an SFTP or S3 file whose name holds a non-ASCII letter, or a character
+  such as `[`, such as `sftp://host/in/données.csv.gz`, no longer fails with `URI::InvalidURIError` when it uploads
+  the file into a batch job that reads its format from its name. Dirmon records the original file name of a file on
+  a server as its url with its path percent-encoded, such as `sftp://host/in/donn%C3%A9es.csv.gz`, which IOStreams
+  reads back as the same path. Previously 7.1 recorded the url unencoded, which IOStreams cannot parse, and read a
+  `+`, a `%` followed by two hexadecimal digits, a `#` or a `?` in the name as another name. The encoding leaves the
+  url of a file whose name holds only letters, digits and characters such as `-`, `_` and `.` as it is. A name with
+  a space changes too, although 7.1 read it back correctly, such as `sftp://host/in/Daily Report.csv`, which is now
+  `sftp://host/in/Daily%20Report.csv`. Such a name is shown percent-encoded, for example in Rocket Job Mission
+  Control, and an application that reads the `original_file_name` of an `UploadFileJob`, the `file_name:` passed to
+  `upload`, or the `file_name` of the category as a String, gets it percent-encoded. Its path, such as
+  `input_category.file_name.path`, is the path of the file.
+- A field of type `IOStreams::Path`, such as the `file_name` of a category, whose stored url IOStreams cannot parse,
+  such as one set by an `UploadFileJob` that Rocket Job 7.1 created for the file above, returns it as stored, a
+  String, rather than raising `URI::InvalidURIError` when it is read, so that it can still be read, such as for its
+  extensions. IOStreams still raises when it is used as a path, such as with `IOStreams.new`, and a method of
+  `IOStreams::Path`, such as `#path`, raises `NoMethodError` for it.
 
 ### Security
 
 - Dirmon's log messages, the original file name that it records on each `UploadFileJob`, and its list
   of the files waiting to stabilize, no longer include the user name, password or query of a url, such
-  as `sftp://user:password@host/file.csv`, and neither does the description of a `CopyFileJob`. They
-  use the display name of the path, see `IOStreams::Path#display_name`, or for a file whose display name leaves
-  out part of its name, such as the text after a `#` in the name of an SFTP file, its url with its path
-  percent-encoded, such as `sftp://host/in/data%232026.csv.gz`, which IOStreams reads back as the same path, see
-  `RocketJob::DirmonEntry#file_display_name`, so that its upload still reads it by its extensions. A file that is
-  waiting to stabilize when Dirmon is upgraded is picked up one scan later, since that list is now also keyed by
-  the entry.
+  as `sftp://user:password@host/file.csv`, and neither does the description of a `CopyFileJob`. Dirmon
+  names a local file by its display name, see `IOStreams::Path#display_name`, and a file on a server, such as
+  an SFTP or S3 file, by its url without them, with its path percent-encoded, see
+  `RocketJob::DirmonEntry#file_display_name` and the fix below. A file that is waiting to stabilize when Dirmon is
+  upgraded is picked up one scan later, since that list is now also keyed by the entry.
 
 ## [7.1.0] 2026-11-07
 

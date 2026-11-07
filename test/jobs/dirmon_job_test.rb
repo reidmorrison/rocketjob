@@ -184,6 +184,25 @@ module Jobs
           assert_includes events.map(&:message), "Found file: sftp://sftp.example.org/abc/data%232.csv. File size: 5"
           refute(events.any? { |event| "#{event.message}#{event.payload}".include?("secret") })
         end
+
+        it "tracks a file by its url, with its path percent-encoded only when its name holds characters a url cannot" do
+          directory  = IOStreams.path("sftp://jack:secret@sftp.example.org/abc")
+          paths      = ["file-1.csv", "données.csv", "a b+c.csv"].map { |name| directory.send(:child_path, name) }
+          file_names = {}
+          paths.each { |path| path.define_singleton_method(:size) { 5 } }
+          dirmon_entry.stub(:each, ->(&block) { paths.each(&block) }) do
+            dirmon_job.send(:check_entry, dirmon_entry, file_names)
+          end
+
+          assert_equal(
+            {
+              "#{dirmon_entry.id}:sftp://sftp_example_org/abc/file-1_csv"       => 5,
+              "#{dirmon_entry.id}:sftp://sftp_example_org/abc/donn%C3%A9es_csv" => 5,
+              "#{dirmon_entry.id}:sftp://sftp_example_org/abc/a%20b%2Bc_csv"    => 5
+            },
+            file_names
+          )
+        end
       end
 
       describe "#perform" do

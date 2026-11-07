@@ -315,21 +315,25 @@ module RocketJob
       job
     end
 
-    # Returns [String] the name of a file that this entry found, to save, log and show, without any credentials: its
-    # display name, see IOStreams::Path#display_name. So that each file has a name of its own, which ends with its
-    # extensions, such as `.csv.gz`, a display name that leaves out part of its path is replaced by the url of the file
-    # without any credentials, with its path percent-encoded, which IOStreams reads back as the same path. For example
-    # IOStreams 2.2 shows the SFTP file `data#2026.csv.gz` as `sftp://host/in/data`, since it reads the `#` as the
-    # start of the fragment of a url, so its name is `sftp://host/in/data%232026.csv.gz`.
+    # Returns [String] the name of a file that this entry found, to save, log and show, without any credentials, so
+    # that each file has a name of its own, and the upload of a file reads it by its extensions, such as `.csv.gz`, see
+    # RocketJob::Jobs::UploadFileJob#original_file_name.
+    #
+    # A local file is named by its display name, see IOStreams::Path#display_name, which shows each byte of its name
+    # that is not valid UTF-8 as `\xHH`. A file on a server, such as an SFTP or S3 file, is named by its url without
+    # any user name, password or query, with its path percent-encoded, which IOStreams reads back as the same path.
+    # Without it IOStreams 2.2 cannot read back the url of a file whose name holds a non-ASCII letter or a `[`, and
+    # reads a `+` in it as a space, a `%` followed by two hexadecimal digits as the byte they encode, and a `#` or `?`
+    # as the start of a fragment or query. For example the SFTP file `/in/données#1.csv.gz` is named
+    # `sftp://host/in/donn%C3%A9es%231.csv.gz`. The url of a file whose name holds only letters, digits and characters
+    # such as `-`, `_` and `.` is not changed.
     #
     # The name is valid UTF-8, so that it can be saved, see RocketJob.display_text.
     def file_display_name(iopath)
       name = RocketJob.display_text(iopath.display_name)
-      return name if name.end_with?(RocketJob.display_text(iopath.path))
-
-      # The scheme and host of the url, without the path, which the display name leaves out part of.
+      # The scheme, host and port of a url, which its display name holds without any user name or password.
       location = name[%r{\A[^:/?#]+://[^/?#]*}]
-      return RocketJob.display_text(iopath.path) unless location
+      return name unless location
 
       "#{location}/#{url_path(iopath.path).delete_prefix('/')}"
     end
@@ -352,7 +356,7 @@ module RocketJob
     end
 
     # Returns [String] the supplied path of a file with each byte that a url cannot hold in its path percent-encoded,
-    # such as a `#`, `?`, `%`, `+`, space, non-ASCII letter, or a byte that is not valid UTF-8. So that it is valid
+    # such as a `#`, `?`, `%`, `+`, `[`, space, non-ASCII letter, or a byte that is not valid UTF-8. So that it is valid
     # UTF-8, and IOStreams reads it back as the same path, see #file_display_name.
     def url_path(path)
       path.to_s.b.gsub(%r{[^A-Za-z0-9\-._~!$&'()*,;=:@/]}n) { |byte| format("%%%02X", byte.ord) }.force_encoding(Encoding::UTF_8)

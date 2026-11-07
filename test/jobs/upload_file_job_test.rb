@@ -28,6 +28,17 @@ module Jobs
       end
     end
 
+    # Reads the format of each file from the name of the file, such as `.csv`, which reads its header row.
+    class AutoFormatJob < RocketJob::Job
+      include RocketJob::Batch
+
+      input_category format: :auto
+
+      def perform(row)
+        row
+      end
+    end
+
     class BadJob < RocketJob::Job
       def perform
       end
@@ -220,6 +231,94 @@ module Jobs
           assert_equal File.readlines("test/batch/files/text.txt", chomp: true), created_job.input.first.to_a
           assert_equal "sftp://sftp.example.org/in/text%232026.txt.gz", created_job.input_category.file_name.to_s
           assert_equal "/in/text#2026.txt.gz", created_job.input_category.file_name.path
+        end
+
+        describe "for a file that Dirmon finds on an SFTP server" do
+          # A file that IOStreams.each_child finds on an SFTP server, which it names without percent-encoding it.
+          def sftp_file(name)
+            IOStreams.path("sftp://user:secret@sftp.example.org/in").send(:child_path, name)
+          end
+
+          # Returns [RocketJob::Jobs::AutoFormatJob] the job that the supplied UploadFileJob creates, read back from the
+          # database, after running it.
+          def upload(upload_job)
+            upload_job.perform_now
+
+            assert_predicate upload_job, :completed?, -> { upload_job.exception&.message }
+            UploadFileJobTest::AutoFormatJob.find(UploadFileJobTest::AutoFormatJob.last.id)
+          end
+
+          [
+            "données.csv.gz",
+            "a b.csv.gz",
+            "a+b.csv.gz",
+            "100%.csv.gz",
+            "a%20b.csv.gz",
+            "data[1].csv.gz",
+            "data#2026.csv.gz",
+            "data?2026.csv.gz"
+          ].each do |file_name|
+            it "uploads the file by the extensions of its name, which IOStreams reads back: #{file_name}" do
+              Dir.mktmpdir do |dir|
+                entry = RocketJob::DirmonEntry.new(
+                  name:              "Orders",
+                  pattern:           "sftp://sftp.example.org/in/*",
+                  job_class_name:    UploadFileJobTest::AutoFormatJob.name,
+                  archive_directory: dir
+                )
+                file = sftp_file(file_name)
+                file.define_singleton_method(:move_to) do |target|
+                  target.stream(:gzip).write("first_name,last_name\nJack,Jones\n")
+                  target
+                end
+                upload_job = entry.later(file)
+
+                created_job = upload(RocketJob::Jobs::UploadFileJob.find(upload_job.id))
+
+                assert_equal :csv, created_job.input_category.format
+                assert_equal %w[first_name last_name], created_job.input_category.columns
+                assert_equal ["Jack,Jones"], created_job.input.first.to_a
+                assert_equal "/in/#{file_name}", created_job.input_category.file_name.path
+              end
+            end
+          end
+
+          it "uploads a file whose name is not valid UTF-8, by the name that Dirmon records" do
+            Dir.mktmpdir do |dir|
+              upload_file_name = File.join(dir, "upload")
+              IOStreams.path(upload_file_name).stream(:gzip).write("first_name,last_name\nJack,Jones\n")
+              upload_job = RocketJob::Jobs::UploadFileJob.create!(
+                job_class_name:     UploadFileJobTest::AutoFormatJob.name,
+                upload_file_name:   upload_file_name,
+                original_file_name: RocketJob::DirmonEntry.new.file_display_name(sftp_file("caf\xE9.csv.gz".b))
+              )
+
+              created_job = upload(RocketJob::Jobs::UploadFileJob.find(upload_job.id))
+
+              assert_equal "sftp://sftp.example.org/in/caf%E9.csv.gz", created_job.input_category.file_name.to_s
+              assert_equal "/in/caf\xE9.csv.gz".b, created_job.input_category.file_name.path.b
+              assert_equal ["Jack,Jones"], created_job.input.first.to_a
+            end
+          end
+
+          it "uploads a file by the name that Rocket Job 7.1 recorded, which IOStreams cannot read as a url" do
+            Dir.mktmpdir do |dir|
+              upload_file_name = File.join(dir, "upload")
+              IOStreams.path(upload_file_name).stream(:gzip).write("first_name,last_name\nJack,Jones\n")
+              upload_job = RocketJob::Jobs::UploadFileJob.create!(
+                job_class_name:     UploadFileJobTest::AutoFormatJob.name,
+                upload_file_name:   upload_file_name,
+                original_file_name: "sftp://sftp.example.org/in/données.csv.gz"
+              )
+
+              created_job = upload(RocketJob::Jobs::UploadFileJob.find(upload_job.id))
+
+              assert_equal :csv, created_job.input_category.format
+              assert_equal ["Jack,Jones"], created_job.input.first.to_a
+              # Returned as stored, since IOStreams cannot build a path from it.
+              assert_equal "sftp://sftp.example.org/in/données.csv.gz", created_job.input_category.file_name
+            end
+          end
         end
 
         it "retains input and output categories" do
