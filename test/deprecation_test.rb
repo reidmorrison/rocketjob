@@ -51,6 +51,11 @@ class DeprecationTest < Minitest::Test
         assert_equal "https://rocketjob.reidmorrison.com/upgrading.html#upgrading-to-v71",
                      RocketJob::Deprecation::UPGRADE_GUIDE
       end
+
+      it "links to the upgrade guide for 7.2" do
+        assert_equal "https://rocketjob.reidmorrison.com/upgrading.html#upgrading-to-v72",
+                     RocketJob::Deprecation::UPGRADE_GUIDE_V72
+      end
     end
 
     describe "a category defined with a deprecated option" do
@@ -167,21 +172,26 @@ class DeprecationTest < Minitest::Test
       end
     end
 
-    describe "the :array mode, which only a schema rules out" do
-      it "does not warn for a category in the :array mode" do
+    describe "the :array mode" do
+      it "warns for a category in the :array mode" do
         warnings = deprecation_warnings { Class.new(DeprecatedCategoryJob) { input_category format: :csv, mode: :array } }
 
-        assert_empty warnings
+        assert_equal 1, warnings.size
+        assert_includes warnings.first, "mode: :array is deprecated, use :line, the default"
+        assert_includes warnings.first, "or with a schema :hash"
+        assert_includes warnings.first, "#upgrading-to-v72"
       end
 
-      it "does not warn for an upload in the :array mode" do
+      it "warns at the line that uploads a file in the :array mode" do
         job      = Class.new(DeprecatedCategoryJob) { input_category format: :csv }.new
         count    = nil
+        line     = __LINE__ + 2
         warnings = deprecation_warnings do
           count = job.upload(StringIO.new("name\nJack\n"), file_name: "people.csv", stream_mode: :array)
         end
 
-        assert_empty warnings
+        assert(warnings.any? { |w| w.start_with?("#{__FILE__}:#{line}: warning: Rocket Job: stream_mode: :array") },
+               warnings.inspect)
         assert_equal 1, count
         assert_equal %w[name], job.input_category.columns
       ensure

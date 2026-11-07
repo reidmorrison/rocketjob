@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [7.2.0] Unreleased
+
+7.2 prepares an application for Rocket Job 8. It reports a deprecation warning for each of the other options that
+Rocket Job 8 removes, at the line of the application that uses it, and adds what replaces them. The deprecated options
+keep working. See [Upgrading to v7.2](https://rocketjob.reidmorrison.com/upgrading.html#upgrading-to-v72).
+
+### Deprecated
+
+- An input category's `mode: :array`, and the `stream_mode: :array` of `upload`, which Rocket Job 8 removes. Use the
+  default `:line` mode, in which each worker parses its lines. A category with a schema already could not use them.
+
 ## [7.1.0] 2026-11-07
 
 7.1 moves Rocket Job to IOStreams 2.2, which deprecates what IOStreams 3.0 removes. Rocket Job no longer uses any of it
