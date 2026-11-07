@@ -184,14 +184,16 @@ module RocketJob
       # with Symmetric Encryption, and each `secret_config_` argument fetched from Secret Config, under its name
       # without that prefix. The prefix is kept when its gem is not loaded, so that IOStreams rejects the argument.
       #
-      # With `decode: false` the names are the same, but the values are as stored, so that the arguments can be
-      # checked without decrypting them or fetching any secrets.
+      # With `decode: false` the values are as stored, so that the arguments can be checked without decrypting them or
+      # fetching any secrets. Each name is without its prefix even when its gem is not loaded, since the job can be
+      # created in a process without it, such as an application that only enqueues jobs, or a web interface, and run
+      # on a server with it. #perform reports an argument whose gem the server does not load.
       def decode_args(args, decode: true)
         args.to_h do |key, value|
           name = key.to_s
-          if name.start_with?("encrypted_") && defined?(SymmetricEncryption)
+          if name.start_with?("encrypted_") && (!decode || defined?(SymmetricEncryption))
             [name.delete_prefix("encrypted_").to_sym, decode ? SymmetricEncryption.decrypt(value) : value]
-          elsif name.start_with?("secret_config_") && defined?(SecretConfig)
+          elsif name.start_with?("secret_config_") && (!decode || defined?(SecretConfig))
             [name.delete_prefix("secret_config_").to_sym, decode ? SecretConfig.fetch(value) : value]
           else
             [name.to_sym, value]

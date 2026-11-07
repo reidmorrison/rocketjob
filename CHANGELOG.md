@@ -9,6 +9,17 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 Rocket Job 8 removes, at the line of the application that uses it, and adds what replaces them. The deprecated options
 keep working. See [Upgrading to v7.2](https://rocketjob.reidmorrison.com/upgrading.html#upgrading-to-v72).
 
+### Changed
+
+- A `CopyFileJob` checks its source and target when it is created, or when their url, arguments or
+  streams change, by building each path, so a url that is not valid, an argument that the path does not
+  accept, such as a misspelled `passwrd:`, or a stream that IOStreams does not know, fails validation instead
+  of failing the job when it runs. The options of each stream are still checked when the job runs. Encrypted
+  arguments are not decrypted, nor `secret_config_` arguments fetched, to check them, and each is checked under its
+  name without that prefix, even in a process that does not load Symmetric Encryption or Secret Config, such as an
+  application that only enqueues jobs, since the job runs on a server that does. A value of the wrong type is
+  reported without including it in the message, since it could be a secret.
+
 ### New features
 
 - An input category's `validate_rows`, and the `validate_rows:` option of `upload`, which Rocket Job 8 keeps: with
@@ -31,8 +42,10 @@ keep working. See [Upgrading to v7.2](https://rocketjob.reidmorrison.com/upgradi
   letters, and what it cannot translate. `#dry_run` reads the first records of a recent file with the category as it
   is, and with the proposal, and lists what differs. See "Propose the schema of each category" in the upgrade guide.
 - `RocketJob.path_display_name` returns a path or url to show, for example in Rocket Job Mission Control,
-  without the user name, password or query of a url. A value that is not a valid path, or that needs a gem
-  that is not installed, is shown as `(not a valid path)`.
+  without the user name, password or query of a url. A value that IOStreams cannot build a path from, such as an
+  SFTP url with a non-ASCII letter or a `[` in its file name, or that needs a gem that is not installed, such as an
+  S3 url in a process without the `aws-sdk-s3` gem, is shown as stored, unless it holds an `@` or a `?`, when it is
+  shown as `(not a valid path)`, since its user name, password or query cannot be found to leave them out.
 - `RocketJob::DirmonEntry#pattern_display_name` and `#archive_directory_display_name` return the pattern
   and archive directory to show, see `RocketJob.path_display_name`. A remote pattern with characters that
   a url cannot hold, such as `sftp://host/in/*.{csv,txt}`, is shown as the directory it scans followed by
@@ -40,19 +53,14 @@ keep working. See [Upgrading to v7.2](https://rocketjob.reidmorrison.com/upgradi
   by its job class, shown without credentials.
 - `RocketJob::Job#display_attributes` returns the attributes of a job to show, with each path or url field
   shown without its credentials. A field is a path when it is declared with `path: true`, such as the
-  `source_url` and `target_url` of `CopyFileJob`, or has the type `IOStreams::Path`. `.path_fields` lists them.
+  `source_url` and `target_url` of `CopyFileJob`, and the `original_file_name` of `UploadFileJob`, or has the type
+  `IOStreams::Path`. `.path_fields` lists them.
   The `file_name` of each input and output category of a batch job is also shown without its credentials,
   and so are the paths in the `properties` of an `UploadFileJob`. `.display_properties` does the same for
   a hash of properties for a job class, such as those of a Dirmon entry.
 - `CopyFileJob#display_attributes` also replaces the secrets in `source_args`, `target_args`,
   `source_streams` and `target_streams`, such as an SFTP password or a PGP passphrase, as decided by
   `IOStreams.redact_path_options` and `IOStreams.redact_stream_options`.
-- A `CopyFileJob` checks its source and target when it is created, or when their url, arguments or
-  streams change, by building each path, so a url that is not valid, an argument that the path does not
-  accept, such as a misspelled `passwrd:`, or a stream that IOStreams does not know, fails validation instead
-  of failing the job when it runs. The options of each stream are still checked when the job runs. Encrypted
-  arguments are not decrypted to check them. A value of the wrong type is reported without including it in the
-  message, since it could be a secret.
 - `RocketJob::DirmonEntry#replicate` returns a new, pending entry with the settings of an entry, such as
   its job class and properties, overridden by the supplied attributes. Only its name, pattern, job class,
   properties and archive directory are copied. Since the name and pattern must each be unique, the new
@@ -132,15 +140,19 @@ production stays quiet. A job read back from the database does not report one. S
 - `upload` raises `ArgumentError` for a `stream_mode:` other than `:line`, `:array` or `:hash`, such as `:hashes`, as
   7.1 did in a category without a schema. 7.1 read one as `:hash` in a category with a schema.
 - A `CopyFileJob` fetches its `secret_config_` arguments from Secret Config even when Symmetric Encryption
-  is not loaded. Previously they were passed to IOStreams under their stored names, which failed the job.
+  is not loaded. Previously, without Symmetric Encryption, every argument was passed to IOStreams under its stored
+  name, so a `secret_config_` argument failed the job.
 
 ### Security
 
 - Dirmon's log messages, the original file name that it records on each `UploadFileJob`, and its list
   of the files waiting to stabilize, no longer include the user name, password or query of a url, such
   as `sftp://user:password@host/file.csv`, and neither does the description of a `CopyFileJob`. They
-  use the display name of the path, see `IOStreams::Path#display_name`. A file that is waiting to
-  stabilize when Dirmon is upgraded is picked up one scan later, since that list is now also keyed by
+  use the display name of the path, see `IOStreams::Path#display_name`, or for a file whose display name leaves
+  out part of its name, such as the text after a `#` in the name of an SFTP file, its url with its path
+  percent-encoded, such as `sftp://host/in/data%232026.csv.gz`, which IOStreams reads back as the same path, see
+  `RocketJob::DirmonEntry#file_display_name`, so that its upload still reads it by its extensions. A file that is
+  waiting to stabilize when Dirmon is upgraded is picked up one scan later, since that list is now also keyed by
   the entry.
 
 ## [7.1.0] 2026-11-07

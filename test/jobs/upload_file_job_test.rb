@@ -88,6 +88,26 @@ module Jobs
           assert_equal "sftp://sftp.example.org/in.csv", attrs["properties"]["input_categories"].first["file_name"]
           assert_equal "sftp://user:secret@sftp.example.org/in.csv", batch_job.properties["input_categories"].first["file_name"]
         end
+
+        it "shows the original file name without its credentials, such as one saved by Rocket Job 7.1" do
+          job.original_file_name = "sftp://user:secret@sftp.example.org/in/data.csv"
+
+          assert_includes RocketJob::Jobs::UploadFileJob.path_fields, :original_file_name
+          assert_equal "sftp://sftp.example.org/in/data.csv", job.display_attributes["original_file_name"]
+          assert_equal "sftp://user:secret@sftp.example.org/in/data.csv", job.original_file_name
+        end
+
+        it "shows the original file name that Dirmon records for a file whose display name leaves out part of its name" do
+          job.original_file_name = "sftp://sftp.example.org/in/data%232026.csv.gz"
+
+          assert_equal "sftp://sftp.example.org/in/data%232026.csv.gz", job.display_attributes["original_file_name"]
+        end
+
+        it "shows an original file name that is not a valid path as stored, when it holds no credentials" do
+          job.original_file_name = "sftp://sftp.example.org/in/données[1].csv"
+
+          assert_equal "sftp://sftp.example.org/in/données[1].csv", job.display_attributes["original_file_name"]
+        end
       end
 
       describe "#valid?" do
@@ -183,6 +203,23 @@ module Jobs
           assert created_job = UploadFileJobTest::BatchTestJob.first
           assert_equal "file.rb", created_job.input_category.file_name.to_s
           assert_equal "file.rb", created_job.upload_file_name.to_s
+        end
+
+        it "reads the streams of the file from the original file name that Dirmon records" do
+          Dir.mktmpdir do |dir|
+            # The archived file, without the extensions of the original file.
+            upload_file_name = File.join(dir, "upload")
+            FileUtils.cp(IOStreams.path("test", "batch", "files", "text.txt.gz").to_s, upload_file_name)
+            batch_job.upload_file_name   = upload_file_name
+            batch_job.original_file_name = "sftp://sftp.example.org/in/text%232026.txt.gz"
+            batch_job.properties         = {}
+            batch_job.perform_now
+          end
+
+          assert created_job = UploadFileJobTest::BatchTestJob.first
+          assert_equal File.readlines("test/batch/files/text.txt", chomp: true), created_job.input.first.to_a
+          assert_equal "sftp://sftp.example.org/in/text%232026.txt.gz", created_job.input_category.file_name.to_s
+          assert_equal "/in/text#2026.txt.gz", created_job.input_category.file_name.path
         end
 
         it "retains input and output categories" do

@@ -186,13 +186,13 @@ module RocketJob
 
           # Security check?
           if whitelist_paths.size.positive? && whitelist_paths.none? { |whitepath| path.to_s.start_with?(whitepath) }
-            logger.warn "Skipping file: #{path.display_name} since it is not in any of the whitelisted paths: #{whitelist_paths.join(', ')}"
+            logger.warn "Skipping file: #{file_display_name(path)} since it is not in any of the whitelisted paths: #{whitelist_paths.join(', ')}"
             next
           end
 
           # File must be writable so it can be removed after processing
           if path.respond_to?(:writable?) && !path.writable?
-            logger.warn "Skipping file: #{file_name} since it is not writable by the current user. Must be able to delete/move the file after queueing the job"
+            logger.warn "Skipping file: #{file_display_name(path)} since it is not writable by the current user. Must be able to delete/move the file after queueing the job"
             next
           end
           yield(path)
@@ -234,12 +234,14 @@ module RocketJob
     #
     # Unless the pattern within the directory has a `?`, which cannot be told apart from the query of a url, such as
     # `sftp://host/in/*.{csv,txt}?password=secret`, where the query holds ssh options, which could hold a secret.
+    # Nor when the pattern within the directory would start within the user name, password or host of a url, such as at
+    # the brace in the password of `sftp://user:pa{ss@host/in/*.csv`, since it would show them.
     def pattern_display_name
       display_name = RocketJob.path_display_name(pattern)
       return display_name unless display_name == RocketJob::INVALID_PATH_DISPLAY_NAME
 
       matcher = IOStreams::Paths::Matcher.new(nil, pattern)
-      return display_name if matcher.pattern.nil? || matcher.pattern == pattern || matcher.pattern.include?("?")
+      return display_name if matcher.pattern.nil? || matcher.pattern.include?("?") || !split_after_authority?(matcher)
 
       "#{matcher.path.display_name}/#{matcher.pattern}"
     rescue StandardError, LoadError
@@ -289,12 +291,13 @@ module RocketJob
       archive_path = archive_iopath(iopath).join("#{job_id}_#{iopath.basename}")
       iopath.move_to(archive_path)
 
-      job = RocketJob::Jobs::UploadFileJob.create!(
+      original_file_name = file_display_name(iopath)
+      job                = RocketJob::Jobs::UploadFileJob.create!(
         job_class_name:     job_class_name,
         properties:         properties,
         description:        "#{name}: #{iopath.basename}",
         upload_file_name:   archive_path,
-        original_file_name: iopath.display_name,
+        original_file_name: original_file_name,
         job_id:             job_id
       )
 
@@ -303,7 +306,7 @@ module RocketJob
         payload: {
           dirmon_entry_name:  name,
           upload_file_name:   archive_path.display_name,
-          original_file_name: iopath.display_name,
+          original_file_name: original_file_name,
           job_class_name:     job_class_name,
           job_id:             job_id.to_s,
           upload_job_id:      job.id.to_s
@@ -312,11 +315,48 @@ module RocketJob
       job
     end
 
+    # Returns [String] the name of a file that this entry found, to save, log and show, without any credentials: its
+    # display name, see IOStreams::Path#display_name. So that each file has a name of its own, which ends with its
+    # extensions, such as `.csv.gz`, a display name that leaves out part of its path is replaced by the url of the file
+    # without any credentials, with its path percent-encoded, which IOStreams reads back as the same path. For example
+    # IOStreams 2.2 shows the SFTP file `data#2026.csv.gz` as `sftp://host/in/data`, since it reads the `#` as the
+    # start of the fragment of a url, so its name is `sftp://host/in/data%232026.csv.gz`.
+    #
+    # The name is valid UTF-8, so that it can be saved, see RocketJob.display_text.
+    def file_display_name(iopath)
+      name = RocketJob.display_text(iopath.display_name)
+      return name if name.end_with?(RocketJob.display_text(iopath.path))
+
+      # The scheme and host of the url, without the path, which the display name leaves out part of.
+      location = name[%r{\A[^:/?#]+://[^/?#]*}]
+      return RocketJob.display_text(iopath.path) unless location
+
+      "#{location}/#{url_path(iopath.path).delete_prefix('/')}"
+    end
+
     private
 
     # The settings of an entry, which #replicate copies. A new field is not copied unless it is added here.
     REPLICATED_ATTRIBUTES = %w[name pattern job_class_name properties archive_directory].freeze
     private_constant :REPLICATED_ATTRIBUTES
+
+    # Whether the matcher splits the pattern into a directory, and the pattern within it, after the scheme, user name,
+    # password and host of a url, so that the pattern within the directory holds none of them, see
+    # #pattern_display_name. A pattern that is not a url, such as a local path, has none of them.
+    def split_after_authority?(matcher)
+      directory = pattern.delete_suffix("/#{matcher.pattern}")
+      return false if directory == pattern
+
+      authority = pattern[%r{\A[^:/]+://[^/]*}]
+      authority.nil? || directory.start_with?(authority)
+    end
+
+    # Returns [String] the supplied path of a file with each byte that a url cannot hold in its path percent-encoded,
+    # such as a `#`, `?`, `%`, `+`, space, non-ASCII letter, or a byte that is not valid UTF-8. So that it is valid
+    # UTF-8, and IOStreams reads it back as the same path, see #file_display_name.
+    def url_path(path)
+      path.to_s.b.gsub(%r{[^A-Za-z0-9\-._~!$&'()*,;=:@/]}n) { |byte| format("%%%02X", byte.ord) }.force_encoding(Encoding::UTF_8)
+    end
 
     # strip whitespaces from all variables that reference paths or patterns
     def strip_whitespace

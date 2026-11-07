@@ -161,6 +161,29 @@ module Jobs
           assert_includes events.map(&:message), "Found file: sftp://sftp.example.org/abc/file.csv. File size: 5"
           refute(events.any? { |event| "#{event.message}#{event.payload}".include?("secret") })
         end
+
+        it "tracks each file by a name of its own, when its display name leaves out part of its name" do
+          directory  = IOStreams.path("sftp://jack:secret@sftp.example.org/abc")
+          paths      = %w[data#1.csv data#2.csv data?1.csv].map { |name| directory.send(:child_path, name) }
+          file_names = {}
+          events     = semantic_logger_events do
+            paths.each { |path| path.define_singleton_method(:size) { 5 } }
+            dirmon_entry.stub(:each, ->(&block) { paths.each(&block) }) do
+              dirmon_job.send(:check_entry, dirmon_entry, file_names)
+            end
+          end
+
+          assert_equal(
+            {
+              "#{dirmon_entry.id}:sftp://sftp_example_org/abc/data%231_csv" => 5,
+              "#{dirmon_entry.id}:sftp://sftp_example_org/abc/data%232_csv" => 5,
+              "#{dirmon_entry.id}:sftp://sftp_example_org/abc/data%3F1_csv" => 5
+            },
+            file_names
+          )
+          assert_includes events.map(&:message), "Found file: sftp://sftp.example.org/abc/data%232.csv. File size: 5"
+          refute(events.any? { |event| "#{event.message}#{event.payload}".include?("secret") })
+        end
       end
 
       describe "#perform" do
