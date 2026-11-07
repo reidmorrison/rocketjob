@@ -39,7 +39,9 @@ stops working.
 
 v7.2 prepares an application for v8. Upgrade to v7.1 first, see
 [Upgrading to v7.1](#upgrading-to-v71). v7.2 reports a deprecation warning for each of the other
-options that v8 removes, and adds what replaces them. The deprecated options keep working. Its
+options that v8 removes, and for each upload of a query that v8 uploads differently, see
+[Uploading a query](#uploading-a-query), and adds what replaces them. The deprecated options keep
+working. Its
 warnings are reported as v7.1 reports its own, see
 [Find the deprecated options that you use](#find-the-deprecated-options-that-you-use), and
 `RocketJob::SchemaProposal` lists the saved documents that still hold an option that v8 removes, see
@@ -62,6 +64,137 @@ input_category format: :csv
 To also parse every line when the file is uploaded, so that a file with a problem is found before it
 is processed, give the category a schema and use the `:hash` mode, see
 [Upload modes with a schema](#upload-modes-with-a-schema).
+
+### Uploading a query
+
+v8 uploads an Active Record relation in one streamed query, read with IOStreams 3.0 rather than
+`find_each`, and builds no models, so that uploading millions of rows does not build a model for
+each one. Each value is cast as `pluck` casts it. The records are the same: the value of one column,
+the id by default, or an Array of the values of several columns. Three things change. v7.2 reports
+a deprecation warning, at the line that uploads the query, for each one that an upload depends on,
+and still uploads the same records as v7.0.
+
+**A block raises.** v8 raises `ArgumentError` for a block passed with a query, an Active Record
+relation or a Mongoid criteria, since it uploads the values of the columns rather than what a block
+returns. Write the records in the block of `upload` instead, reading the query there:
+
+~~~ruby
+# Before (deprecated)
+job.upload_arel(User.where(country_code: "US")) do |user|
+  user.email.downcase
+end
+
+# After
+job.upload do |records|
+  User.where(country_code: "US").find_each do |user|
+    records << user.email.downcase
+  end
+end
+~~~
+
+The block of `upload` builds a model for each row, as v7 did. For a large table, upload the columns
+that `perform` needs instead, and do the work there:
+
+~~~ruby
+job.upload(User.where(country_code: "US"), columns: [:email])
+
+def perform(email)
+  email.downcase
+end
+~~~
+
+**Eager loading raises.** A relation that uses `includes`, `preload` or `eager_load` raises
+`ArgumentError` in v8, since there are no models to load associations into. To read an association,
+write the records in the block of `upload`, which loads it as v7 did:
+
+~~~ruby
+# Before (deprecated)
+job.upload_arel(User.includes(:company)) do |user|
+  user.company.name
+end
+
+# After
+job.upload do |records|
+  User.includes(:company).find_each do |user|
+    records << user.company.name
+  end
+end
+~~~
+
+To upload the rows that have an association, join it, with `distinct` so that each row is uploaded
+once, or use a subquery. Both upload the same ids as v7:
+
+~~~ruby
+# Before (deprecated)
+job.upload(User.includes(:posts).where(posts: {published: true}))
+
+# After
+job.upload(User.joins(:posts).where(posts: {published: true}).distinct)
+# Or
+job.upload(User.where(id: Post.where(published: true).select(:user_id)))
+~~~
+
+**A column is uploaded without its reader.** v8 uploads the value that each column holds, as `pluck`
+and `read_attribute` return it, rather than calling the reader of the model. They differ only where
+the model overrides the reader. `normalizes`, `enum`, `serialize` and `alias_attribute` give the
+same value both ways. While deprecation warnings are on, v7.2 compares them for each row until they
+differ, and names the model and the column, never the values. To keep the reader's value, write the
+records in the block of `upload`, which calls it, or apply the reader's logic in `perform`:
+
+~~~ruby
+class User < ActiveRecord::Base
+  def nickname
+    super || "none"
+  end
+end
+
+# Before (deprecated), uploads "none" for a user without a nickname
+job.upload(User.all, columns: [:nickname])
+
+# After
+job.upload do |records|
+  User.find_each do |user|
+    records << user.nickname
+  end
+end
+~~~
+
+v7.2 reports each of these at the line that uploads the query, once for each change, for example:
+
+~~~
+app/jobs/export_job.rb:12: warning: Rocket Job: User#nickname returns a value other than the one that its column holds, which Rocket Job 8 uploads instead, as pluck returns it, rather than calling the reader: to keep the reader's value, write the records in the block of upload, which can call it, or apply the reader's logic in perform, see https://rocketjob.reidmorrison.com/upgrading.html#upgrading-to-v72
+~~~
+
+### Call upload with a query or a range
+
+`upload_arel`, `upload_mongo_query`, `upload_integer_range` and
+`upload_integer_range_in_reverse_order`, deprecated since v6, report a deprecation warning, since v8
+removes them. Call `upload` with the relation, the criteria or the range instead, which v7 and v8
+both accept. A block passed with a query is deprecated too, see [Uploading a query](#uploading-a-query):
+
+~~~ruby
+# Before (deprecated)
+job.upload_arel(User.where(country_code: "US"), :zip_code)
+job.upload_mongo_query(User.where(state: "FL"), :zip_code)
+job.upload_integer_range(1, 1_000_000)
+job.upload_integer_range_in_reverse_order(1, 1_000_000)
+
+# After
+job.upload(User.where(country_code: "US"), columns: [:zip_code])
+job.upload(User.where(state: "FL"), columns: [:zip_code])
+job.upload(1..1_000_000)
+job.upload(1_000_000..1)
+~~~
+
+A range is uploaded in the direction that it is written. `upload_integer_range(first, last)`
+uploaded nothing when `last` was less than `first`, while `upload(first..last)` uploads that range
+from its last id, so where the bounds are computed, check for that first. A range that excludes its
+end, such as `1...100`, uploads its end in v7, but not in v8, so write it as `1..99`.
+
+The `before_code` of an `OnDemandBatchJob` that calls one of them, as its documentation showed,
+reports the warning when the job runs, and raises `NoMethodError` in v8: change it to call `upload`,
+including in the jobs that are already saved, such as a scheduled one, which copies its
+`before_code` to its next run.
 
 ### Propose the schema of each category
 

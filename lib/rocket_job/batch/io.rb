@@ -516,7 +516,7 @@ module RocketJob
       def rocketjob_warn_removed_upload_method(name, replacement)
         RocketJob::Deprecation.warn(
           "#{name} is deprecated, and removed in Rocket Job 8: call upload with #{replacement}, see " \
-          "#{RocketJob::Deprecation::UPGRADE_GUIDE}"
+          "#{RocketJob::Deprecation::UPGRADE_GUIDE_V72}"
         )
       end
 

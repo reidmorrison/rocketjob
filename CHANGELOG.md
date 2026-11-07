@@ -11,6 +11,10 @@ keep working. See [Upgrading to v7.2](https://rocketjob.reidmorrison.com/upgradi
 
 ### New features
 
+- `upload` accepts a block with an Active Record relation or a Mongoid criteria, which returns the record to upload for
+  each model or document, as a block passed to `upload_arel` or `upload_mongo_query` does, which Rocket Job 8
+  removes. Previously it raised `ArgumentError`. It reports a deprecation warning, since Rocket Job 8 raises for a
+  block passed with a query, see Deprecated.
 - `RocketJob::SchemaProposal.report` proposes the schema that replaces the deprecated options of each category of the
   job classes that are loaded, the saved jobs that can still run, and the Dirmon entries and `UploadFileJob`s whose
   properties hold them, and changes nothing. Each proposal reads the files as the options did in 7.0, which is not
@@ -21,8 +25,31 @@ keep working. See [Upgrading to v7.2](https://rocketjob.reidmorrison.com/upgradi
 
 ### Deprecated
 
+These still work as in 7.1, and are removed, or work differently, in Rocket Job 8. Rocket Job reports a Ruby
+deprecation warning, at the line of the application, for each one that a job class defines a category with, that a
+Dirmon entry or an `UploadFileJob` builds a job with, that is passed to `upload`, or that an upload of a query depends
+on. The warnings are only reported while Ruby's deprecation warnings are on, such as in tests run by Minitest, so
+production stays quiet. A job read back from the database does not report one. See the upgrade guide.
+
 - An input category's `mode: :array`, and the `stream_mode: :array` of `upload`, which Rocket Job 8 removes. Use the
   default `:line` mode, in which each worker parses its lines. A category with a schema already could not use them.
+- A block passed with a query, an Active Record relation or a Mongoid criteria, such as to `upload_arel`, which
+  returns the record to upload for each model or document. Rocket Job 8 uploads the values of the columns of a query,
+  and raises `ArgumentError` for a block: write the records in the block of `upload` instead, reading the query there.
+- Uploading an Active Record relation that uses `includes`, `preload` or `eager_load`, which raises `ArgumentError` in
+  Rocket Job 8. Write the records in the block of `upload` instead, which loads the associations, or join the tables
+  to filter by them.
+- Uploading a column, without a block, whose reader the model overrides, which uploads what the reader returns. Rocket
+  Job 8 uploads the value that the column holds, as `pluck` returns it. While deprecation warnings are on, the upload
+  compares the reader with `read_attribute` for each row until they differ, and names the model and the column, but
+  not the values. `normalizes`, `enum`, `serialize` and `alias_attribute` give the same value both ways. To keep the
+  reader's value, write the records in the block of `upload`, or apply its logic in `perform`.
+- The batch job methods `upload_arel`, `upload_mongo_query`, `upload_integer_range` and
+  `upload_integer_range_in_reverse_order`, deprecated since v6, which Rocket Job 8 removes. Call `upload` with the
+  relation, the criteria or the range instead, such as `upload(User.where(country_code: "US"), columns: [:zip_code])`
+  or `upload(1..1_000_000)`. A range is uploaded in the direction that it is written, so
+  `upload(first..last)` uploads a range whose `last` is less than its `first` from its last id, where
+  `upload_integer_range(first, last)` uploaded nothing.
 
 ## [7.1.0] 2026-11-07
 

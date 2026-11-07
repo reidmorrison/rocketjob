@@ -195,7 +195,7 @@ module RocketJob
             "a block passed with #{kind} raises ArgumentError in Rocket Job 8, which uploads the values of its " \
             "columns: write the records in the block of upload instead, such as " \
             "job.upload { |records| #{query} { |user| records << user.email.downcase } }, see " \
-            "#{RocketJob::Deprecation::UPGRADE_GUIDE}"
+            "#{RocketJob::Deprecation::UPGRADE_GUIDE_V72}"
           )
         end
         private_class_method :warn_block
@@ -230,7 +230,7 @@ module RocketJob
             "uploading an Active Record relation that uses #{names} raises ArgumentError in Rocket Job 8, which reads " \
             "the rows of one query and builds no models: join the tables with joins and select their columns instead, " \
             "or to filter by an association, use joins with distinct, or a subquery, see " \
-            "#{RocketJob::Deprecation::UPGRADE_GUIDE}"
+            "#{RocketJob::Deprecation::UPGRADE_GUIDE_V72}"
           )
         end
         private_class_method :warn_eager_loading
@@ -257,7 +257,7 @@ module RocketJob
               "#{model.class}##{column} returns a value other than the one that its column holds, which Rocket Job 8 " \
               "uploads instead, as pluck returns it, rather than calling the reader: to keep the reader's value, write " \
               "the records in the block of upload, which can call it, or apply the reader's logic in perform, see " \
-              "#{RocketJob::Deprecation::UPGRADE_GUIDE}"
+              "#{RocketJob::Deprecation::UPGRADE_GUIDE_V72}"
             )
             true
           end
