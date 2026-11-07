@@ -61,9 +61,56 @@ input_category format: :csv, mode: :array
 input_category format: :csv
 ~~~
 
+A category without a format does not parse its lines, so `stream_mode: :array` was what read each
+line of a file into an Array. Give such a category the format of its files, or `format: :auto` to
+take it from the file name, so that the workers read each line, and `#perform` receives a Hash keyed
+by the columns of the header row, rather than an Array.
+
 To also parse every line when the file is uploaded, so that a file with a problem is found before it
-is processed, give the category a schema and use the `:hash` mode, see
-[Upload modes with a schema](#upload-modes-with-a-schema).
+is processed, use `validate_rows: true`, see
+[Replace the :hash mode and stream_mode](#replace-the-hash-mode-and-stream_mode).
+
+### Replace the :hash mode and stream_mode
+
+An input category's `mode: :hash`, and the `stream_mode:` of `upload`, are deprecated, and removed in
+v8. An input category's `validate_rows: true`, and the `validate_rows:` of `upload`, replace them: each
+line of a file in the category's format is parsed while the file is uploaded, so that a file with a
+line that cannot be read, or with a value that is not valid for its field in the schema, uploads
+nothing. The lines are still uploaded as they are, and the workers parse them:
+
+~~~ruby
+# Before (deprecated)
+input_category format: :csv, mode: :hash, schema: "schemas/people.json"
+job.upload("people.csv", stream_mode: :hash)
+
+# After
+input_category format: :csv, validate_rows: true, schema: "schemas/people.json"
+job.upload("people.csv", validate_rows: true)
+~~~
+
+* `validate_rows` also validates the lines of a category without a schema, which `mode: :hash` did
+  not.
+* A category without a format, which `stream_mode: :hash` read a file into Hashes for, gives the
+  category `format: :auto` instead, so that the workers read each line into a Hash, in the format of
+  the file name. Leave out `stream_mode: :line`, which is the default.
+* `upload` with a block does not validate the records that it writes in 7.2, and raises for
+  `validate_rows: true`. v8 also validates the lines that the block writes.
+* Until it is removed, `stream_mode:` decides alone whether a file is validated, over the category's
+  `validate_rows`. So in a category with `validate_rows: true`, replace `stream_mode: :line` by
+  `validate_rows: false`, rather than leave it out.
+* In a category with a format, 7.2 uploads the lines of a file in `stream_mode: :hash`, reading its
+  header row, and parses each one first, as `validate_rows: true` does. 7.1 raised
+  `IOStreams::Errors::TypeMismatch` for a file with a header row, such as CSV, without a schema.
+* v8 reads a job saved with `mode: :hash` in a category with a format as `validate_rows: true`, unless
+  its `validate_rows` is false. With a schema that is what `mode: :hash` did, so such a job need not
+  change. Without a schema `mode: :hash` did not validate the lines, so remove it, rather than replace
+  it, to keep uploading a file with a line that cannot be read. The
+  [schema proposals](#propose-the-schema-of-each-category) make both changes, in job classes and in
+  saved jobs, Dirmon entries and `UploadFileJob`s.
+
+Servers running v7.0 or v7.1 cannot read `validate_rows`, so upgrade every server before giving any
+Dirmon entry or `UploadFileJob` one.
+
 
 ### Replace on_first
 

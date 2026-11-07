@@ -11,6 +11,14 @@ keep working. See [Upgrading to v7.2](https://rocketjob.reidmorrison.com/upgradi
 
 ### New features
 
+- An input category's `validate_rows`, and the `validate_rows:` option of `upload`, which Rocket Job 8 keeps: with
+  `true`, each line of a file in the category's format is parsed while it is uploaded, so that a file with a line that
+  cannot be read, or with a value that is not valid for its field in the schema, uploads nothing. The lines are still
+  uploaded as they are, and the workers parse them. It needs a format, and validates the lines of a category without a
+  schema too. A query, a range, or the block of `upload`, is not validated, and raises `ArgumentError` for
+  `validate_rows: true`. When it is not set, a category with a schema in the `:hash` mode validates its lines, as in
+  7.1. Servers running 7.0 or 7.1 cannot read `validate_rows`, so upgrade every server before giving any Dirmon entry
+  or `UploadFileJob` one. `RocketJob::SchemaProposal` proposes it in place of `mode: :hash`.
 - `upload` accepts a block with an Active Record relation or a Mongoid criteria, which returns the record to upload for
   each model or document, as a block passed to `upload_arel` or `upload_mongo_query` does, which Rocket Job 8
   removes. Previously it raised `ArgumentError`, as it still does with `columns:`, which the block replaces. It reports
@@ -32,7 +40,13 @@ on. The warnings are only reported while Ruby's deprecation warnings are on, suc
 production stays quiet. A job read back from the database does not report one. See the upgrade guide.
 
 - An input category's `mode: :array`, and the `stream_mode: :array` of `upload`, which Rocket Job 8 removes. Use the
-  default `:line` mode, in which each worker parses its lines. A category with a schema already could not use them.
+  default `:line` mode, in which each worker parses its lines, and `validate_rows: true` to also parse every line when
+  the file is uploaded. A category without a format needs its format, or `format: :auto`, for the workers to read each
+  line. A category with a schema already could not use them.
+- An input category's `mode: :hash`, and the `stream_mode:` of `upload`, which Rocket Job 8 removes. `validate_rows`
+  replaces them. A category without a format, which `stream_mode: :hash` read a file into Hashes for, needs
+  `format: :auto` instead. Rocket Job 8 reads a saved `mode: :hash` in a category with a format as
+  `validate_rows: true`, so remove it from a category without a schema, which it did not validate.
 - The `on_first:` option of `upload`, which Rocket Job 8 removes. Rocket Job 8 raises `ArgumentError` whenever
   `on_first:` is passed, also as nil, whatever is uploaded, so 7.2 warns whenever it is passed. Rocket Job reads the
   header row itself, and the category's schema checks its columns. For a file without a header row, such as JSON or fixed width, the
@@ -55,6 +69,12 @@ production stays quiet. A job read back from the database does not report one. S
   or `upload(1..1_000_000)`. A range is uploaded in the direction that it is written, so
   `upload(first..last)` uploads a range whose `last` is less than its `first` from its last id, where
   `upload_integer_range(first, last)` uploaded nothing.
+
+### Fixes
+
+- An upload with `stream_mode: :hash` into a category with a format, such as CSV, reads the header row of the file, and
+  uploads its lines, parsing each one first, as `validate_rows: true` does. 7.1 raised
+  `IOStreams::Errors::TypeMismatch` for a file with a header row without a schema.
 
 ## [7.1.0] 2026-11-07
 
