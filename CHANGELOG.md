@@ -13,8 +13,8 @@ keep working. See [Upgrading to v7.2](https://rocketjob.reidmorrison.com/upgradi
 
 - `upload` accepts a block with an Active Record relation or a Mongoid criteria, which returns the record to upload for
   each model or document, as a block passed to `upload_arel` or `upload_mongo_query` does, which Rocket Job 8
-  removes. Previously it raised `ArgumentError`. It reports a deprecation warning, since Rocket Job 8 raises for a
-  block passed with a query, see Deprecated.
+  removes. Previously it raised `ArgumentError`, as it still does with `columns:`, which the block replaces. It reports
+  a deprecation warning, since Rocket Job 8 raises for a block passed with a query, see Deprecated.
 - `RocketJob::SchemaProposal.report` proposes the schema that replaces the deprecated options of each category of the
   job classes that are loaded, the saved jobs that can still run, and the Dirmon entries and `UploadFileJob`s whose
   properties hold them, and changes nothing. Each proposal reads the files as the options did in 7.0, which is not
