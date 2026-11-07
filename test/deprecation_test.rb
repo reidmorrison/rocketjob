@@ -94,7 +94,7 @@ class DeprecationTest < Minitest::Test
         assert_equal [[[1, 10]], [[11, 20]]], job.input.collect(&:to_a)
         assert_equal ["#{__FILE__}:#{line}: warning: Rocket Job: upload_integer_range is deprecated, and removed in " \
                       "Rocket Job 8: call upload with the range, such as upload(1..1_000_000) for " \
-                      "upload_integer_range(1, 1_000_000), see #{RocketJob::Deprecation::UPGRADE_GUIDE}\n"], warnings
+                      "upload_integer_range(1, 1_000_000), see #{RocketJob::Deprecation::UPGRADE_GUIDE_V72}\n"], warnings
       end
 
       it "warns for upload_integer_range_in_reverse_order, and still uploads the range from its last id" do

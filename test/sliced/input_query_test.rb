@@ -233,7 +233,7 @@ module Sliced
             assert_includes warnings.first, "write the records in the block of upload instead, such as job.upload { " \
                                             "|records| User.where(country_code: \"US\").find_each { |user| records " \
                                             "<< user.email.downcase } }"
-            assert_includes warnings.first, RocketJob::Deprecation::UPGRADE_GUIDE
+            assert_includes warnings.first, RocketJob::Deprecation::UPGRADE_GUIDE_V72
           end
 
           it "warns for a Mongoid criteria too, whose block raises in Rocket Job 8 as well" do
@@ -325,7 +325,7 @@ module Sliced
                          "than the one that its column holds, which Rocket Job 8 uploads instead, as pluck returns " \
                          "it, rather than calling the reader: to keep the reader's value, write the records in the " \
                          "block of upload, which can call it, or apply the reader's logic in perform, see " \
-                         "#{RocketJob::Deprecation::UPGRADE_GUIDE}\n",
+                         "#{RocketJob::Deprecation::UPGRADE_GUIDE_V72}\n",
                          warnings.first
           end
 
