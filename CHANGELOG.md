@@ -142,6 +142,18 @@ production stays quiet. A job read back from the database does not report one. S
 - A `CopyFileJob` fetches its `secret_config_` arguments from Secret Config even when Symmetric Encryption
   is not loaded. Previously, without Symmetric Encryption, every argument was passed to IOStreams under its stored
   name, so a `secret_config_` argument failed the job.
+- A batch job class that defines an input or output category, such as `input_category name: :other`, no longer
+  changes the categories of its parent class. Previously, once a class had defined a category, it shared its list of
+  categories with its subclasses, so a subclass added its categories to that list, or replaced the category with the
+  same name in it, such as one with another `slice_size`. A new job of the parent class, or of its other subclasses,
+  then had those categories too, depending on which subclasses had been loaded. Now a class that defines a category
+  holds its own copy of its parent's list with that category in it, and a class that defines none still uses its
+  parent's list. So a category that a parent class defines after a subclass has defined one, such as in a reopened
+  class, does not reach that subclass. A Dirmon entry or an `UploadFileJob` for the parent class whose properties name
+  a category that only a subclass defines, which worked while that subclass was loaded, now raises `ArgumentError`
+  when it builds the job, such as "Unknown Input Category: :other": define the category in the parent class, or use
+  the subclass. A saved job keeps the categories that it was created with. `input_category` and `output_category` in a
+  job class now return the category that they define, also for the first one, for which they returned the list.
 
 ### Security
 

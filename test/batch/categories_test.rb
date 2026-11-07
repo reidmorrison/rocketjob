@@ -10,6 +10,25 @@ module Batch
       end
     end
 
+    class ParentCategoriesJob < RocketJob::Job
+      include RocketJob::Batch
+
+      input_category slice_size: 10
+      output_category format: :csv
+
+      def perform(record)
+        record
+      end
+    end
+
+    # Adds categories, and redefines the main categories of its parent.
+    class ChildCategoriesJob < ParentCategoriesJob
+      input_category name: :other
+      input_category slice_size: 5
+      output_category name: :errors
+      output_category format: :json
+    end
+
     describe RocketJob::Batch::Categories do
       before do
         CategoriesJob.destroy_all
@@ -47,6 +66,84 @@ module Batch
       def from_legacy(doc)
         doc = {"_id" => BSON::ObjectId.new}.merge(doc)
         Mongoid::Factory.from_db(CategoriesJob, doc)
+      end
+
+      describe ".input_category" do
+        it "does not add the category of a subclass to its parent class" do
+          assert_equal [:main], ParentCategoriesJob.defined_input_categories.collect(&:name)
+          assert_equal %i[main other], ChildCategoriesJob.defined_input_categories.collect(&:name)
+        end
+
+        it "does not change the category of the parent class that a subclass redefines" do
+          assert_equal 10, ParentCategoriesJob.defined_input_categories.first.slice_size
+          assert_equal 5, ChildCategoriesJob.defined_input_categories.first.slice_size
+        end
+
+        it "builds the jobs of the parent class with its own input categories" do
+          parent = ParentCategoriesJob.new.input_categories.collect { |category| [category.name, category.slice_size] }
+          child  = ChildCategoriesJob.new.input_categories.collect { |category| [category.name, category.slice_size] }
+
+          assert_equal [[:main, 10]], parent
+          assert_equal [[:main, 5], [:other, 100]], child
+        end
+
+        it "gives a category that the parent class defines later only to the subclasses that define none" do
+          parent = Class.new(CategoriesJob)
+          parent.input_category(name: :first)
+          child   = Class.new(parent)
+          sibling = Class.new(parent)
+          child.input_category(name: :child)
+          parent.input_category(name: :late)
+
+          assert_equal %i[first child], child.defined_input_categories.collect(&:name)
+          assert_equal %i[first late], sibling.defined_input_categories.collect(&:name)
+        end
+
+        it "returns the category that it defines" do
+          klass = Class.new(CategoriesJob)
+          first = klass.input_category(name: :first)
+          other = klass.input_category(name: :other)
+
+          categories = klass.defined_input_categories
+
+          assert_equal 2, categories.size
+          assert_same first, categories.first
+          assert_same other, categories.last
+          assert_nil CategoriesJob.defined_input_categories
+        end
+      end
+
+      describe ".output_category" do
+        it "does not add the category of a subclass to its parent class" do
+          assert_equal [:main], ParentCategoriesJob.defined_output_categories.collect(&:name)
+          assert_equal %i[main errors], ChildCategoriesJob.defined_output_categories.collect(&:name)
+        end
+
+        it "does not change the category of the parent class that a subclass redefines" do
+          assert_equal :csv, ParentCategoriesJob.defined_output_categories.first.format
+          assert_equal :json, ChildCategoriesJob.defined_output_categories.first.format
+        end
+
+        it "builds the jobs of the parent class with its own output categories" do
+          parent = ParentCategoriesJob.new.output_categories.collect { |category| [category.name, category.format] }
+          child  = ChildCategoriesJob.new.output_categories.collect { |category| [category.name, category.format] }
+
+          assert_equal [%i[main csv]], parent
+          assert_equal [%i[main json], [:errors, nil]], child
+        end
+
+        it "returns the category that it defines" do
+          klass = Class.new(CategoriesJob)
+          first = klass.output_category(name: :first)
+          other = klass.output_category(name: :other)
+
+          categories = klass.defined_output_categories
+
+          assert_equal 2, categories.size
+          assert_same first, categories.first
+          assert_same other, categories.last
+          assert_nil CategoriesJob.defined_output_categories
+        end
       end
 
       describe "#input_category?" do
