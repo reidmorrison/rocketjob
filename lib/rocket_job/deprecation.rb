@@ -12,8 +12,11 @@ module RocketJob
     # The directory of the files of this library, whose lines are skipped when finding the line that used it.
     LIB_DIR = "#{File.expand_path('..', __dir__)}/".freeze
 
-    # Where the upgrade guide says what replaces each deprecated option.
+    # Where the upgrade guide says what replaces each option that 7.1 deprecates.
     UPGRADE_GUIDE = "https://rocketjob.reidmorrison.com/upgrading.html#upgrading-to-v71".freeze
+
+    # Where the upgrade guide says what replaces each option that 7.2 deprecates.
+    UPGRADE_GUIDE_V72 = "https://rocketjob.reidmorrison.com/upgrading.html#upgrading-to-v72".freeze
 
     # Reports that the application used something deprecated, unless deprecation warnings are off, with the message,
     # which says what is deprecated and what to use instead, after "Rocket Job: ", at the first line of the call stack

@@ -3,7 +3,7 @@ layout: default
 title: Upgrading Rocket Job
 description: >-
   The upgrade steps that need code or data changes when moving between
-  versions, for v7.1, v6 and v3, and why to upgrade one version at a time.
+  versions, for v7.2, v7.1, v6 and v3, and why to upgrade one version at a time.
 ---
 
 **Contents**
@@ -17,9 +17,9 @@ upgrade steps that need code or data changes when moving between versions.
 
 ## Upgrade one version at a time
 
-Upgrade through each version in turn, such as from v7.0 to v7.1, and then to v8, rather than from
-v7.0 straight to v8. After each upgrade, fix every deprecation warning that it reports before you
-upgrade to the next version:
+Upgrade through each version in turn, such as from v7.0 to v7.1, to v7.2, and then to v8, rather
+than from v7.0 straight to v8. After each upgrade, fix every deprecation warning that it reports
+before you upgrade to the next version:
 
 1. Upgrade to the next version, following its section below.
 2. Run your tests with Ruby's deprecation warnings on, see
@@ -33,6 +33,32 @@ A minor release, such as v7.1, adds what replaces the options that the next majo
 and deprecates them, so that each change can be made, and tested, while the old option still works.
 The next major release, such as v8, then removes what was deprecated, so code that still uses it
 stops working.
+
+## Upgrading to v7.2
+
+v7.2 prepares an application for v8. Upgrade to v7.1 first, see
+[Upgrading to v7.1](#upgrading-to-v71). v7.2 reports a deprecation warning for each of the other
+options that v8 removes, and adds what replaces them. The deprecated options keep working. Its
+warnings are reported as v7.1 reports its own, see
+[Find the deprecated options that you use](#find-the-deprecated-options-that-you-use).
+
+### Replace the :array upload mode
+
+An input category's `mode: :array`, and the `stream_mode: :array` of `upload`, are deprecated, and
+removed in v8. A category with a schema cannot use them. Use the default `:line` mode, in which each
+worker parses its lines, and leave out `stream_mode:`:
+
+~~~ruby
+# Before (deprecated)
+input_category format: :csv, mode: :array
+
+# After
+input_category format: :csv
+~~~
+
+To also parse every line when the file is uploaded, so that a file with a problem is found before it
+is processed, give the category a schema and use the `:hash` mode, see
+[Upload modes with a schema](#upload-modes-with-a-schema).
 
 ## Upgrading to v7.1
 

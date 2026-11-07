@@ -59,6 +59,7 @@ module RocketJob
       #   uploaded at all. The lines are uploaded, as in :line mode. Not recommended for large files, since the lines
       #   are parsed one after the other during the upload.
       # :array
+      #   Deprecated, use :line, or with a schema :hash, which also parses every line when the file is uploaded.
       #   Cannot be used with a schema.
       #
       # Without a schema the mode does not change how a file is uploaded: its lines are uploaded, unless the upload is
@@ -88,6 +89,22 @@ module RocketJob
       validates :header_cleanser, inclusion: %i[default none]
 
       validates_inclusion_of :serializer, in: %i[none compress encrypt]
+
+      # Reports a deprecation warning, see RocketJob::Deprecation, for the deprecated options in the supplied
+      # properties of an input category, see Category::Base.warn_deprecated_options, and for its :array `mode`.
+      def self.warn_deprecated_options(properties)
+        super
+        warn_array_mode if properties.to_h.stringify_keys["mode"].to_s == "array"
+      end
+
+      # Reports a deprecation warning, see RocketJob::Deprecation, for the :array mode of an upload, see #mode, set as
+      # the supplied option, such as the `stream_mode:` of `upload`.
+      def self.warn_array_mode(option = :mode)
+        RocketJob::Deprecation.warn(
+          "#{option}: :array is deprecated, use :line, the default, which the workers parse, or with a schema :hash, " \
+          "which also parses every line when the file is uploaded, see #{RocketJob::Deprecation::UPGRADE_GUIDE_V72}"
+        )
+      end
 
       # Returns [Array<String>] the names of the deprecated options in the supplied properties of an input category,
       # with String keys, see Category::Base.deprecated_column_options: `allowed_columns`, `required_columns`,

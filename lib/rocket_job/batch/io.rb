@@ -327,7 +327,7 @@ module RocketJob
           else
             raise(ArgumentError, "Unknown keyword argument :columns when uploading a file") if columns
 
-            rocketjob_warn_deprecated_upload_options(args)
+            rocketjob_warn_deprecated_upload_options(stream_mode, args)
             category = input_category(category)
 
             # The path sets the format of a category whose format is :auto, which decides whether the file has a
@@ -493,8 +493,11 @@ module RocketJob
       private
 
       # Reports a deprecation warning, see RocketJob::Deprecation, at the line of the application that uploads a file
-      # with options that describe the columns of the file, which the schema of the input category replaces.
-      def rocketjob_warn_deprecated_upload_options(args)
+      # with the :array `stream_mode`, or with options that describe the columns of the file, which the schema of the
+      # input category replaces.
+      def rocketjob_warn_deprecated_upload_options(stream_mode, args)
+        Category::Input.warn_array_mode(:stream_mode) if stream_mode.to_s == "array"
+
         names = args.keys & DEPRECATED_UPLOAD_OPTIONS
         return if names.empty?
 
