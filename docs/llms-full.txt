@@ -5748,6 +5748,15 @@ deprecates reading a JSON file as Arrays. For an upload of a JSON file with `str
 IOStreams reports `each(:array)` as deprecated at a line of Rocket Job (`category/input.rb`), not of
 your application: use `stream_mode: :hash`, which uploads the same Hashes.
 
+### Columns of a header row that are the same key
+
+Without a schema, the columns of a header row are cleansed into the keys of each record, so `a` and
+`A`, or `First Name` and `first_name`, are the same key, and each record holds the value of only the
+last of them. IOStreams 2.2 deprecates reading such a file, and IOStreams 3.0 raises for it, so
+Rocket Job reports a deprecation warning at the line that uploads it. Rename the columns of the file,
+or describe them with the category's schema, where two columns that match the same field raise
+`IOStreams::Errors::InvalidHeader`.
+
 ### Text is read as UTF-8 with a schema
 
 The text of a file uploaded into a category with a schema is read as UTF-8, so letters that are not

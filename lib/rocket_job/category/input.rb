@@ -209,6 +209,7 @@ module RocketJob
           tabular.parse_header(line)
           cleanse_header!
           self.columns = tabular.header.columns
+          warn_repeated_columns
           # Call chained on_first if present
           on_first&.call(line)
           true
@@ -216,6 +217,21 @@ module RocketJob
       end
 
       private
+
+      # Reports a deprecation warning, see RocketJob::Deprecation, at the line of the application that uploads a file
+      # whose header row has columns that are the same key once cleansed, such as `a` and `A`, since each record holds
+      # the value of only the last of them, and IOStreams 3.0, which Rocket Job 8 requires, raises for them.
+      def warn_repeated_columns
+        repeated = columns.compact.tally.select { |_column, count| count > 1 }.keys
+        return if repeated.empty?
+
+        RocketJob::Deprecation.warn(
+          "a header row whose columns are the same key, #{repeated.collect(&:inspect).join(', ')}, is deprecated, " \
+          "since each record holds the value of only the last of them, and Rocket Job 8 raises: rename the " \
+          "columns of the file, or describe them with the schema: of the input category, see " \
+          "#{RocketJob::Deprecation::UPGRADE_GUIDE}"
+        )
+      end
 
       # Returns [IOStreams::Tabular] that reads the records of this category by its schema, see Category::Base#schema,
       # and has read the header row that an upload read from the file, see #columns, so that the workers parse each line

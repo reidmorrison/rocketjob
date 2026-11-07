@@ -189,6 +189,39 @@ class DeprecationTest < Minitest::Test
       end
     end
 
+    describe "a header row whose columns are the same key" do
+      let(:job) { Class.new(DeprecatedCategoryJob) { input_category format: :csv }.new }
+
+      after do
+        job.cleanup!
+      end
+
+      it "warns at the line that uploads the file" do
+        line     = __LINE__ + 1
+        warnings = deprecation_warnings { job.upload(StringIO.new("a,A,b\n1,2,3\n"), file_name: "people.csv") }
+
+        assert_equal 1, warnings.size, warnings.inspect
+        assert warnings.first.start_with?("#{__FILE__}:#{line}: warning: Rocket Job: "), warnings.first
+        assert_includes warnings.first, 'columns are the same key, "a", is deprecated'
+      end
+
+      it "warns for the header row that a block writes" do
+        warnings = deprecation_warnings do
+          job.upload do |records|
+            records << "id,ID"
+            records << "1,2"
+          end
+        end
+
+        assert_equal 1, warnings.size, warnings.inspect
+        assert_includes warnings.first, '"id"'
+      end
+
+      it "does not warn for columns that are not the same key" do
+        assert_empty(deprecation_warnings { job.upload(StringIO.new("a,b\n1,2\n"), file_name: "people.csv") })
+      end
+    end
+
     describe "properties with a deprecated option" do
       it "warns when they build a job" do
         warnings = deprecation_warnings do
