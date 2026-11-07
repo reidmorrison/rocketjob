@@ -298,6 +298,46 @@ module Batch
           assert_equal 3, job.record_count
         end
 
+        describe "a second file" do
+          it "is read by the same header row as the first" do
+            upload(".csv", csv)
+
+            assert_equal 1, upload(".csv", "Name,Age,Joined\nJane,23,2026-10-22\n")
+            assert_equal %w[Name Age Joined], job.input_category.columns
+            assert_equal records + [{"name" => "Jane", "age" => 23, "joined" => Date.new(2026, 10, 22)}],
+                         output_records
+          end
+
+          it "raises when its header row differs, and keeps the records of the first file" do
+            job.input_category.schema = schema.merge("fieldsMatch" => "equal")
+            upload(".csv", csv)
+
+            error = assert_raises(ArgumentError) { upload(".csv", "Joined,Name,Age\n2026-10-22,Jane,23\n") }
+            assert_match(/holds records read by the header row \["Name", "Age", "Joined"\], so a file whose header row is/,
+                         error.message)
+            assert_equal %w[Name Age Joined], job.input_category.columns
+            assert_equal 2, job.record_count
+            assert_equal records, output_records
+          end
+
+          it "raises when a block writes a header row that differs" do
+            job.input_category.schema = schema.merge("fieldsMatch" => "equal")
+            upload(".csv", csv)
+
+            assert_raises(ArgumentError) do
+              job.upload { |lines| ["Joined,Name,Age", "2026-10-22,Jane,23"].each { |line| lines << line } }
+            end
+            assert_equal records, output_records
+          end
+
+          it "reads the header row of a file into an empty input, such as the next run of a scheduled job" do
+            job.input_category.columns = %w[Joined Name Age]
+
+            assert_equal 2, upload(".csv", csv)
+            assert_equal %w[Name Age Joined], job.input_category.columns
+          end
+        end
+
         describe "validate_rows" do
           let(:invalid) { "Name,Age,Joined\nJack,21,2026-10-20\nJill,old,2026-10-21\n" }
 

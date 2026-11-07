@@ -346,8 +346,8 @@ module RocketJob
       # :array `stream_mode:` of an upload, as an Array, which IOStreams also reads as a header row, see #each_record.
       #
       # Supply `uploaded: true` when the input of this category already holds the records of an earlier upload, which
-      # the workers read by the header row that it read, see #columns. With a schema, those columns are then kept until
-      # the header row of this file is read, see InputSchemaHeader.
+      # the workers read by the header row that it read, see #columns. With a schema, those columns are then kept, and
+      # the lambda raises ArgumentError for a file whose header row differs, see InputSchemaHeader.
       def extract_header_callback(on_first, uploaded: false)
         return schema_header_callback(on_first, uploaded) if schema.present?
         return first_record_callback(on_first) unless tabular? && tabular.header?
