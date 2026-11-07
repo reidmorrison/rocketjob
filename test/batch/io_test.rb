@@ -288,6 +288,27 @@ module Batch
         it "rejects :columns when uploading a file" do
           assert_raises(ArgumentError) { job.upload(text_file, columns: [:a]) }
         end
+
+        it "rejects a stream_mode other than :line, :array or :hash, as 7.1 did without a schema" do
+          [:hashes, "rows", ""].each do |stream_mode|
+            error = assert_raises(ArgumentError) { job.upload(text_file, stream_mode: stream_mode) }
+            assert_match(/Invalid stream_mode: #{Regexp.escape(stream_mode.inspect)}/, error.message)
+          end
+          assert_equal 0, job.input.count
+        end
+
+        it "also rejects one with a schema, which 7.1 read as :hash" do
+          job.input_category.format = :csv
+          job.input_category.schema = {"fields" => [{"name" => "name"}]}
+
+          error = assert_raises(ArgumentError) { job.upload(csv_file, stream_mode: :hashes) }
+          assert_match(/Invalid stream_mode: :hashes/, error.message)
+          assert_equal 0, job.input.count
+        end
+
+        it "uploads the lines of a file with stream_mode: false, as 7.1 did" do
+          assert_equal 4, job.upload(text_file, stream_mode: false)
+        end
       end
 
       describe "#upload_slice" do

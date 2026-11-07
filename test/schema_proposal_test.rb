@@ -559,10 +559,32 @@ class SchemaProposalTest < Minitest::Test
         end
       end
 
+      it "says when its code names a deprecated mode as a String, or with a String or hash rocket key" do
+        [
+          %(input_category.mode = "hash"), %(input_category("mode" => "array")), %(input_category(:mode => :hash)),
+          %(input_category('mode' => 'hash')), %(input_category(mode: "array")), %(input_category("mode": :hash))
+        ].each do |code|
+          job = RocketJob::Jobs::OnDemandBatchJob.new(code: "row", before_code: code)
+
+          assert_match(/Its before_code names a deprecated/, job.schema_proposals.last&.notes&.first.to_s, code)
+        end
+      end
+
       it "does not name validate_rows or the :line mode as deprecated" do
         job = RocketJob::Jobs::OnDemandBatchJob.new(code: "row", before_code: "upload(file, validate_rows: true)\nmode: :line")
 
         assert_empty job.schema_proposals
+      end
+
+      it "does not name a comparison with a mode, a ternary, nor another option that ends in mode, as deprecated" do
+        [
+          "input_category.mode == :hash", %(upload_mode = "hash"), %("mode" => "line"), "mode: :hashes",
+          "selected = csv ? mode : :hash", %(selected = csv ? mode : "array")
+        ].each do |code|
+          job = RocketJob::Jobs::OnDemandBatchJob.new(code: "row", before_code: code)
+
+          assert_empty job.schema_proposals, code
+        end
       end
     end
 

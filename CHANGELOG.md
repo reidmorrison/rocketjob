@@ -46,7 +46,9 @@ production stays quiet. A job read back from the database does not report one. S
 - An input category's `mode: :hash`, and the `stream_mode:` of `upload`, which Rocket Job 8 removes. `validate_rows`
   replaces them. A category without a format, which `stream_mode: :hash` read a file into Hashes for, needs
   `format: :auto` instead. Rocket Job 8 reads a saved `mode: :hash` in a category with a format as
-  `validate_rows: true`, so remove it from a category without a schema, which it did not validate.
+  `validate_rows: true`, so remove it from a category without a schema, which it did not validate. Rocket Job 8
+  raises `ArgumentError` whenever `stream_mode:` is passed, also as nil, whatever is uploaded, so 7.2 warns for it
+  then too.
 - The `on_first:` option of `upload`, which Rocket Job 8 removes. Rocket Job 8 raises `ArgumentError` whenever
   `on_first:` is passed, also as nil, whatever is uploaded, so 7.2 warns whenever it is passed. Rocket Job reads the
   header row itself, and the category's schema checks its columns. For a file without a header row, such as JSON or fixed width, the
@@ -74,7 +76,11 @@ production stays quiet. A job read back from the database does not report one. S
 
 - An upload with `stream_mode: :hash` into a category with a format, such as CSV, reads the header row of the file, and
   uploads its lines, parsing each one first, as `validate_rows: true` does. 7.1 raised
-  `IOStreams::Errors::TypeMismatch` for a file with a header row without a schema.
+  `IOStreams::Errors::TypeMismatch` for a file with a header row without a schema. For a file without a header row,
+  such as JSON, in a category without a schema, it still accepts the options of `upload` that describe the columns of
+  a file, such as `allowed_columns:`, which have no effect there, as in 7.1.
+- `upload` raises `ArgumentError` for a `stream_mode:` other than `:line`, `:array` or `:hash`, such as `:hashes`, as
+  7.1 did in a category without a schema. 7.1 read one as `:hash` in a category with a schema.
 
 ## [7.1.0] 2026-11-07
 

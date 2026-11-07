@@ -109,10 +109,12 @@ module RocketJob
       end
 
       # The names of the deprecated category and upload options, see RocketJob::Category::Base#schema, which its code
-      # can set, see #schema_proposals.
+      # can set, see #schema_proposals, and the :array or :hash mode set as a Symbol or a String, with a Symbol or a
+      # String key, such as `mode: :hash`, `mode = "array"`, or `"mode" => "hash"`. A space can only come before `=` or
+      # `=>`, so that a ternary, such as `csv ? mode : :hash`, is not matched.
       DEPRECATED_CODE =
         /\b(format_options|allowed_columns|required_columns|skip_unknown|header_cleanser|cleanse_header|stream_mode)\b|
-         \bmode(:|\s*=)\s*:(array|hash)\b/x
+         \bmode["']?(:|\s*=>?)\s*[:"'](array|hash)\b/x
       private_constant :DEPRECATED_CODE
 
       # Returns [Array<RocketJob::SchemaProposal>] the schemas proposed for this job's categories, see

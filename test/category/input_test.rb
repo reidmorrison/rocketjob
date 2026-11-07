@@ -66,7 +66,7 @@ module Batch
           assert category.upload_validates_rows?(true)
         end
 
-        it "is the :hash mode of a category with a schema, when neither is set, as 7.0 parsed its lines" do
+        it "is the :hash mode of a category with a schema, when neither is set, as 7.1 parsed its lines" do
           assert_predicate RocketJob::Category::Input.new(format: :csv, schema: schema, mode: :hash), :upload_validates_rows?
           refute_predicate RocketJob::Category::Input.new(format: :csv, schema: schema), :upload_validates_rows?
           refute_predicate RocketJob::Category::Input.new(format: :csv, mode: :hash), :upload_validates_rows?
