@@ -890,8 +890,8 @@ calls on it.
 ### Check the paths and stream options saved in the database
 
 IOStreams 2.2 also deprecates some forms of paths and stream options, such as a local file name that
-starts with `~/`, see
-[Deprecated, and what replaces it](https://iostreams.reidmorrison.com/upgrading.html#deprecated-and-what-replaces-it).
+starts with `~/`, which
+[Upgrading IOStreams to v2.2](https://iostreams.reidmorrison.com/upgrading.html#upgrading-to-v22) lists.
 IOStreams reports one only when the path is used, so tests seldom report those that are saved in the
 database. Rocket Job passes these to IOStreams:
 
