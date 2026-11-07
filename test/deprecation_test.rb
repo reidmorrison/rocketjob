@@ -287,20 +287,83 @@ class DeprecationTest < Minitest::Test
           job.upload(StringIO.new("name|Jack|Jill"), delimiter: "|", buffer_size: 1024)
         end
 
+        # Says what replaces each option that is passed, and nothing about a quoted value without embedded_within:.
         assert_equal ["#{__FILE__}:#{line}: warning: Rocket Job: delimiter:, buffer_size: are deprecated, and removed " \
-                      "in Rocket Job 8, which reads the lines of a file itself: line endings are detected, and the " \
-                      "input category's format reads a quoted value with line breaks, see " \
-                      "#{RocketJob::Deprecation::UPGRADE_GUIDE_V72}\n"], warnings
+                      "in Rocket Job 8, which reads the lines of a file itself: line endings are detected, and records " \
+                      "separated by something else are written in the block of upload, such as with " \
+                      'IOStreams.path(file_name).each(:line, delimiter: "|"); the size of the buffer that it reads ' \
+                      "with is its own, see #{RocketJob::Deprecation::UPGRADE_GUIDE_V72}\n"], warnings
         assert_equal [%w[name Jack Jill]], job.input.collect(&:to_a)
       end
 
-      it "warns for embedded_within: alone" do
+      it "warns for buffer_size: alone, with neither the delimiter: nor the embedded_within: replacement" do
+        line     = __LINE__ + 2
         warnings = deprecation_warnings do
-          job.upload(StringIO.new("name\n\"Jack\nSmith\"\n"), file_name: "people.csv", embedded_within: '"')
+          job.upload(StringIO.new("name\nJack\n"), file_name: "people.csv", buffer_size: 1024)
         end
 
-        assert_equal 1, warnings.size, warnings.inspect
-        assert_includes warnings.first, "Rocket Job: embedded_within: is deprecated, and removed in Rocket Job 8"
+        assert_equal ["#{__FILE__}:#{line}: warning: Rocket Job: buffer_size: is deprecated, and removed in Rocket Job " \
+                      "8, which reads the lines of a file itself: the size of the buffer that it reads with is its own, " \
+                      "see #{RocketJob::Deprecation::UPGRADE_GUIDE_V72}\n"], warnings
+        assert_equal [%w[Jack]], job.input.collect(&:to_a)
+      end
+
+      it "warns for embedded_within: alone, and still keeps a quoted value with line breaks in its record" do
+        # An IO without a file name gives the path no format, so only embedded_within: keeps the line break.
+        line     = __LINE__ + 2
+        warnings = deprecation_warnings do
+          job.upload(StringIO.new("name,note\nJack,\"line1\nline2\"\n"), embedded_within: '"')
+        end
+
+        # Rocket Job 8 reads the value in the format of the input category, and 7.2 in that of the path.
+        assert_equal ["#{__FILE__}:#{line}: warning: Rocket Job: embedded_within: is deprecated, and removed in Rocket " \
+                      "Job 8, which reads the lines of a file itself: the input category's format reads a quoted value " \
+                      "with line breaks, while 7.2 reads one in the format of the path that is uploaded, such as a " \
+                      "file name ending in .csv, or IOStreams.stream(io).format(:csv), see " \
+                      "#{RocketJob::Deprecation::UPGRADE_GUIDE_V72}\n"], warnings
+        assert_equal [["Jack,\"line1\nline2\""]], job.input.collect(&:to_a)
+      end
+
+      it "warns for the options that describe the columns before those that read the lines, in the order passed" do
+        job.input_category.format = nil
+        warnings = deprecation_warnings do
+          job.upload(StringIO.new("name\nJack\n"), file_name: "people.csv", stream_mode: :hash, embedded_within: '"',
+                     allowed_columns: %w[name], delimiter: "\n")
+        end
+
+        assert_equal 3, warnings.size, warnings.inspect
+        assert_includes warnings[0], "Rocket Job: stream_mode: :hash"
+        assert_includes warnings[1], "Rocket Job: allowed_columns: is deprecated, describe the columns of the file " \
+                                     "with the schema: of the input category instead, see " \
+                                     "#{RocketJob::Deprecation::UPGRADE_GUIDE}\n"
+        assert_includes warnings[2], "Rocket Job: embedded_within:, delimiter: are deprecated, and removed in " \
+                                     "Rocket Job 8, which reads the lines of a file itself: the input category's " \
+                                     "format reads a quoted value with line breaks, while 7.2 reads one in the " \
+                                     "format of the path that is uploaded, such as a file name ending in .csv, or " \
+                                     "IOStreams.stream(io).format(:csv); line endings are detected, and records " \
+                                     "separated by something else are written in the block of upload, such as " \
+                                     'with IOStreams.path(file_name).each(:line, delimiter: "|"), see ' \
+                                     "#{RocketJob::Deprecation::UPGRADE_GUIDE_V72}\n"
+        assert_equal 1, job.record_count
+      end
+
+      # The replacements that the upgrade guide gives for embedded_within: on 7.2.
+      it "keeps a quoted value with line breaks in its record without embedded_within: when the path has the format" do
+        csv     = "name,note\nJack,\"line1\nline2\"\n"
+        uploads = [
+          ->(csv_job) { csv_job.upload(IOStreams.stream(StringIO.new(csv)).format(:csv)) },
+          ->(csv_job) { csv_job.upload(StringIO.new(csv), file_name: "people.csv") }
+        ]
+        uploads.each do |upload|
+          # Each upload reads the header row into a job of its own.
+          csv_job  = job.class.new
+          warnings = deprecation_warnings { upload.call(csv_job) }
+
+          assert_empty warnings
+          assert_equal [["Jack,\"line1\nline2\""]], csv_job.input.collect(&:to_a)
+        ensure
+          csv_job&.input&.delete_all
+        end
       end
 
       describe "stream_mode" do
