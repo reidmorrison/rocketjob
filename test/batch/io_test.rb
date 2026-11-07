@@ -174,6 +174,94 @@ module Batch
           end
         end
 
+        describe "text that is not ASCII, into a category without a format" do
+          # Yields the name of a file, with the supplied extension, that holds the supplied data.
+          def with_file(extension, data)
+            IOStreams.temp_file("io_test", extension) do |path|
+              File.binwrite(path.to_s, data)
+              yield(path.to_s)
+            end
+          end
+
+          def input_records
+            job.input.collect(&:to_a).flatten
+          end
+
+          it "uploads the lines of a UTF-8 file as UTF-8, keeping letters that are not ASCII" do
+            with_file(".txt", "José\nAnn\n") { |file_name| assert_equal 2, job.upload(file_name) }
+
+            assert_equal %w[José Ann], input_records
+            assert_equal [Encoding::UTF_8], input_records.collect(&:encoding).uniq
+          end
+
+          it "uploads the lines of a gzipped file as UTF-8" do
+            with_file(".txt.gz", Zlib.gzip("José\nAnn\n")) { |file_name| assert_equal 2, job.upload(file_name) }
+
+            assert_equal %w[José Ann], input_records
+          end
+
+          it "reads the text in the encoding set on the path" do
+            with_file(".txt", "Jos\xE9\nAnn\n".b) do |file_name|
+              assert_equal 2, job.upload(IOStreams.path(file_name).encoding("ISO-8859-1"))
+            end
+
+            assert_equal %w[José Ann], input_records
+          end
+
+          it "raises for text that is not valid UTF-8, naming its line, and uploads nothing" do
+            error = nil
+
+            with_file(".txt", "Ann\nBob\nCid\nJos\xE9\n".b) do |file_name|
+              error = assert_raises(IOStreams::Errors::InvalidEncoding) { job.upload(file_name) }
+            end
+
+            assert_equal 4, error.line_number
+            assert_match(/"\\xE9" is not valid UTF-8 on line 4/, error.message)
+            # So that code that rescued the Encoding::UndefinedConversionError that storing such a line raised still does.
+            assert_kind_of Encoding::UndefinedConversionError, error
+            assert_equal 0, job.input.count
+            assert_nil job.record_count
+          end
+
+          it "names the line of text that is not valid UTF-8 after a line break within quotes" do
+            error = nil
+
+            with_file(".csv", "a,\"b\nc\"\nJos\xE9\n".b) do |file_name|
+              error = assert_raises(IOStreams::Errors::InvalidEncoding) { job.upload(file_name) }
+            end
+
+            assert_equal 3, error.line_number
+          end
+
+          it "names the line of text that is not valid UTF-8 in a file read as UTF-8 by the path" do
+            # IOStreams takes the bytes as UTF-8 as it reads them, so that it is only seen in the lines after the first
+            # block that it reads, where it finds the line endings.
+            job.input_category.slice_size = 100_000
+            error                         = nil
+
+            with_file(".txt", ("Ann\n" * 20_000) + "Jos\xE9\n".b) do |file_name|
+              error = assert_raises(IOStreams::Errors::InvalidEncoding) do
+                job.upload(IOStreams.path(file_name).encoding("UTF-8"))
+              end
+            end
+
+            assert_equal 20_001, error.line_number
+          end
+
+          it "uploads a UTF-8 file without its byte order mark" do
+            with_file(".txt", "\xEF\xBB\xBFJosé\n﻿Ann\n".b) { |file_name| job.upload(file_name) }
+
+            # A byte order mark is only removed from the start of the file.
+            assert_equal ["José", "﻿Ann"], input_records
+          end
+
+          it "previews the lines as UTF-8" do
+            with_file(".txt", "José\nAnn\n") do |file_name|
+              assert_equal %w[José Ann], job.input_category.preview(file_name)
+            end
+          end
+        end
+
         describe "Range" do
           before do
             job.input_category.slice_size = 10
