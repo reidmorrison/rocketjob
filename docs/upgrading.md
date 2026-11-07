@@ -138,8 +138,9 @@ same Hash for each line, so most jobs need no change, but:
   `row.to_csv` or `hash.to_json`, or upload it into a category without a format, whose `#perform`
   receives it as it was written. The `:hash` format, whose rows are Ruby objects, and formats whose
   rows are not lines, such as Parquet, still upload each record as it is. A schema casts its values
-  when it is uploaded, and not again when it is processed, so `#perform` receives each record as
-  MongoDB stored it, such as a date as a `Time`, also when all of its values are blank. In the
+  when it is uploaded, and each slice keeps the schema, so `#perform` receives each value as the type
+  of its field, such as a date as a `Date` and a duration as an `ActiveSupport::Duration`, and
+  receives a record whose values are all blank too. In the
   `:array` format without a schema, the first Array that the block writes is the header row, by
   which `#perform` receives each row after it as a Hash, where v7 uploaded it as a record. With a
   schema, each Array holds the values of its fields, in order.
