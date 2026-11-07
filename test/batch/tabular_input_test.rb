@@ -254,6 +254,50 @@ module Batch
           assert_match(/cannot be uploaded in :array mode/, error.message)
         end
 
+        describe "a second file that fails to upload" do
+          before do
+            upload(".csv", csv)
+          end
+
+          it "keeps the header row of the first file when its header row does not match the schema" do
+            assert_raises(IOStreams::Errors::InvalidHeader) { upload(".csv", "Name,Height\nJane,1.6\n") }
+
+            assert_equal %w[Name Age Joined], job.input_category.columns
+            assert_equal records, output_records
+          end
+
+          it "keeps the header row of the first file when a line cannot be parsed" do
+            invalid = "Name,Age,Joined\nJane,old,2026-10-22\n"
+            assert_raises(IOStreams::Errors::InvalidValue) { upload(".csv", invalid, validate_rows: true) }
+
+            assert_equal %w[Name Age Joined], job.input_category.columns
+            assert_equal 2, job.record_count
+            assert_equal records, output_records
+          end
+
+          it "keeps the header row of the first file when the file cannot be read" do
+            assert_raises(Errno::ENOENT) { job.upload("/tmp/rocket_job_missing_#{SecureRandom.hex(4)}.csv") }
+
+            assert_equal %w[Name Age Joined], job.input_category.columns
+            assert_equal records, output_records
+          end
+        end
+
+        it "still parses the records of the first file after an empty second file" do
+          upload(".csv", csv)
+
+          assert_equal 0, upload(".csv", "\n\n")
+          assert_equal %w[Name Age Joined], job.input_category.columns
+          assert_equal records, output_records
+        end
+
+        it "validates the lines of a second file by its own header row" do
+          upload(".csv", csv)
+
+          assert_equal 1, upload(".csv", "Name,Age,Joined\nJane,23,2026-10-22\n", validate_rows: true)
+          assert_equal 3, job.record_count
+        end
+
         describe "validate_rows" do
           let(:invalid) { "Name,Age,Joined\nJack,21,2026-10-20\nJill,old,2026-10-21\n" }
 

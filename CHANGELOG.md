@@ -82,8 +82,10 @@ production stays quiet. A job read back from the database does not report one. S
 ### Fixes
 
 - An upload that fails, such as a file with a line that `validate_rows: true` cannot parse, into an input category that
-  already holds the records of an earlier upload, removes only its own. Previously it dropped the whole input, so the
-  job lost the records of the earlier files too. The slices of such a later upload hold the new `upload_id` field.
+  already holds the records of an earlier upload, removes only its own, and the category keeps the header row that the
+  earlier records are read by. Previously it dropped the whole input, so the job lost the records of the earlier files
+  too, and with a schema the category lost its header row. The slices of such a later upload hold the new `upload_id`
+  field.
 - An upload with `stream_mode: :hash` into a category with a format, such as CSV, reads the header row of the file, and
   uploads its lines, parsing each one first, as `validate_rows: true` does. 7.1 raised
   `IOStreams::Errors::TypeMismatch` for a file with a header row without a schema. For a file without a header row,
