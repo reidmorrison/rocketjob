@@ -495,7 +495,8 @@ The text of a file with a schema is read as UTF-8, so letters that are not ASCII
 kept, and text that is not valid UTF-8 raises `IOStreams::Errors::InvalidEncoding` during the
 upload, which then uploads nothing. An encoding set on the path that is uploaded is used instead.
 Without a schema, a tabular upload removes non-printable characters, and every character that is not
-ASCII, as before.
+ASCII, as before. A fixed width upload replaces each of them with a space instead, one for each byte
+of a character that is not ASCII, so that its columns stay in place.
 
 The schema also describes the layout of the file:
 

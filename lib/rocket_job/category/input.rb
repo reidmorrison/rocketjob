@@ -220,11 +220,14 @@ module RocketJob
           # unless an encoding is set on the supplied path, which reads it instead. A schema set on the supplied path
           # is kept.
           path.schema(schema) if path.schema.nil?
+        elsif format == :fixed
+          # A fixed width line keeps its length, so that its columns stay in place: each non-printable character, such
+          # as NUL padding or a tab, is replaced with a space, and so is each byte of a character that is not ASCII.
+          # The :printable cleaner would remove them, since it ignores `replace:`.
+          path.encoding("UTF-8", cleaner: :replace_non_printable, replace: " ")
         elsif tabular?
-          # Remove non-printable characters from tabular input formats.
-          # Cannot change the length of fixed width lines.
-          replace = format == :fixed ? " " : ""
-          path.encoding("UTF-8", cleaner: :printable, replace: replace)
+          # Remove non-printable characters, and characters that are not ASCII, from the other tabular input formats.
+          path.encoding("UTF-8", cleaner: :printable, replace: "")
         end
         path
       end
