@@ -24,7 +24,7 @@ before you upgrade to the next version:
 1. Upgrade to the next version, following its section below.
 2. Run your tests with Ruby's deprecation warnings on, see
    [Find the deprecated options that you use](#find-the-deprecated-options-that-you-use), and
-   change each line that a warning names, until none are left.
+   change what each warning reports, until none are left.
 3. Change the saved documents that still hold a deprecated option, such as Dirmon entries, scheduled
    jobs and `UploadFileJob`s, since reading one back reports no warning, see
    [Propose the schema of each category](#propose-the-schema-of-each-category).
@@ -365,8 +365,9 @@ These were deprecated or unused, and are removed in v8:
 v7.2 prepares an application for v8. Upgrade to v7.1 first, see
 [Upgrading to v7.1](#upgrading-to-v71). v7.2 reports a deprecation warning for each of the other
 options that v8 removes, and for each upload of a query that v8 uploads differently, see
-[Uploading a query](#uploading-a-query), and adds what replaces them, such as `validate_rows`. The
-deprecated options keep working. Its warnings are reported as v7.1 reports its own, see
+[Uploading a query](#uploading-a-query), and adds what replaces them. The deprecated options keep
+working. Its
+warnings are reported as v7.1 reports its own, see
 [Find the deprecated options that you use](#find-the-deprecated-options-that-you-use), and
 `RocketJob::SchemaProposal` lists the saved documents that still hold an option that v8 removes, see
 [Propose the schema of each category](#propose-the-schema-of-each-category).
@@ -374,8 +375,8 @@ deprecated options keep working. Its warnings are reported as v7.1 reports its o
 ### Replace the :array upload mode
 
 An input category's `mode: :array`, and the `stream_mode: :array` of `upload`, are deprecated, and
-cannot be used with a schema. Use the default `:line` mode, in which each worker parses its lines,
-and leave out `stream_mode:`:
+removed in v8. A category with a schema cannot use them. Use the default `:line` mode, in which each
+worker parses its lines, and leave out `stream_mode:`:
 
 ~~~ruby
 # Before (deprecated)
@@ -384,6 +385,11 @@ input_category format: :csv, mode: :array
 # After
 input_category format: :csv
 ~~~
+
+A category without a format does not parse its lines, so `stream_mode: :array` was what read each
+line of a file into an Array. Give such a category the format of its files, or `format: :auto` to
+take it from the file name, so that the workers read each line, and `#perform` receives a Hash keyed
+by the columns of the header row, rather than an Array.
 
 To also parse every line when the file is uploaded, so that a file with a problem is found before it
 is processed, use `validate_rows: true`, see
@@ -417,9 +423,17 @@ job.upload("people.csv", validate_rows: true)
 * Until it is removed, `stream_mode:` decides alone whether a file is validated, over the category's
   `validate_rows`. So in a category with `validate_rows: true`, replace `stream_mode: :line` by
   `validate_rows: false`, rather than leave it out.
+* v8 raises `ArgumentError` whenever `stream_mode:` is passed, also as `nil`, whatever is uploaded,
+  so v7.2 warns for it then too: remove it from every call. `stream_mode: nil` uploads a file as if
+  it were left out.
 * In a category with a format, 7.2 uploads the lines of a file in `stream_mode: :hash`, reading its
   header row, and parses each one first, as `validate_rows: true` does. 7.1 raised
-  `IOStreams::Errors::TypeMismatch` for a file with a header row, such as CSV, without a schema.
+  `IOStreams::Errors::TypeMismatch` for a file with a header row, such as CSV, without a schema. For
+  a file without a header row, such as JSON, in a category without a schema, the options of `upload`
+  that describe the columns of a file, such as `allowed_columns:`, are still accepted, and have no
+  effect there, as in 7.1.
+* 7.2 raises `ArgumentError` for a `stream_mode:` other than `:line`, `:array` or `:hash`, such as
+  `:hashes`, as 7.1 did without a schema. With a schema 7.1 read one as `:hash`.
 * v8 reads a job saved with `mode: :hash` in a category with a format as `validate_rows: true`, unless
   its `validate_rows` is false. With a schema that is what `mode: :hash` did, so such a job need not
   change. Without a schema `mode: :hash` did not validate the lines, so remove it, rather than replace
@@ -430,14 +444,17 @@ job.upload("people.csv", validate_rows: true)
 Servers running v7.0 or v7.1 cannot read `validate_rows`, so upgrade every server before giving any
 Dirmon entry or `UploadFileJob` one.
 
+
 ### Replace on_first
 
 The `on_first:` option of `upload` is deprecated, and removed in v8. Its lambda was called with the
 header row of a file, or, for a file without one, such as JSON or fixed width, with the first
-record, which was then not uploaded.
+record, which was then not uploaded. v8 raises `ArgumentError` whenever `on_first:` is passed, also
+as `nil`, whatever is uploaded, so v7.2 warns for it then too: remove it from every call.
 
-Rocket Job reads the header row itself, so a lambda that only reads it can be removed. To check the
-columns of a file, describe them with the category's schema, which raises
+Rocket Job reads the header row of a file in a format that has one, such as CSV, itself, and the
+upload sets its columns in `job.input_category.columns`, so a lambda that only reads it can be
+removed. To check the columns of a file, describe them with the category's schema, which raises
 `IOStreams::Errors::InvalidHeader` during the upload when the header row does not match its fields:
 
 ~~~ruby
@@ -445,8 +462,20 @@ columns of a file, describe them with the category's schema, which raises
 job.upload(file_name, on_first: ->(header) { raise "No zip column" unless header.include?("zip") })
 
 # After
-input_category format: :csv, schema: {"fields" => [{"name" => "name"}, {"name" => "zip"}]}
+input_category format: :csv,
+               schema: {
+                 "fieldsMatch"  => "subset",
+                 "extraColumns" => "keep",
+                 "fields"       => [{"name" => "zip"}]
+               }
 ~~~
+
+`"fieldsMatch" => "subset"` requires the `zip` column, in any position, and accepts the other
+columns of the file, which `"extraColumns" => "keep"` keeps in each record. Without `fieldsMatch` a
+schema requires exactly the columns of its fields, in their order. Add `"keyType" => "cleansed"` to
+keep the keys of the other columns cleansed, as without a schema, such as `first_name` for the column
+`First Name`: without it they are keyed as they are in the file, so `record["first_name"]` is nil,
+without an error.
 
 To leave out the first record of a file without a header row, such as the control record at the
 start of a fixed width file, upload the file with a block that writes every line but that one:
@@ -458,7 +487,7 @@ job.upload(file_name, on_first: ->(line) { job.control_record = line })
 # After
 job.upload(file_name: file_name) do |lines|
   first = true
-  IOStreams.path(file_name).each(:line) do |line|
+  IOStreams.path(file_name).encoding("UTF-8").each(:line) do |line|
     if first
       job.control_record = line
       first              = false
@@ -469,8 +498,9 @@ job.upload(file_name: file_name) do |lines|
 end
 ~~~
 
-The block reads the file itself, so when it is not UTF-8, give the path its encoding, such as
-`IOStreams.path(file_name).encoding("ISO-8859-1")`.
+The block reads the file itself, as UTF-8 here: without an encoding its lines are binary, and one
+with a letter that is not ASCII, such as `José`, cannot be uploaded. For a file in another encoding,
+give the path that one instead, such as `IOStreams.path(file_name).encoding("ISO-8859-1")`.
 
 ### Line options of upload
 
@@ -479,7 +509,8 @@ removed in v8, which reads the lines of a file itself:
 
 * `delimiter:` IOStreams detects the line endings of a file, `\r\n` or `\n`, so remove it. A file
   whose records are separated by something other than a line ending cannot be uploaded as a file in
-  v8: write its records in the block of `upload` instead.
+  v8: write its records in the block of `upload` instead, reading the file with the `delimiter:` of
+  IOStreams, which streams it rather than reading the whole file into memory.
 * `buffer_size:` only tuned how much IOStreams read at a time, so remove it.
 * `embedded_within:` kept a quoted value that holds line breaks in its line. In v8 the format of the
   input category, such as CSV, reads such a value, so remove it and give the category its format.
@@ -490,10 +521,27 @@ job.upload(file_name, delimiter: "|")
 
 # After
 job.upload do |records|
-  IOStreams.path(file_name).read.split("|").each do |record|
+  IOStreams.path(file_name).each(:line, delimiter: "|") do |record|
     records << record
   end
 end
+~~~
+
+v7.2 reads a quoted value that holds line breaks in the format of the path that is uploaded, not in
+that of the input category. A file whose name gives its format, such as `people.csv`, has one. An
+IO, or a file whose name does not give its format, such as `people.txt`, has none, so without
+`embedded_within:` v7.2 splits such a value into two records. Give the path its format before
+removing `embedded_within:`:
+
+~~~ruby
+# Before (deprecated)
+job.upload(io, embedded_within: '"')
+job.upload("people.txt", embedded_within: '"')
+
+# After
+job.upload(IOStreams.stream(io).format(:csv))
+job.upload(io, file_name: "people.csv")
+job.upload(IOStreams.path("people.txt").format(:csv))
 ~~~
 
 ### Uploading a query
@@ -627,6 +675,35 @@ reports the warning when the job runs, and raises `NoMethodError` in v8: change 
 including in the jobs that are already saved, such as a scheduled one, which copies its
 `before_code` to its next run.
 
+### A second file in one input category
+
+The workers read every record of an input category by one header row, the one that its upload read,
+see `input_category.columns`. So in v7.2 a second file uploaded into an input category with a schema,
+whose input already holds the records of a first file, uploads nothing when its header row reads its
+columns as other fields than the first file's, or in another order. v7.1 read the records of both
+files by the second file's header row, giving values to the wrong fields:
+
+* A header row that does not match the schema raises `IOStreams::Errors::InvalidHeader`, as before.
+  With the default `fieldsMatch` "exact", which needs every field in its order, a header row either
+  matches the schema, and so reads the same fields in the same order, or raises it.
+* A header row that matches the schema, but whose columns are other fields, or in another order, such
+  as with `fieldsMatch` "equal", raises `ArgumentError`.
+* A header row that the schema reads the same, such as one that differs only in the case or spaces
+  of a column, or in a column that the schema skips, is uploaded as before.
+
+~~~ruby
+job.upload("people_1.csv")
+job.upload("people_2.csv") # raises when its header row reads other fields
+~~~
+
+When either raises, the job keeps the records of the first file, and the header row that they are
+read by.
+
+Upload a file whose header row differs into a job of its own. Without a schema, v7.2 still stores the
+header row of a second file as a record, and reads its records by the first file's header row, as v7.0
+did, so give such a category a schema, or upload each file into a job of its own. v8 reads the
+records of each file by its own header row.
+
 ### Propose the schema of each category
 
 The warnings name the lines of code, but not the saved documents that hold a deprecated option, such
@@ -652,9 +729,13 @@ ImportJob, input category main
 Each proposal reads the files as the options did in 7.0, which is not always what they say: options
 that 7.0 never applied, such as `allowed_columns` for JSON records, are removed rather than described
 in the schema, and the proposal says so. It also says what to check, and when it cannot translate a
-category, such as a layout with two columns that have one key, or a job that is already running, which
-should finish first. Columns that a scheduled job copied from the header row of an earlier upload are
-removed, rather than read as the columns of a file without a header row.
+category, such as a layout with two columns that have one key, or a job that should finish first: one
+that is already running, or a queued job that has uploaded a header row that the schema cannot read,
+such as one with two columns that match one field, like `a` and `A`, or `FirstName` and `First Name`
+for a field `first_name`. Columns that a scheduled job copied from the header row of an earlier
+upload are removed, rather than read as the columns of a file without a header row. The proposal also
+shows the schema to use instead, should the application have set those columns for a file without a
+header row, unless they repeat a name, which a schema cannot hold.
 
 Before applying a proposal, read a recent file of the job with it. `#dry_run` reads the first records
 of a file both ways, and lists what differs, such as a key that is no longer read:
@@ -667,8 +748,12 @@ proposal.dry_run("/data/in/orders_20261020.csv")
 
 Then apply it by hand: in the job class, replace the deprecated options with the schema, and for a
 saved job, Dirmon entry or `UploadFileJob`, set the same in its category, or its properties. Mission
-Control 7.0 cannot show or set a schema, and saving a Dirmon entry in it rebuilds the entry's
-properties without one, so set the schema on the job class where you can, or from a console.
+Control 7.1 shows and sets the schema of a category, in the job and Dirmon entry forms. Its forms
+cannot clear `format_options` or `columns`, nor edit `allowed_columns`, `required_columns` or
+`header_cleanser`, so a proposal that changes one of those cannot be applied there: apply it in the
+job class, or from a console. A category that still holds one of them, other than the `columns` of
+an input category, fails validation once it is given a schema. Mission Control 7.0 cannot set a
+schema, and saving a Dirmon entry in it rebuilds the entry's properties without one.
 
 ## Upgrading to v7.1
 
