@@ -26,28 +26,24 @@ module RocketJob
       end
 
       module ClassMethods
-        # Define a new input category
+        # Define a new input category, or replace the input category with the same name, and return it.
+        # A subclass that defines a category does not change the categories of its parent class.
         # @see RocketJob::Category::Input
         def input_category(**args)
           RocketJob::Category::Input.warn_deprecated_options(args)
-          category = RocketJob::Category::Input.new(**args)
-          if defined_input_categories.nil?
-            self.defined_input_categories = [category]
-          else
-            rocketjob_categories_set(category, defined_input_categories)
-          end
+          category                      = RocketJob::Category::Input.new(**args)
+          self.defined_input_categories = rocketjob_categories_with(defined_input_categories, category)
+          category
         end
 
-        # Define a new output category
+        # Define a new output category, or replace the output category with the same name, and return it.
+        # A subclass that defines a category does not change the categories of its parent class.
         # @see RocketJob::Category::Output
         def output_category(**args)
           RocketJob::Category::Output.warn_deprecated_options(args)
-          category = RocketJob::Category::Output.new(**args)
-          if defined_output_categories.nil?
-            self.defined_output_categories = [category]
-          else
-            rocketjob_categories_set(category, defined_output_categories)
-          end
+          category                       = RocketJob::Category::Output.new(**args)
+          self.defined_output_categories = rocketjob_categories_with(defined_output_categories, category)
+          category
         end
 
         # Builds this job instance from the supplied properties hash that may contain input and output categories.
@@ -66,6 +62,8 @@ module RocketJob
 
         # Returns [Array<RocketJob::SchemaProposal>] the schemas proposed to replace the deprecated options of the
         # categories that this job class defines, rather than inherits, see RocketJob::Category::Input#schema_proposal.
+        # A class holds the same category as its parent class for each one that it inherits, see
+        # #rocketjob_categories_with, and a new one for each that it defines or redefines.
         def schema_proposals
           inherited = superclass.respond_to?(:defined_input_categories) ? rocketjob_categories_of(superclass) : []
           rocketjob_categories_of(self).filter_map do |category|
@@ -152,10 +150,15 @@ module RocketJob
           built
         end
 
-        def rocketjob_categories_set(category, categories)
-          index = categories.find_index { |cat| cat.name == category.name }
+        # Returns [Array] a copy of the supplied categories, which can be nil, with the supplied category in place of
+        # the one with the same name, or after them. The supplied categories are not changed, since a class shares
+        # them with its subclasses. Only the list is copied, not the categories in it, so that .schema_proposals can
+        # tell the categories that a class inherits from those that it defines.
+        def rocketjob_categories_with(categories, category)
+          categories = categories ? categories.dup : []
+          index      = categories.find_index { |cat| cat.name == category.name }
           index ? categories[index] = category : categories << category
-          category
+          categories
         end
       end
 

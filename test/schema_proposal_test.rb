@@ -389,6 +389,20 @@ class SchemaProposalTest < Minitest::Test
     end
 
     describe "a job class" do
+      include DeprecationWarnings
+
+      # Returns [Class] a new subclass of the supplied job class, with the supplied name.
+      def named_job_class(parent, name)
+        klass = Class.new(parent)
+        klass.define_singleton_method(:name) { name }
+        klass
+      end
+
+      # Returns [Array] where each schema proposal of the supplied job class is, and the names of its fields.
+      def proposed_fields(klass)
+        klass.schema_proposals.map { |proposal| [proposal.where, proposal.schema["fields"].map { |field| field["name"] }] }
+      end
+
       it "proposes the schema of each category that it defines" do
         klass = Class.new(DeprecatedJob)
         klass.defined_input_categories  = [input(format: :csv, allowed_columns: %w[a])]
@@ -406,6 +420,32 @@ class SchemaProposalTest < Minitest::Test
 
         assert_equal 1, parent.schema_proposals.size
         assert_empty child.schema_proposals
+      end
+
+      it "proposes for the categories that a subclass defines under the subclass, and not under its parent" do
+        parent = named_job_class(DeprecatedJob, "ParentJob")
+        child  = named_job_class(parent, "ChildJob")
+        deprecation_warnings(enabled: false) do
+          parent.input_category(format: :csv, allowed_columns: %w[a])
+          child.input_category(name: :other, format: :csv, allowed_columns: %w[b])
+          child.output_category(format: :csv, columns: %w[c])
+        end
+
+        assert_equal ["ParentJob, input category main"], parent.schema_proposals.map(&:where)
+        assert_equal ["ChildJob, input category other", "ChildJob, output category main"],
+                     child.schema_proposals.map(&:where)
+      end
+
+      it "proposes for a category that a subclass redefines under each class, with its own options" do
+        parent = named_job_class(DeprecatedJob, "ParentJob")
+        child  = named_job_class(parent, "ChildJob")
+        deprecation_warnings(enabled: false) do
+          parent.input_category(format: :csv, allowed_columns: %w[a])
+          child.input_category(format: :csv, allowed_columns: %w[b])
+        end
+
+        assert_equal [["ParentJob, input category main", %w[a]]], proposed_fields(parent)
+        assert_equal [["ChildJob, input category main", %w[b]]], proposed_fields(child)
       end
     end
 
