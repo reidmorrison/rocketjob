@@ -292,9 +292,11 @@ Each integer counts as one record in the job's `record_count`, so `percent_compl
 as they are processed.
 
 In an input category without a format, `#perform` receives each `[first_id, last_id]` as it is. In a
-format without a header row, such as JSON, the category's schema names the two values, in order, so
-that `#perform` receives a Hash of them. `upload` raises `ArgumentError` for a range in a format
-that reads a header row, such as CSV, or without a schema.
+format without a header row, such as JSON, it receives a Hash of the two values,
+`{"first_id" => 1, "last_id" => 100}`, or with a schema, a Hash keyed by the names of its fields, in
+order. `upload` raises `ArgumentError` for a range in a format that reads a header row, such as CSV,
+and raises for one that the category's schema cannot read, such as a schema whose `fieldsMatch` is
+not `"exact"`.
 
 `upload_arel`, `upload_mongo_query`, `upload_integer_range` and
 `upload_integer_range_in_reverse_order`, which uploaded a query or a range before `upload` accepted

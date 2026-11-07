@@ -355,8 +355,10 @@ module RocketJob
       # Raises ArgumentError when this category cannot parse the records of the supplied kind of object, such as a range,
       # whose records are `[first_id, last_id]`, rather than the rows of a file, as a worker parses the supplied slice of
       # them, see #parse_records: in a format that reads the header row of a file, such as CSV, or when IOStreams cannot
-      # read them by this category's schema, such as without one. Otherwise every slice would fail once a worker parsed
-      # it. The rows of a query are written in the format instead, see #copy_rows.
+      # read them by this category's schema, such as one whose `fieldsMatch` is not "exact". Without a schema, IOStreams
+      # reads them by the schema that the slice carries, see `IOStreams::Slice#schema`, such as the names of the two ids
+      # of a range. Otherwise every slice would fail once a worker parsed it. The rows of a query are written in the
+      # format instead, see #copy_rows.
       def check_record_upload(kind, slice)
         return unless tabular?
         raise(ArgumentError, "It reads the header row of a file. Upload it into a category without a format") if tabular.header?
