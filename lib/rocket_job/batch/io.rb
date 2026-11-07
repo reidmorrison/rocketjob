@@ -299,7 +299,6 @@ module RocketJob
             end
 
             rocketjob_warn_deprecated_upload_options(args)
-            rocketjob_warn_line_upload_options(args)
             category = input_category(category)
             category.check_upload(validate_rows)
 
@@ -398,8 +397,16 @@ module RocketJob
 
       # The options that IOStreams reads the lines of a file with, which are deprecated, since Rocket Job 8 reads the
       # lines itself: IOStreams detects the line endings of a file, and the format of the input category reads a quoted
-      # value that holds line breaks, see #rocketjob_warn_line_upload_options.
-      DEPRECATED_LINE_UPLOAD_OPTIONS = %i[delimiter buffer_size embedded_within].freeze
+      # value that holds line breaks. Each holds what its deprecation warning says replaces it, see
+      # #rocketjob_warn_deprecated_upload_options.
+      DEPRECATED_LINE_UPLOAD_OPTIONS = {
+        delimiter:       "line endings are detected, and records separated by something else are written in the " \
+                         'block of upload, such as with IOStreams.path(file_name).each(:line, delimiter: "|")',
+        buffer_size:     "the size of the buffer that it reads with is its own",
+        embedded_within: "the input category's format reads a quoted value with line breaks, while 7.2 reads one in " \
+                         "the format of the path that is uploaded, such as a file name ending in .csv, or " \
+                         "IOStreams.stream(io).format(:csv)"
+      }.freeze
       private_constant :DEPRECATED_LINE_UPLOAD_OPTIONS
 
       # Download the output data into the supplied file, io, IOStreams::Path, or IOStreams::Stream.
@@ -541,31 +548,34 @@ module RocketJob
       end
 
       # Reports a deprecation warning, see RocketJob::Deprecation, at the line of the application that uploads a file
-      # with options that read its lines, which Rocket Job 8 removes: IOStreams detects the line endings of a file, \r\n
-      # or \n, the size of the buffer that it reads with is its own, and the format of the input category, such as CSV,
-      # reads a quoted value that holds line breaks.
-      def rocketjob_warn_line_upload_options(args)
-        names = args.keys & DEPRECATED_LINE_UPLOAD_OPTIONS
-        return if names.empty?
-
-        RocketJob::Deprecation.warn(
-          "#{names.collect { |name| "#{name}:" }.join(', ')} #{names.size == 1 ? 'is' : 'are'} deprecated, and removed " \
-          "in Rocket Job 8, which reads the lines of a file itself: line endings are detected, and the input " \
-          "category's format reads a quoted value with line breaks, see #{RocketJob::Deprecation::UPGRADE_GUIDE_V72}"
+      # with options that describe the columns of the file, which the schema of the input category replaces, see
+      # RocketJob::Category::Input::DEPRECATED_UPLOAD_OPTIONS, and another
+      # for options that read its lines, which Rocket Job 8 removes, saying what replaces each of those that is passed,
+      # see DEPRECATED_LINE_UPLOAD_OPTIONS: IOStreams detects the line endings of a file, \r\n or \n, the size of the
+      # buffer that it reads with is its own, and the format of the input category, such as CSV, reads a quoted value
+      # that holds line breaks. 7.2 reads such a value in the format of the path that is uploaded, which has one when
+      # its file name gives it, or when one is set on the path, see Category::Input#upload_path.
+      def rocketjob_warn_deprecated_upload_options(args)
+        rocketjob_warn_upload_options(
+          args.keys & RocketJob::Category::Input::DEPRECATED_UPLOAD_OPTIONS,
+          "describe the columns of the file with the schema: of the input category instead, see " \
+          "#{RocketJob::Deprecation::UPGRADE_GUIDE}"
+        )
+        names = args.keys & DEPRECATED_LINE_UPLOAD_OPTIONS.keys
+        rocketjob_warn_upload_options(
+          names,
+          "and removed in Rocket Job 8, which reads the lines of a file itself: " \
+          "#{DEPRECATED_LINE_UPLOAD_OPTIONS.values_at(*names).join('; ')}, see #{RocketJob::Deprecation::UPGRADE_GUIDE_V72}"
         )
       end
 
-      # Reports a deprecation warning, see RocketJob::Deprecation, at the line of the application that uploads a file
-      # with options that describe the columns of the file, which the schema of the input category replaces, see
-      # RocketJob::Category::Input::DEPRECATED_UPLOAD_OPTIONS.
-      def rocketjob_warn_deprecated_upload_options(args)
-        names = args.keys & RocketJob::Category::Input::DEPRECATED_UPLOAD_OPTIONS
+      # Reports a deprecation warning, see RocketJob::Deprecation, naming the supplied deprecated options of an upload
+      # that were passed, if any, followed by the supplied reason.
+      def rocketjob_warn_upload_options(names, reason)
         return if names.empty?
 
         RocketJob::Deprecation.warn(
-          "#{names.collect { |name| "#{name}:" }.join(', ')} #{names.size == 1 ? 'is' : 'are'} deprecated, describe " \
-          "the columns of the file with the schema: of the input category instead, see " \
-          "#{RocketJob::Deprecation::UPGRADE_GUIDE}"
+          "#{names.collect { |name| "#{name}:" }.join(', ')} #{names.size == 1 ? 'is' : 'are'} deprecated, #{reason}"
         )
       end
     end

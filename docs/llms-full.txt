@@ -2559,7 +2559,7 @@ It has built-in support for:
 * `Zip` files (add the `rubyzip` gem on CRuby; JRuby uses native Java Zip)
 * `GZip` files
 * files encrypted with [Symmetric Encryption](https://encryption.reidmorrison.com)
-* delimited files (Windows CR/LF or Linux LF line endings, auto-detected, or a custom delimiter)
+* delimited files (Windows CR/LF or Linux LF line endings, auto-detected)
 * fixed-length record files
 
 ~~~ruby
@@ -5743,7 +5743,8 @@ removed in v8, which reads the lines of a file itself:
 
 * `delimiter:` IOStreams detects the line endings of a file, `\r\n` or `\n`, so remove it. A file
   whose records are separated by something other than a line ending cannot be uploaded as a file in
-  v8: write its records in the block of `upload` instead.
+  v8: write its records in the block of `upload` instead, reading the file with the `delimiter:` of
+  IOStreams, which streams it rather than reading the whole file into memory.
 * `buffer_size:` only tuned how much IOStreams read at a time, so remove it.
 * `embedded_within:` kept a quoted value that holds line breaks in its line. In v8 the format of the
   input category, such as CSV, reads such a value, so remove it and give the category its format.
@@ -5754,10 +5755,27 @@ job.upload(file_name, delimiter: "|")
 
 # After
 job.upload do |records|
-  IOStreams.path(file_name).read.split("|").each do |record|
+  IOStreams.path(file_name).each(:line, delimiter: "|") do |record|
     records << record
   end
 end
+~~~
+
+v7.2 reads a quoted value that holds line breaks in the format of the path that is uploaded, not in
+that of the input category. A file whose name gives its format, such as `people.csv`, has one. An
+IO, or a file whose name does not give its format, such as `people.txt`, has none, so without
+`embedded_within:` v7.2 splits such a value into two records. Give the path its format before
+removing `embedded_within:`:
+
+~~~ruby
+# Before (deprecated)
+job.upload(io, embedded_within: '"')
+job.upload("people.txt", embedded_within: '"')
+
+# After
+job.upload(IOStreams.stream(io).format(:csv))
+job.upload(io, file_name: "people.csv")
+job.upload(IOStreams.path("people.txt").format(:csv))
 ~~~
 
 ### Uploading a query

@@ -116,7 +116,7 @@ It has built-in support for:
 * `Zip` files (add the `rubyzip` gem on CRuby; JRuby uses native Java Zip)
 * `GZip` files
 * files encrypted with [Symmetric Encryption](https://encryption.reidmorrison.com)
-* delimited files (Windows CR/LF or Linux LF line endings, auto-detected, or a custom delimiter)
+* delimited files (Windows CR/LF or Linux LF line endings, auto-detected)
 * fixed-length record files
 
 ~~~ruby

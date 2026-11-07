@@ -57,7 +57,10 @@ production stays quiet. A job read back from the database does not report one. S
 - The options of `upload` that read the lines of a file: `delimiter:`, `buffer_size:` and `embedded_within:`. Rocket
   Job 8 reads the lines itself: IOStreams detects the line endings, `\r\n` or `\n`, and the input category's format,
   such as CSV, reads a quoted value that holds line breaks. Records separated by something else are written in the
-  block of `upload` instead.
+  block of `upload` instead, such as with `IOStreams.path(file_name).each(:line, delimiter: "|")`. 7.2 reads such a
+  quoted value in the format of the path that is uploaded, so before removing `embedded_within:`, give an IO, or a
+  file whose name does not give its format, the format, such as `upload(IOStreams.stream(io).format(:csv))` or
+  `upload(io, file_name: "people.csv")`.
 - A block passed with a query, an Active Record relation or a Mongoid criteria, such as to `upload_arel`, which
   returns the record to upload for each model or document. Rocket Job 8 uploads the values of the columns of a query,
   and raises `ArgumentError` for a block: write the records in the block of `upload` instead, reading the query there.
