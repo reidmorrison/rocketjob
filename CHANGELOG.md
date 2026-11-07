@@ -65,6 +65,9 @@ upgrade guide.
   header row, or of an output category. The same options passed to `upload`, such as `allowed_columns:`, are
   deprecated too. With a schema, an input category's `columns` hold the header row read from the file, which is not
   deprecated.
+- A header row without a schema whose columns are the same key once cleansed, such as `a` and `A`, since each record
+  holds the value of only the last of them, and IOStreams 3.0 raises for them. Rocket Job reports it at the line that
+  uploads the file. Rename the columns of the file, or describe them with the category's `schema`.
 
 ### Fixes
 
