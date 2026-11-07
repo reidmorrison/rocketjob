@@ -61,6 +61,16 @@ module Sliced
           assert(input.all? { |slice| slice.upload_id.nil? })
         end
 
+        it "keeps the slices of earlier uploads when it cannot check for them" do
+          input.upload { |records| lines.each { |line| records << line } }
+
+          input.stub(:exists?, -> { raise(Mongo::Error::SocketError, "Lost connection") }) do
+            assert_raises(Mongo::Error::SocketError) { input.upload { |records| records << "Line4" } }
+          end
+
+          assert_equal lines, input.collect(&:to_a).flatten
+        end
+
         it "gives the slices of a later upload an id of its own" do
           input.upload { |records| records << "Line1" }
           input.upload { |records| records << "Line2" }

@@ -7,13 +7,16 @@ module RocketJob
       # already holds slices, this upload gives its own an id, see Slice#upload_id, otherwise the whole collection is
       # dropped, so that the slices of the first upload do not each hold an id.
       def upload(**args, &)
-        # Create indexes before uploading
+        # Create indexes before uploading, outside the rescue below, so that an error here does not drop the slices of
+        # earlier uploads.
         create_indexes
         upload_id = BSON::ObjectId.new.to_s if exists?
-        Writer::Input.collect(self, upload_id: upload_id, **args, &)
-      rescue Exception => e
-        upload_id ? delete_upload(upload_id) : drop
-        raise(e)
+        begin
+          Writer::Input.collect(self, upload_id: upload_id, **args, &)
+        rescue Exception => e
+          upload_id ? delete_upload(upload_id) : drop
+          raise(e)
+        end
       end
 
       # Removes the slices of the upload with the supplied id, see Slice#upload_id.

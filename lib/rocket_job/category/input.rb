@@ -6,6 +6,7 @@ module RocketJob
       include Plugins::Document
       include Category::Base
       include Category::InputSchemaProposal
+      include Category::InputSchemaHeader
 
       embedded_in :job, class_name: "RocketJob::Job", inverse_of: :input_categories
 
@@ -343,8 +344,12 @@ module RocketJob
       #
       # The header row is read whatever the mode, see #mode, since a file in a format is uploaded in lines, or in the
       # :array `stream_mode:` of an upload, as an Array, which IOStreams also reads as a header row, see #each_record.
-      def extract_header_callback(on_first)
-        return schema_header_callback(on_first) if schema.present?
+      #
+      # Supply `uploaded: true` when the input of this category already holds the records of an earlier upload, which
+      # the workers read by the header row that it read, see #columns. With a schema, those columns are then kept until
+      # the header row of this file is read, see InputSchemaHeader.
+      def extract_header_callback(on_first, uploaded: false)
+        return schema_header_callback(on_first, uploaded) if schema.present?
         return first_record_callback(on_first) unless tabular? && tabular.header?
 
         lambda do |line|
@@ -379,35 +384,11 @@ module RocketJob
 
       # Returns [IOStreams::Tabular] that reads the records of this category by its schema, see Category::Base#schema,
       # and has read the header row that an upload read from the file, see #columns, so that the workers parse each line
-      # by it.
-      def schema_tabular
-        tabular = super
+      # by it. Without the supplied columns, the tabular reads the header row of a file itself.
+      def schema_tabular(columns = self.columns)
+        tabular = super()
         tabular.read_header(columns) if columns.present? && tabular.header?
         tabular
-      end
-
-      # Returns the lambda that reads the header row of a file with a schema, see #extract_header_callback. Its columns
-      # are matched to the fields of the schema, which raises IOStreams::Errors::InvalidHeader when they do not match,
-      # and are kept as they are in the file, see #columns. A blank row before it, which IOStreams does not read as a
-      # header row, such as a line of only commas, is skipped, as IOStreams skips it when it reads the header row itself.
-      #
-      # With a schema, `columns` hold the header row of the file uploaded, so an upload reads the header row of its own
-      # file, rather than keep the columns of an earlier one, such as those that a job scheduled again copies from its
-      # last run, see Plugins::Cron.
-      def schema_header_callback(on_first)
-        self.columns = nil
-        @tabular     = nil
-        return first_record_callback(on_first) unless tabular.header?
-
-        lambda do |line|
-          tabular.read_header(line)
-          next false if tabular.header?
-
-          self.columns = tabular.header.columns
-          # Call chained on_first if present
-          on_first&.call(line)
-          true
-        end
       end
 
       # The schema describes the columns of the file, so the options that describe them without one cannot be set with
