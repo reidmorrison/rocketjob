@@ -6326,8 +6326,7 @@ v7.2 prepares an application for v8. Upgrade to v7.1 first, see
 [Upgrading to v7.1](#upgrading-to-v71). v7.2 reports a deprecation warning for each of the other
 options that v8 removes, and for each upload of a query that v8 uploads differently, see
 [Uploading a query](#uploading-a-query), and adds what replaces them. The deprecated options keep
-working. Its
-warnings are reported as v7.1 reports its own, see
+working. Its warnings are reported as v7.1 reports its own, see
 [Find the deprecated options that you use](#find-the-deprecated-options-that-you-use), and
 `RocketJob::SchemaProposal` lists the saved documents that still hold an option that v8 removes, see
 [Propose the schema of each category](#propose-the-schema-of-each-category).
@@ -6349,7 +6348,11 @@ input_category format: :csv
 A category without a format does not parse its lines, so `stream_mode: :array` was what read each
 line of a file into an Array. Give such a category the format of its files, or `format: :auto` to
 take it from the file name, so that the workers read each line, and `#perform` receives a Hash keyed
-by the columns of the header row, rather than an Array.
+by the columns of the header row, rather than an Array. `stream_mode: :array` uploaded the first
+line of a file as a record too, so for a file without a header row, also give the category a schema
+with `"header" => false` and a field for each column, in order, see
+[Replace the column options with a schema](#replace-the-column-options-with-a-schema): otherwise its
+first line is read as the header row.
 
 To also parse every line when the file is uploaded, so that a file with a problem is found before it
 is processed, use `validate_rows: true`, see
@@ -6404,7 +6407,6 @@ job.upload("people.csv", validate_rows: true)
 Servers running v7.0 or v7.1 cannot read `validate_rows`, so upgrade every server before giving any
 Dirmon entry or `UploadFileJob` one.
 
-
 ### Replace on_first
 
 The `on_first:` option of `upload` is deprecated, and removed in v8. Its lambda was called with the
@@ -6412,10 +6414,12 @@ header row of a file, or, for a file without one, such as JSON or fixed width, w
 record, which was then not uploaded. v8 raises `ArgumentError` whenever `on_first:` is passed, also
 as `nil`, whatever is uploaded, so v7.2 warns for it then too: remove it from every call.
 
-Rocket Job reads the header row of a file in a format that has one, such as CSV, itself, and the
-upload sets its columns in `job.input_category.columns`, so a lambda that only reads it can be
-removed. To check the columns of a file, describe them with the category's schema, which raises
-`IOStreams::Errors::InvalidHeader` during the upload when the header row does not match its fields:
+Rocket Job reads the header row of a file in a format that has one, such as CSV, itself, so a
+lambda that only reads it can be removed. 7.2 also sets its columns in `job.input_category.columns`,
+but do not read them there in place of the lambda: v8 leaves them nil, since each slice holds the
+header row of its file. To check the columns of a file, describe them with the category's schema,
+which raises `IOStreams::Errors::InvalidHeader` during the upload when the header row does not match
+its fields:
 
 ~~~ruby
 # Before (deprecated)
@@ -6458,9 +6462,10 @@ job.upload(file_name: file_name) do |lines|
 end
 ~~~
 
-The block reads the file itself, as UTF-8 here: without an encoding its lines are binary, and one
-with a letter that is not ASCII, such as `José`, cannot be uploaded. For a file in another encoding,
-give the path that one instead, such as `IOStreams.path(file_name).encoding("ISO-8859-1")`.
+The block reads the file itself, as UTF-8 here: without an encoding IOStreams 2.2 reads its lines as
+binary, and one with a letter that is not ASCII, such as `José`, cannot be uploaded. For a file in
+another encoding, give the path that one instead, such as
+`IOStreams.path(file_name).encoding("ISO-8859-1")`.
 
 ### Line options of upload
 
@@ -6481,11 +6486,14 @@ job.upload(file_name, delimiter: "|")
 
 # After
 job.upload do |records|
-  IOStreams.path(file_name).each(:line, delimiter: "|") do |record|
+  IOStreams.path(file_name).encoding("UTF-8").each(:line, delimiter: "|") do |record|
     records << record
   end
 end
 ~~~
+
+The block reads the file as UTF-8, since without an encoding IOStreams 2.2 reads its records as
+binary, see [Replace on_first](#replace-on_first): give the path the encoding of the file.
 
 v7.2 reads a quoted value that holds line breaks in the format of the path that is uploaded, not in
 that of the input category. A file whose name gives its format, such as `people.csv`, has one. An
@@ -6637,11 +6645,11 @@ including in the jobs that are already saved, such as a scheduled one, which cop
 
 ### A second file in one input category
 
-The workers read every record of an input category by one header row, the one that its upload read,
-see `input_category.columns`. So in v7.2 a second file uploaded into an input category with a schema,
-whose input already holds the records of a first file, uploads nothing when its header row reads its
-columns as other fields than the first file's, or in another order. v7.1 read the records of both
-files by the second file's header row, giving values to the wrong fields:
+In v7 the workers read every record of an input category by one header row, the one that its
+upload read, see `input_category.columns`. So in v7.2 a second file uploaded into an input category
+with a schema, whose input already holds the records of a first file, uploads nothing when its
+header row reads its columns as other fields than the first file's, or in another order. v7.1 read
+the records of both files by the second file's header row, giving values to the wrong fields:
 
 * A header row that does not match the schema raises `IOStreams::Errors::InvalidHeader`, as before.
   With the default `fieldsMatch` "exact", which needs every field in its order, a header row either
