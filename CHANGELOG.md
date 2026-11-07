@@ -154,6 +154,12 @@ production stays quiet. A job read back from the database does not report one. S
   when it builds the job, such as "Unknown Input Category: :other": define the category in the parent class, or use
   the subclass. A saved job keeps the categories that it was created with. `input_category` and `output_category` in a
   job class now return the category that they define, also for the first one, for which they returned the list.
+- An upload into an input category with the `:fixed` format and no schema replaces each non-printable character of a
+  line, such as NUL padding or a tab, with a space, so that the columns after it stay in place. Previously they were
+  removed, so `"Ja\x00k 12345"` was read as `"Jak 12345"`: the values after it moved one character to the left, or
+  the line raised `IOStreams::Errors::InvalidLineLength`. Each byte of a character that is not ASCII is still replaced
+  with a space, other formats, such as CSV, still remove non-printable characters, and a category with a schema still
+  reads each line as it is.
 
 ### Security
 

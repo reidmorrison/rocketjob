@@ -215,6 +215,15 @@ module Batch
           assert_equal records, output_records
         end
 
+        it "reads a fixed width line as it is, so a non-printable character keeps the columns after it in place" do
+          job.input_category.format = :fixed
+          job.input_category.schema = {"fields" => [{"name" => "name", "width" => 4}, {"name" => "zip", "width" => 5}]}
+
+          upload(".txt", "Ja\x00k12345\n")
+
+          assert_equal [{"name" => "Ja\x00k", "zip" => "12345"}], output_records
+        end
+
         it "reads the schema from a JSON file" do
           IOStreams.temp_file("schema", ".json") do |path|
             path.write(JSON.generate(schema))
@@ -433,6 +442,40 @@ module Batch
           upload(".csv", "Name\nJosé\n")
 
           assert_equal ["Jos"], input_records
+        end
+
+        it "removes non-printable characters, as before" do
+          upload(".csv", "Name,Age\nJa\x00ck,2\t1\n")
+
+          assert_equal ["Jack,21"], input_records
+          assert_equal [{"name" => "Jack", "age" => "21"}], output_records
+        end
+
+        describe "fixed width" do
+          before do
+            job.input_category.format         = :fixed
+            job.input_category.format_options = {layout: [{size: 5, key: "name"}, {size: 5, key: "zip"}]}
+          end
+
+          it "replaces a NUL with a space, so that the columns after it stay in place" do
+            upload(".txt", "Ja\x00k 12345\n")
+
+            assert_equal ["Ja k 12345"], input_records
+            assert_equal [{"name" => "Ja k", "zip" => "12345"}], output_records
+          end
+
+          it "replaces a tab with a space, and keeps the line endings" do
+            upload(".txt", "Ji\tl 54321\r\nJack 12345\r\n")
+
+            assert_equal ["Ji l 54321", "Jack 12345"], input_records
+            assert_equal [{"name" => "Ji l", "zip" => "54321"}, {"name" => "Jack", "zip" => "12345"}], output_records
+          end
+
+          it "replaces each byte of a letter that is not ASCII with a space, as before" do
+            upload(".txt", "Joé 12345\n")
+
+            assert_equal ["Jo   12345"], input_records
+          end
         end
 
         it "uploads the lines of a file into a category in the :array mode" do
