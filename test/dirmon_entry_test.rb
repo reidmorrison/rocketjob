@@ -30,6 +30,21 @@ class DirmonEntryTest < Minitest::Test
   describe RocketJob::DirmonEntry do
     include SemanticLogger::Test::Minitest
 
+    # Returns [Array<String>] the deprecation warnings that IOStreams reported while the block runs, with deprecation
+    # warnings on, so that the tests do not print them.
+    def iostreams_deprecation_warnings(&block)
+      warnings = []
+      previous = Warning[:deprecated]
+      Warning[:deprecated] = true
+      collect = lambda do |message, category: nil|
+        warnings << message if category == :deprecated && IOStreams::Deprecation.warning?(message)
+      end
+      Warning.stub(:warn, collect, &block)
+      warnings
+    ensure
+      Warning[:deprecated] = previous
+    end
+
     let :archive_directory do
       "/tmp/archive_directory"
     end
@@ -196,7 +211,13 @@ class DirmonEntryTest < Minitest::Test
       it "leaves out the query of a url pattern, which holds ssh options" do
         dirmon_entry.pattern = "sftp://user:secret@sftp.example.org/in/*.csv?password=other"
 
-        assert_equal "sftp://sftp.example.org/in/*.csv", dirmon_entry.pattern_display_name
+        warnings = iostreams_deprecation_warnings do
+          assert_equal "sftp://sftp.example.org/in/*.csv", dirmon_entry.pattern_display_name
+        end
+
+        assert_equal 1, warnings.size, warnings
+        assert_includes warnings.first, "its query is ignored"
+        refute_includes warnings.first, "secret"
       end
 
       it "does not show a pattern with a query after pattern characters that a url cannot hold" do
@@ -225,6 +246,88 @@ class DirmonEntryTest < Minitest::Test
         dirmon_entry.pattern = "sftp://sftp.example.org/in/[ab]*.csv"
 
         assert_equal "sftp://sftp.example.org/in/[ab]*.csv", dirmon_entry.pattern_display_name
+      end
+
+      it "shows a url whose pattern starts at the directory after its host" do
+        dirmon_entry.pattern = "sftp://user:secret@sftp.example.org/{in,out}/*.csv"
+
+        assert_equal "sftp://sftp.example.org/{in,out}/*.csv", dirmon_entry.pattern_display_name
+      end
+
+      [
+        "sftp://user:se{cret@sftp.example.org/in/*.csv",
+        "sftp://user:se{cret@sftp.example.org/in/data.csv",
+        "sftp://user:se[cret@sftp.example.org/in/*.csv",
+        "sftp://user:se[cret@sftp.example.org/in/data.csv",
+        "sftp://user:se{cret@sftp.example.org/in/*.{csv,txt}",
+        "sftp://us{er:secret@sftp.example.org/in/*.csv",
+        "sftp://user:secret@sftp.ex{ample.org/in/*.csv"
+      ].each do |pattern|
+        it "leaves out a url whose user name, password or host holds a pattern character: #{pattern}" do
+          dirmon_entry.pattern = pattern
+
+          assert_equal "(not a valid path)", dirmon_entry.pattern_display_name
+        end
+      end
+    end
+
+    describe "#file_display_name" do
+      # A file that IOStreams.each_child finds on an SFTP server, which it names without percent-encoding it.
+      def sftp_file(name)
+        IOStreams.path("sftp://user:secret@sftp.example.org/in").send(:child_path, name)
+      end
+
+      it "returns the display name of a file" do
+        assert_equal "sftp://sftp.example.org/in/data.csv.gz", dirmon_entry.file_display_name(sftp_file("data.csv.gz"))
+      end
+
+      it "returns the display name of a local file" do
+        path = IOStreams.path("/var/sftp/in/data.csv")
+
+        assert_equal "/var/sftp/in/data.csv", dirmon_entry.file_display_name(path)
+      end
+
+      it "returns the url of a file with its path percent-encoded, when its display name leaves out part of its name" do
+        warnings = iostreams_deprecation_warnings do
+          {
+            "data#2026.csv.gz" => "sftp://sftp.example.org/in/data%232026.csv.gz",
+            "data?2026.csv.gz" => "sftp://sftp.example.org/in/data%3F2026.csv.gz",
+            "a+b%20#c d.csv"   => "sftp://sftp.example.org/in/a%2Bb%2520%23c%20d.csv",
+            "données#1.csv"    => "sftp://sftp.example.org/in/donn%C3%A9es%231.csv"
+          }.each_pair do |file_name, display_name|
+            assert_equal display_name, dirmon_entry.file_display_name(sftp_file(file_name))
+            # IOStreams reads the name back as the same path.
+            assert_equal "/in/#{file_name}", IOStreams.path(display_name).path
+          end
+        end
+
+        assert_empty warnings
+      end
+
+      it "returns the url of a file with its path percent-encoded, when its display name leaves out part of its directory" do
+        assert_equal "sftp://sftp.example.org/in/a%23b/data.csv", dirmon_entry.file_display_name(sftp_file("a#b/data.csv"))
+      end
+
+      it "keeps the port of the url, but not its credentials" do
+        path = IOStreams.path("sftp://user:secret@sftp.example.org:2222/in").send(:child_path, "data#2026.csv.gz")
+
+        assert_equal "sftp://sftp.example.org:2222/in/data%232026.csv.gz", dirmon_entry.file_display_name(path)
+      end
+
+      it "returns a name that is valid UTF-8, for a file whose name is not" do
+        name = dirmon_entry.file_display_name(sftp_file("caf\xE9.csv".b))
+
+        assert_predicate name, :valid_encoding?
+        assert_equal Encoding::UTF_8, name.encoding
+        assert_equal "sftp://sftp.example.org/in/caf\\xE9.csv", name
+      end
+
+      it "returns a name that is valid UTF-8, for a file whose name is not, when its display name leaves out part of it" do
+        name = dirmon_entry.file_display_name(sftp_file("caf\xE9#1.csv".b))
+
+        assert_predicate name, :valid_encoding?
+        assert_equal "sftp://sftp.example.org/in/caf%E9%231.csv", name
+        assert_equal "/in/caf\xE9#1.csv".b, IOStreams.path(name).path.b
       end
     end
 
@@ -492,6 +595,23 @@ class DirmonEntryTest < Minitest::Test
           assert(events.any? { |event| event.message.include?("sftp://sftp.example.org/files/data.csv") })
           refute(events.any? { |event| "#{event.message}#{event.payload}".include?("secret") })
         end
+
+        it "skips a file that is not writable, and logs it without the credentials in its url" do
+          sftp = IOStreams.path("sftp://jack:secret@sftp.example.org/files/data.csv")
+          sftp.define_singleton_method(:writable?) { false }
+          events = semantic_logger_events do
+            IOStreams.stub(:each_child, ->(_pattern, &block) { block.call(sftp) }) do
+              dirmon_entry.each { |_path| flunk("Must skip a file that is not writable") }
+            end
+          end
+
+          assert(
+            events.any? do |event|
+              event.message.include?("Skipping file: sftp://sftp.example.org/files/data.csv since it is not writable")
+            end
+          )
+          refute(events.any? { |event| "#{event.message}#{event.payload}".include?("secret") })
+        end
       end
 
       describe "#later" do
@@ -528,6 +648,19 @@ class DirmonEntryTest < Minitest::Test
 
           assert_equal "sftp://sftp.example.org/files/data.csv", job.original_file_name
           refute(events.any? { |event| "#{event.message}#{event.payload}".include?("secret") })
+        end
+
+        it "records the original file name with its extensions, when its display name leaves them out" do
+          sftp = IOStreams.path("sftp://jack:secret@sftp.example.org/files").send(:child_path, "data#2026.csv.gz")
+          sftp.define_singleton_method(:move_to) do |target|
+            target.write("data")
+            target
+          end
+
+          job = dirmon_entry.later(sftp)
+
+          assert_equal "sftp://sftp.example.org/files/data%232026.csv.gz", job.original_file_name
+          assert_equal "#{dirmon_entry.name}: data#2026.csv.gz", job.description
         end
 
         it "enqueues batch job" do

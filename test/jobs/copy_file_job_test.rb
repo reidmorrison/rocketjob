@@ -99,12 +99,22 @@ module Jobs
           assert_equal ["are not valid"], job.errors[:target_args]
         end
 
-        it "rejects a secret_config argument when Secret Config is not loaded, as the job would when it runs" do
+        it "accepts a secret_config argument when Secret Config is not loaded, since a server that loads it runs the job" do
+          refute defined?(SecretConfig), "The test needs a process without Secret Config"
           job = RocketJob::Jobs::CopyFileJob.new(source_url: "/tmp/source.csv", target_url: "sftp://sftp.example.org/a.csv",
                                                  target_args: {secret_config_password: "sftp/password"})
 
+          assert_predicate job, :valid?, job.errors.full_messages
+          error = assert_raises(ArgumentError) { job.target_path }
+          assert_includes error.message, "secret_config_password"
+        end
+
+        it "rejects a secret_config argument that the path does not accept under its name without the prefix" do
+          job = RocketJob::Jobs::CopyFileJob.new(source_url: "/tmp/source.csv", target_url: "/tmp/target.csv",
+                                                 target_args: {secret_config_password: "sftp/password"})
+
           refute_predicate job, :valid?
-          assert_includes job.errors[:target_args].first, "secret_config_password"
+          assert_includes job.errors[:target_args].first, ":password"
         end
 
         it "accepts streams that are not set" do

@@ -34,6 +34,21 @@ class RocketJobTest < Minitest::Test
     end
 
     describe ".path_display_name" do
+      # Returns [Array<String>] the deprecation warnings that IOStreams reported while the block runs, with deprecation
+      # warnings on, so that the tests do not print them.
+      def iostreams_deprecation_warnings(&block)
+        warnings = []
+        previous = Warning[:deprecated]
+        Warning[:deprecated] = true
+        collect = lambda do |message, category: nil|
+          warnings << message if category == :deprecated && IOStreams::Deprecation.warning?(message)
+        end
+        Warning.stub(:warn, collect, &block)
+        warnings
+      ensure
+        Warning[:deprecated] = previous
+      end
+
       it "returns a local path as is" do
         assert_equal "/var/sftp/in/file.csv", RocketJob.path_display_name("/var/sftp/in/file.csv")
       end
@@ -44,8 +59,14 @@ class RocketJobTest < Minitest::Test
       end
 
       it "leaves out the query of a url, which can hold a secret" do
-        assert_equal "sftp://sftp.example.org/in/file.csv",
-                     RocketJob.path_display_name("sftp://user:secret@sftp.example.org/in/file.csv?password=other")
+        warnings = iostreams_deprecation_warnings do
+          assert_equal "sftp://sftp.example.org/in/file.csv",
+                       RocketJob.path_display_name("sftp://user:secret@sftp.example.org/in/file.csv?password=other")
+        end
+
+        assert_equal 1, warnings.size, warnings
+        assert_includes warnings.first, "its query is ignored"
+        refute_includes warnings.first, "secret"
       end
 
       it "accepts an IOStreams::Path" do
@@ -59,15 +80,65 @@ class RocketJobTest < Minitest::Test
                      RocketJob.path_display_name("sftp://user:secret@sftp.example.org:port/in/file.csv")
       end
 
-      it "leaves out a path that needs a gem that is not installed" do
+      [
+        "sftp://sftp.example.org/in/données.csv",
+        "sftp://sftp.example.org/in/data[1].csv",
+        "sftp://sftp.example.org/in/{a}%^|\"<b>.csv"
+      ].each do |url|
+        it "shows a url that is not a valid path as stored, when it holds no credentials: #{url}" do
+          assert_equal url, RocketJob.path_display_name(url)
+        end
+      end
+
+      it "shows a url that is not a valid path as valid UTF-8, when it holds no credentials" do
+        name = RocketJob.path_display_name("sftp://sftp.example.org/in/caf\xE9.csv".b)
+
+        assert_equal "sftp://sftp.example.org/in/caf\\xE9.csv", name
+        assert_predicate name, :valid_encoding?
+      end
+
+      it "shows a url that needs a gem that is not installed as stored, when it holds no credentials" do
         IOStreams.stub(:path, ->(_path) { raise LoadError, "cannot load such file -- aws-sdk-s3" }) do
-          assert_equal RocketJob::INVALID_PATH_DISPLAY_NAME, RocketJob.path_display_name("s3://bucket/in/file.csv")
+          assert_equal "s3://bucket/in/file.csv", RocketJob.path_display_name("s3://bucket/in/file.csv")
+        end
+      end
+
+      [
+        "sftp://user:pa/ss@sftp.example.org/in/file.csv",
+        "sftp://user:pa#ss@sftp.example.org/in/file.csv",
+        "sftp://user:secret@sftp.example.org/in/données.csv",
+        "sftp://sftp.example.org/in/données.csv?password=secret"
+      ].each do |url|
+        it "leaves out a url that is not a valid path, with a user name and password or a query: #{url}" do
+          assert_equal RocketJob::INVALID_PATH_DISPLAY_NAME, RocketJob.path_display_name(url)
+        end
+      end
+
+      it "leaves out a url that needs a gem that is not installed, with a user name and password or a query" do
+        IOStreams.stub(:path, ->(_path) { raise LoadError, "cannot load such file -- aws-sdk-s3" }) do
+          assert_equal RocketJob::INVALID_PATH_DISPLAY_NAME, RocketJob.path_display_name("s3://key:secret@bucket/in/file.csv")
+          assert_equal RocketJob::INVALID_PATH_DISPLAY_NAME,
+                       RocketJob.path_display_name("s3://bucket/in/file.csv?secret_access_key=secret")
         end
       end
 
       it "returns a blank path as is" do
         assert_nil RocketJob.path_display_name(nil)
         assert_equal "", RocketJob.path_display_name("")
+      end
+    end
+
+    describe ".display_text" do
+      it "returns valid UTF-8 text as is" do
+        assert_equal "données.csv", RocketJob.display_text("données.csv")
+      end
+
+      it "shows each byte that is not valid UTF-8 as \\xHH" do
+        text = RocketJob.display_text("caf\xE9.csv".b)
+
+        assert_equal "caf\\xE9.csv", text
+        assert_equal Encoding::UTF_8, text.encoding
+        assert_predicate text, :valid_encoding?
       end
     end
 

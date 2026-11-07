@@ -21,9 +21,11 @@ module RocketJob
       # File to upload
       field :upload_file_name, type: IOStreams::Path, user_editable: true
 
-      # The original Input file name, without any credentials, see IOStreams::Path#display_name.
+      # The original Input file name, without any credentials, see RocketJob::DirmonEntry#file_display_name.
       # Used by #upload to extract the IOStreams when present.
-      field :original_file_name, type: String, user_editable: true
+      # Shown without any credentials too, see #display_attributes, since a job saved by Rocket Job 7.1, or edited by
+      # hand, can hold the url of a file with its user name and password.
+      field :original_file_name, type: String, user_editable: true, path: true
 
       # Optionally set the job id for the downstream job
       # Useful when for example the archived file should contain the job id for the downstream job.
