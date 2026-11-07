@@ -31,10 +31,11 @@ module RocketJob
       # An upload reads the header row of its own file, rather than keep the columns of an earlier one, such as those
       # that a job scheduled again copies from its last run, see Plugins::Cron. When the input already holds the
       # records of an earlier upload, see `uploaded`, a tabular of its own reads the header row, and the lines of the
-      # file while it is uploaded, see Input#each_record, so that the columns stay those of the earlier upload until it
-      # is read.
+      # file while it is uploaded, see Input#each_record, so that the columns stay those of the earlier upload, and the
+      # lambda raises ArgumentError when the header row differs from them, see #check_uploaded_header.
       def schema_header_callback(on_first, uploaded)
-        if uploaded && columns.present?
+        uploaded_columns = columns if uploaded
+        if uploaded_columns.present?
           @tabular = schema_tabular(nil)
         else
           self.columns = nil
@@ -46,10 +47,25 @@ module RocketJob
           tabular.read_header(line)
           next false if tabular.header?
 
-          self.columns = tabular.header.columns
+          if uploaded_columns.present?
+            check_uploaded_header(tabular.header.columns)
+          else
+            self.columns = tabular.header.columns
+          end
           on_first&.call(line)
           true
         end
+      end
+
+      # Raises ArgumentError when the supplied header row of a file differs from the columns that the records already in
+      # the input were uploaded with, since the workers read every record of the input by one header row, see
+      # Input#columns.
+      def check_uploaded_header(header_columns)
+        return if header_columns == columns
+
+        raise(ArgumentError,
+              "Input category #{name} holds records read by the header row #{columns.inspect}, so a file whose header " \
+              "row is #{header_columns.inspect} cannot be uploaded into it")
       end
     end
   end

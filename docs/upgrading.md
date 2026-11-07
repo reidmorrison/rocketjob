@@ -350,6 +350,25 @@ reports the warning when the job runs, and raises `NoMethodError` in v8: change 
 including in the jobs that are already saved, such as a scheduled one, which copies its
 `before_code` to its next run.
 
+### A second file in one input category
+
+The workers read every record of an input category by one header row, the one that its upload read,
+see `input_category.columns`. So in v7.2 a second file uploaded into an input category with a schema,
+whose input already holds the records of a first file, raises `ArgumentError` when its header row
+differs from the first file's, and uploads nothing. v7.1 read the records of both files by the second
+file's header row, giving values to the wrong fields. A file with the same header row, in the same
+order, is uploaded as before:
+
+~~~ruby
+job.upload("people_1.csv")
+job.upload("people_2.csv") # raises ArgumentError when its header row differs
+~~~
+
+Upload a file whose header row differs into a job of its own. Without a schema, v7.2 still stores the
+header row of a second file as a record, and reads its records by the first file's header row, as v7.0
+did, so give such a category a schema, or upload each file into a job of its own. v8 reads the
+records of each file by its own header row.
+
 ### Propose the schema of each category
 
 The warnings name the lines of code, but not the saved documents that hold a deprecated option, such

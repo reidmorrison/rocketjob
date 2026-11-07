@@ -81,6 +81,12 @@ production stays quiet. A job read back from the database does not report one. S
 
 ### Fixes
 
+- A second file uploaded into an input category with a schema, whose input already holds the records of a first file,
+  raises `ArgumentError` when its header row differs from the first file's, and uploads nothing. Previously its header
+  row replaced the first file's, so the workers read the records of both files by it, giving values to the wrong
+  fields. A file with the same header row is uploaded as before. A file whose header row does not match the schema
+  also keeps the first file's header row. Without a schema the second file's header row is still stored as a record,
+  as in 7.0. Rocket Job 8 reads each file by its own header row.
 - An upload that fails, such as a file with a line that `validate_rows: true` cannot parse, into an input category that
   already holds the records of an earlier upload, removes only its own, and the category keeps the header row that the
   earlier records are read by. Previously it dropped the whole input, so the job lost the records of the earlier files
