@@ -242,12 +242,15 @@ module RocketJob
     # Unless the pattern within the directory has a `?`, which cannot be told apart from the query of a url, such as
     # `sftp://host/in/*.csv?password=secret`, which could hold a secret, since a url once held ssh options there.
     # IOStreams rejects a url with a query, so such a pattern is not shown.
+    # Nor when the pattern within the directory would start within the user name, password or host of a url, such as
+    # at the brace in the host of `sftp://user:secret@ho{st/in/*.csv`, since it would show them.
     def pattern_display_name
       display_name = RocketJob.path_display_name(pattern)
       return display_name unless display_name == RocketJob::INVALID_PATH_DISPLAY_NAME
 
       matcher = IOStreams::Paths::Matcher.new(pattern)
       return display_name if matcher.directory.empty? || matcher.pattern.include?("?")
+      return display_name unless split_after_authority?(matcher.directory)
 
       directory = RocketJob.path_display_name(matcher.directory)
       directory == RocketJob::INVALID_PATH_DISPLAY_NAME ? directory : "#{directory}/#{matcher.pattern}"
@@ -349,6 +352,16 @@ module RocketJob
     # The settings of an entry, which #replicate copies. A new field is not copied unless it is added here.
     REPLICATED_ATTRIBUTES = %w[name pattern job_class_name properties archive_directory].freeze
     private_constant :REPLICATED_ATTRIBUTES
+
+    # Whether the supplied directory, which the matcher splits from the pattern, holds the whole scheme, user name,
+    # password and host of a url, so that the pattern within the directory holds none of them, see
+    # #pattern_display_name. A pattern that is not a url, such as a local path, has none of them.
+    #
+    # They are taken to end at the first `/` after the scheme, which is never before they end in a url.
+    def split_after_authority?(directory)
+      authority = pattern[%r{\A[^:/]+://[^/]*}]
+      authority.nil? || directory.start_with?(authority)
+    end
 
     # An entry that is enabled again starts a new period in which its storage can be unavailable.
     def clear_unavailable_at

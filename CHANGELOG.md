@@ -200,6 +200,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   use the display name of the path, see `IOStreams::Path#display_name`. A file that is waiting to
   stabilize when Dirmon is upgraded is picked up one scan later, since that list is now also keyed by
   the entry.
+- `RocketJob::DirmonEntry#pattern_display_name` shows a remote pattern whose host holds a pattern character, such as
+  `sftp://user:secret@ho{st/in/*.csv`, as `(not a valid path)`, as it does a host that IOStreams cannot read, such as
+  an IPv6 address with a zone, `sftp://user:secret@[fe80::1%25en0]/in/*.csv`, and an S3 url whose key or secret
+  holds a pattern character. It had split such a pattern within its user name, password or host, and shown all of
+  it, password included.
 
 ### New features
 

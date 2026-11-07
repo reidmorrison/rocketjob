@@ -298,6 +298,47 @@ class DirmonEntryTest < Minitest::Test
 
         assert_equal "sftp://sftp.example.org/in/[ab]*.csv", dirmon_entry.pattern_display_name
       end
+
+      it "shows a url whose pattern starts at the directory after its host" do
+        dirmon_entry.pattern = "sftp://user:secret@sftp.example.org/{in,out}/*.csv"
+
+        assert_equal "sftp://sftp.example.org/{in,out}/*.csv", dirmon_entry.pattern_display_name
+      end
+
+      {
+        "sftp://user:se{cret@sftp.example.org/in/*.csv"       => "sftp://sftp.example.org/in/*.csv",
+        "sftp://user:se[cret@sftp.example.org/in/data.csv"    => "sftp://sftp.example.org/in/data.csv",
+        "sftp://user:se{cret@sftp.example.org/in/*.{csv,txt}" => "sftp://sftp.example.org/in/*.{csv,txt}",
+        "sftp://us{er:secret@sftp.example.org/in/*.csv"       => "sftp://sftp.example.org/in/*.csv",
+        "sftp://us[er:secret@sftp.example.org/in/data.csv"    => "sftp://sftp.example.org/in/data.csv",
+        "sftp://user:se{cret@[::1]:2222/{in,out}/*.csv"       => "sftp://[::1]:2222/{in,out}/*.csv"
+      }.each_pair do |pattern, display_name|
+        it "leaves out a user name or password that holds a pattern character: #{pattern}" do
+          dirmon_entry.pattern = pattern
+
+          assert_equal display_name, dirmon_entry.pattern_display_name
+        end
+      end
+
+      # IOStreams cannot read these urls, and the first element with pattern characters is in their user name,
+      # password, host or port, so that the pattern within the directory would show them.
+      [
+        "sftp://user:secret@sftp.ex{ample.org/in/*.csv",
+        "sftp://user:secret@sftp.ex[ample.org/in/data.csv",
+        "sftp://user:secret@sftp.ex\\ample.org/in/data.csv",
+        "sftp://user:se{cret@sftp.ex{ample.org/in/*.csv",
+        "sftp://user:secret@sftp.example.org:22{22/in/*.csv",
+        "sftp://user:secret@[fe80::1%25en0]/in/*.csv",
+        "sftp://user:secret@[::1/in/data.csv",
+        "s3://key:se{cret@bucket/in/*.csv",
+        "s3://key:se[cret@bucket/in/data.csv"
+      ].each do |pattern|
+        it "does not show a url whose pattern would start within its user name, password or host: #{pattern}" do
+          dirmon_entry.pattern = pattern
+
+          assert_equal "(not a valid path)", dirmon_entry.pattern_display_name
+        end
+      end
     end
 
     describe "#display_properties" do
