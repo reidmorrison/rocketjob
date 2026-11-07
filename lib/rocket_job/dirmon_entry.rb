@@ -357,7 +357,9 @@ module RocketJob
     # password and host of a url, so that the pattern within the directory holds none of them, see
     # #pattern_display_name. A pattern that is not a url, such as a local path, has none of them.
     #
-    # They are taken to end at the first `/` after the scheme, which is never before they end in a url.
+    # They are taken to end at the first `/` after the scheme, which is never before they end in a url, whose user name
+    # and password hold a `/` only percent-encoded, as `%2F`. IOStreams reads a url with a `/` in its password, such as
+    # `sftp://user:12/34@host/in/*.csv`, as the host `user`, so that every path display name shows what follows it.
     def split_after_authority?(directory)
       authority = pattern[%r{\A[^:/]+://[^/]*}]
       authority.nil? || directory.start_with?(authority)
