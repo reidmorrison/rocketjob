@@ -3,7 +3,7 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
-## [7.1.0] Unreleased
+## [7.1.0] 2026-11-07
 
 7.1 moves Rocket Job to IOStreams 2.2, which deprecates what IOStreams 3.0 removes. Rocket Job no longer uses any of it
 itself, and a category's new `schema` replaces the category options that IOStreams 2.2 deprecates: `format_options`,
