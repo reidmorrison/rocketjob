@@ -252,6 +252,20 @@ class DeprecationTest < Minitest::Test
         assert_equal 1, job.record_count
       end
 
+      it "warns at the line that uploads a JSON file with the options that describe its columns, which 7.1 accepted" do
+        job.input_category.format = :json
+        line                      = __LINE__ + 2
+        warnings = deprecation_warnings do
+          job.upload(StringIO.new(%({"name":"Jack"}\n)), file_name: "people.json", stream_mode: :hash, allowed_columns: %w[name])
+        end
+
+        assert_equal 2, warnings.size, warnings.inspect
+        columns = warnings.find { |w| w.include?("allowed_columns:") }
+
+        assert columns.start_with?("#{__FILE__}:#{line}: warning: Rocket Job: allowed_columns: is deprecated"), columns
+        assert_equal 1, job.record_count
+      end
+
       it "warns at the line that uploads a file with the options that describe its columns" do
         # They apply to the Hashes that a file is read into, in the :hash mode of a category without a format.
         job.input_category.format = nil
@@ -296,13 +310,45 @@ class DeprecationTest < Minitest::Test
         end
 
         it "says to remove :line, the default" do
-          assert_includes stream_mode_warning(:line), "removed in Rocket Job 8: remove it, since :line is the default"
+          assert_includes stream_mode_warning(:line), "removed in Rocket Job 8: remove it, since the upload is the " \
+                                                      "same without it"
         end
 
         it "says to use validate_rows: false in place of :line in a category that validates rows" do
           job.input_category.validate_rows = true
 
           assert_includes stream_mode_warning(:line), "removed in Rocket Job 8: use validate_rows: false in its place"
+        end
+
+        it "warns for nil, which Rocket Job 8 also raises for, saying to remove it, also in a category that validates" do
+          assert_includes stream_mode_warning(nil), "stream_mode: nil is deprecated, and removed in Rocket Job 8: " \
+                                                    "remove it, since the upload is the same without it"
+          job.input_category.validate_rows = true
+
+          assert_includes stream_mode_warning(nil), "removed in Rocket Job 8: remove it, since the upload is the same"
+        end
+
+        it "warns for nil when uploading a block or a Range, which accept it" do
+          line     = __LINE__ + 2
+          warnings = deprecation_warnings do
+            job.upload(stream_mode: nil) { |io| io << "name" << "Jack" }
+            job.upload(1..10, stream_mode: nil)
+          end
+
+          assert_equal 2, warnings.size, warnings.inspect
+          assert warnings.first.start_with?("#{__FILE__}:#{line}: warning: Rocket Job: stream_mode: nil"), warnings
+          assert warnings.last.start_with?("#{__FILE__}:#{line + 1}: warning: Rocket Job: stream_mode: nil"), warnings
+          assert_equal [["Jack"], [[1, 10]]], job.input.collect(&:to_a)
+        end
+
+        it "does not warn for an upload without it" do
+          warnings = deprecation_warnings do
+            job.upload(StringIO.new("name\nJack\n"), file_name: "people.csv")
+            job.upload { |io| io << "name" << "Jack" }
+            job.upload(1..10)
+          end
+
+          assert_empty warnings
         end
 
         it "names a String stream_mode as it was supplied" do

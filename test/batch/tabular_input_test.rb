@@ -409,6 +409,51 @@ module Batch
 
             assert_equal 1, upload(".csv", %(Name,Age\nJill,"22"x\n), stream_mode: :line)
           end
+
+          it "is the same as no stream_mode when nil, which reads the category's validate_rows" do
+            job.input_category.validate_rows = true
+
+            assert_raises(CSV::MalformedCSVError) { upload(".csv", %(Name,Age\nJill,"22"x\n), stream_mode: nil) }
+          end
+
+          it "uploads the lines when nil" do
+            assert_equal 1, upload(".csv", %(Name,Age\nJill,"22"x\n), stream_mode: nil)
+            assert_equal [%(Jill,"22"x)], input_records
+          end
+
+          it "accepts the options that describe the columns of a file without a header row, such as JSON, as 7.1 did" do
+            job.input_category.format = :json
+            json                      = %({"a":1,"b":2}\n)
+
+            assert_equal 1, upload(".json", json, stream_mode: :hash, allowed_columns: %w[a], required_columns: %w[c],
+                                                  skip_unknown: true, cleanse_header: false)
+            # 7.1 uploaded the Hash, which these options did not change. The line is uploaded, which the worker parses.
+            assert_equal [json.chomp], input_records
+            assert_equal [{"a" => 1, "b" => 2}], output_records
+          end
+
+          it "still parses each line of a JSON file uploaded with those options" do
+            job.input_category.format = :json
+
+            assert_raises(JSON::ParserError) { upload(".json", %({"a":1}\n{"a":\n), stream_mode: :hash, allowed_columns: %w[a]) }
+            assert_equal 0, job.input.count
+          end
+
+          it "does not accept them in a category with a schema, as 7.1 did not, also for a file without a header row" do
+            job.input_category.format = :json
+            job.input_category.schema = {"fields" => [{"name" => "a"}]}
+
+            error = assert_raises(ArgumentError) { upload(".json", %({"a":1}\n), stream_mode: :hash, allowed_columns: %w[a]) }
+            assert_match(/allowed_columns/, error.message)
+            assert_equal 0, job.input.count
+          end
+
+          it "does not accept them for a file with a header row, which 7.1 could not upload in the :hash mode" do
+            error = assert_raises(ArgumentError) do
+              upload(".csv", "Name,Age\nJack,21\n", stream_mode: :hash, allowed_columns: %w[name])
+            end
+            assert_match(/allowed_columns/, error.message)
+          end
         end
 
         it "reads the header row of a category in the :hash mode" do

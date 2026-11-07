@@ -93,12 +93,14 @@ module RocketJob
       #     with a line that cannot be read, or with a value that is not valid, uploads nothing. The lines are still
       #     uploaded as they are, and the workers parse them.
       #     Raises ArgumentError when true for an input category without a format, or for a query, a range or a block,
-      #     which upload values rather than the lines of a file, and when supplied with `stream_mode:`. False is
-      #     accepted for each, since it validates nothing.
+      #     which upload values rather than the lines of a file, for which false is accepted, since it validates
+      #     nothing. Also raises when supplied, true or false, with a `stream_mode:` other than nil or false, which
+      #     decides alone whether the lines are validated.
       #     Default: The input category's `validate_rows`, see RocketJob::Category::Input#upload_validates_rows?.
       #
       #   stream_mode: [:line | :array | :hash]
-      #     Deprecated, and removed in Rocket Job 8: `validate_rows: true` replaces :hash, and for an input category
+      #     Deprecated, and removed in Rocket Job 8, which raises ArgumentError whenever it is supplied, also as nil, so
+      #     it reports a deprecation warning then too: `validate_rows: true` replaces :hash, and for an input category
       #     without a format, its `format: :auto` reads a file into Hashes.
       #     :line
       #       Uploads the file a line (String) at a time for processing by workers.
@@ -213,7 +215,7 @@ module RocketJob
       #   is the number of `[first_id, last_id]` ranges, one per slice.
       # * If an exception is raised while uploading data, the input collection is cleared out, so that if the job is
       #   retried, its data is not duplicated.
-      def upload(object = nil, category: :main, file_name: nil, stream_mode: nil, validate_rows: nil,
+      def upload(object = nil, category: :main, file_name: nil, stream_mode: STREAM_MODE_OMITTED, validate_rows: nil,
                  on_first: ON_FIRST_OMITTED, columns: nil, slice_batch_size: nil, **args, &block)
         # Rocket Job 8 raises for on_first whenever it is passed, also as nil, whatever is uploaded.
         if on_first.equal?(ON_FIRST_OMITTED)
@@ -222,6 +224,12 @@ module RocketJob
           rocketjob_warn_on_first
         end
         input_collection = input(category)
+        # Rocket Job 8 raises for stream_mode whenever it is passed, also as nil, whatever is uploaded.
+        if stream_mode.equal?(STREAM_MODE_OMITTED)
+          stream_mode = nil
+        else
+          rocketjob_check_stream_mode(stream_mode, category)
+        end
 
         # A block uploads the records that it writes, unless it is passed with a query, whose models or documents it
         # transforms, as upload_arel and upload_mongo_query did. Rocket Job 8 raises for a block passed with a query, see
@@ -291,7 +299,6 @@ module RocketJob
 
             rocketjob_warn_deprecated_upload_options(args)
             category = input_category(category)
-            category.warn_deprecated_stream_mode(stream_mode) if stream_mode
             category.check_upload(validate_rows)
 
             # The path sets the format of a category whose format is :auto, which decides whether the file has a
@@ -377,15 +384,15 @@ module RocketJob
         count
       end
 
-      # The options that IOStreams reads a file with which describe its columns, and are deprecated, see
-      # RocketJob::Category::Input#schema.
-      DEPRECATED_UPLOAD_OPTIONS = %i[allowed_columns required_columns skip_unknown cleanse_header].freeze
-      private_constant :DEPRECATED_UPLOAD_OPTIONS
-
       # The default of the `on_first:` option of #upload, which tells an upload without it from one that passes it, also
       # as nil, which is deprecated, see #rocketjob_warn_on_first.
       ON_FIRST_OMITTED = Object.new.freeze
       private_constant :ON_FIRST_OMITTED
+
+      # The default of the `stream_mode:` option of #upload, which tells an upload without it from one that passes it,
+      # also as nil, which is deprecated, see #rocketjob_check_stream_mode.
+      STREAM_MODE_OMITTED = Object.new.freeze
+      private_constant :STREAM_MODE_OMITTED
 
       # Download the output data into the supplied file, io, IOStreams::Path, or IOStreams::Stream.
       # Returns [Integer] the number of records / lines downloaded.
@@ -505,6 +512,18 @@ module RocketJob
         )
       end
 
+      # Reports a deprecation warning, see RocketJob::Category::Input#warn_deprecated_stream_mode, for the supplied
+      # `stream_mode:` of an upload into the supplied category, also when nil, whatever is uploaded, since Rocket Job 8
+      # removes it, and raises ArgumentError for it. Raises ArgumentError for a stream_mode other than :line, :array or
+      # :hash, before warning for it, as 7.1 did without a schema. With a schema 7.1 read such a stream_mode as :hash.
+      def rocketjob_check_stream_mode(stream_mode, category)
+        if stream_mode && !%w[line array hash].include?(stream_mode.to_s)
+          raise(ArgumentError, "Invalid stream_mode: #{stream_mode.inspect}, which can only be :line, :array or :hash")
+        end
+
+        input_category(category).warn_deprecated_stream_mode(stream_mode)
+      end
+
       # Raises ArgumentError for the supplied `validate_rows:` of an upload of what is described, which has no lines to
       # validate, unless it is nil or false, which validates nothing.
       def rocketjob_check_no_validate_rows(validate_rows, what)
@@ -514,9 +533,10 @@ module RocketJob
       end
 
       # Reports a deprecation warning, see RocketJob::Deprecation, at the line of the application that uploads a file
-      # with options that describe the columns of the file, which the schema of the input category replaces.
+      # with options that describe the columns of the file, which the schema of the input category replaces, see
+      # RocketJob::Category::Input::DEPRECATED_UPLOAD_OPTIONS.
       def rocketjob_warn_deprecated_upload_options(args)
-        names = args.keys & DEPRECATED_UPLOAD_OPTIONS
+        names = args.keys & RocketJob::Category::Input::DEPRECATED_UPLOAD_OPTIONS
         return if names.empty?
 
         RocketJob::Deprecation.warn(

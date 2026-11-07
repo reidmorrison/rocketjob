@@ -5657,9 +5657,17 @@ job.upload("people.csv", validate_rows: true)
 * Until it is removed, `stream_mode:` decides alone whether a file is validated, over the category's
   `validate_rows`. So in a category with `validate_rows: true`, replace `stream_mode: :line` by
   `validate_rows: false`, rather than leave it out.
+* v8 raises `ArgumentError` whenever `stream_mode:` is passed, also as `nil`, whatever is uploaded,
+  so v7.2 warns for it then too: remove it from every call. `stream_mode: nil` uploads a file as if
+  it were left out.
 * In a category with a format, 7.2 uploads the lines of a file in `stream_mode: :hash`, reading its
   header row, and parses each one first, as `validate_rows: true` does. 7.1 raised
-  `IOStreams::Errors::TypeMismatch` for a file with a header row, such as CSV, without a schema.
+  `IOStreams::Errors::TypeMismatch` for a file with a header row, such as CSV, without a schema. For
+  a file without a header row, such as JSON, in a category without a schema, the options of `upload`
+  that describe the columns of a file, such as `allowed_columns:`, are still accepted, and have no
+  effect there, as in 7.1.
+* 7.2 raises `ArgumentError` for a `stream_mode:` other than `:line`, `:array` or `:hash`, such as
+  `:hashes`, as 7.1 did without a schema. With a schema 7.1 read one as `:hash`.
 * v8 reads a job saved with `mode: :hash` in a category with a format as `validate_rows: true`, unless
   its `validate_rows` is false. With a schema that is what `mode: :hash` did, so such a job need not
   change. Without a schema `mode: :hash` did not validate the lines, so remove it, rather than replace
