@@ -7,6 +7,7 @@ module RocketJob
       include Category::Base
       include Category::InputSchemaProposal
       include Category::InputSchemaHeader
+      include Category::InputTextLines
 
       embedded_in :job, class_name: "RocketJob::Job", inverse_of: :input_categories
 
@@ -283,6 +284,8 @@ module RocketJob
       # In the :hash mode, the options of the upload that describe the columns of a file, which are deprecated, are
       # left out where 7.1 accepted them, see #stream_mode_ignores_column_options?. Otherwise the line reader raises
       # ArgumentError for them, as 7.1 did.
+      #
+      # Without a format, each line of a text file is uploaded as UTF-8, see #each_line.
       def each_record(path, mode: nil, validate_rows: nil, **args, &)
         mode = mode.presence&.to_sym
         return path.each(mode, **args, &) if stream_mode_records?(mode)
@@ -292,7 +295,7 @@ module RocketJob
                                ":line, and validate_rows: true to also parse every line when the file is uploaded")
         end
         validate = mode ? mode == :hash : upload_validates_rows?(validate_rows)
-        return path.each(:line, **args, &) unless validate
+        return each_line(path, **args, &) unless validate
 
         args.except!(*DEPRECATED_UPLOAD_OPTIONS) if stream_mode_ignores_column_options?(mode)
         path.each(:line, **args) do |line|

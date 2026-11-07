@@ -177,6 +177,16 @@ production stays quiet. A job read back from the database does not report one. S
   String, rather than raising `URI::InvalidURIError` when it is read, so that it can still be read, such as for its
   extensions. IOStreams still raises when it is used as a path, such as with `IOStreams.new`, and a method of
   `IOStreams::Path`, such as `#path`, raises `NoMethodError` for it.
+- An upload of a text file into an input category without a format, such as `job.upload("names.txt")`, stores its
+  lines as UTF-8, keeping letters that are not ASCII, such as `José`, without the byte order mark that a UTF-8 file can
+  start with. Previously IOStreams read the lines as binary, so the upload raised `Encoding::UndefinedConversionError`
+  when it stored a line with such a letter, or a byte order mark, as 7.0 did, also for a gzipped file. Text that is
+  not valid UTF-8 raises `IOStreams::Errors::InvalidEncoding`, which is an `Encoding::UndefinedConversionError`, naming
+  its line, and uploads nothing, as with a schema. A text encoding set on the path that is uploaded, such as
+  `IOStreams.path("names.txt").encoding("ISO-8859-1")`, is still used instead, while lines read as binary, also when
+  the path asks for binary, are taken as UTF-8, since MongoDB stores them as UTF-8 text. A category with a format, the
+  deprecated `stream_mode: :array` and `stream_mode: :hash`, the block of `upload`, and `upload_slice`, upload as
+  before.
 
 ### Security
 

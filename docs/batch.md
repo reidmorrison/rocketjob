@@ -143,8 +143,20 @@ Useful `upload` keyword options:
 | `delimiter`    | Deprecated, and removed in v8, see [Line options of upload](upgrading.html#line-options-of-upload). Record delimiter. Default: auto-detect line endings.
 | `on_first`     | Deprecated, and removed in v8, see [Replace on_first](upgrading.html#replace-on_first). A lambda called with the header row, or the first record of a file without one, such as JSON or fixed width, which is not uploaded.
 
-By default all data is converted to UTF-8 before being stored, since MongoDB only stores UTF-8
-strings. A Zip stream must contain only one file; the first file found is loaded. CSV and other
+The text of a file is read as UTF-8 before it is stored, since MongoDB only stores UTF-8 strings,
+so letters that are not ASCII, such as `José`, are kept. Text that is not valid UTF-8 raises
+`IOStreams::Errors::InvalidEncoding`, naming its line, and the upload then uploads nothing. For a
+file in another encoding, upload a path with that encoding set, which reads it instead:
+
+~~~ruby
+job.upload(IOStreams.path("names.txt").encoding("ISO-8859-1"))
+~~~
+
+An input category with a format, such as CSV, but no schema, ignores an encoding set on the path,
+and removes non-printable characters, and every character that is not ASCII, instead, see
+[Describing a file with a schema](#typed-values-with-a-schema).
+
+A Zip stream must contain only one file; the first file found is loaded. CSV and other
 tabular parsing is deliberately left to the workers (see [Reading tabular files](#reading-tabular-files)),
 so by default a file is uploaded a raw line at a time.
 

@@ -47,6 +47,7 @@ module RocketJob
     autoload :Input,                 "rocket_job/category/input"
     autoload :InputSchemaProposal,   "rocket_job/category/input_schema_proposal"
     autoload :InputSchemaHeader,     "rocket_job/category/input_schema_header"
+    autoload :InputTextLines,        "rocket_job/category/input_text_lines"
     autoload :Output,                "rocket_job/category/output"
   end
 

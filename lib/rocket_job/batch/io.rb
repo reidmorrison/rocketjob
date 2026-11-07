@@ -157,8 +157,11 @@ module RocketJob
       # * The number of records uploaded is added to the record_count of the job.
       # * If an exception is raised while uploading data, the records that this upload stored are removed, so that
       #   if the job is retried, its data is not duplicated. The records of earlier uploads are kept.
-      # * By default all data read from the file/stream is converted into UTF-8 before being persisted. This
-      #   is recommended since Mongo only supports UTF-8 strings.
+      # * The text of the file/stream is read as UTF-8 before being persisted, since MongoDB only stores UTF-8 strings.
+      #   Text that is not valid UTF-8 raises IOStreams::Errors::InvalidEncoding, naming its line, unless an encoding
+      #   is set on the path, such as `IOStreams.path("names.txt").encoding("ISO-8859-1")`, which reads it instead.
+      #   An input category with a format but no schema ignores an encoding set on the path, and removes
+      #   non-printable characters, and every character that is not ASCII, instead.
       # * When zip format, the Zip file/stream must contain only one file, the first file found will be
       #   loaded into the job
       # * If an io stream is supplied, it is read until it returns nil.
