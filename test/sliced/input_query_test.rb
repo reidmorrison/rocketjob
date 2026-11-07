@@ -14,6 +14,7 @@ ActiveRecord::Schema.define version: 0 do
     t.string :name
     t.string :nickname
     t.integer :status
+    t.float :score
   end
 
   create_table :input_query_posts, force: true do |t|
@@ -64,20 +65,7 @@ module Sliced
     end
 
     describe RocketJob::Sliced::Input do
-      # Returns [Array<String>] the deprecation warnings that Rocket Job reported while the block runs, with deprecation
-      # warnings on, see DeprecationTest.
-      def deprecation_warnings(enabled: true, &block)
-        warnings = []
-        previous = Warning[:deprecated]
-        Warning[:deprecated] = enabled
-        collect = lambda do |message, category: nil|
-          warnings << message if category == :deprecated && message.include?("Rocket Job: ")
-        end
-        Warning.stub(:warn, collect, &block)
-        warnings
-      ensure
-        Warning[:deprecated] = previous
-      end
+      include DeprecationWarnings
 
       let(:collection_name) { :"rocket_job.slices.query_test" }
 
@@ -164,9 +152,13 @@ module Sliced
         end
 
         it "honors a supplied block" do
-          input.upload_mongo_query(InputQueryDoc.all) { |document| document["name"].downcase }
+          warnings = deprecation_warnings do
+            input.upload_mongo_query(InputQueryDoc.all) { |document| document["name"].downcase }
+          end
 
           assert_equal %w[alice bob], input.collect(&:to_a).flatten.sort
+          assert_equal 1, warnings.size, warnings.inspect
+          assert_includes warnings.first, "a block passed with a Mongoid criteria raises ArgumentError"
         end
       end
 
@@ -205,12 +197,25 @@ module Sliced
                                             "Rocket Job 8"
           end
 
-          it "passes the block to upload for a Mongoid criteria, and warns" do
+          it "passes the block to upload for a Mongoid criteria, and warns that Rocket Job 8 raises for it as well" do
             warnings = deprecation_warnings { job.upload(InputQueryDoc.all) { |document| document["name"] } }
 
             assert_equal %w[Alice Bob], records.sort
+            assert_equal 2, job.record_count
             assert_equal 1, warnings.size, warnings.inspect
             assert_includes warnings.first, "a block passed with a Mongoid criteria raises ArgumentError in Rocket Job 8"
+            assert_includes warnings.first, "write the records in the block of upload instead, such as job.upload { " \
+                                            "|records| User.where(state: \"FL\").each { |user| records << " \
+                                            "user.email.downcase } }"
+          end
+
+          it "raises for columns with the block, which returns the record to upload in their place" do
+            [InputQueryMember.all, InputQueryDoc.all].each do |query|
+              error = assert_raises(ArgumentError) { job.upload(query, columns: [:name]) { |row| row["name"] } }
+
+              assert_equal "Cannot supply both :columns and a block when uploading a query.", error.message
+            end
+            assert_nil job.record_count
           end
 
           it "still raises for a block with an object that is not a query" do
@@ -234,14 +239,6 @@ module Sliced
                                             "|records| User.where(country_code: \"US\").find_each { |user| records " \
                                             "<< user.email.downcase } }"
             assert_includes warnings.first, RocketJob::Deprecation::UPGRADE_GUIDE_V72
-          end
-
-          it "warns for a Mongoid criteria too, whose block raises in Rocket Job 8 as well" do
-            warnings = deprecation_warnings { job.upload(InputQueryDoc.all) { |document| document["name"] } }
-
-            assert_equal %w[Alice Bob], records.sort
-            assert_equal 1, warnings.size, warnings.inspect
-            assert_includes warnings.first, "User.where(state: \"FL\").each { |user|"
           end
         end
 
@@ -359,6 +356,16 @@ module Sliced
             assert_equal 1, warnings.size, warnings.inspect
             # Once for each row to upload it, and once more to compare it for the first row only.
             assert_equal 3, reads
+          end
+
+          it "does not warn for a column that holds NaN, which is not equal to itself" do
+            # SQLite stores NaN as NULL, so the model holds it in memory only, as one read from PostgreSQL can.
+            readers  = RocketJob::Sliced::Input.const_get(:QueryDeprecation).new([:score])
+            member   = InputQueryMember.new(score: Float::NAN)
+            warnings = deprecation_warnings { readers.check(member) }
+
+            assert_predicate member.score, :nan?
+            assert_empty warnings
           end
 
           it "does not warn for a column without a reader of its own, an alias or an enum" do

@@ -40,3 +40,21 @@ class Symbol
     raise(Mongo::Error::OperationFailure, "Unsupported BSON Symbol: :#{self}")
   end
 end
+
+# Collects the deprecation warnings that Rocket Job reports, see RocketJob::Deprecation, for a test that includes it.
+module DeprecationWarnings
+  # Returns [Array<String>] the deprecation warnings that Rocket Job reported while the block runs, with deprecation
+  # warnings on, or off when `enabled` is false.
+  def deprecation_warnings(enabled: true, &)
+    warnings = []
+    previous = Warning[:deprecated]
+    Warning[:deprecated] = enabled
+    collect = lambda do |message, category: nil|
+      warnings << message if category == :deprecated && message.include?("Rocket Job: ")
+    end
+    Warning.stub(:warn, collect, &)
+    warnings
+  ensure
+    Warning[:deprecated] = previous
+  end
+end

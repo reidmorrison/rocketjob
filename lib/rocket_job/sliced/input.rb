@@ -246,12 +246,15 @@ module RocketJob
         # once. Names the model class and the column, but never the values, which could be personal data.
         #
         # The reader is called again to compare it, after the upload has read the model, so the record uploaded is the
-        # one that the upload would store without the check.
+        # one that the upload would store without the check. A reader that returns the value itself is the same, such
+        # as a Float NaN, which is not equal to itself.
         #
         # Returns nil.
         def check(model)
           @columns.reject! do |column|
-            next false if model.public_send(column) == model.read_attribute(column)
+            value  = model.public_send(column)
+            stored = model.read_attribute(column)
+            next false if value.equal?(stored) || value == stored
 
             RocketJob::Deprecation.warn(
               "#{model.class}##{column} returns a value other than the one that its column holds, which Rocket Job 8 " \

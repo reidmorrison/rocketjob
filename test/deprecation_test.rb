@@ -10,20 +10,7 @@ class DeprecationTest < Minitest::Test
   end
 
   describe RocketJob::Deprecation do
-    # Returns [Array<String>] the deprecation warnings that Rocket Job reported while the block runs, with deprecation
-    # warnings on.
-    def deprecation_warnings(enabled: true, &block)
-      warnings = []
-      previous = Warning[:deprecated]
-      Warning[:deprecated] = enabled
-      collect = lambda do |message, category: nil|
-        warnings << message if category == :deprecated && message.include?("Rocket Job: ")
-      end
-      Warning.stub(:warn, collect, &block)
-      warnings
-    ensure
-      Warning[:deprecated] = previous
-    end
+    include DeprecationWarnings
 
     describe ".warn" do
       it "names the line outside Rocket Job that used what is deprecated" do
