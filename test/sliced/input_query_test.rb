@@ -184,6 +184,22 @@ module Sliced
           job.input.collect(&:to_a).flatten(1)
         end
 
+        describe "with on_first as nil" do
+          it "warns for an Active Record relation, which Rocket Job 8 raises for, and still uploads it" do
+            warnings = deprecation_warnings { job.upload(InputQueryMember.order(:id), on_first: nil) }
+
+            assert_equal [@jack.id, @jill.id], records
+            assert_equal 1, warnings.count { |warning| warning.include?("on_first: is deprecated") }, warnings.inspect
+          end
+
+          it "warns for a Mongoid criteria, which Rocket Job 8 raises for, and still uploads it" do
+            warnings = deprecation_warnings { job.upload(InputQueryDoc.where(name: "Alice"), on_first: nil) }
+
+            assert_equal 1, records.size
+            assert_equal 1, warnings.count { |warning| warning.include?("on_first: is deprecated") }, warnings.inspect
+          end
+        end
+
         describe "with a block" do
           it "passes the block to upload, which receives each model, and warns that Rocket Job 8 raises for it" do
             warnings = deprecation_warnings do
