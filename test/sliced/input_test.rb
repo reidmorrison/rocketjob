@@ -33,6 +33,45 @@ module Sliced
         end
       end
 
+      describe "#upload that raises" do
+        it "drops the collection when it held no slices before" do
+          assert_raises(ArgumentError) do
+            input.upload do |records|
+              records << "Line1"
+              records << "Line2"
+              records << "Line3"
+              raise(ArgumentError, "Bad file")
+            end
+          end
+
+          assert_equal 0, input.count
+        end
+
+        it "keeps the slices of earlier uploads, and removes only its own" do
+          input.upload { |records| lines.each { |line| records << line } }
+
+          assert_raises(ArgumentError) do
+            input.upload do |records|
+              %w[Line4 Line5 Line6].each { |line| records << line }
+              raise(ArgumentError, "Bad file")
+            end
+          end
+
+          assert_equal lines, input.collect(&:to_a).flatten
+          assert(input.all? { |slice| slice.upload_id.nil? })
+        end
+
+        it "gives the slices of a later upload an id of its own" do
+          input.upload { |records| records << "Line1" }
+          input.upload { |records| records << "Line2" }
+
+          upload_ids = input.collect(&:upload_id)
+
+          assert_nil upload_ids.first
+          refute_nil upload_ids.last
+        end
+      end
+
       describe "#upload with a block" do
         it "slice size 1" do
           input.slice_size = 1
