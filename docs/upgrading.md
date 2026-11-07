@@ -177,6 +177,30 @@ The block reads the file itself, as UTF-8 here: without an encoding its lines ar
 with a letter that is not ASCII, such as `José`, cannot be uploaded. For a file in another encoding,
 give the path that one instead, such as `IOStreams.path(file_name).encoding("ISO-8859-1")`.
 
+### Line options of upload
+
+The `delimiter:`, `buffer_size:` and `embedded_within:` options of `upload` are deprecated, and
+removed in v8, which reads the lines of a file itself:
+
+* `delimiter:` IOStreams detects the line endings of a file, `\r\n` or `\n`, so remove it. A file
+  whose records are separated by something other than a line ending cannot be uploaded as a file in
+  v8: write its records in the block of `upload` instead.
+* `buffer_size:` only tuned how much IOStreams read at a time, so remove it.
+* `embedded_within:` kept a quoted value that holds line breaks in its line. In v8 the format of the
+  input category, such as CSV, reads such a value, so remove it and give the category its format.
+
+~~~ruby
+# Before (deprecated)
+job.upload(file_name, delimiter: "|")
+
+# After
+job.upload do |records|
+  IOStreams.path(file_name).read.split("|").each do |record|
+    records << record
+  end
+end
+~~~
+
 ### Uploading a query
 
 v8 uploads an Active Record relation in one streamed query, read with IOStreams 3.0 rather than
@@ -546,30 +570,6 @@ last of them. IOStreams 2.2 deprecates reading such a file, and IOStreams 3.0 ra
 Rocket Job reports a deprecation warning at the line that uploads it. Rename the columns of the file,
 or describe them with the category's schema, where two columns that match the same field raise
 `IOStreams::Errors::InvalidHeader`.
-
-### Line options of upload
-
-The `delimiter:`, `buffer_size:` and `embedded_within:` options of `upload` are deprecated, and
-removed in v8, which reads the lines of a file itself:
-
-* `delimiter:` IOStreams detects the line endings of a file, `\r\n` or `\n`, so remove it. A file
-  whose records are separated by something other than a line ending cannot be uploaded as a file in
-  v8: write its records in the block of `upload` instead.
-* `buffer_size:` only tuned how much IOStreams read at a time, so remove it.
-* `embedded_within:` kept a quoted value that holds line breaks in its line. In v8 the format of the
-  input category, such as CSV, reads such a value, so remove it and give the category its format.
-
-~~~ruby
-# Before (deprecated)
-job.upload(file_name, delimiter: "|")
-
-# After
-job.upload do |records|
-  IOStreams.path(file_name).read.split("|").each do |record|
-    records << record
-  end
-end
-~~~
 
 ### Text is read as UTF-8 with a schema
 

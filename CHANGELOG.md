@@ -54,6 +54,10 @@ production stays quiet. A job read back from the database does not report one. S
   header row itself, and the category's schema checks its columns. For a file without a header row, such as JSON or fixed width, the
   lambda was called with the first record, which was then not uploaded: to leave it out, upload with a block that
   writes the other lines instead.
+- The options of `upload` that read the lines of a file: `delimiter:`, `buffer_size:` and `embedded_within:`. Rocket
+  Job 8 reads the lines itself: IOStreams detects the line endings, `\r\n` or `\n`, and the input category's format,
+  such as CSV, reads a quoted value that holds line breaks. Records separated by something else are written in the
+  block of `upload` instead.
 - A block passed with a query, an Active Record relation or a Mongoid criteria, such as to `upload_arel`, which
   returns the record to upload for each model or document. Rocket Job 8 uploads the values of the columns of a query,
   and raises `ArgumentError` for a block: write the records in the block of `upload` instead, reading the query there.

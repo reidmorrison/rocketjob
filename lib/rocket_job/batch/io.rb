@@ -551,7 +551,7 @@ module RocketJob
         RocketJob::Deprecation.warn(
           "#{names.collect { |name| "#{name}:" }.join(', ')} #{names.size == 1 ? 'is' : 'are'} deprecated, and removed " \
           "in Rocket Job 8, which reads the lines of a file itself: line endings are detected, and the input " \
-          "category's format reads a quoted value with line breaks, see #{RocketJob::Deprecation::UPGRADE_GUIDE}"
+          "category's format reads a quoted value with line breaks, see #{RocketJob::Deprecation::UPGRADE_GUIDE_V72}"
         )
       end
 
