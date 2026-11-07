@@ -111,7 +111,8 @@ module RocketJob
       # The names of the deprecated category and upload options, see RocketJob::Category::Base#schema, which its code
       # can set, see #schema_proposals.
       DEPRECATED_CODE =
-        /\b(format_options|allowed_columns|required_columns|skip_unknown|header_cleanser|cleanse_header)\b|mode:\s*:array/
+        /\b(format_options|allowed_columns|required_columns|skip_unknown|header_cleanser|cleanse_header|stream_mode)\b|
+         \bmode(:|\s*=)\s*:(array|hash)\b/x
       private_constant :DEPRECATED_CODE
 
       # Returns [Array<RocketJob::SchemaProposal>] the schemas proposed for this job's categories, see
