@@ -22,12 +22,13 @@ class SchemaProposalTest < Minitest::Test
     end
   end
 
-  # Raises the error that it names when it is read back, as the after_initialize of an application's job can.
+  # A job without categories, whose saved jobs propose no schemas.
   class SimpleJob < RocketJob::Job
     def perform
     end
   end
 
+  # Raises the error that it names when it is read back, as the after_initialize of an application's job can.
   class RaisingJob < RocketJob::Job
     include RocketJob::Batch
 
@@ -730,6 +731,14 @@ class SchemaProposalTest < Minitest::Test
       ensure
         # Other tests load every saved job, which raises for these.
         RocketJob::Job.collection.delete_many("_type" => RaisingJob.name)
+      end
+
+      it "is answered by every loaded job class whose saved jobs propose schemas" do
+        RocketJob::Job.descendants.each do |klass|
+          next if klass.instance_method(:schema_proposals).owner == RocketJob::Plugins::Job::Model
+
+          assert_predicate klass, :proposes_schemas?, klass.name
+        end
       end
 
       it "does not read a saved job whose class proposes no schemas, such as a job without categories" do

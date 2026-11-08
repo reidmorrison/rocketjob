@@ -52,8 +52,9 @@ module RocketJob
     end
 
     # Returns [Array<RocketJob::SchemaProposal>] the proposals for every batch job class that is loaded, see
-    # RocketJob::Batch::Categories::ClassMethods#schema_proposals, every saved job that can still run, see
-    # RocketJob::Plugins::Job::Model#schema_proposals, and every Dirmon entry, see
+    # RocketJob::Batch::Categories::ClassMethods#schema_proposals, every saved job that can still run, of a class that
+    # proposes schemas or that is not loaded, see RocketJob::Plugins::Job::Model#schema_proposals and
+    # RocketJob::Plugins::Job::Model::ClassMethods#proposes_schemas?, and every Dirmon entry, see
     # RocketJob::DirmonEntry#schema_proposals. In an application that loads its classes lazily, such as Rails in
     # development, load them first, for example with `Rails.application.eager_load!`.
     def self.all
