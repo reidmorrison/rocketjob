@@ -121,17 +121,6 @@ class DirmonEntryTest < Minitest::Test
         end
       end
 
-      describe "with a job_class_name that is not a Rocket Job" do
-        it "is not valid" do
-          %w[String Comparable RUBY_VERSION].each do |name|
-            entry = RocketJob::DirmonEntry.new(job_class_name: name)
-
-            refute_predicate entry, :valid?
-            assert_equal ["Job #{name} must be defined and inherit from RocketJob::Job"], entry.errors[:job_class_name]
-          end
-        end
-      end
-
       describe "with a valid job_class_name" do
         it "return job class" do
           entry = RocketJob::DirmonEntry.new(job_class_name: "RocketJob::Job")

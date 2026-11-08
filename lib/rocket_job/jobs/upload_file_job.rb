@@ -106,7 +106,8 @@ module RocketJob
         end
       end
 
-      # Returns [Class] the job class when it is defined and is a Rocket Job, otherwise nil, see #job_is_a_rocket_job.
+      # Returns [Class] the job class when it is defined and is a Rocket Job, otherwise nil, so that it is only asked
+      # what a Rocket Job answers, such as #display_attributes.
       def rocket_job_class
         klass = job_class
         klass if klass.is_a?(Class) && klass <= RocketJob::Job
@@ -114,7 +115,8 @@ module RocketJob
 
       # Validates job_class is a Rocket Job
       def job_is_a_rocket_job
-        return if job_class.nil? || rocket_job_class
+        klass = job_class
+        return if klass.nil? || klass.ancestors&.include?(RocketJob::Job)
 
         errors.add(:job_class_name, "Model #{job_class_name} must be defined and inherit from RocketJob::Job")
       end
