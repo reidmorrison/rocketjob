@@ -871,6 +871,21 @@ class DirmonEntryTest < Minitest::Test
           refute(events.any? { |event| "#{event.message}#{event.payload}".include?("secret") })
         end
 
+        it "records the archived SFTP file as the file to upload, which reads back as the same path" do
+          dirmon_entry.archive_directory = "archive"
+          # The file as IOStreams lists it, see IOStreams::Paths::SFTP#each_child, with its credentials kept apart.
+          sftp = IOStreams.path("sftp://jack:secret@sftp.example.org/files").send(:child_path, "données #1.csv")
+          sftp.define_singleton_method(:move_to) { |target| target }
+
+          job      = dirmon_entry.later(sftp)
+          uploaded = RocketJob::Jobs::UploadFileJob.find(job.id).upload_file_name
+
+          assert_kind_of IOStreams::Paths::SFTP, uploaded
+          assert_equal "/files/archive/#{job.job_id}_données #1.csv", uploaded.path
+          assert_equal "sftp.example.org", uploaded.hostname
+          refute_includes uploaded.to_s, "secret"
+        end
+
         describe "an entry that Rocket Job 7 saved with the :hash mode" do
           # Returns [RocketJob::DirmonEntry] the batch entry read from the database, whose input category properties
           # Rocket Job 7 saved with the supplied ones.
