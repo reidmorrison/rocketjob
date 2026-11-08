@@ -948,9 +948,10 @@ module Batch
           assert_equal [{"name" => "Jack", "age" => 21}], records
         end
 
-        # The schema renders the values of these records when they are uploaded, so the workers read them as MongoDB
-        # stored them, without casting them again: a duration is stored as its seconds and a date as a Time, which the
-        # schema would not read back as the same values, and a record whose values are all blank is kept.
+        # The schema renders the values of these records when they are uploaded, and each slice keeps it, see
+        # IOStreams::Slice#schema, so the workers read each value back from MongoDB as the type of its field: a duration
+        # as an ActiveSupport::Duration and a date as a Date. A record whose values are all blank is kept. The classes are
+        # compared too, since a Date equals the Time of its midnight, and a Duration its seconds.
         describe "read back from MongoDB" do
           let(:schema) do
             {
@@ -961,8 +962,13 @@ module Batch
               ]
             }
           end
-          let(:stored) do
-            [{"name" => "Jack", "wait" => 300, "born" => Time.utc(2000, 1, 2)}, {"name" => nil, "wait" => nil, "born" => nil}]
+          let(:expected) do
+            [{"name" => "Jack", "wait" => 5.minutes, "born" => Date.new(2000, 1, 2)}, {"name" => nil, "wait" => nil, "born" => nil}]
+          end
+
+          # Returns [Array<Hash>] the class of each value of the supplied records.
+          def classes(records)
+            records.map { |record| record.transform_values(&:class) }
           end
 
           # Returns [Array] the records that the workers parse from the slices of the job saved in MongoDB.
@@ -974,7 +980,7 @@ module Batch
             records
           end
 
-          it "parses each Hash of the :hash format as it was stored" do
+          it "parses each Hash of the :hash format as the types of the fields of the schema" do
             job.input_category.format = :hash
             job.input_category.schema = schema
 
@@ -983,10 +989,13 @@ module Batch
               io << {"name" => nil, "wait" => nil, "born" => nil}
             end
 
-            assert_equal stored, parsed_records
+            records = parsed_records
+
+            assert_equal expected, records
+            assert_equal(classes(expected), classes(records))
           end
 
-          it "parses each Array of the :array format by the header row of the schema, as it was stored" do
+          it "parses each Array of the :array format by the header row of the schema, as the types of its fields" do
             job.input_category.format = :array
             job.input_category.schema = schema
 
@@ -995,7 +1004,10 @@ module Batch
               io << [nil, nil, nil]
             end
 
-            assert_equal stored, parsed_records
+            records = parsed_records
+
+            assert_equal expected, records
+            assert_equal(classes(expected), classes(records))
           end
 
           it "is processed by perform" do
@@ -1003,7 +1015,7 @@ module Batch
             job.input_category.schema = schema
             job.upload { |io| io << {"name" => "Jack", "wait" => "PT5M", "born" => Date.new(2000, 1, 2)} }
 
-            assert_equal [stored.first], output_records
+            assert_equal [expected.first], output_records
             assert_predicate job, :completed?, job.state
           end
         end

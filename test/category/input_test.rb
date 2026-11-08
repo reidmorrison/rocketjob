@@ -351,12 +351,21 @@ module Batch
                        "file. Upload it into a category without a format", range_error(format: :csv, schema: schema).message
         end
 
-        it "raises what IOStreams raises for a range that it cannot read by the schema, such as without one" do
-          [{format: :json}, {format: :hash}, {format: :json, schema: schema.merge("fieldsMatch" => "subset")}].each do |properties|
-            message = range_error(**properties).message
+        it "accepts a range in a format without a header row and without a schema, whose slices name its values" do
+          [{format: :json}, {format: :hash}].each do |properties|
+            category = RocketJob::Category::Input.new(**properties)
+            category.check_record_upload("a Range", ranges)
+            records = []
+            category.parse_records(ranges) { |record| records << record }
 
-            assert message.start_with?("Input category main: cannot upload a Range in the #{properties[:format].inspect} format. "), message
+            assert_equal [{"first_id" => 1, "last_id" => 1}], records
           end
+        end
+
+        it "raises what IOStreams raises for a range that it cannot read by the schema" do
+          message = range_error(format: :json, schema: schema.merge("fieldsMatch" => "subset")).message
+
+          assert message.start_with?("Input category main: cannot upload a Range in the :json format. "), message
         end
       end
 
@@ -592,7 +601,7 @@ module Batch
 
         it "raises ArgumentError for a schema file that is not a valid schema" do
           IOStreams.temp_file("input_test", ".json") do |path|
-            path.write(JSON.generate("fields" => [{"name" => "name"}], "unknown" => 1))
+            path.write(JSON.generate("fields" => [{"name" => "name"}], "fieldMatch" => "exact"))
             category = RocketJob::Category::Input.new(format: :csv, schema: path.to_s)
 
             error = assert_raises(ArgumentError) { category.tabular }

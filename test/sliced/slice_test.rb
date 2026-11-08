@@ -425,8 +425,9 @@ module Sliced
         end
 
         it "keep how they are read when a changed copy of typed rows is assigned back, such as rows not to cast again" do
+          schema        = {"fields" => [{"name" => "name"}, {"name" => "age", "type" => "integer"}]}
           slice.records = IOStreams::Slice.new([["Jack", 21], [nil, nil]], header: %w[name age], format: :array,
-                                                                            typed: true, blank_rows: false)
+                                                                            schema: schema, blank_rows: false)
           slice.save!
           found         = slices.find(slice.id)
           records       = found.to_a.dup

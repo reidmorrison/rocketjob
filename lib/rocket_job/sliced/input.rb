@@ -149,7 +149,11 @@ module RocketJob
       private_constant :SliceHolder
 
       # The fields of the `[first_id, last_id]` row of each range of ids, see #upload_ranges, without a header row, so
-      # that each slice holds the range as it is, which a worker passes to `#perform` as it is.
+      # that each slice holds the range as it is, which a worker passes to `#perform` as it is in a category without a
+      # format. Each slice carries this schema, see `IOStreams::Slice#schema`, so a category in a format without a header
+      # row, such as JSON, and without a schema of its own, reads each range as a Hash of these names, such as
+      # `{"first_id" => 1, "last_id" => 100}`, which `#perform` receives, as "Integer ranges" in docs/batch.md says.
+      # Renaming a field changes the keys of that Hash.
       RANGE_SCHEMA = {
         "header" => false,
         "fields" => [

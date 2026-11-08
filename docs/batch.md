@@ -292,9 +292,11 @@ Each integer counts as one record in the job's `record_count`, so `percent_compl
 as they are processed.
 
 In an input category without a format, `#perform` receives each `[first_id, last_id]` as it is. In a
-format without a header row, such as JSON, the category's schema names the two values, in order, so
-that `#perform` receives a Hash of them. `upload` raises `ArgumentError` for a range in a format
-that reads a header row, such as CSV, or without a schema.
+format without a header row, such as JSON, it receives a Hash of the two values,
+`{"first_id" => 1, "last_id" => 100}`, or with a schema, a Hash keyed by the names of its fields, in
+order. `upload` raises `ArgumentError` for a range in a format that reads a header row, such as CSV,
+and raises for one that the category's schema cannot read, such as a schema whose `fieldsMatch` is
+not `"exact"`.
 
 `upload_arel`, `upload_mongo_query`, `upload_integer_range` and
 `upload_integer_range_in_reverse_order`, which uploaded a query or a range before `upload` accepted
@@ -314,8 +316,8 @@ end
 
 Each record must serialize to BSON (`Hash`, `Array`, `String`, `Integer`, `Float`, `Regexp`,
 `Time`), and is read back as it is stored: a `Date` is stored as a `Time`, so it comes back as a
-`Time`. Use a `String` rather than a `Symbol`, which MongoDB deprecated. With a `Hash`, keys must be
-strings, not symbols.
+`Time`, apart from the values that a schema reads, see below. Use a `String` rather than a `Symbol`,
+which MongoDB deprecated. With a `Hash`, keys must be strings, not symbols.
 
 For an input category with a `format` whose rows are lines of text, such as CSV or JSON, the block
 writes the lines of a file: its header row first, when the file has one, then its rows. They are read as the lines of a file are, in slices
@@ -323,7 +325,8 @@ that each hold the header row. Writing anything other than a line, such as an `A
 of a row, or a `Hash`, raises `ArgumentError`: write each row as a line of the format, such as
 `row.to_csv`, or upload it into a category without a `format`, which passes it to `perform` as it is. In the `:hash`
 format, whose rows are Ruby objects, the block writes each record as a Hash instead, and in the `:array` format each
-row as an Array, after an Array of the names of the columns, by which `perform` receives each row as a Hash. With a `schema`, a header row that does not match it raises
+row as an Array, after an Array of the names of the columns, by which `perform` receives each row as a Hash. In either format with a
+`schema`, `perform` receives each value as the type of its field, such as a date as a `Date`. With a `schema`, a header row that does not match it raises
 `IOStreams::Errors::InvalidHeader`, and nothing is uploaded:
 
 ~~~ruby

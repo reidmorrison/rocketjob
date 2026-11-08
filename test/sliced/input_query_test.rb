@@ -89,6 +89,20 @@ module Sliced
       end
     end
 
+    # Keeps the record that perform receives, so that a test can see what a range in JSON without a schema is read as.
+    class JsonRangeJob < RocketJob::Job
+      include RocketJob::Batch
+
+      self.destroy_on_complete = false
+
+      input_category format: :json, slice_size: 2
+      output_category
+
+      def perform(record)
+        record
+      end
+    end
+
     describe RocketJob::Sliced::Input do
       let(:collection_name) { :"rocket_job.slices.query_test" }
 
@@ -407,6 +421,20 @@ module Sliced
 
         assert_equal 3, job.upload(1..3)
         assert_equal({"first" => 1, "last" => 3}, job.input_category.parse(job.input.first.to_a.first))
+      ensure
+        job&.cleanup!
+      end
+
+      it "passes perform each range as a Hash of first_id and last_id, in a format without a header row or a schema" do
+        job = JsonRangeJob.new
+
+        assert_equal 3, job.upload(1..3)
+        job.save!
+        job.perform_now
+
+        assert_predicate job, :completed?, job.state
+        assert_equal [{"first_id" => 1, "last_id" => 2}, {"first_id" => 3, "last_id" => 3}],
+                     job.output.collect(&:to_a).flatten(1)
       ensure
         job&.cleanup!
       end
