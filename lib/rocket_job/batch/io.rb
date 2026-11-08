@@ -219,14 +219,20 @@ module RocketJob
       #   is the number of `[first_id, last_id]` ranges, one per slice.
       # * If an exception is raised while uploading data, the records that this upload stored are removed, so that
       #   if the job is retried, its data is not duplicated. The records of earlier uploads are kept.
-      def upload(object = nil, category: :main, file_name: nil, stream_mode: OMITTED, validate_rows: nil,
-                 on_first: OMITTED, columns: nil, slice_batch_size: nil, **args, &block)
+      def upload(object = nil, category: :main, file_name: nil, stream_mode: UPLOAD_OPTION_OMITTED, validate_rows: nil,
+                 on_first: UPLOAD_OPTION_OMITTED, columns: nil, slice_batch_size: nil, **args, &block)
         # Rocket Job 8 raises for on_first and stream_mode whenever they are passed, also as nil, whatever is uploaded.
-        rocketjob_warn_on_first unless on_first.equal?(OMITTED)
-        on_first         = nil if on_first.equal?(OMITTED)
+        if on_first.equal?(UPLOAD_OPTION_OMITTED)
+          on_first = nil
+        else
+          rocketjob_warn_on_first
+        end
         input_collection = input(category)
-        rocketjob_check_stream_mode(stream_mode, category) unless stream_mode.equal?(OMITTED)
-        stream_mode = nil if stream_mode.equal?(OMITTED)
+        if stream_mode.equal?(UPLOAD_OPTION_OMITTED)
+          stream_mode = nil
+        else
+          rocketjob_check_stream_mode(stream_mode, category)
+        end
 
         # A block uploads the records that it writes, unless it is passed with a query, whose models or documents it
         # transforms, as upload_arel and upload_mongo_query did. Rocket Job 8 raises for a block passed with a query, see
@@ -381,11 +387,12 @@ module RocketJob
         count
       end
 
-      # The default of the deprecated `on_first:` and `stream_mode:` options of #upload, which tells an upload without
-      # one of them from one that passes it, also as nil, which is deprecated too, see #rocketjob_warn_on_first and
-      # #rocketjob_check_stream_mode.
-      OMITTED = Object.new.freeze
-      private_constant :OMITTED
+      # The default of the deprecated `on_first:` and `stream_mode:` options of #upload, so that passing either, even as
+      # nil, can be told from leaving it out, see #rocketjob_warn_on_first and #rocketjob_check_stream_mode. Named for
+      # upload, since a batch job includes this module, where a constant named OMITTED would hide one of the
+      # application's.
+      UPLOAD_OPTION_OMITTED = Object.new.freeze
+      private_constant :UPLOAD_OPTION_OMITTED
 
       # The options that IOStreams reads the lines of a file with, which are deprecated, since Rocket Job 8 reads the
       # lines itself: IOStreams detects the line endings of a file, and the format of the input category reads a quoted
