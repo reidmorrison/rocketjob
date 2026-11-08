@@ -362,6 +362,14 @@ class DirmonEntryTest < Minitest::Test
 
         assert_equal dirmon_entry.properties, dirmon_entry.display_properties
       end
+
+      it "shows the properties as stored when the job class is not a Rocket Job" do
+        %w[String Comparable RUBY_VERSION].each do |name|
+          dirmon_entry.job_class_name = name
+
+          assert_equal dirmon_entry.properties, dirmon_entry.display_properties, name
+        end
+      end
     end
 
     describe "#archive_directory_display_name" do
