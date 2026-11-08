@@ -108,30 +108,32 @@ module RocketJob
         output_categories << RocketJob::Category::Output.new(**args)
       end
 
-      # Matches the code of a job that names a deprecated option, see #schema_proposals:
+      # Matches the code of a job that names a deprecated option, see #schema_proposals, other than an option of upload,
+      # see #rocketjob_upload_option_names:
       # - the name of a deprecated category option, see RocketJob::Category::Base.deprecated_option_names, such as
       #   `input_category.allowed_columns = %w[a]`,
-      # - a deprecated option of upload passed by name, see RocketJob::Batch::IO.deprecated_upload_options, such as
-      #   `upload(file, on_first: ...)` or `"delimiter" => "|"`, but not a variable with the same name,
       # - a deprecated mode, see RocketJob::Category::Input::DEPRECATED_MODES, set as a Symbol or a String, with a Symbol
       #   or a String key, such as `mode: :hash`, `mode = "array"`, or `"mode" => "hash"`. A space can only come before
       #   `=` or `=>`, so that a ternary, such as `csv ? mode : :hash`, is not matched.
       DEPRECATED_CODE = begin
         category_options = RocketJob::Category::Input.deprecated_option_names |
                            RocketJob::Category::Output.deprecated_option_names
-        upload_options   = RocketJob::Batch::IO.deprecated_upload_options.map(&:to_s)
         /\b(#{category_options.join('|')})\b|
-         \b(#{upload_options.join('|')})["']?(:(?!:)|\s*=>)|
          \bmode["']?(:|\s*=>?)\s*[:"'](#{RocketJob::Category::Input::DEPRECATED_MODES.join('|')})\b/x
       end
       private_constant :DEPRECATED_CODE
 
       # Returns [Array<RocketJob::SchemaProposal>] the schemas proposed for this job's categories, see
       # RocketJob::Batch::Categories#schema_proposals, and a note when its code names a deprecated option, which a
-      # proposal cannot translate.
+      # proposal cannot translate: a category option or mode, see DEPRECATED_CODE, or an option that it passes to
+      # upload, see RocketJob::Batch::IO.deprecated_upload_options.
       def schema_proposals
-        proposals = super
-        names     = %w[code before_code after_code].select { |name| public_send(name).to_s.match?(DEPRECATED_CODE) }
+        proposals      = super
+        upload_options = RocketJob::Batch::IO.deprecated_upload_options.map(&:to_s)
+        names          = %w[code before_code after_code].select do |name|
+          source = name == "code" ? perform_source : public_send(name).to_s
+          source.match?(DEPRECATED_CODE) || rocketjob_upload_option_names(source).intersect?(upload_options)
+        end
         return proposals if names.empty?
 
         proposals << RocketJob::SchemaProposal.new(
@@ -144,7 +146,83 @@ module RocketJob
       private
 
       def load_perform_code
-        instance_eval("def perform(row)\n#{code}\nend", __FILE__, __LINE__)
+        instance_eval(perform_source, __FILE__, __LINE__)
+      end
+
+      # Returns [String] the source of #perform, which runs `code`.
+      def perform_source
+        "def perform(row)\n#{code}\nend"
+      end
+
+      # Returns [Array<String>] the names of the options that the supplied source passes by name in its calls to
+      # upload, such as `on_first` for `upload(file, on_first: ...)` or `job.upload file, "delimiter" => "|"`, read with
+      # Ruby's own parser, see Ripper. So a variable with the name of an option is not one, nor is an option of another
+      # method, such as `IOStreams.path(file_name).each(:line, delimiter: "|")` in the block of upload. Options that
+      # the call does not name, such as `upload(file, **options)` or `send(:upload, file, delimiter: "|")`, are not
+      # read. None for source that does not parse.
+      #
+      # The parse tree is walked with a stack of its own, rather than by recursion, so that deeply nested code, such as
+      # a long chain of calls, cannot overflow the stack of the thread.
+      def rocketjob_upload_option_names(source)
+        require "ripper"
+
+        names = []
+        nodes = [Ripper.sexp(source)].grep(Array)
+        until nodes.empty?
+          node = nodes.pop
+          names.concat(rocketjob_option_names(rocketjob_upload_arguments(node)))
+          nodes.concat(node.grep(Array))
+        end
+        names
+      end
+
+      # Returns the node of the arguments of the supplied node of the parse tree when it is a call to upload, with or
+      # without parentheses or a receiver, such as `upload(file)`, `upload file` or `job.upload(file)`, otherwise nil.
+      def rocketjob_upload_arguments(node)
+        case node.first
+        when :method_add_arg
+          method = node[1].first == :fcall ? node[1][1] : node[1][3] if %i[fcall call].include?(node[1].first)
+          node[2][1] if rocketjob_upload?(method) && node[2].first == :arg_paren
+        when :command
+          node[2] if rocketjob_upload?(node[1])
+        when :command_call
+          node[4] if rocketjob_upload?(node[3])
+        end
+      end
+
+      def rocketjob_upload?(identifier)
+        identifier.is_a?(Array) && identifier[0] == :@ident && identifier[1] == "upload"
+      end
+
+      # Returns [Array<String>] the names of the keys of the Hash, with or without braces, among the supplied
+      # arguments of a call, but not of a call within them.
+      def rocketjob_option_names(arguments)
+        return [] unless arguments.is_a?(Array)
+
+        case arguments.first
+        when :bare_assoc_hash
+          arguments[1].filter_map { |assoc| rocketjob_key_name(assoc[1]) if assoc.first == :assoc_new }
+        when :hash
+          rocketjob_option_names([:bare_assoc_hash, arguments.dig(1, 1) || []])
+        when :args_add_block, :args_add_star, Array
+          arguments.flat_map { |argument| rocketjob_option_names(argument) }
+        else
+          []
+        end
+      end
+
+      # Returns [String] the name of the supplied key of a Hash, such as `on_first:`, `:on_first`, `"on_first" =>` or
+      # `"on_first":`, or nil for a key that is not a literal name.
+      def rocketjob_key_name(key)
+        case key.first
+        when :@label
+          key[1].delete_suffix(":")
+        when :symbol_literal
+          key.dig(1, 1, 1)
+        when :string_literal, :dyna_symbol
+          content = key[1]
+          content[1][1] if content.size == 2 && content[1].is_a?(Array) && content[1].first == :@tstring_content
+        end
       end
 
       def run_before_code

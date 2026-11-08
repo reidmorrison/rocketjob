@@ -622,7 +622,10 @@ class SchemaProposalTest < Minitest::Test
         [
           "upload(file, on_first: ->(row) { row })", %(upload(file, delimiter: "|")), "upload(file, buffer_size: 1024)",
           %(upload(file, embedded_within: '"')), "upload(file, cleanse_header: false)",
-          %(upload(file, "delimiter" => "|")), "upload(file, :on_first => nil)"
+          %(upload(file, "delimiter" => "|")), "upload(file, :on_first => nil)", %(job.upload file, "on_first": nil),
+          "upload(\n  file_name,\n  on_first: ->(row) { row }\n)", %(upload("\#{dir}/a.csv", delimiter: "|")),
+          "upload(file, columns: x.map { |c| c }, on_first: y)", %(upload(file, {delimiter: "|"}) { |row| row }),
+          %(rows.each { |row| upload(row, stream_mode: :line) })
         ].each do |code|
           job = RocketJob::Jobs::OnDemandBatchJob.new(code: "row", before_code: code)
 
@@ -630,12 +633,37 @@ class SchemaProposalTest < Minitest::Test
         end
       end
 
-      it "does not name a variable that has the name of a deprecated option of upload as deprecated" do
-        ["row.split(delimiter)", "size = buffer_size * 2", "on_first ? row : nil"].each do |code|
+      it "does not name a variable, or an option of another method, that has the name of a deprecated option of upload" do
+        [
+          "row.split(delimiter)", "size = buffer_size * 2", "on_first ? row : nil",
+          %(upload { |io| IOStreams.path(file_name).each(:line, delimiter: "|") { |line| io << line } }),
+          %(upload do |io| IOStreams.path(f).each(:line, delimiter: "|") { |l| io << l } end),
+          %(upload(file); IOStreams.path(file_name).reader(buffer_size: 1024) { |io| io.read }),
+          %(def split(row, delimiter: ",") = row), %(# upload, then split with delimiter: "|"),
+          %(upload(IOStreams.path(file_name, delimiter: "|")))
+        ].each do |code|
           job = RocketJob::Jobs::OnDemandBatchJob.new(code: code)
 
           assert_empty job.schema_proposals, code
         end
+      end
+
+      it "says when its code passes a deprecated option of upload in code that parses only as the body of perform" do
+        job = RocketJob::Jobs::OnDemandBatchJob.new(code: "upload(file, delimiter: '|')\nrescue StandardError\n  raise")
+
+        assert_match(/Its code names a deprecated/, job.schema_proposals.last&.notes&.first.to_s)
+      end
+
+      it "reads code that is nested too deeply to walk by recursion" do
+        job = RocketJob::Jobs::OnDemandBatchJob.new(code: "#{Array.new(20_000, '1').join(' + ')}\nupload(file, on_first: nil)")
+
+        assert_match(/Its code names a deprecated/, job.schema_proposals.last&.notes&.first.to_s)
+      end
+
+      it "says nothing about code that does not parse" do
+        job = RocketJob::Jobs::OnDemandBatchJob.new(code: "row", before_code: "upload(file, :line, on_first")
+
+        assert_empty job.schema_proposals
       end
 
       it "does not name validate_rows or the :line mode as deprecated" do
