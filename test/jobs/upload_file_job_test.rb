@@ -114,6 +114,12 @@ module Jobs
           assert_equal "sftp://sftp.example.org/in/data%232026.csv.gz", job.display_attributes["original_file_name"]
         end
 
+        it "shows the properties as stored when the job class is not a Rocket Job" do
+          job = RocketJob::Jobs::UploadFileJob.new(job_class_name: "String", properties: {"file_name" => "sftp://u:p@h/a"})
+
+          assert_equal({"file_name" => "sftp://u:p@h/a"}, job.display_attributes["properties"])
+        end
+
         it "shows an original file name that is not a valid path as stored, when it holds no credentials" do
           job.original_file_name = "sftp://sftp.example.org/in/données[1].csv"
 
