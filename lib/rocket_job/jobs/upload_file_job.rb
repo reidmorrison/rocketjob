@@ -71,7 +71,7 @@ module RocketJob
       def display_attributes
         attrs = super
         klass = job_class
-        if klass.respond_to?(:display_properties) && attrs["properties"].is_a?(Hash)
+        if klass.is_a?(Class) && klass <= RocketJob::Job && attrs["properties"].is_a?(Hash)
           attrs["properties"] = klass.display_properties(attrs["properties"])
         end
         attrs

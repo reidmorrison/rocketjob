@@ -364,7 +364,7 @@ class DirmonEntryTest < Minitest::Test
       end
 
       it "shows the properties as stored when the job class is not a Rocket Job" do
-        %w[String Comparable RUBY_VERSION].each do |name|
+        %w[String Comparable RUBY_VERSION RocketJob::Category::Input].each do |name|
           dirmon_entry.job_class_name = name
 
           assert_equal dirmon_entry.properties, dirmon_entry.display_properties, name

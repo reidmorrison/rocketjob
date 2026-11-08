@@ -269,7 +269,7 @@ module RocketJob
     # then it cannot say which of them are paths.
     def display_properties
       klass = job_class
-      klass.respond_to?(:display_properties) ? klass.display_properties(properties) : properties
+      klass.is_a?(Class) && klass <= RocketJob::Job ? klass.display_properties(properties) : properties
     end
 
     # Returns [RocketJob::DirmonEntry] a new, unsaved, pending entry with the settings of this entry, such as its
