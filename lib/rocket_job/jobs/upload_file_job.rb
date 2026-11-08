@@ -18,6 +18,12 @@ module RocketJob
       # Properties to assign to the job when it is created.
       field :properties, type: Hash, default: {}, user_editable: true
 
+      # Returns [true] since its properties can hold the deprecated category options of the job that it creates, see
+      # #schema_proposals.
+      def self.proposes_schemas?
+        true
+      end
+
       # File to upload
       field :upload_file_name, type: IOStreams::Path, user_editable: true
 

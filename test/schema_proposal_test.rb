@@ -23,7 +23,14 @@ class SchemaProposalTest < Minitest::Test
   end
 
   # Raises the error that it names when it is read back, as the after_initialize of an application's job can.
+  class SimpleJob < RocketJob::Job
+    def perform
+    end
+  end
+
   class RaisingJob < RocketJob::Job
+    include RocketJob::Batch
+
     field :raises, type: String
 
     after_initialize :raise_named_error, unless: :new_record?
@@ -723,6 +730,28 @@ class SchemaProposalTest < Minitest::Test
       ensure
         # Other tests load every saved job, which raises for these.
         RocketJob::Job.collection.delete_many("_type" => RaisingJob.name)
+      end
+
+      it "does not read a saved job whose class proposes no schemas, such as a job without categories" do
+        simple = SimpleJob.create!
+        job    = ProposalJob.new
+        job.input_category.format       = :csv
+        job.input_category.skip_unknown = true
+        job.save!
+        read = []
+        from_db = Mongoid::Factory.method(:from_db)
+        reader  = lambda do |*args|
+          read << args[1]["_id"]
+          from_db.call(*args)
+        end
+
+        Mongoid::Factory.stub(:from_db, reader) do
+          RocketJob::SchemaProposal.all
+        end
+
+        refute_predicate SimpleJob, :proposes_schemas?
+        refute_includes read, simple.id
+        assert_includes read, job.id
       end
 
       it "lists a Dirmon entry whose properties cannot be read, rather than stopping" do

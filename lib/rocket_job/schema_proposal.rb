@@ -63,7 +63,12 @@ module RocketJob
 
         proposals.concat(owned_by(klass.name) { klass.schema_proposals })
       end
-      RocketJob::Job.collection.find("state" => {"$in" => RUNNABLE_JOB_STATES}).each do |document|
+      # A saved job whose class is not loaded is read, to say that its class cannot be loaded.
+      without_proposals = [RocketJob::Job, *RocketJob::Job.descendants].reject(&:proposes_schemas?)
+      RocketJob::Job.collection.find(
+        "state" => {"$in" => RUNNABLE_JOB_STATES},
+        "_type" => {"$nin" => without_proposals.map(&:discriminator_value)}
+      ).each do |document|
         where = "Job #{document['_id']}"
         proposals.concat(owned_by(where) { saved_job_proposals(document, where) })
       end
