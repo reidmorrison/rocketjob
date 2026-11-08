@@ -412,6 +412,14 @@ module RocketJob
       }.freeze
       private_constant :DEPRECATED_LINE_UPLOAD_OPTIONS
 
+      # Returns [Array<Symbol>] the options of #upload that are deprecated: the column options that the input category
+      # reads a file with, see RocketJob::Category::Input::DEPRECATED_UPLOAD_OPTIONS, the options that read the lines
+      # of a file, see DEPRECATED_LINE_UPLOAD_OPTIONS, `on_first`, see #rocketjob_warn_on_first, and `stream_mode`, see
+      # #rocketjob_check_stream_mode.
+      def self.deprecated_upload_options
+        [*RocketJob::Category::Input::DEPRECATED_UPLOAD_OPTIONS, *DEPRECATED_LINE_UPLOAD_OPTIONS.keys, :on_first, :stream_mode]
+      end
+
       # Download the output data into the supplied file, io, IOStreams::Path, or IOStreams::Stream.
       # Returns [Integer] the number of records / lines downloaded.
       #

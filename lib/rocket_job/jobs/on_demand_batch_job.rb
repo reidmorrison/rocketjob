@@ -108,13 +108,22 @@ module RocketJob
         output_categories << RocketJob::Category::Output.new(**args)
       end
 
-      # The names of the deprecated category and upload options, see RocketJob::Category::Base#schema, which its code
-      # can set, see #schema_proposals, and the :array or :hash mode set as a Symbol or a String, with a Symbol or a
-      # String key, such as `mode: :hash`, `mode = "array"`, or `"mode" => "hash"`. A space can only come before `=` or
-      # `=>`, so that a ternary, such as `csv ? mode : :hash`, is not matched.
-      DEPRECATED_CODE =
-        /\b(format_options|allowed_columns|required_columns|skip_unknown|header_cleanser|cleanse_header|stream_mode)\b|
-         \bmode["']?(:|\s*=>?)\s*[:"'](array|hash)\b/x
+      # Matches the code of a job that names a deprecated option, see #schema_proposals:
+      # - the name of a deprecated category option, see RocketJob::Category::Base.deprecated_option_names, such as
+      #   `input_category.allowed_columns = %w[a]`,
+      # - a deprecated option of upload passed by name, see RocketJob::Batch::IO.deprecated_upload_options, such as
+      #   `upload(file, on_first: ...)` or `"delimiter" => "|"`, but not a variable with the same name,
+      # - a deprecated mode, see RocketJob::Category::Input::DEPRECATED_MODES, set as a Symbol or a String, with a Symbol
+      #   or a String key, such as `mode: :hash`, `mode = "array"`, or `"mode" => "hash"`. A space can only come before
+      #   `=` or `=>`, so that a ternary, such as `csv ? mode : :hash`, is not matched.
+      DEPRECATED_CODE = begin
+        category_options = RocketJob::Category::Input.deprecated_option_names |
+                           RocketJob::Category::Output.deprecated_option_names
+        upload_options   = RocketJob::Batch::IO.deprecated_upload_options.map(&:to_s)
+        /\b(#{category_options.join('|')})\b|
+         \b(#{upload_options.join('|')})["']?(:(?!:)|\s*=>)|
+         \bmode["']?(:|\s*=>?)\s*[:"'](#{RocketJob::Category::Input::DEPRECATED_MODES.join('|')})\b/x
+      end
       private_constant :DEPRECATED_CODE
 
       # Returns [Array<RocketJob::SchemaProposal>] the schemas proposed for this job's categories, see

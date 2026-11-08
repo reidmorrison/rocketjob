@@ -81,6 +81,13 @@ module RocketJob
           properties["columns"].present? ? ["columns"] : []
         end
 
+        # Returns [Array<String>] the names of the deprecated options of a category, see .deprecated_options, to look for
+        # where they cannot be read as properties, such as in the code of a RocketJob::Jobs::OnDemandBatchJob. Without
+        # `columns`, which a schema still uses. Overridden by the input category.
+        def deprecated_option_names
+          %w[format_options]
+        end
+
         # Returns [Array<String>] the names of all the deprecated options in the supplied properties of a category,
         # with String keys: its deprecated column options, see .deprecated_column_options, and `format_options`.
         # Overridden by the input category.

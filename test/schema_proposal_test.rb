@@ -618,6 +618,26 @@ class SchemaProposalTest < Minitest::Test
         end
       end
 
+      it "says when its code passes a deprecated option of upload" do
+        [
+          "upload(file, on_first: ->(row) { row })", %(upload(file, delimiter: "|")), "upload(file, buffer_size: 1024)",
+          %(upload(file, embedded_within: '"')), "upload(file, cleanse_header: false)",
+          %(upload(file, "delimiter" => "|")), "upload(file, :on_first => nil)"
+        ].each do |code|
+          job = RocketJob::Jobs::OnDemandBatchJob.new(code: "row", before_code: code)
+
+          assert_match(/Its before_code names a deprecated/, job.schema_proposals.last&.notes&.first.to_s, code)
+        end
+      end
+
+      it "does not name a variable that has the name of a deprecated option of upload as deprecated" do
+        ["row.split(delimiter)", "size = buffer_size * 2", "on_first ? row : nil"].each do |code|
+          job = RocketJob::Jobs::OnDemandBatchJob.new(code: code)
+
+          assert_empty job.schema_proposals, code
+        end
+      end
+
       it "does not name validate_rows or the :line mode as deprecated" do
         job = RocketJob::Jobs::OnDemandBatchJob.new(code: "row", before_code: "upload(file, validate_rows: true)\nmode: :line")
 
