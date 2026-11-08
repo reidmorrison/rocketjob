@@ -51,9 +51,9 @@ module RocketJob
 
       # Returns [Array<RocketJob::SchemaProposal>] the schemas proposed to replace the deprecated category options in
       # the properties of the job that this job creates, which that job class proposes, see
-      # RocketJob::Batch::Categories::ClassMethods#property_schema_proposals. None when its job class is not loaded.
+      # RocketJob::Batch::Categories::ClassMethods#property_schema_proposals. None when its job class is not loaded, or is not a Rocket Job.
       def schema_proposals
-        klass = job_class
+        klass = rocket_job_class
         return [] unless klass && properties.is_a?(Hash)
 
         klass.property_schema_proposals(properties, "UploadFileJob #{id} (#{state})")
@@ -63,7 +63,7 @@ module RocketJob
       # in the properties shown without any credentials. The job class decides which of its properties are paths.
       def display_attributes
         attrs = super
-        klass = job_class
+        klass = rocket_job_class
         attrs["properties"] = klass.display_properties(attrs["properties"]) if klass && attrs["properties"].is_a?(Hash)
         attrs
       end
@@ -106,10 +106,15 @@ module RocketJob
         end
       end
 
+      # Returns [Class] the job class when it is defined and is a Rocket Job, otherwise nil, see #job_is_a_rocket_job.
+      def rocket_job_class
+        klass = job_class
+        klass if klass.is_a?(Class) && klass <= RocketJob::Job
+      end
+
       # Validates job_class is a Rocket Job
       def job_is_a_rocket_job
-        klass = job_class
-        return if klass.nil? || klass.ancestors&.include?(RocketJob::Job)
+        return if job_class.nil? || rocket_job_class
 
         errors.add(:job_class_name, "Model #{job_class_name} must be defined and inherit from RocketJob::Job")
       end
