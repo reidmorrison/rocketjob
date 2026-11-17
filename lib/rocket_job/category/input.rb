@@ -77,6 +77,9 @@ module RocketJob
       # #each_record, which describe the columns of the file, and are deprecated: the schema replaces them, see #schema.
       DEPRECATED_UPLOAD_OPTIONS = %i[allowed_columns required_columns skip_unknown cleanse_header].freeze
 
+      # The modes of an input category that are deprecated, see #mode and .warn_deprecated_mode.
+      DEPRECATED_MODES = %w[array hash].freeze
+
       # How `#upload` reads a file into this category, unless the upload is given a `stream_mode:`, which is deprecated:
       # :line
       #   Uploads the lines of the file, which the workers parse, by the schema when there is one, see #schema, so that
@@ -149,8 +152,15 @@ module RocketJob
       # with String keys, see Category::Base.deprecated_options, and `mode` when it is :array or :hash, see #mode.
       def self.deprecated_options(properties)
         names = super
-        names << "mode" if %w[array hash].include?(properties["mode"].to_s)
+        names << "mode" if DEPRECATED_MODES.include?(properties["mode"].to_s)
         names
+      end
+
+      # Returns [Array<String>] the names of the deprecated options of an input category, see
+      # Category::Base.deprecated_option_names, and its column options, see .deprecated_column_options. Without `mode`,
+      # which is only deprecated for DEPRECATED_MODES.
+      def self.deprecated_option_names
+        super + %w[allowed_columns required_columns skip_unknown header_cleanser]
       end
 
       # Returns [Array<String>] the names of the deprecated options in the supplied properties of an input category,
