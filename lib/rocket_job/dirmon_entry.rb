@@ -217,9 +217,9 @@ module RocketJob
 
     # Returns [Array<RocketJob::SchemaProposal>] the schemas proposed to replace the deprecated category options in the
     # properties of this entry, which its job class proposes, see
-    # RocketJob::Batch::Categories::ClassMethods#property_schema_proposals. None when its job class is not loaded.
+    # RocketJob::Batch::Categories::ClassMethods#property_schema_proposals. None when its job class is not loaded, or is not a Rocket Job.
     def schema_proposals
-      klass = job_class
+      klass = rocket_job_class
       return [] unless klass && properties.is_a?(Hash)
 
       klass.property_schema_proposals(properties, "Dirmon entry #{name.inspect} #{id}")
@@ -256,9 +256,9 @@ module RocketJob
 
     # Returns [Hash] the properties to show, with each path or url that the job class holds in them shown without
     # any credentials, see RocketJob::Plugins::Job::Model.display_properties. The properties are shown as stored when
-    # the job class is not defined, since then it cannot say which of them are paths.
+    # the job class is not defined, or is not a Rocket Job, since then it cannot say which of them are paths.
     def display_properties
-      klass = job_class
+      klass = rocket_job_class
       klass ? klass.display_properties(properties) : properties
     end
 
@@ -378,6 +378,14 @@ module RocketJob
     def archive_iopath(iopath)
       path = IOStreams.path(archive_directory)
       path.relative? ? iopath.directory.join(archive_directory) : path
+    end
+
+    # Returns [Class] the job class when it is defined and is a Rocket Job, otherwise nil, such as for a job class
+    # name that a person entered, which names another class or constant, so that it is only asked what a Rocket Job
+    # answers, such as #display_properties.
+    def rocket_job_class
+      klass = job_class
+      klass if klass.is_a?(Class) && klass <= RocketJob::Job
     end
 
     # Validates job_class is a Rocket Job

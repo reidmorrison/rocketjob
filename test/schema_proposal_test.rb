@@ -575,6 +575,14 @@ class SchemaProposalTest < Minitest::Test
         assert_equal [{"mode" => :line}], entry.schema_proposals.map(&:changes)
       end
 
+      it "of a Dirmon entry or an UploadFileJob whose job class is not a Rocket Job propose nothing" do
+        entry = RocketJob::DirmonEntry.new(job_class_name: "String", properties: properties)
+        job   = RocketJob::Jobs::UploadFileJob.new(job_class_name: "String", properties: properties)
+
+        assert_empty entry.schema_proposals
+        assert_empty job.schema_proposals
+      end
+
       it "without a deprecated option propose nothing" do
         entry = RocketJob::DirmonEntry.new(job_class_name: ProposalJob.name,
                                            properties:     {"input_categories" => [{"name" => "main", "format" => "csv"}]})
