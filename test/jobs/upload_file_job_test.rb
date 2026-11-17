@@ -81,6 +81,14 @@ module Jobs
       end
 
       describe "#display_attributes" do
+        it "shows the properties as stored when the job class is not a Rocket Job" do
+          %w[String RUBY_VERSION RocketJob::Category::Input].each do |name|
+            job = RocketJob::Jobs::UploadFileJob.new(job_class_name: name, properties: {"file_name" => "sftp://u:p@h/a"})
+
+            assert_equal({"file_name" => "sftp://u:p@h/a"}, job.display_attributes["properties"], name)
+          end
+        end
+
         it "shows the paths in the properties without their credentials" do
           batch_job.properties["input_categories"].first["file_name"] = "sftp://user:secret@sftp.example.org/in.csv"
           attrs = batch_job.display_attributes

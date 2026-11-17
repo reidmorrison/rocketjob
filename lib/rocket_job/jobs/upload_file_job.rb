@@ -66,11 +66,14 @@ module RocketJob
       end
 
       # Returns [Hash] the attributes to show, see RocketJob::Plugins::Job::Model#display_attributes, with the paths
-      # in the properties shown without any credentials. The job class decides which of its properties are paths.
+      # in the properties shown without any credentials. The job class decides which of its properties are paths. They
+      # are shown as stored when the job class is not defined, or is not a Rocket Job.
       def display_attributes
         attrs = super
         klass = job_class
-        attrs["properties"] = klass.display_properties(attrs["properties"]) if klass && attrs["properties"].is_a?(Hash)
+        if klass.is_a?(Class) && klass <= RocketJob::Job && attrs["properties"].is_a?(Hash)
+          attrs["properties"] = klass.display_properties(attrs["properties"])
+        end
         attrs
       end
 

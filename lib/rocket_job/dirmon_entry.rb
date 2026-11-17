@@ -265,10 +265,11 @@ module RocketJob
 
     # Returns [Hash] the properties to show, with each path or url that the job class holds in them shown without
     # any credentials, see RocketJob::Plugins::Job::Model.display_properties. The properties are shown as stored when
-    # the job class is not defined, since then it cannot say which of them are paths.
+    # the job class is not defined, or is not a Rocket Job, such as a job class name that names another class, since
+    # then it cannot say which of them are paths.
     def display_properties
       klass = job_class
-      klass ? klass.display_properties(properties) : properties
+      klass.is_a?(Class) && klass <= RocketJob::Job ? klass.display_properties(properties) : properties
     end
 
     # Returns [RocketJob::DirmonEntry] a new, unsaved, pending entry with the settings of this entry, such as its
