@@ -210,6 +210,14 @@ module RocketJob
             []
           end
 
+          # Returns [true|false] whether a saved job of this class can hold deprecated category options, whose schema it
+          # proposes, see #schema_proposals, so that RocketJob::SchemaProposal.all reads only the saved jobs that can.
+          # False for a job without categories. Overridden by batch, and by a job that holds the properties of another
+          # job, such as an UploadFileJob.
+          def proposes_schemas?
+            false
+          end
+
           # Returns [Array<RocketJob::SchemaProposal>] the schemas proposed to replace the deprecated options in the
           # supplied properties of a job of this class, such as those that a Dirmon entry or an UploadFileJob holds,
           # at the supplied place. None for a job without categories. Overridden by batch.

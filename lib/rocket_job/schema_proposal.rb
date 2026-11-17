@@ -52,8 +52,9 @@ module RocketJob
     end
 
     # Returns [Array<RocketJob::SchemaProposal>] the proposals for every batch job class that is loaded, see
-    # RocketJob::Batch::Categories::ClassMethods#schema_proposals, every saved job that can still run, see
-    # RocketJob::Plugins::Job::Model#schema_proposals, and every Dirmon entry, see
+    # RocketJob::Batch::Categories::ClassMethods#schema_proposals, every saved job that can still run, of a class that
+    # proposes schemas or that is not loaded, see RocketJob::Plugins::Job::Model#schema_proposals and
+    # RocketJob::Plugins::Job::Model::ClassMethods#proposes_schemas?, and every Dirmon entry, see
     # RocketJob::DirmonEntry#schema_proposals. In an application that loads its classes lazily, such as Rails in
     # development, load them first, for example with `Rails.application.eager_load!`.
     def self.all
@@ -63,7 +64,12 @@ module RocketJob
 
         proposals.concat(owned_by(klass.name) { klass.schema_proposals })
       end
-      RocketJob::Job.collection.find("state" => {"$in" => RUNNABLE_JOB_STATES}).each do |document|
+      # A saved job whose class is not loaded is read, to say that its class cannot be loaded.
+      without_proposals = [RocketJob::Job, *RocketJob::Job.descendants].reject(&:proposes_schemas?)
+      RocketJob::Job.collection.find(
+        "state" => {"$in" => RUNNABLE_JOB_STATES},
+        "_type" => {"$nin" => without_proposals.map(&:discriminator_value)}
+      ).each do |document|
         where = "Job #{document['_id']}"
         proposals.concat(owned_by(where) { saved_job_proposals(document, where) })
       end

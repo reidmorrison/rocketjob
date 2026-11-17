@@ -73,6 +73,12 @@ module RocketJob
           end
         end
 
+        # Returns [true] since a saved job of this class can hold deprecated category options, see
+        # RocketJob::Plugins::Job::Model::ClassMethods#proposes_schemas?.
+        def proposes_schemas?
+          true
+        end
+
         # Returns [Array<RocketJob::SchemaProposal>] the schemas proposed to replace the deprecated options in the
         # supplied properties of a job of this class, such as those that a Dirmon entry or an UploadFileJob holds, at
         # the supplied place. Each is proposed for the category that the properties build, with the job class's own
