@@ -55,16 +55,16 @@ module RocketJob
         ["#{klass} must implement any one of: :#{VALID_INSTANCE_METHODS.join(' :')} instance methods"]
       end
 
-      # Returns [Array<String>] why an UploadFileJob with the job class name and properties would not be valid, so
-      # would not start its job: the reasons of .job_class_errors, or else why the job class cannot be built from the
-      # properties, see RocketJob::Plugins::Job::Model.property_errors. Empty when it would start the job.
+      # Returns [Array<String>] why an UploadFileJob with the job class name and properties would not be valid: the
+      # messages of its own validations of them, such as .job_class_errors, or why the job class cannot be built from
+      # the properties, see RocketJob::Plugins::Job::Model.property_errors. Empty when it would be valid, which it is
+      # for a job class that this process does not load, see #job_class_can_be_started.
       # A Dirmon entry asks it before it archives a file, so that the file is not archived for an UploadFileJob that
       # cannot be created, such as for properties that were saved before the job class changed.
       def self.job_errors(job_class_name, properties)
-        messages = job_class_errors(job_class_name)
-        return messages if messages.any?
-
-        job_class_name.to_s.constantize.property_errors(properties)
+        job = new(job_class_name: job_class_name, properties: properties)
+        job.validate
+        job.errors.messages_for(:job_class_name) + job.errors.messages_for(:properties)
       end
 
       # Create the job and upload the file into it.
@@ -94,13 +94,9 @@ module RocketJob
       private
 
       # Not memoized, so that it follows a change of the job class name, such as one made in a web interface to fix a
-      # failed job, as DirmonEntry#job_class does.
+      # failed job.
       def job_class
-        return if job_class_name.nil?
-
-        job_class_name.constantize
-      rescue NameError
-        nil
+        job_class_name.to_s.safe_constantize
       end
 
       def upload_file(job)

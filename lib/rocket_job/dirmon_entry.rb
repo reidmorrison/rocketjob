@@ -308,10 +308,8 @@ module RocketJob
     # a category that the job class does not define, see RocketJob::Jobs::UploadFileJob.job_errors. A class that this
     # server does not load is left for the UploadFileJob to start.
     def later(iopath)
-      if job_class
-        messages = RocketJob::Jobs::UploadFileJob.job_errors(job_class_name, properties)
-        raise(ArgumentError, messages.join(", ")) if messages.any?
-      end
+      messages = RocketJob::Jobs::UploadFileJob.job_errors(job_class_name, properties)
+      raise(ArgumentError, messages.join(", ")) if messages.any?
 
       job_id       = BSON::ObjectId.new
       archive_path = archive_iopath(iopath).join("#{job_id}_#{archive_file_name(iopath)}")

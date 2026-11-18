@@ -145,6 +145,10 @@ module Jobs
                        RocketJob::Jobs::UploadFileJob.job_errors("Hash", {"does_not_exist" => 1})
         end
 
+        it "is empty for a job class that this process does not load, which an UploadFileJob accepts" do
+          assert_empty RocketJob::Jobs::UploadFileJob.job_errors("Not::Loaded::Here", {"does_not_exist" => 1})
+        end
+
         it "names the properties that the job class cannot be built from" do
           messages = RocketJob::Jobs::UploadFileJob.job_errors(
             UploadFileJobTest::BatchTestJob.name, {"output_categories" => [{"name" => "other"}]}

@@ -524,7 +524,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   properties, such as a category that the job class does not define, which Rocket Job 7 saved without checking.
   Previously Dirmon archived the file first, then the `UploadFileJob` for it was rejected, so the file was left in
   the archive directory without a job to retry. `RocketJob::Jobs::UploadFileJob.job_errors` returns why an
-  `UploadFileJob` with a job class name and properties would not start its job.
+  `UploadFileJob` with a job class name and properties would not be valid.
 - `UploadFileJob#display_attributes` shows the `original_file_name` without its credentials, as 7.2 does, since a
   job saved by Rocket Job 7.1, or created or edited by hand, can hold the url of a file with its user name and
   password. It is declared with `path: true`.
