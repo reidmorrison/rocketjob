@@ -177,6 +177,15 @@ production stays quiet. A job read back from the database does not report one. S
   String, rather than raising `URI::InvalidURIError` when it is read, so that it can still be read, such as for its
   extensions. IOStreams still raises when it is used as a path, such as with `IOStreams.new`, and a method of
   `IOStreams::Path`, such as `#path`, raises `NoMethodError` for it.
+- A field of type `IOStreams::Path`, such as the `file_name` of a category or the `upload_file_name` of a batch job or
+  an `UploadFileJob`, also returns its stored url as stored, a String, when its scheme needs a gem that the process
+  does not load, such as an S3 url in a web process without `aws-sdk-s3`, or when IOStreams does not know its scheme.
+  Previously reading it raised `LoadError` or `ArgumentError`, so that a page of a web interface, such as Mission
+  Control, that shows the job failed, and `RocketJob::SchemaProposal.all` raised `LoadError` for such a job. An
+  `UploadFileJob` whose `upload_file_name` is set or changed to a url whose scheme IOStreams does not know, such as a
+  mistyped `s4://`, or that it cannot parse, is still not valid, with a message on `upload_file_name`, rather than raising `ArgumentError` when
+  it is validated. A saved one is not checked again, so that a job whose scheme only its servers register can still
+  be saved elsewhere, such as when it is aborted.
 - An upload of a text file into an input category without a format, such as `job.upload("names.txt")`, stores its
   lines as UTF-8, keeping letters that are not ASCII, such as `José`, without the byte order mark that a UTF-8 file can
   start with. Previously IOStreams read the lines as binary, so the upload raised `Encoding::UndefinedConversionError`

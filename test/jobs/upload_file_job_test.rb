@@ -152,6 +152,42 @@ module Jobs
           assert_predicate job, :valid?, job.errors.messages
         end
 
+        it "validates a url whose scheme IOStreams does not know" do
+          job.upload_file_name = "s4://bucket/blah.csv"
+
+          refute_predicate job, :valid?
+          assert_includes job.errors.messages[:upload_file_name],
+                          "Upload file: s4://bucket/blah.csv is not a path or url that IOStreams can read."
+        end
+
+        it "does not validate the scheme of a saved url, which the servers that run the job can register" do
+          job.upload_file_name = "myco://bucket/blah.csv"
+          job.save!(validate: false)
+          saved = RocketJob::Jobs::UploadFileJob.find(job.id)
+
+          assert_predicate saved, :valid?, -> { saved.errors.full_messages.inspect }
+          saved.abort!
+
+          assert_predicate RocketJob::Jobs::UploadFileJob.find(job.id), :aborted?
+        end
+
+        it "validates the scheme of a saved url that is changed" do
+          job.upload_file_name = "myco://bucket/blah.csv"
+          job.save!(validate: false)
+          saved = RocketJob::Jobs::UploadFileJob.find(job.id)
+          saved.upload_file_name = "s4://bucket/blah.csv"
+
+          refute_predicate saved, :valid?
+        end
+
+        it "allows a url whose scheme needs a gem that this process does not load" do
+          job.upload_file_name = "s3://bucket/blah.csv"
+
+          IOStreams.stub(:path, ->(*) { raise(LoadError, "Please install the gem 'aws-sdk-s3' to support AWS S3.") }) do
+            assert_predicate job, :valid?, job.errors.messages
+          end
+        end
+
         it "checks the filesystem if the url scheme is file for upload_file_name" do
           job.upload_file_name = "file:/foo/blah"
 
