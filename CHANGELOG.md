@@ -3,7 +3,7 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
-## [7.2.0] Unreleased
+## [7.2.0] 2026-11-17
 
 7.2 prepares an application for Rocket Job 8. It reports a deprecation warning for each of the other options that
 Rocket Job 8 removes, at the line of the application that uses it, and adds what replaces them. The deprecated options
