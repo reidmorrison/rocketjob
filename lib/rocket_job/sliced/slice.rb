@@ -47,8 +47,13 @@ module RocketJob
       # Number of times that this job has failed to process
       field :failure_count, type: Integer
 
-      # Number of the record within this slice (not the entire file/job) currently being processed. (1-based index)
-      field :processing_record_number, type: Integer
+      # The record number of the record being processed, or once it is processed, the next one, see
+      # #current_record_number. nil until a worker starts on this slice.
+      #
+      # A record number rather than a place in this slice, so that a record removed before a retry, see #delete_record,
+      # does not move it to another record. A slice saved by Rocket Job 7 holds the place instead, which is converted
+      # when it is read, see #convert_saved_position.
+      field :processing_at_record, type: Integer
 
       # This name of the worker that this job is being processed by, or was processed by
       field :worker_name, type: String
@@ -61,6 +66,7 @@ module RocketJob
       embeds_one :exception, class_name: "RocketJob::JobException"
 
       after_find :parse_records
+      after_find :convert_saved_position
 
       # State Machine events and transitions
       #
@@ -145,13 +151,54 @@ module RocketJob
         @records       = rows_of_file?(records) ? rows_like(@records, records) : records
       end
 
-      # Returns [Array|IOStreams::Slice] the records of this slice from the supplied record number on, see
-      # #processing_record_number, such as those that an earlier attempt did not process. The rows of a file keep the
-      # header row and format that they carry, and the line and record number of each row, see IOStreams::Slice#drop.
+      # Returns [Array|IOStreams::Slice] the records of this slice from the record of the supplied record number on, see
+      # #record_number_at, such as those that an earlier attempt did not process, see #processing_at_record: from the
+      # first record that it still holds at or after it, so from its first record for a number before it, and none
+      # after its last.
+      #
+      # The rows of a file are found by their record numbers, see IOStreams::Slice#from_record, and keep the header row
+      # and format that they carry, and the line and record number of each row. A row without a record number, such as
+      # one assigned in an Array, see #records=, is numbered by its place in the slice, from #first_record_number, as
+      # #record_number_at numbers it. Other records are numbered by their place.
       def records_from(record_number)
-        return records if record_number <= 1
+        return records.drop((record_number - first_record_number).clamp(0, size)) unless rows?
 
-        records.drop(record_number - 1)
+        rows    = numbered_rows
+        numbers = []
+        rows.each { |_row, _line_number, record_number| numbers << record_number }
+        return rows if numbers.empty?
+
+        first, last = numbers.minmax
+        rows.from_record(record_number.clamp(first, last + 1))
+      end
+
+      # Yields each record that is still to be processed, from the record being processed on, see
+      # #processing_at_record, as the supplied input category reads it, see Category::Input#parse_records, with the line
+      # of its file that it starts on, or nil when it is not a line of a file, and its record number, see
+      # #record_number_at.
+      #
+      # Points #processing_at_record at each record before it is yielded, and once the block returns, at the next
+      # record, since a record that cannot be parsed raises before the category yields it, so that a failure names
+      # that record. After the last record it stays on the last, so that a failure after it, such as in an after_slice
+      # callback, names a record of this slice.
+      def each_unprocessed_record(category)
+        number                    = current_record_number
+        last                      = size.zero? ? number : record_number_at(size - 1)
+        self.processing_at_record = number
+        category.parse_records(records_from(number)) do |record, line_number, record_number|
+          # Only the rows of a file are yielded with their numbers, see #records_from.
+          record_number           ||= number
+          self.processing_at_record = record_number
+          yield(record, line_number, record_number)
+          number                    = record_number + 1
+          self.processing_at_record = number if record_number < last
+        end
+      end
+
+      # Returns [true|false] whether an earlier attempt processed records of this slice, see #processing_at_record,
+      # whose results are already in its output, so that they are not processed again, see #each_unprocessed_record.
+      def partly_processed?
+        !processing_at_record.nil? && processing_at_record > first_record_number
       end
 
       def_instance_delegators :records, :<<, :size, :concat
@@ -163,17 +210,25 @@ module RocketJob
       end
       def_instance_delegators :record_list, *(Enumerable.instance_methods - Module.methods)
 
-      # Returns [Integer] the record number of the record currently being processed, see #processing_record_number and
-      # #record_number_at.
+      # Returns [Integer] the record number of the record currently being processed, see #processing_at_record and
+      # #record_number_at: the first record that this slice still holds at or after it.
       def current_record_number
-        record_number_at((processing_record_number || 1) - 1)
+        record_number_at(current_index)
       end
 
       # Returns [Integer] the line of its file that the record currently being processed starts on, see
-      # #processing_record_number and #line_number_at.
+      # #current_record_number and #line_number_at.
       # Returns nil when it is not a line of a file.
       def current_line_number
-        line_number_at((processing_record_number || 1) - 1)
+        line_number_at(current_index)
+      end
+
+      # Returns [Integer] the place of the record currently being processed in this slice, see #current_record_number,
+      # counting from 1, such as to replace or remove it, see #replace_record and #delete_record, which take its index:
+      # this number less 1. One more than #size when this slice no longer holds it, or a record after it.
+      # Returns nil until a worker starts on this slice, see #processing_at_record.
+      def processing_record_number
+        current_index + 1 if processing_at_record
       end
 
       # Returns [Integer] the record number of the record at the supplied index, counting from 0: its number in its
@@ -206,7 +261,7 @@ module RocketJob
       # Returns the failed record.
       # Returns [nil] if there is no failed record
       def failed_record
-        records[processing_record_number - 1] if exception && processing_record_number
+        records[current_index] if exception && processing_at_record
       end
 
       # Replaces the record at the supplied index, such as a failed record once it is corrected, see #failed_record. The
@@ -271,6 +326,43 @@ module RocketJob
         stored = attributes.delete("records")
         read_records do
           stored.is_a?(BSON::Binary) ? records_from_document(Hash.from_bson(BSON::ByteBuffer.new(stored.data))) : stored
+        end
+      end
+
+      # A slice saved by Rocket Job 7 holds the place in the slice of the record being processed, counting from 1, under
+      # "processing_record_number", rather than its record number, see #processing_at_record. Rocket Job 7 numbered
+      # each record by its place, from #first_record_number, so the place gives the record number that it meant. The
+      # next save of this slice unsets it.
+      #
+      # Rocket Job 7 saved its records in an Array, see #records_from_document, so their numbers need not be read,
+      # which would raise here for records that cannot be read, see #read_records.
+      def convert_saved_position
+        position = attributes["processing_record_number"]
+        return if position.nil?
+
+        self.processing_at_record ||= first_record_number + position - 1
+        remove_attribute("processing_record_number")
+      end
+
+      # Returns [Integer] the index of the record currently being processed, see #current_record_number: the first
+      # record that this slice still holds at or after #processing_at_record, or #size when it holds none.
+      def current_index
+        return 0 if processing_at_record.nil?
+
+        size - records_from(processing_at_record).size
+      end
+
+      # Returns [IOStreams::Slice] the rows of a file that this slice holds, each with a record number: a row without
+      # one, such as a row of rows assigned in an Array, see #records=, is numbered by its place in this slice, from
+      # #first_record_number, as #record_number_at numbers it, so that IOStreams can find a row by its number, see
+      # #records_from. The rows are returned as they are when each has a number.
+      def numbered_rows
+        numbered = []
+        records.each { |row, line_number, record_number| numbered << [row, line_number, record_number] }
+        return records if numbered.all?(&:last)
+
+        numbered.each_with_index.with_object(records.with_rows) do |((row, line_number, record_number), index), rows|
+          rows.add(row, line_number: line_number, record_number: record_number || (first_record_number + index))
         end
       end
 

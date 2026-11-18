@@ -291,7 +291,7 @@ module Sliced
           second = input.new(records: %w[more records and more])
           second.start
           input << second
-          second.processing_record_number = 2
+          second.processing_at_record = 2
 
           assert_equal 2, input.count
 
@@ -331,7 +331,7 @@ module Sliced
 
           second = input.new(records: %w[more records and more])
           input << second
-          second.processing_record_number = 2
+          second.processing_at_record = 2
 
           assert_equal 2, input.count
 

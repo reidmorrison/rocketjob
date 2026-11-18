@@ -256,6 +256,56 @@ module Sliced
           assert_equal %w[a b c], slice.records_from(1)
           assert_empty slice.records_from(4)
         end
+
+        it "numbers records that are not the rows of a file by their place, from the first record number" do
+          slice.first_record_number = 51
+          slice.records             = %w[a b c]
+
+          assert_equal %w[b c], slice.records_from(52)
+          assert_equal %w[a b c], slice.records_from(1)
+          assert_empty slice.records_from(54)
+        end
+      end
+
+      describe "#each_unprocessed_record" do
+        let(:category) { RocketJob::Category::Input.new }
+
+        # Returns each record that the slice yields with its numbers, and the record that it points at as it does.
+        def unprocessed(slice)
+          yielded = []
+          slice.each_unprocessed_record(category) do |record, line_number, record_number|
+            yielded << [record, line_number, record_number, slice.processing_at_record]
+          end
+          yielded
+        end
+
+        it "yields each record from the first, numbered from the first record number, and stays on the last" do
+          slice.first_record_number = 51
+          slice.records             = %w[a b c]
+
+          refute_predicate slice, :partly_processed?
+          assert_equal [["a", nil, 51, 51], ["b", nil, 52, 52], ["c", nil, 53, 53]], unprocessed(slice)
+          assert_equal 53, slice.processing_at_record
+        end
+
+        it "resumes at the record being processed" do
+          slice.first_record_number  = 51
+          slice.records              = %w[a b c]
+          slice.processing_at_record = 52
+
+          assert_predicate slice, :partly_processed?
+          assert_equal [["b", nil, 52, 52], ["c", nil, 53, 53]], unprocessed(slice)
+        end
+
+        it "points at the record that the block raises for" do
+          slice.records = %w[a b]
+          error         = assert_raises(RuntimeError) do
+            slice.each_unprocessed_record(category) { |record| raise("bad") if record == "b" }
+          end
+
+          assert_equal "bad", error.message
+          assert_equal 2, slice.processing_at_record
+        end
       end
 
       describe "#record_number_at" do
@@ -272,8 +322,8 @@ module Sliced
 
           assert_equal 51, slice.current_record_number
           assert_nil slice.current_line_number
-          slice.records                  = %w[a b c]
-          slice.processing_record_number = 3
+          slice.records = %w[a b c]
+          slice.processing_at_record = 53
 
           assert_equal 53, slice.current_record_number
         end
@@ -366,7 +416,7 @@ module Sliced
 
           assert_equal [2, 3], [slice.record_number_at(0), slice.record_number_at(1)]
           assert_equal [3, 4], [slice.line_number_at(0), slice.line_number_at(1)]
-          slice.processing_record_number = 2
+          slice.processing_at_record = 3
 
           assert_equal 3, slice.current_record_number
           assert_equal 4, slice.current_line_number
@@ -390,8 +440,8 @@ module Sliced
         end
 
         it "name the record that failed" do
-          slice.records                  = rows
-          slice.processing_record_number = 3
+          slice.records = rows
+          slice.processing_at_record = 3
           slice.fail(RuntimeError.new("bad"))
 
           assert_equal "Jill,22", slice.failed_record
@@ -448,6 +498,31 @@ module Sliced
           assert_instance_of Array, slice.records
         end
 
+        it "from a record number start at the first row that the slice still holds at or after it" do
+          slice.records              = rows
+          slice.processing_at_record = 1
+          slice.delete_record(0)
+
+          assert_equal ["", "Jill,22"], slice.records_from(1).rows
+          assert_equal 2, slice.current_record_number
+          assert_equal 1, slice.processing_record_number
+          slice.delete_record(0)
+
+          assert_equal ["Jill,22"], slice.records_from(2).rows
+          assert_empty slice.records_from(9).rows
+        end
+
+        it "from a record number are numbered from the first record number when assigned in an Array" do
+          slice.first_record_number = 51
+          slice.records             = rows
+          slice.records             = slice.map(&:upcase)
+          rest                      = slice.records_from(52)
+
+          assert_equal ["", "JILL,22"], rest.rows
+          assert_equal [[nil, 52], [nil, 53]], numbers_of(rest)
+          assert_equal %w[Name AGE], rest.header
+        end
+
         it "from a record number keep their header row and format" do
           slice.records = rows
           rest          = slice.records_from(2)
@@ -457,7 +532,7 @@ module Sliced
           assert_equal %w[Name AGE], rest.header
           assert_equal :csv, rest.format
           assert_equal rows.rows, slice.records_from(1).rows
-          assert_empty slice.records_from(4)
+          assert_empty slice.records_from(4).rows
         end
 
         it "that cannot be read raise when they are used, rather than when the slice is read" do
@@ -537,8 +612,19 @@ module Sliced
               assert_instance_of Array, slice.records
               assert_equal records, slice.to_a
               assert_equal records[1], slice.failed_record
-              assert_equal records[1..], slice.records_from(2)
+              assert_equal records[1..], slice.records_from(102)
               assert_equal 102, slice.current_record_number
+            end
+
+            it "converts the place of the record being processed to its record number, which the next save keeps" do
+              assert_equal 102, slice.processing_at_record
+              assert_equal 2, slice.processing_record_number
+              slice.save!
+              stored = slices.collection.find(_id: id).first
+
+              assert_equal 102, stored["processing_at_record"]
+              refute stored.key?("processing_record_number")
+              assert_equal records[1], slices.find(id).failed_record
             end
 
             it "saves a replaced or removed record in the same form" do
