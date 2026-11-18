@@ -324,9 +324,11 @@ end
 ~~~
 
 Each record must serialize to BSON (`Hash`, `Array`, `String`, `Integer`, `Float`, `Regexp`,
-`Time`), and is read back as it is stored: a `Date` is stored as a `Time`, so it comes back as a
-`Time`, apart from the values that a schema reads, see below. Use a `String` rather than a `Symbol`,
-which MongoDB deprecated. With a `Hash`, keys must be strings, not symbols.
+`Time`). In a category without a format it is read back as it is stored: a `Date` is stored as a
+`Time`, so it comes back as a `Time`. In the `:hash` and `:array` formats, and with a schema, a
+`Date` comes back as a `Date`, see below. Without a format, use a `String` rather than a `Symbol`,
+which MongoDB deprecated, also for the keys of a `Hash`. The `:hash` and `:array` formats turn a
+`Symbol` into a `String`, also in an `Array` or as the key of a nested `Hash`.
 
 For an input category with a `format` whose rows are lines of text, such as CSV or JSON, the block
 writes the lines of a file: its header row first, when the file has one, then its rows. They are read as the lines of a file are, in slices
