@@ -126,8 +126,8 @@ in slices that each hold the header row of the file, as it is in the file, and i
 does with a schema, see [More than one file](batch.html#more-than-one-file). `#perform` receives the
 same Hash for each line, so most jobs need no change, but:
 
-* A CSV row whose values are all blank, such as `,`, gives `#perform` nil, with or without
-  `validate_rows`, where v7 gave a Hash of nils.
+* A row of a delimited format, such as CSV or PSV, whose values are all blank, such as `,`, gives
+  `#perform` nil, with or without `validate_rows`, where v7 gave a Hash of nils.
 * A second file with a header row can be uploaded into the same input category, in any mode, and its
   lines are read by its own header row. v7 stored the second file's header row as a record, and read
   its lines with the first file's columns.
@@ -201,7 +201,7 @@ An input category's `validate_rows: true` replaces its `mode: :hash`, and the `v
 `upload` replaces its `stream_mode:`. Each line of a file in the category's format is parsed while the
 file is uploaded, so that a file with a line that cannot be read is rejected, and nothing is
 uploaded, before processing starts. The slices hold the lines, as they do without it, rather than the
-Hashes that v7 uploaded, and `#perform` receives the same Hash for each line, apart from a CSV row
+Hashes that v7 uploaded, and `#perform` receives the same Hash for each line, apart from a row
 whose values are all blank, see
 [Each slice holds the header row of its file](#each-slice-holds-the-header-row-of-its-file):
 

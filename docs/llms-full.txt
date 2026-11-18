@@ -2798,8 +2798,9 @@ end
 Each record must serialize to BSON (`Hash`, `Array`, `String`, `Integer`, `Float`, `Regexp`,
 `Time`). In a category without a format it is read back as it is stored: a `Date` is stored as a
 `Time`, so it comes back as a `Time`. In the `:hash` and `:array` formats, and with a schema, a
-`Date` comes back as a `Date`, see below. Use a `String` rather than a `Symbol`,
-which MongoDB deprecated. With a `Hash`, keys must be strings, not symbols.
+`Date` comes back as a `Date`, see below. Without a format, use a `String` rather than a `Symbol`,
+which MongoDB deprecated, also for the keys of a `Hash`. The `:hash` and `:array` formats turn a
+`Symbol` into a `String`, also in an `Array` or as the key of a nested `Hash`.
 
 For an input category with a `format` whose rows are lines of text, such as CSV or JSON, the block
 writes the lines of a file: its header row first, when the file has one, then its rows. They are read as the lines of a file are, in slices
@@ -6105,8 +6106,8 @@ in slices that each hold the header row of the file, as it is in the file, and i
 does with a schema, see [More than one file](batch.html#more-than-one-file). `#perform` receives the
 same Hash for each line, so most jobs need no change, but:
 
-* A CSV row whose values are all blank, such as `,`, gives `#perform` nil, with or without
-  `validate_rows`, where v7 gave a Hash of nils.
+* A row of a delimited format, such as CSV or PSV, whose values are all blank, such as `,`, gives
+  `#perform` nil, with or without `validate_rows`, where v7 gave a Hash of nils.
 * A second file with a header row can be uploaded into the same input category, in any mode, and its
   lines are read by its own header row. v7 stored the second file's header row as a record, and read
   its lines with the first file's columns.
@@ -6180,7 +6181,7 @@ An input category's `validate_rows: true` replaces its `mode: :hash`, and the `v
 `upload` replaces its `stream_mode:`. Each line of a file in the category's format is parsed while the
 file is uploaded, so that a file with a line that cannot be read is rejected, and nothing is
 uploaded, before processing starts. The slices hold the lines, as they do without it, rather than the
-Hashes that v7 uploaded, and `#perform` receives the same Hash for each line, apart from a CSV row
+Hashes that v7 uploaded, and `#perform` receives the same Hash for each line, apart from a row
 whose values are all blank, see
 [Each slice holds the header row of its file](#each-slice-holds-the-header-row-of-its-file):
 
