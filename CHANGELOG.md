@@ -517,7 +517,218 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   from `#size` for a missing S3, SFTP or HTTP file, where 2.x returned nil. A missing archive
   location, such as an S3 bucket that does not exist, still fails the entry.
 
-## [7.1.0] Unreleased
+## [7.2.0] 2026-11-17
+
+7.2 prepares an application for Rocket Job 8. It reports a deprecation warning for each of the other options that
+Rocket Job 8 removes, at the line of the application that uses it, and adds what replaces them. The deprecated options
+keep working. See [Upgrading to v7.2](https://rocketjob.reidmorrison.com/upgrading.html#upgrading-to-v72).
+
+### Changed
+
+- A `CopyFileJob` checks its source and target when it is created, or when their url, arguments or
+  streams change, by building each path, so a url that is not valid, an argument that the path does not
+  accept, such as a misspelled `passwrd:`, or a stream that IOStreams does not know, fails validation instead
+  of failing the job when it runs. The options of each stream are still checked when the job runs. Encrypted
+  arguments are not decrypted, nor `secret_config_` arguments fetched, to check them, and each is checked under its
+  name without that prefix, even in a process that does not load Symmetric Encryption or Secret Config, such as an
+  application that only enqueues jobs, since the job runs on a server that does. A value of the wrong type is
+  reported without including it in the message, since it could be a secret.
+
+### New features
+
+- An input category's `validate_rows`, and the `validate_rows:` option of `upload`, which Rocket Job 8 keeps: with
+  `true`, each line of a file in the category's format is parsed while it is uploaded, so that a file with a line that
+  cannot be read, or with a value that is not valid for its field in the schema, uploads nothing. The lines are still
+  uploaded as they are, and the workers parse them. It needs a format, and validates the lines of a category without a
+  schema too. A query, a range, or the block of `upload`, is not validated, and raises `ArgumentError` for
+  `validate_rows: true`. When it is not set, a category with a schema in the `:hash` mode validates its lines, as in
+  7.1. Servers running 7.0 or 7.1 cannot read `validate_rows`, so upgrade every server before giving any Dirmon entry
+  or `UploadFileJob` one. `RocketJob::SchemaProposal` proposes it in place of `mode: :hash`.
+- `upload` accepts a block with an Active Record relation or a Mongoid criteria, which returns the record to upload for
+  each model or document, as a block passed to `upload_arel` or `upload_mongo_query` does, which Rocket Job 8
+  removes. Previously it raised `ArgumentError`, as it still does with `columns:`, which the block replaces. It reports
+  a deprecation warning, since Rocket Job 8 raises for a block passed with a query, see Deprecated.
+- `RocketJob::SchemaProposal.report` proposes the schema that replaces the deprecated options of each category of the
+  job classes that are loaded, the saved jobs that can still run, and the Dirmon entries and `UploadFileJob`s whose
+  properties hold them, and changes nothing. Each proposal reads the files as the options did in 7.0, which is not
+  always what they say: options that 7.0 never applied, such as `allowed_columns` for JSON records, are removed
+  rather than described in the schema. It says what to check, such as a name that 7.0 cleansed without its non-ASCII
+  letters, and what it cannot translate. `#dry_run` reads the first records of a recent file with the category as it
+  is, and with the proposal, and lists what differs. A saved job, or an `UploadFileJob`, answers its own proposals
+  with `#schema_proposals`, and a Dirmon entry with `RocketJob::DirmonEntry#schema_proposals`, such as for a page of a
+  web interface; a job that has completed or was aborted answers none, since it cannot run again. What reading the
+  categories raises, such as for a category option that the job class no longer has in the properties of a Dirmon
+  entry or an `UploadFileJob`, is answered as one proposal with its `error`, rather than raised. See "Propose the
+  schema of each category" in the upgrade guide.
+- `RocketJob.path_display_name` returns a path or url to show, for example in Rocket Job Mission Control,
+  without the user name, password or query of a url. A value that IOStreams cannot build a path from, such as an
+  SFTP url with a non-ASCII letter or a `[` in its file name, or that needs a gem that is not installed, such as an
+  S3 url in a process without the `aws-sdk-s3` gem, is shown as stored, unless it holds an `@` or a `?`, when it is
+  shown as `(not a valid path)`, since its user name, password or query cannot be found to leave them out.
+- `RocketJob::DirmonEntry#pattern_display_name` and `#archive_directory_display_name` return the pattern
+  and archive directory to show, see `RocketJob.path_display_name`. A remote pattern with characters that
+  a url cannot hold, such as `sftp://host/in/*.{csv,txt}`, is shown as the directory it scans followed by
+  the pattern within it. `#display_properties` returns its properties with the paths in them, as declared
+  by its job class, shown without credentials.
+- `RocketJob::Job#display_attributes` returns the attributes of a job to show, with each path or url field
+  shown without its credentials. A field is a path when it is declared with `path: true`, such as the
+  `source_url` and `target_url` of `CopyFileJob`, and the `original_file_name` of `UploadFileJob`, or has the type
+  `IOStreams::Path`. `.path_fields` lists them. Declare with `path: true` the `upload_file_name` or `full_file_name`
+  field of a simple job that Dirmon or an `UploadFileJob` hands a file to, since the path of the archived file can
+  hold credentials.
+  The `file_name` of each input and output category of a batch job is also shown without its credentials,
+  and so are the paths in the `properties` of an `UploadFileJob`. `.display_properties` does the same for
+  a hash of properties for a job class, such as those of a Dirmon entry.
+- `CopyFileJob#display_attributes` also replaces the secrets in `source_args`, `target_args`,
+  `source_streams` and `target_streams`, such as an SFTP password or a PGP passphrase, as decided by
+  `IOStreams.redact_path_options` and `IOStreams.redact_stream_options`.
+- `RocketJob::DirmonEntry#replicate` returns a new, pending entry with the settings of an entry, such as
+  its job class and properties, overridden by the supplied attributes. Only its name, pattern, job class,
+  properties and archive directory are copied. Since the name and pattern must each be unique, the new
+  entry is not valid until both are changed.
+- `RocketJob::Job.display_properties`, `RocketJob::Jobs::UploadFileJob#display_attributes` and
+  `RocketJob::Category::Base.display_properties` show the paths in the properties of a job, such as those that
+  a Dirmon entry or an `UploadFileJob` holds, without credentials: each path field of the job class, and the
+  `file_name` of each category, and its `schema` when that is the path or url of a JSON file.
+
+### Deprecated
+
+These still work as in 7.1, and are removed, or work differently, in Rocket Job 8. Rocket Job reports a Ruby
+deprecation warning, at the line of the application, for each one that a job class defines a category with, that a
+Dirmon entry or an `UploadFileJob` builds a job with, that is passed to `upload`, or that an upload of a query depends
+on. The warnings are only reported while Ruby's deprecation warnings are on, such as in tests run by Minitest, so
+production stays quiet. A job read back from the database does not report one. See the upgrade guide.
+
+- An input category's `mode: :array`, and the `stream_mode: :array` of `upload`, which Rocket Job 8 removes. Use the
+  default `:line` mode, in which each worker parses its lines, and `validate_rows: true` to also parse every line when
+  the file is uploaded. A category without a format needs its format, or `format: :auto`, for the workers to read each
+  line. A category with a schema already could not use them.
+- An input category's `mode: :hash`, and the `stream_mode:` of `upload`, which Rocket Job 8 removes. `validate_rows`
+  replaces them. A category without a format, which `stream_mode: :hash` read a file into Hashes for, needs
+  `format: :auto` instead. Rocket Job 8 reads a saved `mode: :hash` in a category with a format as
+  `validate_rows: true`, so remove it from a category without a schema, which it did not validate. Rocket Job 8
+  raises `ArgumentError` whenever `stream_mode:` is passed, also as nil, whatever is uploaded, so 7.2 warns for it
+  then too.
+- The `on_first:` option of `upload`, which Rocket Job 8 removes. Rocket Job 8 raises `ArgumentError` whenever
+  `on_first:` is passed, also as nil, whatever is uploaded, so 7.2 warns whenever it is passed. Rocket Job reads the
+  header row itself, and the category's schema checks its columns. For a file without a header row, such as JSON or fixed width, the
+  lambda was called with the first record, which was then not uploaded: to leave it out, upload with a block that
+  writes the other lines instead.
+- The options of `upload` that read the lines of a file: `delimiter:`, `buffer_size:` and `embedded_within:`. Rocket
+  Job 8 reads the lines itself: IOStreams detects the line endings, `\r\n` or `\n`, and the input category's format,
+  such as CSV, reads a quoted value that holds line breaks. Records separated by something else are written in the
+  block of `upload` instead, such as with `IOStreams.path(file_name).each(:line, delimiter: "|")`. 7.2 reads such a
+  quoted value in the format of the path that is uploaded, so before removing `embedded_within:`, give an IO, or a
+  file whose name does not give its format, the format, such as `upload(IOStreams.stream(io).format(:csv))` or
+  `upload(io, file_name: "people.csv")`.
+- A block passed with a query, an Active Record relation or a Mongoid criteria, such as to `upload_arel`, which
+  returns the record to upload for each model or document. Rocket Job 8 uploads the values of the columns of a query,
+  and raises `ArgumentError` for a block: write the records in the block of `upload` instead, reading the query there.
+- Uploading an Active Record relation that uses `includes`, `preload` or `eager_load`, which raises `ArgumentError` in
+  Rocket Job 8. Write the records in the block of `upload` instead, which loads the associations, or join the tables
+  to filter by them.
+- Uploading a column, without a block, whose reader the model overrides, which uploads what the reader returns. Rocket
+  Job 8 uploads the value that the column holds, as `pluck` returns it. While deprecation warnings are on, the upload
+  compares the reader with `read_attribute` for each row until they differ, and names the model and the column, but
+  not the values. `normalizes`, `enum`, `serialize` and `alias_attribute` give the same value both ways. To keep the
+  reader's value, write the records in the block of `upload`, or apply its logic in `perform`.
+- The batch job methods `upload_arel`, `upload_mongo_query`, `upload_integer_range` and
+  `upload_integer_range_in_reverse_order`, deprecated since v6, which Rocket Job 8 removes. Call `upload` with the
+  relation, the criteria or the range instead, such as `upload(User.where(country_code: "US"), columns: [:zip_code])`
+  or `upload(1..1_000_000)`. A range is uploaded in the direction that it is written, so
+  `upload(first..last)` uploads a range whose `last` is less than its `first` from its last id, where
+  `upload_integer_range(first, last)` uploaded nothing.
+
+### Fixes
+
+- A second file uploaded into an input category with a schema, whose input already holds the records of a first file,
+  raises `ArgumentError` when its header row reads its columns as other fields than the first file's, or in another
+  order, and uploads nothing. Previously its header row replaced the first file's, so the workers read the records of
+  both files by it, giving values to the wrong fields. A header row that the schema reads the same, such as one that
+  differs only in case or spaces, is accepted. A header row that does not match the schema still raises
+  `IOStreams::Errors::InvalidHeader`. Without a schema the second file's header row is still stored as a record, as in
+  7.0. Rocket Job 8 reads each file by its own header row.
+- An upload that fails, such as a file with a line that `validate_rows: true` cannot parse, into an input category that
+  already holds the records of an earlier upload, removes only its own, and the category keeps the header row that the
+  earlier records are read by. Previously it dropped the whole input, so the job lost the records of the earlier files
+  too, and with a schema the category lost its header row. The slices of such a later upload hold the new `upload_id`
+  field.
+- An upload with `stream_mode: :hash` into a category with a format, such as CSV, reads the header row of the file, and
+  uploads its lines, parsing each one first, as `validate_rows: true` does. 7.1 raised
+  `IOStreams::Errors::TypeMismatch` for a file with a header row without a schema. For a file without a header row,
+  such as JSON, in a category without a schema, it still accepts the options of `upload` that describe the columns of
+  a file, such as `allowed_columns:`, which have no effect there, as in 7.1.
+- `upload` raises `ArgumentError` for a `stream_mode:` other than `:line`, `:array` or `:hash`, such as `:hashes`, as
+  7.1 did in a category without a schema. 7.1 read one as `:hash` in a category with a schema.
+- A `CopyFileJob` fetches its `secret_config_` arguments from Secret Config even when Symmetric Encryption
+  is not loaded. Previously, without Symmetric Encryption, every argument was passed to IOStreams under its stored
+  name, so a `secret_config_` argument failed the job.
+- A batch job class that defines an input or output category, such as `input_category name: :other`, no longer
+  changes the categories of its parent class. Previously, once a class had defined a category, it shared its list of
+  categories with its subclasses, so a subclass added its categories to that list, or replaced the category with the
+  same name in it, such as one with another `slice_size`. A new job of the parent class, or of its other subclasses,
+  then had those categories too, depending on which subclasses had been loaded. Now a class that defines a category
+  holds its own copy of its parent's list with that category in it, and a class that defines none still uses its
+  parent's list. So a category that a parent class defines after a subclass has defined one, such as in a reopened
+  class, does not reach that subclass. A Dirmon entry or an `UploadFileJob` for the parent class whose properties name
+  a category that only a subclass defines, which worked while that subclass was loaded, now raises `ArgumentError`
+  when it builds the job, such as "Unknown Input Category: :other": define the category in the parent class, or use
+  the subclass. A saved job keeps the categories that it was created with. `input_category` and `output_category` in a
+  job class now return the category that they define, also for the first one, for which they returned the list.
+- An upload into an input category with the `:fixed` format and no schema replaces each non-printable character of a
+  line, such as NUL padding or a tab, with a space, so that the columns after it stay in place. Previously they were
+  removed, so `"Ja\x00k 12345"` was read as `"Jak 12345"`: the values after it moved one character to the left, or
+  the line raised `IOStreams::Errors::InvalidLineLength`. Each byte of a character that is not ASCII is still replaced
+  with a space, other formats, such as CSV, still remove non-printable characters, and a category with a schema still
+  reads each line as it is.
+- The `UploadFileJob` that Dirmon creates for an SFTP or S3 file whose name holds a non-ASCII letter, or a character
+  such as `[`, such as `sftp://host/in/données.csv.gz`, no longer fails with `URI::InvalidURIError` when it uploads
+  the file into a batch job that reads its format from its name. Dirmon records the original file name of a file on
+  a server as its url with its path percent-encoded, such as `sftp://host/in/donn%C3%A9es.csv.gz`, which IOStreams
+  reads back as the same path. Previously 7.1 recorded the url unencoded, which IOStreams cannot parse, and read a
+  `+`, a `%` followed by two hexadecimal digits, a `#` or a `?` in the name as another name. The encoding leaves the
+  url of a file whose name holds only letters, digits and characters such as `-`, `_` and `.` as it is. A name with
+  a space changes too, although 7.1 read it back correctly, such as `sftp://host/in/Daily Report.csv`, which is now
+  `sftp://host/in/Daily%20Report.csv`. Such a name is shown percent-encoded, for example in Rocket Job Mission
+  Control, and an application that reads the `original_file_name` of an `UploadFileJob`, the `file_name:` passed to
+  `upload`, or the `file_name` of the category as a String, gets it percent-encoded. Its path, such as
+  `input_category.file_name.path`, is the path of the file.
+- A field of type `IOStreams::Path`, such as the `file_name` of a category, whose stored url IOStreams cannot parse,
+  such as one set by an `UploadFileJob` that Rocket Job 7.1 created for the file above, returns it as stored, a
+  String, rather than raising `URI::InvalidURIError` when it is read, so that it can still be read, such as for its
+  extensions. IOStreams still raises when it is used as a path, such as with `IOStreams.new`, and a method of
+  `IOStreams::Path`, such as `#path`, raises `NoMethodError` for it.
+- A field of type `IOStreams::Path`, such as the `file_name` of a category or the `upload_file_name` of a batch job or
+  an `UploadFileJob`, also returns its stored url as stored, a String, when its scheme needs a gem that the process
+  does not load, such as an S3 url in a web process without `aws-sdk-s3`, or when IOStreams does not know its scheme.
+  Previously reading it raised `LoadError` or `ArgumentError`, so that a page of a web interface, such as Mission
+  Control, that shows the job failed, and `RocketJob::SchemaProposal.all` raised `LoadError` for such a job. An
+  `UploadFileJob` whose `upload_file_name` is set or changed to a url whose scheme IOStreams does not know, such as a
+  mistyped `s4://`, or that it cannot parse, is still not valid, with a message on `upload_file_name`, rather than raising `ArgumentError` when
+  it is validated. A saved one is not checked again, so that a job whose scheme only its servers register can still
+  be saved elsewhere, such as when it is aborted.
+- An upload of a text file into an input category without a format, such as `job.upload("names.txt")`, stores its
+  lines as UTF-8, keeping letters that are not ASCII, such as `José`, without the byte order mark that a UTF-8 file can
+  start with. Previously IOStreams read the lines as binary, so the upload raised `Encoding::UndefinedConversionError`
+  when it stored a line with such a letter, or a byte order mark, as 7.0 did, also for a gzipped file. Text that is
+  not valid UTF-8 raises `IOStreams::Errors::InvalidEncoding`, which is an `Encoding::UndefinedConversionError`, naming
+  its line, and uploads nothing, as with a schema. A text encoding set on the path that is uploaded, such as
+  `IOStreams.path("names.txt").encoding("ISO-8859-1")`, is still used instead, while lines read as binary, also when
+  the path asks for binary, are taken as UTF-8, since MongoDB stores them as UTF-8 text. A category with a format, the
+  deprecated `stream_mode: :array` and `stream_mode: :hash`, the block of `upload`, and `upload_slice`, upload as
+  before.
+
+### Security
+
+- Dirmon's log messages, the original file name that it records on each `UploadFileJob`, and its list
+  of the files waiting to stabilize, no longer include the user name, password or query of a url, such
+  as `sftp://user:password@host/file.csv`, and neither does the description of a `CopyFileJob`. Dirmon
+  names a local file by its display name, see `IOStreams::Path#display_name`, and a file on a server, such as
+  an SFTP or S3 file, by its url without them, with its path percent-encoded, see
+  `RocketJob::DirmonEntry#file_display_name` and the fix below. A file that is waiting to stabilize when Dirmon is
+  upgraded is picked up one scan later, since that list is now also keyed by the entry.
+
+## [7.1.0] 2026-11-07
 
 7.1 moves Rocket Job to IOStreams 2.2, which deprecates what IOStreams 3.0 removes. Rocket Job no longer uses any of it
 itself, and a category's new `schema` replaces the category options that IOStreams 2.2 deprecates: `format_options`,
@@ -579,6 +790,9 @@ upgrade guide.
   header row, or of an output category. The same options passed to `upload`, such as `allowed_columns:`, are
   deprecated too. With a schema, an input category's `columns` hold the header row read from the file, which is not
   deprecated.
+- A header row without a schema whose columns are the same key once cleansed, such as `a` and `A`, since each record
+  holds the value of only the last of them, and IOStreams 3.0 raises for them. Rocket Job reports it at the line that
+  uploads the file. Rename the columns of the file, or describe them with the category's `schema`.
 
 ### Fixes
 
