@@ -118,7 +118,11 @@ module RocketJob
         self.class.job_class_errors(job_class_name).each { |message| errors.add(:job_class_name, message) }
       end
 
+      # Validates the file to upload when it is set or changed, not each time the job is saved, since the file is
+      # moved or deleted once it is uploaded, and can be on a disk that only the servers that run the job can read.
+      # Otherwise a saved job could not be changed elsewhere, such as aborted, retried or paused in a web interface.
       def file_exists
+        return unless new_record? || upload_file_name_changed?
         return upload_file_name_url_valid if upload_file_name.is_a?(String)
         # Only check for file existence when it is a local file
         return unless upload_file_name.is_a?(IOStreams::Paths::File)
@@ -133,10 +137,9 @@ module RocketJob
 
       # A url that IOStreams cannot make a path of is read as stored, a String, see IOStreams::Path.demongoize, so one
       # that is set or changed is checked here, rather than when the job runs, see IOStreams::Path.invalid_url?. A saved
-      # one is not, so that a job whose url has a scheme that only the servers that run it register can still be saved
-      # elsewhere, such as when it is aborted in a web interface.
+      # one is not, see #file_exists, so that a job whose url has a scheme that only the servers that run it register
+      # can still be saved elsewhere, such as when it is aborted in a web interface.
       def upload_file_name_url_valid
-        return unless new_record? || upload_file_name_changed?
         return unless IOStreams::Path.invalid_url?(upload_file_name)
 
         # The url is not included in the message, since one that cannot be parsed can hold credentials.

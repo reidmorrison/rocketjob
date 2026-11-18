@@ -138,6 +138,29 @@ module Jobs
           assert_includes job.errors.messages[:upload_file_name], "Upload file: /tmp/blah does not exist."
         end
 
+        it "does not check that the file of a saved job still exists, since it is moved once it is uploaded" do
+          file_name = File.join(Dir.tmpdir, "upload_file_job_#{SecureRandom.hex}.csv")
+          File.write(file_name, "a,b\n")
+          job.upload_file_name = file_name
+          job.save!
+          File.delete(file_name)
+          saved = RocketJob::Jobs::UploadFileJob.find(job.id)
+
+          assert_predicate saved, :valid?, -> { saved.errors.full_messages.inspect }
+          saved.abort!
+
+          assert_predicate RocketJob::Jobs::UploadFileJob.find(job.id), :aborted?
+        end
+
+        it "checks that the file exists when the file name of a saved job is changed" do
+          job.save!
+          saved = RocketJob::Jobs::UploadFileJob.find(job.id)
+          saved.upload_file_name = "/tmp/blah"
+
+          refute_predicate saved, :valid?
+          assert_includes saved.errors.messages[:upload_file_name], "Upload file: /tmp/blah does not exist."
+        end
+
         it "allows urls other than file for upload_file_name" do
           job.upload_file_name = "https://server/path"
 

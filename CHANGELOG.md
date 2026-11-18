@@ -516,6 +516,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   `IOStreams::Errors::NotFound`, so this applies to every storage, now that IOStreams 3.0 raises it
   from `#size` for a missing S3, SFTP or HTTP file, where 2.x returned nil. A missing archive
   location, such as an S3 bucket that does not exist, still fails the entry.
+- An `UploadFileJob` checks that its local file exists only when its `upload_file_name` is set or changed, not each
+  time it is saved. Previously, once the file was moved or deleted, or when it was on a disk that only the servers
+  that run the job can read, such as from Mission Control on another host, `abort!`, `retry!` and `pause!` raised
+  `Mongoid::Errors::Validations`.
 
 ## [7.2.0] 2026-11-17
 
