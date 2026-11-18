@@ -256,6 +256,21 @@ module Batch
             assert_equal %w[hello world], output_records
           end
 
+          it "gives perform each line of a slice that upload_slice uploads as a String, a blank line too" do
+            job.input_category.format = :text
+            job.upload_slice(["hello", "", "world"])
+
+            assert_equal ["hello", "", "world"], output_records
+          end
+
+          it "parses the lines of a file uploaded without a format by the format that the category has since" do
+            job.input_category.format = nil
+            upload(".text", "name,age\n")
+            job.input_category.format = :csv
+
+            assert_raises(ArgumentError) { output_records }
+          end
+
           it "reads each line by the field of a schema, which gives a blank line as nil, so it is not output" do
             job.input_category.format = :text
             job.input_category.schema = {"fields" => [{"name" => "line"}]}
