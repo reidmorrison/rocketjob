@@ -393,15 +393,18 @@ In v7.1 a subclass that defined a category added it to the list of categories th
 its parent class, so a job of the parent class had that category too, once the subclass was loaded.
 In v7.2 each class holds its own list. So a Dirmon entry or an `UploadFileJob` whose job class is the
 parent class, and whose properties name a category that only a subclass defines, now raises
-`ArgumentError` when it builds the job, such as "Unknown Input Category: :other", and Dirmon fails
-every file that it picks up for the entry. Name the subclass as its job class, or define the
-category in the parent class.
+`ArgumentError` when it builds the job, such as "Unknown Input Category: :other". Dirmon still
+archives each file that it picks up for the entry, and the `UploadFileJob` that it starts for the
+file fails. Name the subclass as its job class, or define the category in the parent class. Each
+failed `UploadFileJob` holds its own copy of the job class and properties, so it succeeds when it is
+retried once its `job_class_name` is changed to the subclass, which can be edited on the failed
+job, or once the parent class defines the category.
 
 ### Declare the file name of a simple job as a path
 
 A simple job that Dirmon or an `UploadFileJob` hands a file to, through its `upload_file_name` or
 `full_file_name` field, receives the path of the archived file, which holds the user name and
-password of an SFTP url that has them. v7.2 shows the attributes of a job, such as in Mission
+password of an SFTP archive directory url that has them. v7.2 shows the attributes of a job, such as in Mission
 Control, with each path field shown without its credentials, see `RocketJob::Job#display_attributes`.
 A field is a path when it is declared with `path: true`, or has the type `IOStreams::Path`. Declare
 such a field as a path, so that it is not shown with its credentials:
@@ -416,7 +419,8 @@ class ProcessFileJob < RocketJob::Job
 end
 ~~~
 
-The `upload_file_name` of a batch job already has the type `IOStreams::Path`.
+A batch job needs no change: the file is uploaded into its input category, whose `file_name` is
+shown without its credentials.
 
 ### Propose the schema of each category
 
