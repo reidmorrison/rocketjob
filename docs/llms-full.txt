@@ -4166,6 +4166,12 @@ RocketJob::Jobs::CopyFileJob.create!(
 )
 ~~~
 
+When the text is converted, it is also converted from the format that the source's file name gives
+to the format that the target's gives, such as from CSV to JSON for a source of `prices.csv` and a
+target of `prices.json`. To keep the format, give the target the same extension as the source. A copy
+without an encoding copies the bytes as they are, unless both `source_streams` and `target_streams`
+are set without the `none` stream that they default to, which converts the format too.
+
 Instead of a `source_url`, raw data can be supplied directly with `source_data` (limited to about
 15 MB after compression):
 
@@ -4565,6 +4571,34 @@ The fields of `DirmonEntry`:
 
 * **`name`** (String, optional but recommended)
   A human-readable label used to identify the entry in Mission Control. Names must be unique.
+
+## Watching an SFTP directory
+
+A pattern can name a directory on an SFTP server, such as `sftp://sftp.example.org/inbound/*.csv`.
+Keep the credentials that log in to the server on each host that runs Rocket Job servers, rather than
+in the pattern. Dirmon, and the job that reads each file, reach the server through
+[IOStreams](https://iostreams.reidmorrison.com/path.html#sftp-sftp), with OpenSSH's `sftp` program and the
+`net-sftp` gem, which both read the `~/.ssh/config` of the user that runs the server:
+
+~~~
+Host sftp.example.org
+  User         acme
+  IdentityFile ~/.ssh/acme_ed25519
+~~~
+
+Add the server's host key to that user's `~/.ssh/known_hosts`, such as with `ssh-keyscan`, since
+IOStreams does not log in to a server whose key it does not know. Dirmon lists and archives the files
+with the `net-sftp` gem, so add it to the application's `Gemfile`, with the `ed25519` and
+`bcrypt_pbkdf` gems for an ed25519 key, as the
+[IOStreams SFTP section](https://iostreams.reidmorrison.com/path.html#sftp-sftp) describes.
+
+A user name and password written in the pattern, such as
+`sftp://acme:secret@sftp.example.org/inbound/*.csv`, are saved in MongoDB with the entry, and, with
+an `archive_directory` relative to the pattern, in the path of each archived file that its job
+reads, see [How the file reaches the job](#how-the-file-reaches-the-job). The logs show the paths
+without them, and so does Mission Control, in a field declared with `path: true`, but anyone who can
+read the database can read them. Dirmon has no other place to keep a password, so log in with a key
+instead.
 
 ## Enabling and disabling entries
 

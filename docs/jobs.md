@@ -215,6 +215,12 @@ RocketJob::Jobs::CopyFileJob.create!(
 )
 ~~~
 
+When the text is converted, it is also converted from the format that the source's file name gives
+to the format that the target's gives, such as from CSV to JSON for a source of `prices.csv` and a
+target of `prices.json`. To keep the format, give the target the same extension as the source. A copy
+without an encoding copies the bytes as they are, unless both `source_streams` and `target_streams`
+are set without the `none` stream that they default to, which converts the format too.
+
 Instead of a `source_url`, raw data can be supplied directly with `source_data` (limited to about
 15 MB after compression):
 
