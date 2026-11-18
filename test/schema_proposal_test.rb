@@ -539,6 +539,26 @@ class SchemaProposalTest < Minitest::Test
       end
     end
 
+    describe "a saved job that cannot run again" do
+      %i[completed aborted].each do |state|
+        it "proposes nothing for a #{state} job" do
+          job = ProposalJob.new(state: state)
+          job.input_category.allowed_columns = %w[a]
+          job.input_category.format          = :csv
+
+          assert_empty job.schema_proposals
+        end
+
+        it "proposes nothing for the properties of a #{state} UploadFileJob" do
+          properties = {"input_categories" => [{"name" => "main", "format" => "csv", "allowed_columns" => %w[a]}]}
+          job        = RocketJob::Jobs::UploadFileJob.new(job_class_name: ProposalJob.name, properties: properties,
+                                                          state: state)
+
+          assert_empty job.schema_proposals
+        end
+      end
+    end
+
     describe "properties" do
       let(:properties) do
         {"input_categories" => [{"name" => "main", "format" => "csv", "allowed_columns" => %w[a], "skip_unknown" => true}]}
