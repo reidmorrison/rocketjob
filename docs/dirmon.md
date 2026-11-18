@@ -183,6 +183,26 @@ The fields of `DirmonEntry`:
 * **`name`** (String, optional but recommended)
   A human-readable label used to identify the entry in Mission Control. Names must be unique.
 
+## Watching an SFTP directory
+
+A pattern can name a directory on an SFTP server, such as `sftp://sftp.example.org/inbound/*.csv`.
+Keep the credentials that log in to the server on each host that runs Rocket Job servers, rather than
+in the pattern. Dirmon, and the job that reads each file, reach the server through
+[IOStreams](https://iostreams.reidmorrison.com/path.html#sftp-sftp), with OpenSSH's `sftp` program and the
+`net-sftp` gem, which both read the `~/.ssh/config` of the user that runs the server:
+
+~~~
+Host sftp.example.org
+  User         acme
+  IdentityFile ~/.ssh/acme_ed25519
+~~~
+
+A user name and password written in the pattern, such as
+`sftp://acme:secret@sftp.example.org/inbound/*.csv`, are saved in MongoDB with the entry, and in the
+path of each archived file that its job reads, see [How the file reaches the job](#how-the-file-reaches-the-job).
+Mission Control and the logs show the paths without them, but anyone who can read the database can
+read them. Dirmon has no other place to keep a password, so log in with a key instead.
+
 ## Enabling and disabling entries
 
 A new `DirmonEntry` starts in the `pending` state and is **not** scanned until it is enabled. This is

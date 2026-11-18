@@ -1018,6 +1018,19 @@ module Batch
             assert_equal [expected.first], output_records
             assert_predicate job, :completed?, job.state
           end
+
+          # Rocket Job 6 gave a Date of a query back as a Time, since MongoDB stores it as one.
+          it "keeps a Date and a BigDecimal in fields without a type, or of the type any" do
+            job.input_category.format = :hash
+            job.input_category.schema = {"fields" => [{"name" => "born"}, {"name" => "balance", "type" => "any"}]}
+            record                    = {"born" => Date.new(2000, 1, 2), "balance" => BigDecimal("12.5")}
+            job.upload { |io| io << record }
+
+            records = parsed_records
+
+            assert_equal [record], records
+            assert_equal(classes([record]), classes(records))
+          end
         end
       end
 

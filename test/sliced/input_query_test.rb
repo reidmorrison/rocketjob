@@ -8,6 +8,8 @@ ActiveRecord::Schema.define version: 0 do
   create_table :input_query_people, force: true do |t|
     t.string :name
     t.integer :age
+    t.date :born
+    t.decimal :balance, precision: 10, scale: 2
   end
 end
 
@@ -361,6 +363,18 @@ module Sliced
         job.upload(InputQueryDoc.all, columns: %i[name age])
 
         assert_equal [["Alice", 30], ["Bob", 40]], records.call
+      end
+
+      it "gives perform a date column as a Date, where Rocket Job 7 gave a Time, and a decimal column as a BigDecimal" do
+        InputQueryPerson.where(name: "Alice").update_all(born: Date.new(2000, 1, 2), balance: BigDecimal("12.5"))
+        job.upload(InputQueryPerson.where(name: "Alice"), columns: %i[born balance])
+
+        # The slices are read back from MongoDB.
+        records = []
+        job.input.each { |slice| job.input_category.parse_records(slice.records) { |record| records << record } }
+
+        assert_equal [[Date.new(2000, 1, 2), BigDecimal("12.5")]], records
+        assert_equal [Date, BigDecimal], records.first.map(&:class)
       end
 
       it "uploads the batches of an Active Record relation" do
