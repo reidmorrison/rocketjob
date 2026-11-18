@@ -126,8 +126,11 @@ module RocketJob
       # Returns [Array<RocketJob::SchemaProposal>] the schemas proposed for this job's categories, see
       # RocketJob::Batch::Categories#schema_proposals, and a note when its code names a deprecated option, which a
       # proposal cannot translate: a category option or mode, see DEPRECATED_CODE, or an option that it passes to
-      # upload, see RocketJob::Batch::IO.deprecated_upload_options.
+      # upload, see RocketJob::Batch::IO.deprecated_upload_options. None for a job that has completed or was aborted,
+      # since it cannot run again.
       def schema_proposals
+        return [] if completed? || aborted?
+
         proposals      = super
         upload_options = RocketJob::Batch::IO.deprecated_upload_options.map(&:to_s)
         names          = %w[code before_code after_code].select do |name|

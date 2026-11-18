@@ -556,6 +556,12 @@ class SchemaProposalTest < Minitest::Test
 
           assert_empty job.schema_proposals
         end
+
+        it "proposes nothing for a #{state} OnDemandBatchJob whose code names a deprecated option" do
+          job = RocketJob::Jobs::OnDemandBatchJob.new(code: "row", before_code: "upload(file, on_first: 1)", state: state)
+
+          assert_empty job.schema_proposals
+        end
       end
     end
 
