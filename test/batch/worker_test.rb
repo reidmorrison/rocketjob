@@ -232,6 +232,34 @@ module Batch
       end
 
       describe "#work" do
+        it "keeps the output of the records processed before a retry that removes them" do
+          job      = SimpleJob.new
+          failures = 0
+          job.upload do |records|
+            %w[a b c].each { |record| records << record }
+          end
+          job.stub(:perform, lambda { |record|
+            if record == "b" && failures.zero?
+              failures += 1
+              raise(ArgumentError, "b")
+            end
+            record
+          }) do
+            job.start
+            job.rocket_job_work(RocketJob::Worker.new, false)
+            slice = job.input.failed.first
+            slice.delete_record(0)
+            slice.save!
+
+            assert_equal 1, slice.processing_at_record
+            job.retry!
+            job.rocket_job_work(RocketJob::Worker.new, false)
+          end
+
+          assert_predicate job, :completed?
+          assert_equal %w[a b c], job.output.flat_map(&:to_a)
+        end
+
         it "calls perform method" do
           job          = SimpleJob.new
           record_count = 24

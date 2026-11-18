@@ -380,7 +380,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   job is retried no longer skips a record that was not processed. A slice saves the number in `processing_at_record`.
   A slice that Rocket Job 7 saved, which holds the place, is converted when it is read, and the next save keeps the
   number, so do not run Rocket Job 7 on it again. `processing_record_number` still answers the place of the record,
-  such as for `replace_record`, but can no longer be set.
+  such as for `replace_record`, but can no longer be set. `Slice#records_from` takes a record number, rather than a
+  place in the slice, and starts at the first record that the slice still holds at or after it.
+- A slice that fails once every record in it is processed, such as in an `after_slice` callback, is retried without
+  processing its last record again, which added its result to the output a second time. Such a slice has no
+  `failed_record`.
 
 - `upload` of a Mongoid query reads the documents that Mongoid's own query of the criteria returns:
   - A query of a subclass uploads only the documents of that subclass and its own subclasses. Previously it also

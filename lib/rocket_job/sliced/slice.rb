@@ -142,13 +142,18 @@ module RocketJob
       # that they are still read by them, such as when a copy of them, see #to_a, is changed and assigned back. They do
       # not keep the numbers of each row, which #replace_record and #delete_record do. Records that are not rows, such
       # as Hashes, are assigned as they are.
+      #
+      # Records assigned in an Array are numbered by their place, see #record_number_at, so the slice then points at
+      # the record in the same place as the record that it was processing, see #processing_at_record.
       def records=(records)
         unless records.is_a?(Array) || records.is_a?(IOStreams::Slice)
           raise(ArgumentError, "Cannot assign type: #{records.class.name} to records")
         end
 
+        index          = current_index if processing_at_record && records.is_a?(Array) && @records && !@records_error
         @records_error = nil
         @records       = rows_of_file?(records) ? rows_like(@records, records) : records
+        point_at_index(index) if index
       end
 
       # Returns [Array|IOStreams::Slice] the records of this slice from the record of the supplied record number on, see
@@ -156,20 +161,15 @@ module RocketJob
       # first record that it still holds at or after it, so from its first record for a number before it, and none
       # after its last.
       #
-      # The rows of a file are found by their record numbers, see IOStreams::Slice#from_record, and keep the header row
-      # and format that they carry, and the line and record number of each row. A row without a record number, such as
-      # one assigned in an Array, see #records=, is numbered by its place in the slice, from #first_record_number, as
+      # The rows of a file are found by their record numbers, and keep the header row and format that they carry, and
+      # the line and record number of each row, see IOStreams::Slice#drop. A row without a record number, such as one
+      # assigned in an Array, see #records=, is numbered by its place in the slice, from #first_record_number, as
       # #record_number_at numbers it. Other records are numbered by their place.
       def records_from(record_number)
-        return records.drop((record_number - first_record_number).clamp(0, size)) unless rows?
+        return records.drop(record_index(record_number)) unless rows?
 
-        rows    = numbered_rows
-        numbers = []
-        rows.each { |_row, _line_number, record_number| numbers << record_number }
-        return rows if numbers.empty?
-
-        first, last = numbers.minmax
-        rows.from_record(record_number.clamp(first, last + 1))
+        rows = numbered_rows
+        rows.drop(row_index(rows, record_number))
       end
 
       # Yields each record that is still to be processed, from the record being processed on, see
@@ -179,26 +179,34 @@ module RocketJob
       #
       # Points #processing_at_record at each record before it is yielded, and once the block returns, at the next
       # record, since a record that cannot be parsed raises before the category yields it, so that a failure names
-      # that record. After the last record it stays on the last, so that a failure after it, such as in an after_slice
-      # callback, names a record of this slice.
+      # that record. After the last record it points after it, so that a slice that fails once every record is
+      # processed, such as in an after_slice callback, has no failed record, see #failed_record, and its retry
+      # processes none of them again, which would add their results to its output a second time.
+      #
+      # Yields nothing when this slice no longer holds the record that it was processing, nor a record after it, such as
+      # once they were removed, see #delete_record.
       def each_unprocessed_record(category)
-        number                    = current_record_number
-        last                      = size.zero? ? number : record_number_at(size - 1)
+        index = current_index
+        return if index >= size
+
+        number                    = record_number_at(index)
         self.processing_at_record = number
-        category.parse_records(records_from(number)) do |record, line_number, record_number|
-          # Only the rows of a file are yielded with their numbers, see #records_from.
+        category.parse_records(records_after(index)) do |record, line_number, record_number|
+          # Only the rows of a file are yielded with their numbers, see #records_after.
           record_number           ||= number
           self.processing_at_record = record_number
           yield(record, line_number, record_number)
           number                    = record_number + 1
-          self.processing_at_record = number if record_number < last
+          self.processing_at_record = number
         end
       end
 
-      # Returns [true|false] whether an earlier attempt processed records of this slice, see #processing_at_record,
-      # whose results are already in its output, so that they are not processed again, see #each_unprocessed_record.
+      # Returns [true|false] whether an earlier attempt started on this slice, see #processing_at_record, so that the
+      # results of the records that it processed may already be in its output, which a retry adds to, rather than
+      # processing them again, see #each_unprocessed_record. It does not depend on where the slice points, which a
+      # record removed before a retry can move back to its first record, see #delete_record.
       def partly_processed?
-        !processing_at_record.nil? && processing_at_record > first_record_number
+        !processing_at_record.nil?
       end
 
       def_instance_delegators :records, :<<, :size, :concat
@@ -212,8 +220,11 @@ module RocketJob
 
       # Returns [Integer] the record number of the record currently being processed, see #processing_at_record and
       # #record_number_at: the first record that this slice still holds at or after it.
+      # Returns nil when it holds none, such as once every record is processed, or once the record being processed and
+      # those after it are removed, see #delete_record.
       def current_record_number
-        record_number_at(current_index)
+        index = current_index
+        record_number_at(index) if index < size || processing_at_record.nil?
       end
 
       # Returns [Integer] the line of its file that the record currently being processed starts on, see
@@ -279,9 +290,16 @@ module RocketJob
       #
       # Returns the record removed.
       # Raises IndexError when the slice has no record at the index.
+      #
+      # The slice stays on the record being processed, see #processing_at_record, or the record after it once that one
+      # is removed, also for records numbered by their place, see #record_number_at.
       def delete_record(index)
         check_record_index(index)
-        records.delete_at(index)
+        index  += size if index.negative?
+        current = current_index if processing_at_record
+        record  = records.delete_at(index)
+        point_at_index(index < current ? current - 1 : current) if current
+        record
       end
 
       # Returns [Hash] the slice as a Hash for storage purposes
@@ -347,9 +365,39 @@ module RocketJob
       # Returns [Integer] the index of the record currently being processed, see #current_record_number: the first
       # record that this slice still holds at or after #processing_at_record, or #size when it holds none.
       def current_index
-        return 0 if processing_at_record.nil?
+        processing_at_record ? record_index(processing_at_record) : 0
+      end
 
-        size - records_from(processing_at_record).size
+      # Returns [Array|IOStreams::Slice] the records of this slice from the supplied index on, see #records_from.
+      def records_after(index)
+        records = rows? ? numbered_rows : self.records
+        index.zero? ? records : records.drop(index)
+      end
+
+      # Points #processing_at_record at the record at the supplied index, unless this slice holds no record there, such
+      # as once the record being processed and those after it are removed, when it is left as it is.
+      def point_at_index(index)
+        self.processing_at_record = record_number_at(index) if index < size
+      end
+
+      # Returns [Integer] the index of the first record that this slice holds at or after the supplied record number,
+      # see #records_from, or #size when it holds none.
+      def record_index(record_number)
+        return (record_number - first_record_number).clamp(0, size) unless rows?
+
+        row_index(numbered_rows, record_number)
+      end
+
+      # Returns [Integer] the index of the first of the supplied rows, see #numbered_rows, whose record number is the
+      # supplied one or later, or the number of rows when there is none.
+      def row_index(rows, record_number)
+        index = 0
+        rows.each do |_row, _line_number, number|
+          break if number >= record_number
+
+          index += 1
+        end
+        index
       end
 
       # Returns [IOStreams::Slice] the rows of a file that this slice holds, each with a record number: a row without
@@ -357,9 +405,12 @@ module RocketJob
       # #first_record_number, as #record_number_at numbers it, so that IOStreams can find a row by its number, see
       # #records_from. The rows are returned as they are when each has a number.
       def numbered_rows
+        numbered = true
+        records.each { |_row, _line_number, record_number| numbered &&= !record_number.nil? }
+        return records if numbered
+
         numbered = []
         records.each { |row, line_number, record_number| numbered << [row, line_number, record_number] }
-        return records if numbered.all?(&:last)
 
         numbered.each_with_index.with_object(records.with_rows) do |((row, line_number, record_number), index), rows|
           rows.add(row, line_number: line_number, record_number: record_number || (first_record_number + index))

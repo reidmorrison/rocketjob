@@ -154,7 +154,8 @@ module RocketJob
       # yields each record with its line and record number, and points the slice at the record being processed.
       def rocket_job_perform_slice(slice, &block)
         append = slice.partly_processed?
-        logger.info("Resuming previously incomplete slice from record number #{slice.current_record_number}") if append
+        record_number = slice.current_record_number if append
+        logger.info("Resuming previously incomplete slice from record number #{record_number}") if record_number
 
         count = 0
         # The writer renders each result in its output category, see Sliced::Writer::Output.

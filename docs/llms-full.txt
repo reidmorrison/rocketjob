@@ -3730,6 +3730,9 @@ in `processing_at_record`, so records that already completed successfully within
 reprocessed, also when a record is removed from the slice with `delete_record` before the retry. The
 corrected record is the next one processed.
 
+A slice that fails once every record in it is processed, such as in an `after_slice` callback, has no
+`failed_record`, and its retry processes none of its records again, only the slice callbacks.
+
 **Example: fix every record in a slice.**
 Assigning an Array to `records` replaces them all, and is persisted by `save!`. The rows of a file
 keep the header row of their file, but not the line and record number of each row, which then count

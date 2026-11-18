@@ -182,7 +182,7 @@ module Batch
       describe "when an after_slice callback fails" do
         let(:job) { AfterSliceJob.new }
 
-        it "names the last record of the slice" do
+        it "has no failed record, and its retry processes none of its records again" do
           upload("Name,AGE\nJack,21\nJill,22\n")
           work
           slice  = job.input.first
@@ -190,9 +190,16 @@ module Batch
           job.input.each_failed_record { |record, _slice| failed << record }
 
           assert_predicate slice, :failed?
-          assert_equal 2, slice.processing_record_number
-          assert_equal 2, slice.current_record_number
-          assert_equal ["Jill,22"], failed
+          assert_equal 3, slice.processing_at_record
+          assert_equal 3, slice.processing_record_number
+          assert_nil slice.failed_record
+          assert_nil slice.current_record_number
+          assert_empty failed
+
+          job.retry!
+          work
+
+          assert_equal(%w[Jack Jill], output_records.collect { |record| record["name"] })
         end
       end
 

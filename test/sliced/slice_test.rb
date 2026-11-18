@@ -279,13 +279,13 @@ module Sliced
           yielded
         end
 
-        it "yields each record from the first, numbered from the first record number, and stays on the last" do
+        it "yields each record from the first, numbered from the first record number, and then points after the last" do
           slice.first_record_number = 51
           slice.records             = %w[a b c]
 
           refute_predicate slice, :partly_processed?
           assert_equal [["a", nil, 51, 51], ["b", nil, 52, 52], ["c", nil, 53, 53]], unprocessed(slice)
-          assert_equal 53, slice.processing_at_record
+          assert_equal 54, slice.processing_at_record
         end
 
         it "resumes at the record being processed" do
@@ -295,6 +295,63 @@ module Sliced
 
           assert_predicate slice, :partly_processed?
           assert_equal [["b", nil, 52, 52], ["c", nil, 53, 53]], unprocessed(slice)
+        end
+
+        it "stays on a record removed before it, as it is numbered by its place" do
+          slice.records              = %w[a b c]
+          slice.processing_at_record = 2
+          slice.delete_record(0)
+
+          assert_equal 1, slice.processing_at_record
+          assert_equal [["b", nil, 1, 1], ["c", nil, 2, 2]], unprocessed(slice)
+        end
+
+        it "yields nothing once the record being processed and those after it are removed" do
+          slice.records              = IOStreams::Slice.new(%w[a b c], header: %w[name], format: :csv, record_number: 1)
+          slice.processing_at_record = 3
+          slice.delete_record(2)
+          slice.delete_record(0)
+
+          assert_nil slice.current_record_number
+          assert_empty unprocessed(slice)
+          assert_equal 3, slice.processing_at_record
+        end
+
+        it "points at the record in the same place when the rows are assigned in an Array" do
+          slice.records = IOStreams::Slice.new(%w[a b c d], header: %w[name], format: :csv, record_number: 1)
+          slice.delete_record(0)
+          slice.processing_at_record = 3
+          slice.records              = slice.map(&:upcase)
+
+          assert_equal 2, slice.processing_record_number
+          assert_equal [["C", nil, 2, 2], ["D", nil, 3, 3]], unprocessed(slice)
+        end
+
+        it "stays on a row numbered by its place when a row before it is removed" do
+          slice.records              = IOStreams::Slice.new(%w[a b c d], header: %w[name], format: :csv, record_number: 1)
+          slice.records              = slice.map(&:upcase)
+          slice.processing_at_record = 3
+          slice.delete_record(0)
+
+          assert_equal [["C", nil, 2, 2], ["D", nil, 3, 3]], unprocessed(slice)
+        end
+
+        it "points at the record in the same place when rows are replaced by Hashes" do
+          slice.records = IOStreams::Slice.new(%w[a b c d], header: %w[name], format: :csv, record_number: 1)
+          slice.delete_record(0)
+          slice.processing_at_record = 3
+          slice.records              = slice.map { |name| {"name" => name} }
+
+          assert_equal [[{"name" => "c"}, nil, 2, 2], [{"name" => "d"}, nil, 3, 3]], unprocessed(slice)
+        end
+
+        it "is still partly processed once a processed record is removed, so that its output is added to" do
+          slice.records              = %w[a b c]
+          slice.processing_at_record = 2
+          slice.delete_record(0)
+
+          assert_equal 1, slice.processing_at_record
+          assert_predicate slice, :partly_processed?
         end
 
         it "points at the record that the block raises for" do
