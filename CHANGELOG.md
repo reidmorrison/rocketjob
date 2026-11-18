@@ -335,6 +335,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - `RocketJob::Job#display_attributes` returns the attributes of a job to show, with each path or url field
   shown without its credentials. A field is a path when it is declared with `path: true`, such as the
   `source_url` and `target_url` of `CopyFileJob`, or has the type `IOStreams::Path`. `.path_fields` lists them.
+  Declare with `path: true` the `upload_file_name` or `full_file_name` field of a simple job that Dirmon or an
+  `UploadFileJob` hands a file to, since the path of the archived file can hold credentials.
   The `file_name` of each input and output category of a batch job is also shown without its credentials,
   and so are the paths in the `properties` of an `UploadFileJob`. `.display_properties` does the same for
   a hash of properties for a job class, such as those of a Dirmon entry.

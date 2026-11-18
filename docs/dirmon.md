@@ -221,6 +221,9 @@ file is delivered depends on what the job supports:
   for file processing.
 * **Simple jobs** can instead declare an `upload_file_name` or `full_file_name` field; the absolute
   path of the archived file is assigned to it, leaving the job to open and read the file itself.
+  Declare it with `path: true`, such as `field :full_file_name, type: String, path: true`, since the
+  path holds the user name and password of an SFTP archive directory that has them, and Mission
+  Control shows a path field without them.
 
 A job that is neither a batch job nor declares one of those fields cannot be used as a Dirmon target,
 and an entry for it is not valid. When the class changes after the entry is saved, so that it can no
