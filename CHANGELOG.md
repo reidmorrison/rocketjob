@@ -166,8 +166,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   where it was `prnom`, and `First Name` with a no-break space is `first_name`, where it was `firstname`, which
   changes the keys of the records that `#perform` receives, without a schema.
 - A Dirmon entry, and an `UploadFileJob`, check the category properties that they hold for a batch job when
-  they are saved, so an entry, or an `UploadFileJob`, that was saved before can now fail validation and
-  must be corrected before it can be saved again:
+  they are saved, so an entry that was saved before can now fail validation and must be corrected before it can
+  be saved again. An `UploadFileJob` checks its job class and properties only when it is created, or when its
+  `job_class_name` or `properties` change, so one that was saved before can still be aborted, retried or paused,
+  and fails when it runs until they are corrected:
   - Each value is validated, such as an `encoding` that is not valid, or an `invalid_characters` that is
     not one of its values. Previously the values were only checked when the job was created, so every file
     that a Dirmon entry found failed.

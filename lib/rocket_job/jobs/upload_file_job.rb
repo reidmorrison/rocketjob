@@ -32,9 +32,10 @@ module RocketJob
       field :job_id, type: BSON::ObjectId
 
       validates_presence_of :upload_file_name, :job_class_name
-      validate :job_class_can_be_started
-      validate :file_exists
-      validate :job_has_properties
+      # Checked when they are set or changed, not each time the job is saved, so that a saved job can still be
+      # aborted, retried or paused, such as in a web interface, see #job_settings_changed? and #upload_file_name_set?.
+      validate :job_class_can_be_started, :job_has_properties, if: :job_settings_changed?
+      validate :file_exists, if: :upload_file_name_set?
       after_initialize :convert_saved_properties, unless: :new_record?
 
       # The methods that #upload_file uploads the file with, whichever the job has: its #upload, or the file name that
@@ -132,11 +133,7 @@ module RocketJob
         self.class.job_class_errors(job_class_name).each { |message| errors.add(:job_class_name, message) }
       end
 
-      # Validates the file to upload when it is set or changed, not each time the job is saved, since the file is
-      # moved or deleted once it is uploaded, and can be on a disk that only the servers that run the job can read.
-      # Otherwise a saved job could not be changed elsewhere, such as aborted, retried or paused in a web interface.
       def file_exists
-        return unless new_record? || upload_file_name_changed?
         return upload_file_name_url_valid if upload_file_name.is_a?(String)
         # Only check for file existence when it is a local file
         return unless upload_file_name.is_a?(IOStreams::Paths::File)
@@ -151,8 +148,8 @@ module RocketJob
 
       # A url that IOStreams cannot make a path of is read as stored, a String, see IOStreams::Path.demongoize, so one
       # that is set or changed is checked here, rather than when the job runs, see IOStreams::Path.invalid_url?. A saved
-      # one is not, see #file_exists, so that a job whose url has a scheme that only the servers that run it register
-      # can still be saved elsewhere, such as when it is aborted in a web interface.
+      # one is not, see #upload_file_name_set?, so that a job whose url has a scheme that only the servers that run it
+      # register can still be saved elsewhere, such as when it is aborted in a web interface.
       def upload_file_name_url_valid
         return unless IOStreams::Path.invalid_url?(upload_file_name)
 
@@ -167,8 +164,11 @@ module RocketJob
         klass = job_class
         return unless klass.respond_to?(:convert_saved_properties) && properties.is_a?(Hash)
 
-        converted       = klass.convert_saved_properties(properties)
-        self.properties = converted unless converted == properties
+        converted = klass.convert_saved_properties(properties)
+        return if converted == properties
+
+        self.properties = converted
+        @converted_saved_properties = converted.deep_dup
       end
 
       # Can the properties build the job? The job class decides, see RocketJob::Plugins::Job::Model.property_errors.
@@ -177,6 +177,22 @@ module RocketJob
         return unless klass.respond_to?(:property_errors)
 
         klass.property_errors(properties).each { |message| errors.add(:properties, message) }
+      end
+
+      # Whether the job class name or properties are new or changed, so are checked. A saved job is not checked
+      # again, so that its state can still be changed after its job class changed and no longer accepts its
+      # properties. It then fails when it runs and builds the job, see #perform, until they are corrected. Properties
+      # that only #convert_saved_properties changed are not checked either, since they were saved as they were.
+      def job_settings_changed?
+        return true if new_record? || job_class_name_changed?
+
+        properties_changed? && properties != @converted_saved_properties
+      end
+
+      # Whether the file to upload is new or changed, so is checked. A saved one is not, since the file is moved or
+      # deleted once it is uploaded, and can be on a disk that only the servers that run the job can read.
+      def upload_file_name_set?
+        new_record? || upload_file_name_changed?
       end
     end
   end

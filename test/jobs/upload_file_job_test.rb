@@ -302,6 +302,79 @@ module Jobs
             assert_equal ["Input category main: Unknown property: not_a_category_field"], job.errors.messages[:properties]
           end
 
+          describe "saved with properties that the job class no longer accepts" do
+            # Returns [RocketJob::Jobs::UploadFileJob] the job read from the database, saved with an output category
+            # that its job class does not define, such as before the class changed.
+            let :saved do
+              job.save!
+              RocketJob::Jobs::UploadFileJob.collection.update_one(
+                {_id: job.id}, {"$set" => {"properties" => {"output_categories" => [{"name" => "other"}]}}}
+              )
+              RocketJob::Jobs::UploadFileJob.find(job.id)
+            end
+
+            it "can still be aborted" do
+              assert_predicate saved, :valid?, -> { saved.errors.full_messages.inspect }
+              saved.abort!
+
+              assert_predicate RocketJob::Jobs::UploadFileJob.find(job.id), :aborted?
+            end
+
+            it "fails when it runs and builds the job" do
+              error = assert_raises(ArgumentError) { saved.perform_now }
+
+              assert_includes error.message, "Unknown Output Category: :other"
+            end
+
+            it "can still be aborted when Rocket Job 7 saved them with a mode, which is converted when it is read" do
+              job.save!
+              RocketJob::Jobs::UploadFileJob.collection.update_one(
+                {_id: job.id},
+                {
+                  "$set" => {
+                    "properties" => {
+                      "input_categories"  => [{"format" => "csv", "mode" => "hash"}],
+                      "output_categories" => [{"name" => "other"}]
+                    }
+                  }
+                }
+              )
+              v7 = RocketJob::Jobs::UploadFileJob.find(job.id)
+
+              assert_predicate v7, :changed?
+              v7.abort!
+              stored = RocketJob::Jobs::UploadFileJob.collection.find(_id: job.id).first
+
+              assert_equal "aborted", stored["state"]
+              assert_equal [{"format" => "csv", "validate_rows" => true}], stored["properties"]["input_categories"]
+            end
+
+            it "checks converted properties that are then changed" do
+              job.save!
+              RocketJob::Jobs::UploadFileJob.collection.update_one(
+                {_id: job.id}, {"$set" => {"properties" => {"input_categories" => [{"format" => "csv", "mode" => "hash"}]}}}
+              )
+              v7 = RocketJob::Jobs::UploadFileJob.find(job.id)
+              v7.properties = v7.properties.merge("output_categories" => [{"name" => "other"}])
+
+              refute_predicate v7, :valid?
+            end
+
+            it "checks the properties when they are changed" do
+              saved.properties = {"output_categories" => [{"name" => "another"}]}
+
+              refute_predicate saved, :valid?
+              assert(saved.errors.messages[:properties].any? { |m| m.include?("another") })
+            end
+
+            it "checks the properties when the job class name is changed" do
+              saved.job_class_name = UploadFileJobTest::TestJob.name
+
+              refute_predicate saved, :valid?
+              assert(saved.errors.messages[:properties].any? { |m| m.include?("output_categories") })
+            end
+          end
+
           it "rejects a category value that is not valid" do
             job.properties = {"output_categories" => [{"name" => "main", "encoding" => "UTF-16"}]}
 
