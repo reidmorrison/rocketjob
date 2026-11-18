@@ -35,12 +35,27 @@ module RocketJob
   # The name is valid UTF-8, see .valid_utf8, so that it can be saved and logged, even when the name of the file is
   # not, such as a Latin-1 name, or a name that SFTP lists as binary.
   def self.path_display_name(path)
-    return path if path.blank?
+    display_name(path) { IOStreams.path(path).display_name }
+  end
 
-    valid_utf8(IOStreams.path(path).display_name)
+  # Returns [String] the supplied pattern to show, such as the pattern of a Dirmon entry, without any credentials,
+  # such as the user name and password of `sftp://user:password@host/in/*.csv`, see IOStreams.display_name, which
+  # splits it as IOStreams.each_child lists it, since a url cannot hold some pattern characters, such as the braces of
+  # `*.{csv,txt}`. Shown as .path_display_name shows a path.
+  def self.pattern_display_name(pattern)
+    display_name(pattern) { IOStreams.display_name(pattern) }
+  end
+
+  # Returns [String] the display name that the block returns, as valid UTF-8, see .path_display_name, or
+  # INVALID_PATH_DISPLAY_NAME when the block raises. A blank path or pattern is returned as it is.
+  def self.display_name(path_or_pattern)
+    return path_or_pattern if path_or_pattern.blank?
+
+    valid_utf8(yield)
   rescue StandardError, LoadError
     INVALID_PATH_DISPLAY_NAME
   end
+  private_class_method :display_name
 
   # Returns [String] the supplied text as valid UTF-8, which is the only text that MongoDB stores, so that it can be
   # saved, displayed and logged.

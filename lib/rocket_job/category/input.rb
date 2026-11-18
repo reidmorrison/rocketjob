@@ -451,11 +451,10 @@ module RocketJob
       # Returns [true|false] whether the rows of this category's format are lines of text, such as CSV or JSON, which a
       # file, or the block of an upload, gives as they are, see #copy_slices and #write_slices, rather than Ruby objects,
       # such as those of :hash or :array, or rows that are not lines, such as those of Parquet, see
-      # IOStreams::Stream#lines_of_text?. A format of :auto is that of the file name, otherwise CSV, see #detect_format.
+      # IOStreams::Stream#lines_of_text?. Asked once an upload has replaced a format of :auto, see #detect_format, and of
+      # the format alone, since the file name of the category can be that of another upload, such as a spreadsheet's.
       def rows_are_lines?
-        stream = file_name ? IOStreams.new(file_name) : IOStreams.stream(StringIO.new)
-        stream.format(format) unless format == :auto
-        stream.lines_of_text?
+        IOStreams.stream(StringIO.new).format(format).lines_of_text?
       end
 
       # Returns [true|false] whether IOStreams writes the records of an upload into this category in its format, see

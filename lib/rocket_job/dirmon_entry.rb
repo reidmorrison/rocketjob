@@ -233,17 +233,9 @@ module RocketJob
     end
 
     # Returns [String] the pattern to show, for example in a web interface, which leaves out any credentials,
-    # such as the user name and password of `sftp://user:password@host/in/*.csv`, see IOStreams.display_name, which
-    # splits the pattern as IOStreams.each_child lists it.
-    #
-    # A pattern that IOStreams cannot parse or split is shown as RocketJob::INVALID_PATH_DISPLAY_NAME, since its
-    # credentials cannot be found, as is one that needs a gem that is not installed in this process.
+    # such as the user name and password of `sftp://user:password@host/in/*.csv`, see RocketJob.pattern_display_name.
     def pattern_display_name
-      return pattern if pattern.blank?
-
-      RocketJob.valid_utf8(IOStreams.display_name(pattern))
-    rescue StandardError, LoadError
-      RocketJob::INVALID_PATH_DISPLAY_NAME
+      RocketJob.pattern_display_name(pattern)
     end
 
     # Returns [String] the archive directory to show, without any credentials, see #pattern_display_name.

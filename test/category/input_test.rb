@@ -475,17 +475,9 @@ module Batch
           refute RocketJob::Category::Input.new.send(:formatted?)
         end
 
-        it "takes :auto as the format of the file name" do
-          assert RocketJob::Category::Input.new(format: :auto, file_name: "people.json").send(:formatted?)
-          refute RocketJob::Category::Input.new(format: :auto, file_name: "people.parquet").send(:formatted?)
-        end
-
-        it "takes :auto without a file name as CSV" do
-          assert RocketJob::Category::Input.new(format: :auto).send(:formatted?)
-        end
-
-        it "takes the format that was set over the file name" do
-          refute RocketJob::Category::Input.new(format: :hash, file_name: "people.csv").send(:formatted?)
+        it "answers for the format alone, rather than the file name of another upload" do
+          refute RocketJob::Category::Input.new(format: :hash, file_name: "people.xlsx").send(:formatted?)
+          assert RocketJob::Category::Input.new(format: :json, file_name: "people.xlsx").send(:formatted?)
         end
       end
 
@@ -518,6 +510,12 @@ module Batch
         it "holds the records of a format whose rows are Ruby objects as they are" do
           assert_equal [nil, :hash, [{"name" => "Jack"}]],
                        written(RocketJob::Category::Input.new(format: :hash)) { |io| io << {"name" => "Jack"} }
+        end
+
+        it "holds the records of a format whose rows are Ruby objects, whatever the file name of an earlier upload" do
+          category = RocketJob::Category::Input.new(format: :hash, file_name: "people.xlsx")
+
+          assert_equal [nil, :hash, [{"name" => "Jack"}]], written(category) { |io| io << {"name" => "Jack"} }
         end
 
         it "reads a format of :auto from the file name, otherwise CSV" do
