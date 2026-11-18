@@ -3,6 +3,27 @@ require_relative "../test_helper"
 module Extensions
   class IOStreamsPathTest < Minitest::Test
     describe IOStreams::Path do
+      describe ".invalid_url?" do
+        it "is true for a url whose scheme IOStreams does not know" do
+          assert IOStreams::Path.invalid_url?("s4://bucket/in/data.csv")
+        end
+
+        it "is false for a path or url that IOStreams can make a path of" do
+          refute IOStreams::Path.invalid_url?("/var/sftp/in/data.csv")
+          refute IOStreams::Path.invalid_url?("sftp://sftp.example.org/in/data.csv")
+        end
+
+        it "is true for a url that IOStreams cannot parse" do
+          assert IOStreams::Path.invalid_url?("sftp://sftp.example.org/in/données.csv")
+        end
+
+        it "is false for a url whose scheme needs a gem that is not loaded" do
+          IOStreams.stub(:path, ->(*) { raise(LoadError, "Please install the gem 'aws-sdk-s3' to support AWS S3.") }) do
+            refute IOStreams::Path.invalid_url?("s3://bucket/in/data.csv")
+          end
+        end
+      end
+
       describe ".demongoize" do
         it "returns nil for nil" do
           assert_nil IOStreams::Path.demongoize(nil)

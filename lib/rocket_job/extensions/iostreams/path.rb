@@ -25,6 +25,18 @@ module IOStreams
       object
     end
 
+    # Returns [true|false] whether IOStreams cannot make a path of the supplied url in this process, other than for a
+    # gem that this process does not load, since a server that runs the job can load it: such as a url whose scheme
+    # IOStreams does not know, or that it cannot parse, which .demongoize keeps as stored.
+    def self.invalid_url?(url)
+      IOStreams.path(url)
+      false
+    rescue ArgumentError, URI::Error
+      true
+    rescue LoadError
+      false
+    end
+
     # Takes any possible object and converts it to how it would be
     # stored in the database.
     def self.mongoize(object)
