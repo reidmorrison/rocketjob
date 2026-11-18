@@ -197,11 +197,19 @@ Host sftp.example.org
   IdentityFile ~/.ssh/acme_ed25519
 ~~~
 
+Add the server's host key to that user's `~/.ssh/known_hosts`, such as with `ssh-keyscan`, since
+IOStreams does not log in to a server whose key it does not know. Dirmon lists and archives the files
+with the `net-sftp` gem, so add it to the application's `Gemfile`, with the `ed25519` and
+`bcrypt_pbkdf` gems for an ed25519 key, as the
+[IOStreams SFTP section](https://iostreams.reidmorrison.com/path.html#sftp-sftp) describes.
+
 A user name and password written in the pattern, such as
-`sftp://acme:secret@sftp.example.org/inbound/*.csv`, are saved in MongoDB with the entry, and in the
-path of each archived file that its job reads, see [How the file reaches the job](#how-the-file-reaches-the-job).
-Mission Control and the logs show the paths without them, but anyone who can read the database can
-read them. Dirmon has no other place to keep a password, so log in with a key instead.
+`sftp://acme:secret@sftp.example.org/inbound/*.csv`, are saved in MongoDB with the entry, and, with
+an `archive_directory` relative to the pattern, in the path of each archived file that its job
+reads, see [How the file reaches the job](#how-the-file-reaches-the-job). The logs show the paths
+without them, and so does Mission Control, in a field declared with `path: true`, but anyone who can
+read the database can read them. Dirmon has no other place to keep a password, so log in with a key
+instead.
 
 ## Enabling and disabling entries
 

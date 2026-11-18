@@ -1019,7 +1019,7 @@ module Batch
             assert_predicate job, :completed?, job.state
           end
 
-          # Rocket Job 6 gave a Date of a query back as a Time, since MongoDB stores it as one.
+          # Rocket Job 7 gave a Date of an uploaded Hash back as a Time, since MongoDB stores it as one.
           it "keeps a Date and a BigDecimal in fields without a type, or of the type any" do
             job.input_category.format = :hash
             job.input_category.schema = {"fields" => [{"name" => "born"}, {"name" => "balance", "type" => "any"}]}

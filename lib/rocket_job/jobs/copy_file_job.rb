@@ -42,7 +42,8 @@ module RocketJob
 
       # The encoding of the text in the source and in the target, such as "Windows-1252", to convert the text of the
       # file from one to the other. When only one is set, the other is UTF-8. When neither is set, which is the
-      # default, the file is copied byte for byte.
+      # default, the file is copied byte for byte, unless both `source_streams` and `target_streams` are set without the
+      # `none` stream, which also converts the format of the source file name to that of the target, such as CSV to JSON.
       #
       # The text is read and written through the streams of the source and target, such as decompressing a `.gz`
       # source, which are taken from their file names unless `source_streams` or `target_streams` is set. The
