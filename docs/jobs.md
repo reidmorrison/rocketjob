@@ -201,7 +201,9 @@ but it can be used directly with any job class.
 
 The target job must be a `RocketJob::Job` and must accept the file in one of three ways: by
 implementing `#upload` (the usual case for batch jobs), or by having an `upload_file_name` or
-`full_file_name` field that the path is assigned to.
+`full_file_name` field that the path is assigned to. Declare such a field with `path: true`, such as
+`field :full_file_name, type: String, path: true`, so that a url with credentials is shown without
+them, see `RocketJob::Job#display_attributes`.
 
 ~~~ruby
 RocketJob::Jobs::UploadFileJob.create!(
