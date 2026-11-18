@@ -81,7 +81,7 @@ module Sliced
       end
 
       describe "the rows of a file" do
-        let(:rows) { IOStreams::Slice.new(["Jack,21", "Jill,22"], header: %w[Name AGE], format: :csv) }
+        let(:rows) { IOStreams::Slice.new(["Jack,21", "Jill,22"], header: %w[Name AGE], format: :csv, line_number: 2, record_number: 1) }
 
         it "keeps the header row and format that they carry" do
           slice.records = rows
