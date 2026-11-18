@@ -40,7 +40,10 @@ keep working. See [Upgrading to v7.2](https://rocketjob.reidmorrison.com/upgradi
   always what they say: options that 7.0 never applied, such as `allowed_columns` for JSON records, are removed
   rather than described in the schema. It says what to check, such as a name that 7.0 cleansed without its non-ASCII
   letters, and what it cannot translate. `#dry_run` reads the first records of a recent file with the category as it
-  is, and with the proposal, and lists what differs. See "Propose the schema of each category" in the upgrade guide.
+  is, and with the proposal, and lists what differs. A saved job, or an `UploadFileJob`, answers its own proposals
+  with `#schema_proposals`, and a Dirmon entry with `RocketJob::DirmonEntry#schema_proposals`, such as for a page of a
+  web interface; a job that has completed or was aborted answers none, since it cannot run again. See "Propose the
+  schema of each category" in the upgrade guide.
 - `RocketJob.path_display_name` returns a path or url to show, for example in Rocket Job Mission Control,
   without the user name, password or query of a url. A value that IOStreams cannot build a path from, such as an
   SFTP url with a non-ASCII letter or a `[` in its file name, or that needs a gem that is not installed, such as an

@@ -57,8 +57,11 @@ module RocketJob
 
       # Returns [Array<RocketJob::SchemaProposal>] the schemas proposed to replace the deprecated category options in
       # the properties of the job that this job creates, which that job class proposes, see
-      # RocketJob::Batch::Categories::ClassMethods#property_schema_proposals. None when its job class is not loaded, or is not a Rocket Job.
+      # RocketJob::Batch::Categories::ClassMethods#property_schema_proposals. None when its job class is not loaded, or is not a Rocket Job,
+      # or when this job has completed or was aborted, since it cannot create its job again.
       def schema_proposals
+        return [] if completed? || aborted?
+
         klass = rocket_job_class
         return [] unless klass && properties.is_a?(Hash)
 

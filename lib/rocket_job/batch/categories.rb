@@ -219,8 +219,11 @@ module RocketJob
 
       # Returns [Array<RocketJob::SchemaProposal>] the schemas proposed to replace the deprecated options of this saved
       # job's categories, see RocketJob::Category::Input#schema_proposal. A job that is running, paused or failed has
-      # uploaded its input with them, so it is only told to finish first.
+      # uploaded its input with them, so it is only told to finish first. None for a job that has completed or was
+      # aborted, since it cannot run again.
       def schema_proposals
+        return [] if completed? || aborted?
+
         where     = "#{self.class.name} #{id} (#{state})"
         proposals = (input_categories.to_a + output_categories.to_a).filter_map do |category|
           label = "#{where}, #{self.class.rocketjob_category_label(category)}"
