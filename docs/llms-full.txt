@@ -2777,7 +2777,8 @@ format without a header row, such as JSON, it receives a Hash of the two values,
 `{"first_id" => 1, "last_id" => 100}`, or with a schema, a Hash keyed by the names of its fields, in
 order. `upload` raises `ArgumentError` for a range in a format that reads a header row, such as CSV,
 and raises for one that the category's schema cannot read, such as a schema whose `fieldsMatch` is
-not `"exact"`.
+not `"exact"`. Without a schema, it also raises `ArgumentError` for a format whose rows cannot be
+that Hash: `:text`, whose rows are each one value, and Parquet, which needs a schema.
 
 `upload_arel`, `upload_mongo_query`, `upload_integer_range` and
 `upload_integer_range_in_reverse_order`, which uploaded a query or a range before `upload` accepted

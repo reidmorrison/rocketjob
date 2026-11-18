@@ -362,6 +362,17 @@ module Batch
           end
         end
 
+        it "raises for a range in a format without a schema whose rows cannot be its Hash, as IOStreams says" do
+          text = range_error(format: :text).message
+
+          assert text.start_with?("Input category main: cannot upload a Range in the :text format. The :text rows " \
+                                  "have no header row, and no keys"), text
+          parquet = range_error(format: :parquet).message
+
+          assert parquet.start_with?("Input category main: cannot upload a Range in the :parquet format. Writing " \
+                                     "Parquet needs a schema"), parquet
+        end
+
         it "raises what IOStreams raises for a range that it cannot read by the schema" do
           message = range_error(format: :json, schema: schema.merge("fieldsMatch" => "subset")).message
 

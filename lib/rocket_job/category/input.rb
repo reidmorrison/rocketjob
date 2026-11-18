@@ -175,9 +175,8 @@ module RocketJob
       # schema, whose records are the lines of a file, a blank line too. A blank record of any other format is nil.
       def parse(record)
         return record if record.nil? || !tabular? || (format == :text && schema.blank?)
-        return if record.blank?
 
-        parse_record(record)
+        parse_record(record) unless record.blank?
       end
 
       # Returns [Hash|Array|String] the record uploaded into this category, parsed for `#perform`.
@@ -361,13 +360,18 @@ module RocketJob
       # raises when it cannot read them by this category's schema, such as ArgumentError for one whose `fieldsMatch` is
       # not "exact", or `IOStreams::Errors::InvalidHeader` for one of fewer fields. An ArgumentError names this category
       # and the kind of object. Without a schema, IOStreams reads them by the schema that the slice carries, see
-      # `IOStreams::Slice#schema`, such as the names of the two ids of a range. Otherwise every slice would fail once a
-      # worker parsed it. The rows of a query are written in the format instead, see #copy_rows.
+      # `IOStreams::Slice#schema`, such as the names of the two ids of a range, and the records must then be rows of this
+      # category's format, as IOStreams says when it writes them: not of the :text format, whose rows are each one value,
+      # nor of Parquet, which needs a schema. Otherwise every slice would fail once a worker parsed it, or give `#perform`
+      # a record that its format cannot hold. The rows of a query are written in the format instead, see #copy_rows.
       def check_record_upload(kind, slice)
         return unless tabular?
         raise(ArgumentError, "It reads the header row of a file. Upload it into a category without a format") if tabular.header?
 
-        parse_records(slice) { nil }
+        return parse_records(slice) { nil } if schema.present?
+
+        # Without a schema, the records must be rows of this category's format, as IOStreams says when it writes them.
+        IOStreams.stream(StringIO.new).format(format).writer(:hash) { |rows| parse_records(slice) { |row| rows << row } }
       rescue ArgumentError => e
         raise(ArgumentError, "Input category #{name}: cannot upload #{kind} in the #{format.inspect} format. #{e.message}")
       end

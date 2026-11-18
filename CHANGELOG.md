@@ -410,7 +410,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   failed when a worker parsed it. A query is uploaded in the format, after the names of its columns, see New features.
   In a format without a header row, such as JSON, `#perform` receives each range as a Hash,
   `{"first_id" => 1, "last_id" => 100}`, or with a schema, keyed by the names of its fields, in order, and `upload`
-  raises for a range that the schema cannot read, such as one whose `fieldsMatch` is not `"exact"`.
+  raises for a range that the schema cannot read, such as one whose `fieldsMatch` is not `"exact"`. Without a schema,
+  it raises `ArgumentError` in a format whose rows cannot be that Hash, as IOStreams says when it writes it: `:text`,
+  whose rows are each one value, and Parquet, which needs a schema.
 - `upload` of a Mongoid query leaves the query as it was. Previously it changed the fields that the query loads, so
   after `job.upload(criteria, columns: [:zip_code])`, `criteria.to_a` loaded only `_id` and `zip_code`.
 - When an upload raises, only the slices that it stored are removed, so the slices of an earlier upload into the same
