@@ -182,12 +182,6 @@ module RocketJob
             next
           end
 
-          # The file is moved to the archive directory when its job is queued, which requires
-          # write access to the directory that contains it.
-          if path.is_a?(IOStreams::Paths::File) && !::File.writable?(path.directory.to_s)
-            logger.warn "Skipping file: #{RocketJob.path_display_name(path)} since its directory is not writable by the current user. Must be able to delete/move the file after queueing the job"
-            next
-          end
           yield(path)
         end
       end
@@ -422,10 +416,14 @@ module RocketJob
 
     # Moves the file to the archive path.
     #
-    # Returns [true|false] whether the file was moved, false when it was removed after it was found.
+    # Returns [true|false] whether the file was moved, false when it was removed after it was found, or when this
+    # process may not move it, such as from a directory that it cannot write to, whichever storage it is on. The file is
+    # then left where it is, without a copy in the archive, since a store that moves a file by copying it and deleting
+    # the file, such as S3 or SFTP, leaves the copy when it may not delete the file.
     #
     # Raises IOStreams::Errors::NotFound when the file still exists, since then it is the archive path that was
-    # not found, for example when its S3 bucket does not exist.
+    # not found, for example when its S3 bucket does not exist, and IOStreams::Errors::PermissionDenied when it is the
+    # archive path that this process may not write to.
     def archive_file(iopath, archive_path)
       iopath.move_to(archive_path)
       true
@@ -433,6 +431,13 @@ module RocketJob
       raise if iopath.exist?
 
       logger.info("Skipping file: #{RocketJob.path_display_name(iopath)} since it no longer exists")
+      false
+    rescue IOStreams::Errors::PermissionDenied => e
+      raise unless e.display_name == iopath.display_name
+
+      archive_path.delete if archive_path.exist?
+      logger.warn("Skipping file: #{RocketJob.path_display_name(iopath)} since it cannot be moved to the archive " \
+                  "directory: #{e.message}")
       false
     end
 

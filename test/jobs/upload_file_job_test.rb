@@ -201,10 +201,40 @@ module Jobs
           assert_includes saved.errors.messages[:upload_file_name], "Upload file: /tmp/blah does not exist."
         end
 
-        it "allows urls other than file for upload_file_name" do
-          job.upload_file_name = "https://server/path"
+        describe "a file that is not local" do
+          let(:sftp_path) { IOStreams.path("sftp://jack:secret@sftp.example.org/in/data.csv") }
 
-          assert_predicate job, :valid?, job.errors.messages
+          def valid_with(path)
+            job.stub(:upload_file_name, path) { job.valid? }
+          end
+
+          it "checks that the file exists on its storage" do
+            sftp_path.define_singleton_method(:exist?) { false }
+
+            refute valid_with(sftp_path)
+            assert_includes job.errors.messages[:upload_file_name],
+                            "Upload file: sftp://sftp.example.org/in/data.csv does not exist."
+          end
+
+          it "accepts a file that exists on its storage" do
+            sftp_path.define_singleton_method(:exist?) { true }
+
+            assert valid_with(sftp_path), -> { job.errors.messages.inspect }
+          end
+
+          {
+            "cannot be reached"          => -> { raise IOStreams::Errors::Unavailable.tag(Errno::ECONNREFUSED.new, "sftp") },
+            "may not be read"            => -> { raise IOStreams::Errors::PermissionDenied.tag(Errno::EACCES.new, "sftp") },
+            "has a host that is unknown" => -> { raise SocketError, "getaddrinfo: nodename nor servname provided" },
+            "needs a gem not installed"  => -> { raise LoadError, "Please install the gem 'net-sftp'" },
+            "cannot answer"              => -> { raise NotImplementedError }
+          }.each_pair do |reason, exist|
+            it "saves the job when the storage #{reason}, since it is checked when the job runs" do
+              sftp_path.define_singleton_method(:exist?, &exist)
+
+              assert valid_with(sftp_path), -> { job.errors.messages.inspect }
+            end
+          end
         end
 
         it "validates a url whose scheme IOStreams does not know" do

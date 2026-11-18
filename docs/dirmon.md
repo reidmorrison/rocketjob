@@ -352,7 +352,10 @@ and go. There is only ever one `DirmonJob` queued or running at a time.
 If a scan raises an exception, the responsible `DirmonEntry` is moved to the `failed` state with the
 exception recorded, so the rest of the entries keep working and the failure can be investigated and
 re-enabled from Mission Control. A file that was removed after it was found is not a failure: it is
-skipped. A missing archive location, such as an S3 bucket that does not exist, still fails the entry.
+skipped. So is a file that Dirmon may not move, such as one in a directory that it cannot write to,
+whichever storage it is on: a warning is logged, the file is left where it is, and it is tried again on
+the next scan. A missing archive location, such as an S3 bucket that does not exist, or one that Dirmon
+may not write to, still fails the entry.
 
 An entry whose storage cannot be reached, such as an SFTP server that is restarting
 (`IOStreams::Errors::Unavailable`), is not failed straight away. A warning is logged and the entry is

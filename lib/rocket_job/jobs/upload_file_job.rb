@@ -133,17 +133,28 @@ module RocketJob
         self.class.job_class_errors(job_class_name).each { |message| errors.add(:job_class_name, message) }
       end
 
+      # Validates that the file to upload exists, whichever storage it is on, such as S3 or SFTP, see
+      # #upload_file_name_set?. Only an answer from the storage that the file is not there fails it: it is not checked
+      # when this process cannot ask, such as a web server that cannot reach the storage, resolve its host, or read it,
+      # or that lacks the gem that reads it, nor when the storage cannot answer whether a file exists, so that the job
+      # can still be saved there. It then fails when it runs, if the file is not there.
       def file_exists
         return upload_file_name_url_valid if upload_file_name.is_a?(String)
-        # Only check for file existence when it is a local file
-        return unless upload_file_name.is_a?(IOStreams::Paths::File)
+        return if upload_file_name.nil?
         return errors.add(:upload_file_name, "Upload file name can't be blank.") if upload_file_name.to_s == ""
-
-        return if upload_file_name.exist?
+        return unless file_missing?
 
         errors.add(:upload_file_name, "Upload file: #{RocketJob.path_display_name(upload_file_name)} does not exist.")
-      rescue NotImplementedError
-        nil
+      end
+
+      # Returns [true|false] whether the storage answers that the file to upload is not there, false when it could not
+      # be asked, see #file_exists.
+      def file_missing?
+        !upload_file_name.exist?
+      rescue StandardError, NotImplementedError, LoadError => e
+        logger.info("Not checking that #{RocketJob.path_display_name(upload_file_name)} exists, since its storage " \
+                    "could not be asked: #{e.class}")
+        false
       end
 
       # A url that IOStreams cannot make a path of is read as stored, a String, see IOStreams::Path.demongoize, so one
