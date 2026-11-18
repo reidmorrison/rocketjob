@@ -220,11 +220,12 @@ module RocketJob
       # Returns [Array<RocketJob::SchemaProposal>] the schemas proposed to replace the deprecated options of this saved
       # job's categories, see RocketJob::Category::Input#schema_proposal. A job that is running, paused or failed has
       # uploaded its input with them, so it is only told to finish first. None for a job that has completed or was
-      # aborted, since it cannot run again.
+      # aborted, since it cannot run again. What reading its categories raises, such as for a category option that
+      # the job class no longer has, is answered as one proposal with the error, see RocketJob::SchemaProposal.unreadable.
       def schema_proposals
+        where = "#{self.class.name} #{id} (#{state})"
         return [] if completed? || aborted?
 
-        where     = "#{self.class.name} #{id} (#{state})"
         proposals = (input_categories.to_a + output_categories.to_a).filter_map do |category|
           label = "#{where}, #{self.class.rocketjob_category_label(category)}"
           next category.schema_proposal(label) unless category.is_a?(RocketJob::Category::Input)
@@ -242,6 +243,8 @@ module RocketJob
                     "finish, or abort it, before upgrading to Rocket Job 8, rather than change it."]
           )
         ]
+      rescue StandardError => e
+        [RocketJob::SchemaProposal.unreadable(where, e)]
       end
 
       # Sets the supplied properties of each input category on it, such as those that a Dirmon entry or an

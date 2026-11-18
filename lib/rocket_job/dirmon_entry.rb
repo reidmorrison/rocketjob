@@ -218,11 +218,16 @@ module RocketJob
     # Returns [Array<RocketJob::SchemaProposal>] the schemas proposed to replace the deprecated category options in the
     # properties of this entry, which its job class proposes, see
     # RocketJob::Batch::Categories::ClassMethods#property_schema_proposals. None when its job class is not loaded, or is not a Rocket Job.
+    # What its job class raises for the properties, such as for a category option that it no longer has, is answered as
+    # one proposal with the error, see RocketJob::SchemaProposal.unreadable.
     def schema_proposals
+      where = "Dirmon entry #{name.inspect} #{id}"
       klass = rocket_job_class
       return [] unless klass && properties.is_a?(Hash)
 
-      klass.property_schema_proposals(properties, "Dirmon entry #{name.inspect} #{id}")
+      klass.property_schema_proposals(properties, where)
+    rescue StandardError => e
+      [RocketJob::SchemaProposal.unreadable(where, e)]
     end
 
     # Returns [String] the pattern to show, for example in a web interface, which leaves out any credentials,

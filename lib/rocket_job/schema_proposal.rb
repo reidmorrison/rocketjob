@@ -85,9 +85,16 @@ module RocketJob
     def self.owned_by(where)
       yield
     rescue StandardError => e
-      [new(where: where, error: "Its categories could not be read: #{e.class}: #{e.message}")]
+      [unreadable(where, e)]
     end
     private_class_method :owned_by
+
+    # Returns [RocketJob::SchemaProposal] a proposal at the supplied place that says why its categories could not be
+    # read, from the supplied exception, such as for a category property that its job class does not have. For an owner
+    # of proposals, such as a saved job or a Dirmon entry, to answer what its #schema_proposals raised.
+    def self.unreadable(where, exception)
+      new(where: where, error: "Its categories could not be read: #{exception.class}: #{exception.message}")
+    end
 
     # Returns [String] the proposals, see .all, and what to check in the files of every category moved to a schema, to
     # print, or "No deprecated category options were found." when there are none.
