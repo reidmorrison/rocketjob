@@ -93,8 +93,12 @@ module RocketJob
 
       private
 
+      # Not memoized, so that it follows a change of the job class name, such as one made in a web interface to fix a
+      # failed job, as DirmonEntry#job_class does.
       def job_class
-        @job_class ||= job_class_name.constantize
+        return if job_class_name.nil?
+
+        job_class_name.constantize
       rescue NameError
         nil
       end

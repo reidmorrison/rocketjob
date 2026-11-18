@@ -254,6 +254,17 @@ module Jobs
                           "Job Hash must be defined and inherit from RocketJob::Job"
         end
 
+        it "validates the properties for the job class that the job class name is changed to" do
+          job.job_class_name = UploadFileJobTest::BatchTestJob.name
+          job.properties     = {"input_categories" => [{"name" => "main", "format" => "csv"}]}
+
+          assert_predicate job, :valid?, -> { job.errors.full_messages.inspect }
+          job.job_class_name = UploadFileJobTest::TestJob.name
+
+          refute_predicate job, :valid?
+          assert(job.errors.messages[:properties].any? { |m| m.include?("input_categories") })
+        end
+
         it "is valid when the job class name cannot be resolved" do
           # job_class rescues NameError and returns nil, so the class based
           # validations are skipped.

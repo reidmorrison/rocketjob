@@ -528,6 +528,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - `UploadFileJob#display_attributes` shows the `original_file_name` without its credentials, as 7.2 does, since a
   job saved by Rocket Job 7.1, or created or edited by hand, can hold the url of a file with its user name and
   password. It is declared with `path: true`.
+- An `UploadFileJob` whose `job_class_name` is changed, such as to fix a failed job in Mission Control, validates
+  its properties for the new job class, and starts a job of that class when it is retried in the same process.
+  Previously it kept the job class that it had first read.
 
 ## [7.2.0] 2026-11-17
 
