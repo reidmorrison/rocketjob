@@ -370,7 +370,6 @@ module RocketJob
 
         return parse_records(slice) { nil } if schema.present?
 
-        # Without a schema, the records must be rows of this category's format, as IOStreams says when it writes them.
         IOStreams.stream(StringIO.new).format(format).writer(:hash) { |rows| parse_records(slice) { |row| rows << row } }
       rescue ArgumentError => e
         raise(ArgumentError, "Input category #{name}: cannot upload #{kind} in the #{format.inspect} format. #{e.message}")
