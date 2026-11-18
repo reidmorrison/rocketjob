@@ -21,18 +21,21 @@ module RocketJob
       # File to upload
       field :upload_file_name, type: IOStreams::Path, user_editable: true
 
-      # The original Input file name, without any credentials, see IOStreams::Path#display_name.
+      # The original Input file name, without any credentials, see RocketJob::DirmonEntry#file_display_name.
       # Used by #upload to extract the IOStreams when present.
-      field :original_file_name, type: String, user_editable: true
+      # Shown without any credentials too, see #display_attributes, since a job saved by Rocket Job 7.1, or created or
+      # edited by hand, can hold the url of a file with its user name and password.
+      field :original_file_name, type: String, user_editable: true, path: true
 
       # Optionally set the job id for the downstream job
       # Useful when for example the archived file should contain the job id for the downstream job.
       field :job_id, type: BSON::ObjectId
 
       validates_presence_of :upload_file_name, :job_class_name
-      validate :job_class_can_be_started
-      validate :file_exists
-      validate :job_has_properties
+      # Checked when they are set or changed, not each time the job is saved, so that a saved job can still be
+      # aborted, retried or paused, such as in a web interface, see #job_settings_changed? and #upload_file_name_set?.
+      validate :job_class_can_be_started, :job_has_properties, if: :job_settings_changed?
+      validate :file_exists, if: :upload_file_name_set?
       after_initialize :convert_saved_properties, unless: :new_record?
 
       # The methods that #upload_file uploads the file with, whichever the job has: its #upload, or the file name that
@@ -51,6 +54,18 @@ module RocketJob
         return [] if klass.instance_methods.intersect?(VALID_INSTANCE_METHODS)
 
         ["#{klass} must implement any one of: :#{VALID_INSTANCE_METHODS.join(' :')} instance methods"]
+      end
+
+      # Returns [Array<String>] why an UploadFileJob with the job class name and properties would not be valid: the
+      # messages of its own validations of them, such as .job_class_errors, or why the job class cannot be built from
+      # the properties, see RocketJob::Plugins::Job::Model.property_errors. Empty when it would be valid, which it is
+      # for a job class that this process does not load, see #job_class_can_be_started.
+      # A Dirmon entry asks it before it archives a file, so that the file is not archived for an UploadFileJob that
+      # cannot be created, such as for properties that were saved before the job class changed.
+      def self.job_errors(job_class_name, properties)
+        job = new(job_class_name: job_class_name, properties: properties)
+        job.validate
+        job.errors.messages_for(:job_class_name) + job.errors.messages_for(:properties)
       end
 
       # Create the job and upload the file into it.
@@ -79,10 +94,10 @@ module RocketJob
 
       private
 
+      # Not memoized, so that it follows a change of the job class name, such as one made in a web interface to fix a
+      # failed job.
       def job_class
-        @job_class ||= job_class_name.constantize
-      rescue NameError
-        nil
+        job_class_name.to_s.safe_constantize
       end
 
       def upload_file(job)
@@ -133,10 +148,9 @@ module RocketJob
 
       # A url that IOStreams cannot make a path of is read as stored, a String, see IOStreams::Path.demongoize, so one
       # that is set or changed is checked here, rather than when the job runs, see IOStreams::Path.invalid_url?. A saved
-      # one is not, so that a job whose url has a scheme that only the servers that run it register can still be saved
-      # elsewhere, such as when it is aborted in a web interface.
+      # one is not, see #upload_file_name_set?, so that a job whose url has a scheme that only the servers that run it
+      # register can still be saved elsewhere, such as when it is aborted in a web interface.
       def upload_file_name_url_valid
-        return unless new_record? || upload_file_name_changed?
         return unless IOStreams::Path.invalid_url?(upload_file_name)
 
         # The url is not included in the message, since one that cannot be parsed can hold credentials.
@@ -150,8 +164,11 @@ module RocketJob
         klass = job_class
         return unless klass.respond_to?(:convert_saved_properties) && properties.is_a?(Hash)
 
-        converted       = klass.convert_saved_properties(properties)
-        self.properties = converted unless converted == properties
+        converted = klass.convert_saved_properties(properties)
+        return if converted == properties
+
+        self.properties = converted
+        @converted_saved_properties = converted.deep_dup
       end
 
       # Can the properties build the job? The job class decides, see RocketJob::Plugins::Job::Model.property_errors.
@@ -160,6 +177,22 @@ module RocketJob
         return unless klass.respond_to?(:property_errors)
 
         klass.property_errors(properties).each { |message| errors.add(:properties, message) }
+      end
+
+      # Whether the job class name or properties are new or changed, so are checked. A saved job is not checked
+      # again, so that its state can still be changed after its job class changed and no longer accepts its
+      # properties. It then fails when it runs and builds the job, see #perform, until they are corrected. Properties
+      # that only #convert_saved_properties changed are not checked either, since they were saved as they were.
+      def job_settings_changed?
+        return true if new_record? || job_class_name_changed?
+
+        properties_changed? && properties != @converted_saved_properties
+      end
+
+      # Whether the file to upload is new or changed, so is checked. A saved one is not, since the file is moved or
+      # deleted once it is uploaded, and can be on a disk that only the servers that run the job can read.
+      def upload_file_name_set?
+        new_record? || upload_file_name_changed?
       end
     end
   end

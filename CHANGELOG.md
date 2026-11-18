@@ -166,8 +166,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   where it was `prnom`, and `First Name` with a no-break space is `first_name`, where it was `firstname`, which
   changes the keys of the records that `#perform` receives, without a schema.
 - A Dirmon entry, and an `UploadFileJob`, check the category properties that they hold for a batch job when
-  they are saved, so an entry, or an `UploadFileJob`, that was saved before can now fail validation and
-  must be corrected before it can be saved again:
+  they are saved, so an entry that was saved before can now fail validation and must be corrected before it can
+  be saved again. An `UploadFileJob` checks its job class and properties only when it is created, or when its
+  `job_class_name` or `properties` change, so one that was saved before can still be aborted, retried or paused,
+  and fails when it runs until they are corrected:
   - Each value is validated, such as an `encoding` that is not valid, or an `invalid_characters` that is
     not one of its values. Previously the values were only checked when the job was created, so every file
     that a Dirmon entry found failed.
@@ -516,6 +518,21 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   `IOStreams::Errors::NotFound`, so this applies to every storage, now that IOStreams 3.0 raises it
   from `#size` for a missing S3, SFTP or HTTP file, where 2.x returned nil. A missing archive
   location, such as an S3 bucket that does not exist, still fails the entry.
+- An `UploadFileJob` checks that its local file exists only when its `upload_file_name` is set or changed, not each
+  time it is saved. Previously, once the file was moved or deleted, or when it was on a disk that only the servers
+  that run the job can read, such as from Mission Control on another host, `abort!`, `retry!` and `pause!` raised
+  `Mongoid::Errors::Validations`.
+- Dirmon fails an entry, and leaves the file where it is, when its job class cannot be built from the entry's
+  properties, such as a category that the job class does not define, which Rocket Job 7 saved without checking.
+  Previously Dirmon archived the file first, then the `UploadFileJob` for it was rejected, so the file was left in
+  the archive directory without a job to retry. `RocketJob::Jobs::UploadFileJob.job_errors` returns why an
+  `UploadFileJob` with a job class name and properties would not be valid.
+- `UploadFileJob#display_attributes` shows the `original_file_name` without its credentials, as 7.2 does, since a
+  job saved by Rocket Job 7.1, or created or edited by hand, can hold the url of a file with its user name and
+  password. It is declared with `path: true`.
+- An `UploadFileJob` whose `job_class_name` is changed, such as to fix a failed job in Mission Control, validates
+  its properties for the new job class, and starts a job of that class when it is retried in the same process.
+  Previously it kept the job class that it had first read.
 
 ## [7.2.0] 2026-11-17
 

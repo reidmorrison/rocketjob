@@ -89,6 +89,22 @@ module Jobs
           end
         end
 
+        it "shows the original file name without its credentials" do
+          job.original_file_name = "sftp://user:secret@sftp.example.org/in/data.csv"
+
+          assert_equal "sftp://sftp.example.org/in/data.csv", job.display_attributes["original_file_name"]
+          assert_equal "sftp://user:secret@sftp.example.org/in/data.csv", job.original_file_name
+        end
+
+        it "shows the original file name that Dirmon records as it is" do
+          ["/in/data#2026.csv.gz", "sftp://sftp.example.org/in/data%232026.csv.gz", "/tmp/dirmon_in/caf\\xE9.csv",
+           "sftp://sftp.example.org/in/café.csv"].each do |name|
+            job.original_file_name = name
+
+            assert_equal name, job.display_attributes["original_file_name"]
+          end
+        end
+
         it "shows the paths in the properties without their credentials" do
           batch_job.properties["input_categories"].first["file_name"] = "sftp://user:secret@sftp.example.org/in.csv"
           attrs = batch_job.display_attributes
@@ -119,6 +135,30 @@ module Jobs
         end
       end
 
+      describe ".job_errors" do
+        it "is empty when the job class can be built from the properties" do
+          assert_empty RocketJob::Jobs::UploadFileJob.job_errors(UploadFileJobTest::BatchTestJob.name, batch_job.properties)
+        end
+
+        it "names a job class that it cannot start, without asking it about the properties" do
+          assert_equal ["Job Hash must be defined and inherit from RocketJob::Job"],
+                       RocketJob::Jobs::UploadFileJob.job_errors("Hash", {"does_not_exist" => 1})
+        end
+
+        it "is empty for a job class that this process does not load, which an UploadFileJob accepts" do
+          assert_empty RocketJob::Jobs::UploadFileJob.job_errors("Not::Loaded::Here", {"does_not_exist" => 1})
+        end
+
+        it "names the properties that the job class cannot be built from" do
+          messages = RocketJob::Jobs::UploadFileJob.job_errors(
+            UploadFileJobTest::BatchTestJob.name, {"output_categories" => [{"name" => "other"}]}
+          )
+
+          assert_equal 1, messages.size
+          assert_includes messages.first, "other"
+        end
+      end
+
       describe "#valid?" do
         it "with valid job and upload_file_name" do
           assert_predicate job, :valid?
@@ -136,6 +176,29 @@ module Jobs
 
           refute_predicate job, :valid?
           assert_includes job.errors.messages[:upload_file_name], "Upload file: /tmp/blah does not exist."
+        end
+
+        it "does not check that the file of a saved job still exists, since it is moved once it is uploaded" do
+          file_name = File.join(Dir.tmpdir, "upload_file_job_#{SecureRandom.hex}.csv")
+          File.write(file_name, "a,b\n")
+          job.upload_file_name = file_name
+          job.save!
+          File.delete(file_name)
+          saved = RocketJob::Jobs::UploadFileJob.find(job.id)
+
+          assert_predicate saved, :valid?, -> { saved.errors.full_messages.inspect }
+          saved.abort!
+
+          assert_predicate RocketJob::Jobs::UploadFileJob.find(job.id), :aborted?
+        end
+
+        it "checks that the file exists when the file name of a saved job is changed" do
+          job.save!
+          saved = RocketJob::Jobs::UploadFileJob.find(job.id)
+          saved.upload_file_name = "/tmp/blah"
+
+          refute_predicate saved, :valid?
+          assert_includes saved.errors.messages[:upload_file_name], "Upload file: /tmp/blah does not exist."
         end
 
         it "allows urls other than file for upload_file_name" do
@@ -195,6 +258,17 @@ module Jobs
                           "Job Hash must be defined and inherit from RocketJob::Job"
         end
 
+        it "validates the properties for the job class that the job class name is changed to" do
+          job.job_class_name = UploadFileJobTest::BatchTestJob.name
+          job.properties     = {"input_categories" => [{"name" => "main", "format" => "csv"}]}
+
+          assert_predicate job, :valid?, -> { job.errors.full_messages.inspect }
+          job.job_class_name = UploadFileJobTest::TestJob.name
+
+          refute_predicate job, :valid?
+          assert(job.errors.messages[:properties].any? { |m| m.include?("input_categories") })
+        end
+
         it "is valid when the job class name cannot be resolved" do
           # job_class rescues NameError and returns nil, so the class based
           # validations are skipped.
@@ -226,6 +300,79 @@ module Jobs
 
             refute_predicate job, :valid?
             assert_equal ["Input category main: Unknown property: not_a_category_field"], job.errors.messages[:properties]
+          end
+
+          describe "saved with properties that the job class no longer accepts" do
+            # Returns [RocketJob::Jobs::UploadFileJob] the job read from the database, saved with an output category
+            # that its job class does not define, such as before the class changed.
+            let :saved do
+              job.save!
+              RocketJob::Jobs::UploadFileJob.collection.update_one(
+                {_id: job.id}, {"$set" => {"properties" => {"output_categories" => [{"name" => "other"}]}}}
+              )
+              RocketJob::Jobs::UploadFileJob.find(job.id)
+            end
+
+            it "can still be aborted" do
+              assert_predicate saved, :valid?, -> { saved.errors.full_messages.inspect }
+              saved.abort!
+
+              assert_predicate RocketJob::Jobs::UploadFileJob.find(job.id), :aborted?
+            end
+
+            it "fails when it runs and builds the job" do
+              error = assert_raises(ArgumentError) { saved.perform_now }
+
+              assert_includes error.message, "Unknown Output Category: :other"
+            end
+
+            it "can still be aborted when Rocket Job 7 saved them with a mode, which is converted when it is read" do
+              job.save!
+              RocketJob::Jobs::UploadFileJob.collection.update_one(
+                {_id: job.id},
+                {
+                  "$set" => {
+                    "properties" => {
+                      "input_categories"  => [{"format" => "csv", "mode" => "hash"}],
+                      "output_categories" => [{"name" => "other"}]
+                    }
+                  }
+                }
+              )
+              v7 = RocketJob::Jobs::UploadFileJob.find(job.id)
+
+              assert_predicate v7, :changed?
+              v7.abort!
+              stored = RocketJob::Jobs::UploadFileJob.collection.find(_id: job.id).first
+
+              assert_equal "aborted", stored["state"]
+              assert_equal [{"format" => "csv", "validate_rows" => true}], stored["properties"]["input_categories"]
+            end
+
+            it "checks converted properties that are then changed" do
+              job.save!
+              RocketJob::Jobs::UploadFileJob.collection.update_one(
+                {_id: job.id}, {"$set" => {"properties" => {"input_categories" => [{"format" => "csv", "mode" => "hash"}]}}}
+              )
+              v7 = RocketJob::Jobs::UploadFileJob.find(job.id)
+              v7.properties = v7.properties.merge("output_categories" => [{"name" => "other"}])
+
+              refute_predicate v7, :valid?
+            end
+
+            it "checks the properties when they are changed" do
+              saved.properties = {"output_categories" => [{"name" => "another"}]}
+
+              refute_predicate saved, :valid?
+              assert(saved.errors.messages[:properties].any? { |m| m.include?("another") })
+            end
+
+            it "checks the properties when the job class name is changed" do
+              saved.job_class_name = UploadFileJobTest::TestJob.name
+
+              refute_predicate saved, :valid?
+              assert(saved.errors.messages[:properties].any? { |m| m.include?("output_categories") })
+            end
           end
 
           it "rejects a category value that is not valid" do
