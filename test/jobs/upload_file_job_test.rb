@@ -152,6 +152,26 @@ module Jobs
                           "Upload file name is not a path or url that IOStreams can read."
         end
 
+        it "does not validate the scheme of a saved url, which the servers that run the job can register" do
+          job.upload_file_name = "myco://bucket/blah.csv"
+          job.save!(validate: false)
+          saved = RocketJob::Jobs::UploadFileJob.find(job.id)
+
+          assert_predicate saved, :valid?, -> { saved.errors.full_messages.inspect }
+          saved.abort!
+
+          assert_predicate RocketJob::Jobs::UploadFileJob.find(job.id), :aborted?
+        end
+
+        it "validates the scheme of a saved url that is changed" do
+          job.upload_file_name = "myco://bucket/blah.csv"
+          job.save!(validate: false)
+          saved = RocketJob::Jobs::UploadFileJob.find(job.id)
+          saved.upload_file_name = "s4://bucket/blah.csv"
+
+          refute_predicate saved, :valid?
+        end
+
         it "checks the filesystem if the url scheme is file for upload_file_name" do
           job.upload_file_name = "file:/foo/blah"
 

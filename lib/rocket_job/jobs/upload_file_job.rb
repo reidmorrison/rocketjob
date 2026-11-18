@@ -119,7 +119,7 @@ module RocketJob
       end
 
       def file_exists
-        return upload_file_name_known if upload_file_name.is_a?(String)
+        return upload_file_name_url_valid if upload_file_name.is_a?(String)
         # Only check for file existence when it is a local file
         return unless upload_file_name.is_a?(IOStreams::Paths::File)
         return errors.add(:upload_file_name, "Upload file name can't be blank.") if upload_file_name.to_s == ""
@@ -131,17 +131,16 @@ module RocketJob
         nil
       end
 
-      # A url that IOStreams cannot make a path of, such as one whose scheme it does not know, is read as stored, a
-      # String, see IOStreams::Path.demongoize, so it is checked here, rather than when the job runs. One whose scheme
-      # needs a gem that this process does not load is accepted, since the server that runs the job can load it.
-      def upload_file_name_known
-        IOStreams.path(upload_file_name)
-        nil
-      rescue ArgumentError, URI::Error
+      # A url that IOStreams cannot make a path of is read as stored, a String, see IOStreams::Path.demongoize, so one
+      # that is set or changed is checked here, rather than when the job runs, see IOStreams::Path.invalid_url?. A saved
+      # one is not, so that a job whose url has a scheme that only the servers that run it register can still be saved
+      # elsewhere, such as when it is aborted in a web interface.
+      def upload_file_name_url_valid
+        return unless new_record? || upload_file_name_changed?
+        return unless IOStreams::Path.invalid_url?(upload_file_name)
+
         # The url is not included in the message, since one that cannot be parsed can hold credentials.
         errors.add(:upload_file_name, "Upload file name is not a path or url that IOStreams can read.")
-      rescue LoadError
-        nil
       end
 
       # Converts the properties that were saved before Rocket Job v8, such as an input category's `mode`, which v8
