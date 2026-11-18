@@ -327,13 +327,31 @@ module Sliced
           assert_equal [["C", nil, 2, 2], ["D", nil, 3, 3]], unprocessed(slice)
         end
 
-        it "stays on a row numbered by its place when a row before it is removed" do
+        it "stays on a row assigned in an Array, which keeps its number, when a row before it is removed" do
           slice.records              = IOStreams::Slice.new(%w[a b c d], header: %w[name], format: :csv, record_number: 1)
           slice.records              = slice.map(&:upcase)
           slice.processing_at_record = 3
           slice.delete_record(0)
 
-          assert_equal [["C", nil, 2, 2], ["D", nil, 3, 3]], unprocessed(slice)
+          assert_equal [["C", nil, 3, 3], ["D", nil, 4, 4]], unprocessed(slice)
+        end
+
+        it "numbers each row of chained appends to the rows of a file" do
+          slice.records = IOStreams::Slice.new(%w[a], header: %w[name], format: :csv, record_number: 11)
+          slice << "b" << "c"
+          slice.processing_at_record = 13
+
+          assert_equal [["c", nil, 13, 13]], unprocessed(slice)
+        end
+
+        it "numbers a row added to the rows of a file as the record after the last" do
+          slice.first_record_number = 51
+          slice << "a"
+          slice.records = IOStreams::Slice.new(%w[a b], header: %w[name], format: :csv, record_number: 51)
+          slice << "c"
+          slice.processing_at_record = 53
+
+          assert_equal [["c", nil, 53, 53]], unprocessed(slice)
         end
 
         it "points at the record in the same place when rows are replaced by Hashes" do
@@ -488,12 +506,13 @@ module Sliced
           assert_nil slice.line_number_at(1)
         end
 
-        it "are numbered from the first record number, without lines, when they have no numbers" do
-          slice.first_record_number = 51
-          slice.records             = IOStreams::Slice.new(["Jack,21"], header: %w[Name AGE], format: :csv)
+        it "raise when a row has no record number, rather than guess it" do
+          error = assert_raises(ArgumentError) do
+            slice.records = IOStreams::Slice.new(["Jack,21"], header: %w[Name AGE], format: :csv)
+          end
 
-          assert_equal 51, slice.current_record_number
-          assert_nil slice.current_line_number
+          assert_includes error.message, "record number"
+          assert_empty slice.records
         end
 
         it "name the record that failed" do
@@ -534,7 +553,8 @@ module Sliced
         it "keep how they are read when a changed copy of typed rows is assigned back, such as rows not to cast again" do
           schema        = {"fields" => [{"name" => "name"}, {"name" => "age", "type" => "integer"}]}
           slice.records = IOStreams::Slice.new([["Jack", 21], [nil, nil]], header: %w[name age], format: :array,
-                                                                            schema: schema, blank_rows: false)
+                                                                            schema: schema, blank_rows: false,
+                                                                            record_number: 1)
           slice.save!
           found         = slices.find(slice.id)
           records       = found.to_a.dup
