@@ -2796,8 +2796,9 @@ end
 ~~~
 
 Each record must serialize to BSON (`Hash`, `Array`, `String`, `Integer`, `Float`, `Regexp`,
-`Time`), and is read back as it is stored: a `Date` is stored as a `Time`, so it comes back as a
-`Time`, apart from the values that a schema reads, see below. Use a `String` rather than a `Symbol`,
+`Time`). In a category without a format it is read back as it is stored: a `Date` is stored as a
+`Time`, so it comes back as a `Time`. In the `:hash` and `:array` formats, and with a schema, a
+`Date` comes back as a `Date`, see below. Use a `String` rather than a `Symbol`,
 which MongoDB deprecated. With a `Hash`, keys must be strings, not symbols.
 
 For an input category with a `format` whose rows are lines of text, such as CSV or JSON, the block
@@ -6104,6 +6105,8 @@ in slices that each hold the header row of the file, as it is in the file, and i
 does with a schema, see [More than one file](batch.html#more-than-one-file). `#perform` receives the
 same Hash for each line, so most jobs need no change, but:
 
+* A CSV row whose values are all blank, such as `,`, gives `#perform` nil, with or without
+  `validate_rows`, where v7 gave a Hash of nils.
 * A second file with a header row can be uploaded into the same input category, in any mode, and its
   lines are read by its own header row. v7 stored the second file's header row as a record, and read
   its lines with the first file's columns.
@@ -6115,7 +6118,9 @@ same Hash for each line, so most jobs need no change, but:
   category, which v7 read as it read a line. Write each row as a line of the format instead, such as
   `row.to_csv` or `hash.to_json`, or upload it into a category without a format, whose `#perform`
   receives it as it was written. The `:hash` format, whose rows are Ruby objects, and formats whose
-  rows are not lines, such as Parquet, still upload each record as it is. A schema casts its values
+  rows are not lines, such as Parquet, still upload each record. In the `:hash` and `:array`
+  formats `#perform` receives a `Date` as a `Date`, where v7 gave a `Time`, a Symbol as a String,
+  also in an Array or as the key of a nested Hash, and a `Time` with its offset. A schema casts its values
   when it is uploaded, and each slice keeps the schema, so `#perform` receives each value as the type
   of its field, such as a date as a `Date` and a duration as an `ActiveSupport::Duration`, and
   receives a record whose values are all blank too. In the
@@ -6125,11 +6130,14 @@ same Hash for each line, so most jobs need no change, but:
 * A spreadsheet, such as `.xlsx`, uploaded into a category without a format is still uploaded as
   the CSV text of each row, header row included, as v7 did, but a cell that holds a line break now
   stays in its row, where v7 split it into two records. Give the category a format, such as
-  `:auto`, so that `#perform` receives each row as a Hash.
+  `:auto`, so that `#perform` receives each row as a Hash. With or without a format, a cell is read
+  as the text that it shows: a number as `1001` rather than `1001.0`, and a date as `2020-01-02`
+  rather than `2020-01-02 00:00:00 -0500`.
 * An Active Record or Mongoid query uploaded into a category with a format, such as CSV or JSON, is
   uploaded in that format, after the names of its columns, so `#perform` receives each row as a
-  Hash, where v7 raised `ArgumentError` in a format with a header row. Without a format it is
-  uploaded as before.
+  Hash, where v7 raised `ArgumentError` in a format with a header row. Without a format a Mongoid
+  query is uploaded as before, and so is an Active Record query, except that `#perform` receives a
+  date column as a `Date`, where v7 gave a `Time`.
 * The lines that the block of `upload` writes into such a category are read as UTF-8, and each
   character that is not valid in its line's encoding is handled as the category's `invalid_characters`
   says. So by default CSV and the other tabular formats remove it, as they do from a file, where v7
@@ -6172,7 +6180,9 @@ An input category's `validate_rows: true` replaces its `mode: :hash`, and the `v
 `upload` replaces its `stream_mode:`. Each line of a file in the category's format is parsed while the
 file is uploaded, so that a file with a line that cannot be read is rejected, and nothing is
 uploaded, before processing starts. The slices hold the lines, as they do without it, rather than the
-Hashes that v7 uploaded, and `#perform` receives the same Hash for each line:
+Hashes that v7 uploaded, and `#perform` receives the same Hash for each line, apart from a CSV row
+whose values are all blank, see
+[Each slice holds the header row of its file](#each-slice-holds-the-header-row-of-its-file):
 
 ~~~ruby
 # Before

@@ -73,16 +73,19 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   job keeps what it restores in its new `before_batch_state` while the callbacks run.
 - A file in a `format`, such as CSV, is uploaded into an input category without a `schema` in slices that each hold
   its header row, as it is with a schema, rather than keeping the header row in the category's `columns`, which are
-  not set. `#perform` receives the same Hash for each line. So a second file with a header row can be uploaded into
+  not set. `#perform` receives the same Hash for each line, apart from a CSV row whose values are all blank, such as
+  `,`, which gives nil rather than a Hash of nils. So a second file with a header row can be uploaded into
   the same input category, and its lines are read by its own header row: previously the second file's header row was
   stored as a record, and its lines were read with the first file's columns. In the `:hash` mode the lines are
   uploaded once each one is parsed, rather than as Hashes. A Hash written to the block of `upload`, which writes the
   lines of a file into such a category, raises `ArgumentError`, as does an Array of the values of a row, which Rocket
   Job 7 read too, and options that read the lines of a file, such as `delimiter:`, and a schema set on the path of the
   upload. A category without a format, or in a format whose rows are not lines, such as `:hash`, `:array` or
-  Parquet, uploads each record as it is. The lines of a CSV file that `upload_slice` uploads
-  after a file are no longer read by the header row of that file, which the category no longer keeps. See the upgrade
-  guide.
+  Parquet, uploads each record. Without a format `#perform` receives it as MongoDB stored it. In the `:hash` and
+  `:array` formats a `Date` stays a `Date` rather than coming back as a `Time`, a Symbol becomes a String, also in an
+  Array or as the key of a nested Hash, and a `Time` keeps its offset. The lines of a CSV file that `upload_slice`
+  uploads after a file are no longer read by the header row of that file, which the category no longer keeps. See the
+  upgrade guide.
 - An input category's `validate_rows: true`, and the `validate_rows:` of `upload`, replace its `mode: :hash` and the
   `stream_mode:` of `upload`: each line of a file in the category's format is parsed while it is uploaded, so that a
   file with a line that cannot be read uploads nothing, and the slices hold the lines. A category's `mode` is still
@@ -214,7 +217,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   such as CSV or JSON, uploads its rows in that format, after the names of the columns, as a file of the query would
   hold them, so that `#perform` receives each row as the rows of a file in that format. In a format with a header
   row it raised `ArgumentError`. Without a format, the value of each row of one column, or an Array of its values, is
-  uploaded as before.
+  uploaded as before, except that a date column of an Active Record query arrives as a `Date` rather than a `Time`.
 - IOStreams writes the slices of every upload of a file or a query, and of a `Range`, see `IOStreams::Slice::Target`:
   the lines of a file in its format, the text of each row of a file without a format as it is, in the IOStreams
   `:text` format, also for a file named `.csv`, the typed records of a file in the `:hash` or Parquet format, or the rows of
