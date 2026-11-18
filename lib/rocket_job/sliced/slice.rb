@@ -140,8 +140,8 @@ module RocketJob
       # The rows of a file, see IOStreams::Slice, are assigned as they are, with the line and record number of each row.
       # When the slice holds the rows of a file, rows in an Array keep the header row and format that they carry, so
       # that they are still read by them, such as when a copy of them, see #to_a, is changed and assigned back. They do
-      # not keep the numbers of each row, which #replace_record and #delete_record do. Records that are not rows, such
-      # as Hashes, are assigned as they are.
+      # not keep the numbers of each row, which #replace_record and #delete_record do, but are numbered from
+      # #first_record_number, without lines. Records that are not rows, such as Hashes, are assigned as they are.
       #
       # Records assigned in an Array are numbered by their place, see #record_number_at, so the slice then points at
       # the record in the same place as the record that it was processing, see #processing_at_record.
@@ -161,15 +161,11 @@ module RocketJob
       # first record that it still holds at or after it, so from its first record for a number before it, and none
       # after its last.
       #
-      # The rows of a file are found by their record numbers, and keep the header row and format that they carry, and
-      # the line and record number of each row, see IOStreams::Slice#drop. A row without a record number, such as one
-      # assigned in an Array, see #records=, is numbered by its place in the slice, from #first_record_number, as
-      # #record_number_at numbers it. Other records are numbered by their place.
+      # The rows of a file are found by their record numbers, see IOStreams::Slice#from_record, and keep the header row
+      # and format that they carry, and the line and record number of each row. Other records are numbered by their
+      # place, see #record_number_at.
       def records_from(record_number)
-        return records.drop(record_index(record_number)) unless rows?
-
-        rows = numbered_rows
-        rows.drop(row_index(rows, record_number))
+        rows? ? records.from_record(record_number) : records.drop(record_index(record_number))
       end
 
       # Yields each record that is still to be processed, from the record being processed on, see
@@ -192,7 +188,7 @@ module RocketJob
         number                    = record_number_at(index)
         self.processing_at_record = number
         category.parse_records(records_after(index)) do |record, line_number, record_number|
-          # Only the rows of a file are yielded with their numbers, see #records_after.
+          # Only the rows of a file are yielded with their numbers, see #records_from.
           record_number           ||= number
           self.processing_at_record = record_number
           yield(record, line_number, record_number)
@@ -209,7 +205,15 @@ module RocketJob
         !processing_at_record.nil?
       end
 
-      def_instance_delegators :records, :<<, :size, :concat
+      def_instance_delegators :records, :size, :concat
+
+      # Appends the supplied record after the records of this slice. A row added to the rows of a file is numbered as
+      # the record after the last, see #record_number_at, so that each row has a record number, see #records_from.
+      def <<(record)
+        return records << record unless rows?
+
+        records.add(record, record_number: size.zero? ? first_record_number : record_number_at(size - 1) + 1)
+      end
       def_instance_delegators :record_list, :each, :at
 
       # Appends the supplied records after the records already in this slice, see Slices#append.
@@ -368,9 +372,9 @@ module RocketJob
         processing_at_record ? record_index(processing_at_record) : 0
       end
 
-      # Returns [Array|IOStreams::Slice] the records of this slice from the supplied index on, see #records_from.
+      # Returns [Array|IOStreams::Slice] the records of this slice from the supplied index on, which keep their numbers,
+      # see IOStreams::Slice#drop.
       def records_after(index)
-        records = rows? ? numbered_rows : self.records
         index.zero? ? records : records.drop(index)
       end
 
@@ -385,36 +389,7 @@ module RocketJob
       def record_index(record_number)
         return (record_number - first_record_number).clamp(0, size) unless rows?
 
-        row_index(numbered_rows, record_number)
-      end
-
-      # Returns [Integer] the index of the first of the supplied rows, see #numbered_rows, whose record number is the
-      # supplied one or later, or the number of rows when there is none.
-      def row_index(rows, record_number)
-        index = 0
-        rows.each do |_row, _line_number, number|
-          break if number >= record_number
-
-          index += 1
-        end
-        index
-      end
-
-      # Returns [IOStreams::Slice] the rows of a file that this slice holds, each with a record number: a row without
-      # one, such as a row of rows assigned in an Array, see #records=, is numbered by its place in this slice, from
-      # #first_record_number, as #record_number_at numbers it, so that IOStreams can find a row by its number, see
-      # #records_from. The rows are returned as they are when each has a number.
-      def numbered_rows
-        numbered = true
-        records.each { |_row, _line_number, record_number| numbered &&= !record_number.nil? }
-        return records if numbered
-
-        numbered = []
-        records.each { |row, line_number, record_number| numbered << [row, line_number, record_number] }
-
-        numbered.each_with_index.with_object(records.with_rows) do |((row, line_number, record_number), index), rows|
-          rows.add(row, line_number: line_number, record_number: record_number || (first_record_number + index))
-        end
+        size - records_from(record_number).size
       end
 
       # Sets the records to those that the block reads from the saved document. An error that reading them raises is
@@ -468,9 +443,10 @@ module RocketJob
       end
 
       # Returns [IOStreams::Slice] the supplied rows, described as the supplied rows of a file are, such as by their header
-      # row and format, see IOStreams::Slice#with_rows.
+      # row and format, see IOStreams::Slice#with_rows, and numbered by their place, from #first_record_number, as
+      # #record_number_at numbers records, so that each row has a record number, see #records_from.
       def rows_like(slice, rows)
-        slice.with_rows(rows)
+        rows.empty? ? slice.with_rows(rows) : slice.with_rows(rows, record_number: first_record_number)
       end
 
       # Returns [Hash] the document that holds the records: the rows of a file as the Hash that they return, see
