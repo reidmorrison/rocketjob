@@ -459,6 +459,36 @@ module Batch
         end
       end
 
+      describe "#formatted?" do
+        it "is true for a format whose rows are lines of text" do
+          assert RocketJob::Category::Input.new(format: :csv).send(:formatted?)
+          assert RocketJob::Category::Input.new(format: :json).send(:formatted?)
+        end
+
+        it "is false for a format whose rows are values" do
+          refute RocketJob::Category::Input.new(format: :hash).send(:formatted?)
+          refute RocketJob::Category::Input.new(format: :array).send(:formatted?)
+          refute RocketJob::Category::Input.new(format: :parquet).send(:formatted?)
+        end
+
+        it "is false without a format" do
+          refute RocketJob::Category::Input.new.send(:formatted?)
+        end
+
+        it "takes :auto as the format of the file name" do
+          assert RocketJob::Category::Input.new(format: :auto, file_name: "people.json").send(:formatted?)
+          refute RocketJob::Category::Input.new(format: :auto, file_name: "people.parquet").send(:formatted?)
+        end
+
+        it "takes :auto without a file name as CSV" do
+          assert RocketJob::Category::Input.new(format: :auto).send(:formatted?)
+        end
+
+        it "takes the format that was set over the file name" do
+          refute RocketJob::Category::Input.new(format: :hash, file_name: "people.csv").send(:formatted?)
+        end
+      end
+
       describe "#write_slices" do
         # A store of slices that keeps each slice that IOStreams writes to it.
         let(:store) do
