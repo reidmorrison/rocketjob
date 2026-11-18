@@ -353,6 +353,14 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixes
 
+- A field of type `IOStreams::Path`, such as the `file_name` of a category, whose stored url IOStreams cannot make a
+  path of, such as one whose scheme IOStreams does not know, returns it as stored, a String, rather than raising
+  `ArgumentError` when it is read, so that a page of a web interface, such as Mission Control, that shows the job can
+  still show it, see `RocketJob.path_display_name`. IOStreams still raises when it is used as a path, such as by an
+  upload into a category of format `:auto` with such a file name. An `UploadFileJob` whose `upload_file_name` is set
+  or changed to such a url is not valid, with a message on `upload_file_name`, rather than raising `ArgumentError`
+  when it is validated. A saved one is not checked again, so that a job whose scheme only its servers register can
+  still be saved elsewhere, such as when it is aborted.
 - On JRuby, a duration of less than a second, such as how long an active worker has run a job, or the age of a server
   in `rocketjob --list`, is shown with the fractions of its milliseconds, such as `5.123ms`, as on MRI, rather than as
   a whole number of milliseconds, `5ms`.

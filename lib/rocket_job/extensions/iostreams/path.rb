@@ -7,10 +7,30 @@ module IOStreams
 
     # Get the object as it was stored in the database, and instantiate
     # this custom class from it.
+    #
+    # A stored url that IOStreams cannot make a path of, such as one whose scheme IOStreams does not know, or that it
+    # cannot parse, is returned as stored, a String, rather than raising, so that the name can still be read, such as
+    # for its extensions, or to show it, see RocketJob.path_display_name. For example a page of a web interface, such as
+    # Mission Control, that shows the job. IOStreams raises when the String is used as a path, such as with
+    # IOStreams.new.
     def self.demongoize(object)
       return if object.nil?
 
       IOStreams.new(object)
+    rescue ArgumentError, URI::Error, LoadError
+      object
+    end
+
+    # Returns [true|false] whether IOStreams cannot make a path of the supplied url in this process, other than for a
+    # gem that this process does not load, since a server that runs the job can load it: such as a url whose scheme
+    # IOStreams does not know, or that it cannot parse, which .demongoize keeps as stored.
+    def self.invalid_url?(url)
+      IOStreams.path(url)
+      false
+    rescue ArgumentError, URI::Error
+      true
+    rescue LoadError
+      false
     end
 
     # Takes any possible object and converts it to how it would be

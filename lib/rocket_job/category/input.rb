@@ -436,9 +436,10 @@ module RocketJob
 
       # Replaces a format of :auto with the format of the supplied path, which its file name gives, otherwise CSV, so
       # that an upload reads its file, or the lines that its block writes, in it, see #upload_path and #write_slices.
-      # Setting the format builds the tabular again.
+      # Setting the format builds the tabular again. A stored url that IOStreams cannot make a path of, which the
+      # file name holds as a String, see IOStreams::Path.demongoize, raises what IOStreams raises for it.
       def detect_format(path)
-        self.format = path&.format || :csv if format == :auto
+        self.format = (path && IOStreams.new(path).format) || :csv if format == :auto
       end
 
       # Returns [true|false] whether the rows of this category's format are lines of text, such as CSV or JSON, which a
@@ -498,7 +499,7 @@ module RocketJob
       # Returns [Symbol] this category's format, or the format of its file name when it is :auto, otherwise CSV, which an
       # upload replaces :auto with, see #detect_format.
       def upload_format
-        format == :auto ? file_name&.format || :csv : format
+        format == :auto ? (file_name && IOStreams.new(file_name).format) || :csv : format
       end
 
       # Returns [IOStreams::Stream] that writes lines to the supplied store of slices, see Sliced::Writer::Input, by this
