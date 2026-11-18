@@ -119,6 +119,26 @@ module Jobs
         end
       end
 
+      describe ".job_errors" do
+        it "is empty when the job class can be built from the properties" do
+          assert_empty RocketJob::Jobs::UploadFileJob.job_errors(UploadFileJobTest::BatchTestJob.name, batch_job.properties)
+        end
+
+        it "names a job class that it cannot start, without asking it about the properties" do
+          assert_equal ["Job Hash must be defined and inherit from RocketJob::Job"],
+                       RocketJob::Jobs::UploadFileJob.job_errors("Hash", {"does_not_exist" => 1})
+        end
+
+        it "names the properties that the job class cannot be built from" do
+          messages = RocketJob::Jobs::UploadFileJob.job_errors(
+            UploadFileJobTest::BatchTestJob.name, {"output_categories" => [{"name" => "other"}]}
+          )
+
+          assert_equal 1, messages.size
+          assert_includes messages.first, "other"
+        end
+      end
+
       describe "#valid?" do
         it "with valid job and upload_file_name" do
           assert_predicate job, :valid?

@@ -836,6 +836,20 @@ class DirmonEntryTest < Minitest::Test
           assert_equal 0, RocketJob::Jobs::UploadFileJob.count
         end
 
+        it "leaves the file where it is when the job class cannot be built from the saved properties" do
+          # Such as a category that the job class does not define, saved by Rocket Job 7.2, which did not check it.
+          entry = batch_dirmon_entry
+          RocketJob::DirmonEntry.collection.update_one(
+            {_id: entry.id}, {"$set" => {"properties.output_categories" => [{"name" => "other"}]}}
+          )
+          entry = RocketJob::DirmonEntry.find(entry.id)
+          error = assert_raises(ArgumentError) { entry.later(iopath) }
+
+          assert_includes error.message, "other"
+          assert_path_exists file_name
+          assert_equal 0, RocketJob::Jobs::UploadFileJob.count
+        end
+
         it "archives the file for a job class that this server does not load, for the UploadFileJob to start" do
           dirmon_entry.job_class_name = "Not::Loaded::Here"
           job = dirmon_entry.later(iopath)

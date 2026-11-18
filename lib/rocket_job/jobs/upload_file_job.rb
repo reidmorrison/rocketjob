@@ -53,6 +53,18 @@ module RocketJob
         ["#{klass} must implement any one of: :#{VALID_INSTANCE_METHODS.join(' :')} instance methods"]
       end
 
+      # Returns [Array<String>] why an UploadFileJob with the job class name and properties would not be valid, so
+      # would not start its job: the reasons of .job_class_errors, or else why the job class cannot be built from the
+      # properties, see RocketJob::Plugins::Job::Model.property_errors. Empty when it would start the job.
+      # A Dirmon entry asks it before it archives a file, so that the file is not archived for an UploadFileJob that
+      # cannot be created, such as for properties that were saved before the job class changed.
+      def self.job_errors(job_class_name, properties)
+        messages = job_class_errors(job_class_name)
+        return messages if messages.any?
+
+        job_class_name.to_s.constantize.property_errors(properties)
+      end
+
       # Create the job and upload the file into it.
       def perform
         job    = job_class.from_properties(properties)

@@ -520,6 +520,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   time it is saved. Previously, once the file was moved or deleted, or when it was on a disk that only the servers
   that run the job can read, such as from Mission Control on another host, `abort!`, `retry!` and `pause!` raised
   `Mongoid::Errors::Validations`.
+- Dirmon fails an entry, and leaves the file where it is, when its job class cannot be built from the entry's
+  properties, such as a category that the job class does not define, which Rocket Job 7 saved without checking.
+  Previously Dirmon archived the file first, then the `UploadFileJob` for it was rejected, so the file was left in
+  the archive directory without a job to retry. `RocketJob::Jobs::UploadFileJob.job_errors` returns why an
+  `UploadFileJob` with a job class name and properties would not start its job.
 
 ## [7.2.0] 2026-11-17
 

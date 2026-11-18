@@ -304,11 +304,12 @@ module RocketJob
     # Returns [RocketJob::Jobs::UploadFileJob] the job, or nil when the file was removed after it was found.
     #
     # Raises ArgumentError, and leaves the file where it is, when the UploadFileJob cannot start the job class, such as
-    # a class that changed after this entry was saved, see RocketJob::Jobs::UploadFileJob.job_class_errors. A class
-    # that this server does not load is left for the UploadFileJob to start.
+    # a class that changed after this entry was saved, or cannot build the job from this entry's properties, such as
+    # a category that the job class does not define, see RocketJob::Jobs::UploadFileJob.job_errors. A class that this
+    # server does not load is left for the UploadFileJob to start.
     def later(iopath)
       if job_class
-        messages = RocketJob::Jobs::UploadFileJob.job_class_errors(job_class_name)
+        messages = RocketJob::Jobs::UploadFileJob.job_errors(job_class_name, properties)
         raise(ArgumentError, messages.join(", ")) if messages.any?
       end
 
