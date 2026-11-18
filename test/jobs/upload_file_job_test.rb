@@ -89,6 +89,22 @@ module Jobs
           end
         end
 
+        it "shows the original file name without its credentials" do
+          job.original_file_name = "sftp://user:secret@sftp.example.org/in/data.csv"
+
+          assert_equal "sftp://sftp.example.org/in/data.csv", job.display_attributes["original_file_name"]
+          assert_equal "sftp://user:secret@sftp.example.org/in/data.csv", job.original_file_name
+        end
+
+        it "shows the original file name that Dirmon records as it is" do
+          ["/in/data#2026.csv.gz", "sftp://sftp.example.org/in/data%232026.csv.gz", "/tmp/dirmon_in/caf\\xE9.csv",
+           "sftp://sftp.example.org/in/café.csv"].each do |name|
+            job.original_file_name = name
+
+            assert_equal name, job.display_attributes["original_file_name"]
+          end
+        end
+
         it "shows the paths in the properties without their credentials" do
           batch_job.properties["input_categories"].first["file_name"] = "sftp://user:secret@sftp.example.org/in.csv"
           attrs = batch_job.display_attributes
