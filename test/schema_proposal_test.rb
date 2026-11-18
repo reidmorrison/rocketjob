@@ -539,6 +539,21 @@ class SchemaProposalTest < Minitest::Test
       end
     end
 
+    describe "a saved job whose categories raise when they are read" do
+      it "says so as one proposal, rather than raise" do
+        job = ProposalJob.new
+        job.input_category.format       = :csv
+        job.input_category.skip_unknown = true
+
+        RocketJob::Category::Input.stub_any_instance(:schema_proposal, ->(*) { raise(ArgumentError, "Bad option") }) do
+          proposals = job.schema_proposals
+
+          assert_equal ["SchemaProposalTest::ProposalJob #{job.id} (queued)"], proposals.map(&:where)
+          assert_equal "Its categories could not be read: ArgumentError: Bad option", proposals.first.error
+        end
+      end
+    end
+
     describe "a saved job that cannot run again" do
       %i[completed aborted].each do |state|
         it "proposes nothing for a #{state} job" do
@@ -600,6 +615,20 @@ class SchemaProposalTest < Minitest::Test
         assert_empty proposal.changes
         assert_match(/\ASchemaProposalTest::ProposalJob has no output category other, so a job cannot be built/,
                      proposal.error)
+      end
+
+      it "that the job class raises for say so as one proposal, rather than raise" do
+        properties = {"input_categories" => [{"name" => "main", "format" => "csv", "skip_unknown" => true, "no_such_option" => 1}]}
+        entry      = RocketJob::DirmonEntry.new(name: "Imports", job_class_name: ProposalJob.name, pattern: "in/*.csv",
+                                                archive_directory: "archive", properties: properties)
+        job        = RocketJob::Jobs::UploadFileJob.new(job_class_name: ProposalJob.name, properties: properties)
+
+        [[entry, "Dirmon entry \"Imports\" #{entry.id}"], [job, "UploadFileJob #{job.id} (queued)"]].each do |owner, where|
+          proposals = owner.schema_proposals
+
+          assert_equal [where], proposals.map(&:where)
+          assert_match(/\AIts categories could not be read: NoMethodError: /, proposals.first.error)
+        end
       end
 
       it "with the :hash mode are proposed" do

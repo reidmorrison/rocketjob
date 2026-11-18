@@ -58,14 +58,19 @@ module RocketJob
       # Returns [Array<RocketJob::SchemaProposal>] the schemas proposed to replace the deprecated category options in
       # the properties of the job that this job creates, which that job class proposes, see
       # RocketJob::Batch::Categories::ClassMethods#property_schema_proposals. None when its job class is not loaded, or is not a Rocket Job,
-      # or when this job has completed or was aborted, since it cannot create its job again.
+      # or when this job has completed or was aborted, since it cannot create its job again. What its job class raises for
+      # the properties, such as for a category option that it no longer has, is answered as one proposal with the error,
+      # see RocketJob::SchemaProposal.unreadable.
       def schema_proposals
         return [] if completed? || aborted?
 
+        where = "UploadFileJob #{id} (#{state})"
         klass = rocket_job_class
         return [] unless klass && properties.is_a?(Hash)
 
-        klass.property_schema_proposals(properties, "UploadFileJob #{id} (#{state})")
+        klass.property_schema_proposals(properties, where)
+      rescue StandardError => e
+        [RocketJob::SchemaProposal.unreadable(where, e)]
       end
 
       # Returns [Hash] the attributes to show, see RocketJob::Plugins::Job::Model#display_attributes, with the paths
