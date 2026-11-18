@@ -130,10 +130,12 @@ job.upload("myfile.csv.gz")      # GZip
 job.upload("myfile.csv.zip.enc") # Encrypted Zip
 ~~~
 
-Override the detected streams explicitly when the file name does not reflect the contents:
+When the file name does not reflect the contents, upload an IOStreams path that names its streams
+instead, in the order they are read:
 
 ~~~ruby
-job.upload("myfile.ze", streams: [:zip, :enc])
+path = IOStreams.path("myfile.ze").stream(:zip).stream(:enc)
+job.upload(path)
 ~~~
 
 Useful `upload` keyword options:
@@ -569,8 +571,8 @@ class TabularJob < RocketJob::Job
   input_category format: :csv
 
   def perform(record)
-    # record is a Hash, for example:
-    # { "first_field" => 100, "second" => 200, "third" => 300 }
+    # record is a Hash of Strings, for example:
+    # { "first_field" => "100", "second" => "200", "third" => "300" }
   end
 end
 ~~~
@@ -582,7 +584,8 @@ job.save!
 ~~~
 
 CSV parsing is left to the workers, so the file still uploads a line at a time with minimal memory
-overhead, even for very large files.
+overhead, even for very large files. Each value of a CSV file is a `String`; to receive a number as
+an `Integer`, give the category a schema, see [Typed values with a schema](#typed-values-with-a-schema).
 
 ### Auto-detecting the file type
 
