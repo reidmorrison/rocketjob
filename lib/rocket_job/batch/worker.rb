@@ -150,38 +150,23 @@ module RocketJob
       # Perform individual slice without callbacks
       #
       # Resumes after the records of the slice that an earlier attempt processed, whose results are already in its
-      # output, see Sliced::Writer::Output, without reading them again, see Sliced::Slice#records_from. The slice's
-      # `processing_record_number` names the record being processed, or once it is processed, the next one, since a
-      # record that cannot be parsed raises before its input category yields it, see Category::Input#parse_records, so
-      # that a failure names that record. After the last record it stays on the last, so that a failure after it, such
-      # as in an after_slice callback, names a record of the slice.
+      # output, see Sliced::Writer::Output, without reading them again, see Sliced::Slice#each_unprocessed_record, which
+      # yields each record with its line and record number, and points the slice at the record being processed.
       def rocket_job_perform_slice(slice, &block)
-        first  = slice.processing_record_number.to_i
-        append = first > 1
-        if append
-          logger.info("Resuming previously incomplete slice from record number #{first}")
-        else
-          # Reprocess all records in this slice.
-          first = 1
-        end
-        slice.processing_record_number = first
+        append = slice.partly_processed?
+        record_number = slice.current_record_number if append
+        logger.info("Resuming previously incomplete slice from record number #{record_number}") if record_number
 
-        count    = 0
-        last     = slice.size
-        category = input_category
+        count = 0
         # The writer renders each result in its output category, see Sliced::Writer::Output.
         RocketJob::Sliced::Writer::Output.collect(self, input_slice: slice, append: append) do |writer|
-          category.parse_records(slice.records_from(first)) do |record|
-            # The numbers read Mongoid fields, so compute them once per record and reuse them for both the log tags
-            # and `#perform`. The line is only tagged for the line of a file.
-            record_number = slice.current_record_number
-            line_number   = slice.current_line_number
-            tags          = line_number ? {record: record_number, line: line_number} : {record: record_number}
+          slice.each_unprocessed_record(input_category) do |record, line_number, record_number|
+            # The line is only tagged for the line of a file.
+            tags = line_number ? {record: record_number, line: line_number} : {record: record_number}
             SemanticLogger.named_tagged(**tags) do
               writer << rocket_job_batch_perform(slice, record, record_number, line_number, &block)
               count += 1
             end
-            slice.processing_record_number += 1 if slice.processing_record_number < last
           end
         end
         count

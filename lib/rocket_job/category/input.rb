@@ -148,8 +148,10 @@ module RocketJob
 
       # Yields each record of the supplied records of a slice of this category, as `#perform` receives it. The rows of a
       # file, see IOStreams::Slice, are read by IOStreams by the header row and format that they carry, with this
-      # category's schema when it has one, see #schema. Otherwise each record is parsed on its own, see #parse. A blank
-      # row is nil.
+      # category's schema when it has one, see #schema, and are each yielded with the line of their file that they
+      # start on, or nil when it is not a line of a file, and their record number, as the slice holds them, see
+      # IOStreams::Stream#each_with_numbers. Otherwise each record is parsed on its own, see #parse, and yielded alone,
+      # since only the slice knows its number, see Sliced::Slice#each_unprocessed_record. A blank row is nil.
       #
       # A record that cannot be parsed raises before it is yielded, after the records before it, so that the caller
       # knows which record failed.
@@ -164,7 +166,7 @@ module RocketJob
         return parse_rows(records, &) if rows_parsed_alone?(records)
 
         @removed_options_checked ||= check_removed_options || true
-        IOStreams.stream(records).schema(schema_descriptor).each(:hash, &)
+        IOStreams.stream(records).schema(schema_descriptor).each_with_numbers(:hash, &)
       end
 
       # Returns the supplied record of a slice of this category as `#perform` receives it: parsed in this category's
@@ -489,11 +491,11 @@ module RocketJob
       end
 
       # Yields the record of each row of the supplied slice, see #rows_parsed_alone?, as `#perform` receives it, see
-      # #parse: in a category without a format, the row of a query of one column, see #rows_target, is its value, as
-      # Rocket Job 7 uploaded it.
+      # #parse, with its line and record number, see #parse_records: in a category without a format, the row of a query
+      # of one column, see #rows_target, is its value, as Rocket Job 7 uploaded it.
       def parse_rows(slice)
         value = !tabular? && slice.header&.size == 1
-        slice.each { |row| yield parse(value ? row.first : row) }
+        slice.each { |row, line, number| yield parse(value ? row.first : row), line, number }
       end
 
       # Returns [Symbol] this category's format, or the format of its file name when it is :auto, otherwise CSV, which an

@@ -92,6 +92,33 @@ module Batch
         assert_equal %w[Jack Jill Bob], names
       end
 
+      it "resumes at the failed record by its record number, also after a record before it is removed" do
+        upload("Name,AGE\nJack,21\nJill,22\nBad,1\nJoe,23\n")
+        failures = 0
+        job.stub(:perform, lambda { |record|
+          if record["name"] == "Bad" && failures.zero?
+            failures += 1
+            raise(ArgumentError, "Bad")
+          end
+          record
+        }) do
+          work
+          slice = job.input.failed.first
+
+          assert_equal 3, slice.processing_at_record
+          assert_equal 3, slice.processing_record_number
+          slice.delete_record(0)
+          slice.save!
+
+          assert_equal "Bad,1", job.input.failed.first.failed_record
+          job.retry!
+          work
+        end
+
+        assert_predicate job, :completed?
+        assert_equal(%w[Jack Jill Bad Joe], output_records.collect { |record| record["name"] })
+      end
+
       it "keeps the slices of an earlier file when a later one fails" do
         job.input_category.validate_rows = true
         job.input_category.slice_size    = 1
@@ -125,7 +152,7 @@ module Batch
       it "resumes a slice without reading the records that an earlier attempt processed" do
         upload("Name,AGE\nJack,x\nJill,22\n")
         slice = job.input.first
-        slice.processing_record_number = 2
+        slice.processing_at_record = 2
         slice.save!
 
         work
@@ -155,7 +182,7 @@ module Batch
       describe "when an after_slice callback fails" do
         let(:job) { AfterSliceJob.new }
 
-        it "names the last record of the slice" do
+        it "has no failed record, and its retry processes none of its records again" do
           upload("Name,AGE\nJack,21\nJill,22\n")
           work
           slice  = job.input.first
@@ -163,9 +190,16 @@ module Batch
           job.input.each_failed_record { |record, _slice| failed << record }
 
           assert_predicate slice, :failed?
-          assert_equal 2, slice.processing_record_number
-          assert_equal 2, slice.current_record_number
-          assert_equal ["Jill,22"], failed
+          assert_equal 3, slice.processing_at_record
+          assert_equal 3, slice.processing_record_number
+          assert_nil slice.failed_record
+          assert_nil slice.current_record_number
+          assert_empty failed
+
+          job.retry!
+          work
+
+          assert_equal(%w[Jack Jill], output_records.collect { |record| record["name"] })
         end
       end
 

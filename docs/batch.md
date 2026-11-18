@@ -1253,8 +1253,13 @@ slice.save!
 job.retry!
 ~~~
 
-On retry each slice resumes from `processing_record_number`, so records that already completed
-successfully within the slice are not reprocessed. The corrected record is the next one processed.
+On retry each slice resumes at its failed record, which it finds by the record number that it holds
+in `processing_at_record`, so records that already completed successfully within the slice are not
+reprocessed, also when a record is removed from the slice with `delete_record` before the retry. The
+corrected record is the next one processed.
+
+A slice that fails once every record in it is processed, such as in an `after_slice` callback, has no
+`failed_record`, and its retry processes none of its records again, only the slice callbacks.
 
 **Example: fix every record in a slice.**
 Assigning an Array to `records` replaces them all, and is persisted by `save!`. The rows of a file
