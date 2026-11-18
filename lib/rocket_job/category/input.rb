@@ -151,7 +151,8 @@ module RocketJob
       # category's schema when it has one, see #schema, and are each yielded with the line of their file that they
       # start on, or nil when it is not a line of a file, and their record number, as the slice holds them, see
       # IOStreams::Stream#each_with_numbers. Otherwise each record is parsed on its own, see #parse, and yielded alone,
-      # since only the slice knows its number, see Sliced::Slice#each_unprocessed_record. A blank row is nil.
+      # since only the slice knows its number, see Sliced::Slice#each_unprocessed_record. A blank row is nil,
+      # apart from a line of the :text format without a schema.
       #
       # A record that cannot be parsed raises before it is yielded, after the records before it, so that the caller
       # knows which record failed.
@@ -170,10 +171,10 @@ module RocketJob
       end
 
       # Returns the supplied record of a slice of this category as `#perform` receives it: parsed in this category's
-      # format, see #parse_record, or as it is when the category has no format. A blank record of a tabular format is
-      # nil.
+      # format, see #parse_record, or as it is when the category has no format, or is in the :text format without a
+      # schema, whose records are the lines of a file, a blank line too. A blank record of any other format is nil.
       def parse(record)
-        return record if record.nil? || !tabular?
+        return record if record.nil? || !tabular? || (format == :text && schema.blank?)
         return if record.blank?
 
         parse_record(record)
@@ -481,13 +482,15 @@ module RocketJob
       end
 
       # Returns [true|false] whether the rows of the supplied slice are each parsed on their own, see #parse_rows, rather
-      # than read by IOStreams by the header row and format that the slice carries: the rows of a file without a
-      # format, in the :text format, and the rows of a slice in a category without a format, such as those of a query
-      # or the ranges of a Range. IOStreams reads every other slice by this category's schema, as the slice says: by its
-      # header row, by the keys of its records, such as those of the :hash format, or, without either, such as the
-      # typed rows of the :array format, by the fields of the schema in order.
+      # than read by IOStreams by the header row and format that the slice carries: the rows of a slice in the :text
+      # format, which have no columns, such as those of a file without a format, or of a `.text` file, unless this
+      # category is in the :text format with a schema, and the rows of a slice in a category without a format, such as
+      # those of a query or the ranges of a Range. IOStreams reads every other slice by this category's schema, as the
+      # slice says: by its header row, by the keys of its records, such as those of the :hash format, or, without either,
+      # such as the typed rows of the :array format, or the lines of the :text format, by the fields of the schema in
+      # order.
       def rows_parsed_alone?(slice)
-        slice.format == :text || !tabular?
+        !tabular? || (slice.format == :text && (format != :text || schema.blank?))
       end
 
       # Yields the record of each row of the supplied slice, see #rows_parsed_alone?, as `#perform` receives it, see

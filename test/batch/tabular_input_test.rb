@@ -228,6 +228,58 @@ module Batch
           ], output_records
         end
 
+        describe "the :text format" do
+          let(:text) { "hello\n\nworld\n" }
+
+          it "gives perform each line of a file as a String, a blank line too" do
+            job.input_category.format = :text
+
+            assert_equal 3, upload(".text", text)
+            assert_equal ["hello", "", "world"], output_records
+          end
+
+          it "gives perform each line of a .text file as a String, with the :auto format" do
+            job.input_category.format = :auto
+            upload(".text", text)
+
+            assert_equal :text, job.input_category.format
+            assert_equal ["hello", "", "world"], output_records
+          end
+
+          it "gives perform each line written to a block as a String" do
+            job.input_category.format = :text
+            job.upload do |lines|
+              lines << "hello"
+              lines << "world"
+            end
+
+            assert_equal %w[hello world], output_records
+          end
+
+          it "gives perform each line of a slice that upload_slice uploads as a String, a blank line too" do
+            job.input_category.format = :text
+            job.upload_slice(["hello", "", "world"])
+
+            assert_equal ["hello", "", "world"], output_records
+          end
+
+          it "parses the lines of a file uploaded without a format by the format that the category has since" do
+            job.input_category.format = nil
+            upload(".text", "name,age\n")
+            job.input_category.format = :csv
+
+            assert_raises(ArgumentError) { output_records }
+          end
+
+          it "reads each line by the field of a schema, which gives a blank line as nil, so it is not output" do
+            job.input_category.format = :text
+            job.input_category.schema = {"fields" => [{"name" => "line"}]}
+            upload(".text", text)
+
+            assert_equal [{"line" => "hello"}, {"line" => "world"}], output_records
+          end
+        end
+
         it "uploads every record of JSON with validate_rows, which has no header row, and keeps its keys" do
           job.input_category.format        = :json
           job.input_category.validate_rows = true
