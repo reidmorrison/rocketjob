@@ -119,6 +119,7 @@ module RocketJob
       end
 
       def file_exists
+        return upload_file_name_known if upload_file_name.is_a?(String)
         # Only check for file existence when it is a local file
         return unless upload_file_name.is_a?(IOStreams::Paths::File)
         return errors.add(:upload_file_name, "Upload file name can't be blank.") if upload_file_name.to_s == ""
@@ -127,6 +128,19 @@ module RocketJob
 
         errors.add(:upload_file_name, "Upload file: #{RocketJob.path_display_name(upload_file_name)} does not exist.")
       rescue NotImplementedError
+        nil
+      end
+
+      # A url that IOStreams cannot make a path of, such as one whose scheme it does not know, is read as stored, a
+      # String, see IOStreams::Path.demongoize, so it is checked here, rather than when the job runs. One whose scheme
+      # needs a gem that this process does not load is accepted, since the server that runs the job can load it.
+      def upload_file_name_known
+        IOStreams.path(upload_file_name)
+        nil
+      rescue ArgumentError, URI::Error
+        # The url is not included in the message, since one that cannot be parsed can hold credentials.
+        errors.add(:upload_file_name, "Upload file name is not a path or url that IOStreams can read.")
+      rescue LoadError
         nil
       end
 

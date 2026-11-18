@@ -144,6 +144,14 @@ module Jobs
           assert_predicate job, :valid?, job.errors.messages
         end
 
+        it "validates a url whose scheme IOStreams does not know" do
+          job.upload_file_name = "s4://bucket/blah.csv"
+
+          refute_predicate job, :valid?
+          assert_includes job.errors.messages[:upload_file_name],
+                          "Upload file name is not a path or url that IOStreams can read."
+        end
+
         it "checks the filesystem if the url scheme is file for upload_file_name" do
           job.upload_file_name = "file:/foo/blah"
 
