@@ -6691,7 +6691,12 @@ parent class, and whose properties name a category that only a subclass defines,
 archives each file that it picks up for the entry, and the `UploadFileJob` that it starts for the
 file fails. Name the subclass as its job class, or define the category in the parent class. Each
 failed `UploadFileJob` holds its own copy of the job class and properties, so it succeeds when it is
-retried only once the parent class defines the category.
+retried once its `job_class_name` is changed to the subclass, which can be edited on the failed
+job, or once the parent class defines the category.
+
+Fix such an entry before upgrading to v8. v8 does not save a Dirmon entry or an `UploadFileJob`
+whose properties name a category that its job class does not define, so an entry saved before v8
+fails when it picks up a file, after archiving it, without starting an `UploadFileJob` for it.
 
 ### Declare the file name of a simple job as a path
 
