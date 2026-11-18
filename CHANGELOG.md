@@ -213,6 +213,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### New features
 
+- An input category in the `:text` format, or `:auto` with a `.text` file, gives `#perform` each line as a String
+  without a schema, a blank line too, where it raised `IOStreams::Errors::InvalidHeader`. With a schema, each line is
+  read by its fields. Rocket Job 7 read a `.text` file with `:auto` as CSV.
 - `upload` of an Active Record relation, or its batches, or a Mongoid query, into an input category with a `format`,
   such as CSV or JSON, uploads its rows in that format, after the names of the columns, as a file of the query would
   hold them, so that `#perform` receives each row as the rows of a file in that format. In a format with a header

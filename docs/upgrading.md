@@ -236,6 +236,9 @@ job.upload("people.csv", validate_rows: true)
   name, otherwise CSV, so that `#perform` receives the same Hashes, apart from the columns of a
   header row that IOStreams 3.0 cleanses differently, see
   [A header row is cleansed as IOStreams 3.0 cleanses it](#a-header-row-is-cleansed-as-iostreams-30-cleanses-it).
+  A `.text` file is read in the `:text` format, which gives `#perform` each line as a String, where
+  v7 read it as CSV. Other file names that give no format, and a file without an extension, are
+  still read as CSV.
   `validate_rows: true` needs a format, and raises `ArgumentError` without one.
 * `validate_rows:` applies to a file, and the lines that the block of `upload` writes. A query or a
   range uploads values rather than rows, so `upload` raises `ArgumentError` for `validate_rows: true`

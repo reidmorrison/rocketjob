@@ -481,19 +481,23 @@ module RocketJob
       end
 
       # Returns [true|false] whether the rows of the supplied slice are each parsed on their own, see #parse_rows, rather
-      # than read by IOStreams by the header row and format that the slice carries: the rows of a file without a
-      # format, in the :text format, and the rows of a slice in a category without a format, such as those of a query
-      # or the ranges of a Range. IOStreams reads every other slice by this category's schema, as the slice says: by its
-      # header row, by the keys of its records, such as those of the :hash format, or, without either, such as the
-      # typed rows of the :array format, by the fields of the schema in order.
+      # than read by IOStreams by the header row and format that the slice carries: the rows of a slice in the :text
+      # format without a schema, which have no columns, such as those of a file without a format, or of a `.text` file,
+      # and the rows of a slice in a category without a format, such as those of a query or the ranges of a Range.
+      # IOStreams reads every other slice by this category's schema, as the slice says: by its header row, by the keys
+      # of its records, such as those of the :hash format, or, without either, such as the typed rows of the :array
+      # format, or the rows of the :text format, by the fields of the schema in order.
       def rows_parsed_alone?(slice)
-        slice.format == :text || !tabular?
+        !tabular? || (slice.format == :text && schema.blank?)
       end
 
-      # Yields the record of each row of the supplied slice, see #rows_parsed_alone?, as `#perform` receives it, see
-      # #parse, with its line and record number, see #parse_records: in a category without a format, the row of a query
-      # of one column, see #rows_target, is its value, as Rocket Job 7 uploaded it.
-      def parse_rows(slice)
+      # Yields the record of each row of the supplied slice, see #rows_parsed_alone?, as `#perform` receives it, with its
+      # line and record number, see #parse_records: the text of each row of the :text format, as it is; otherwise as
+      # #parse reads it. In a category without a format, the row of a query of one column, see #rows_target, is its
+      # value, as Rocket Job 7 uploaded it.
+      def parse_rows(slice, &)
+        return slice.each(&) if slice.format == :text
+
         value = !tabular? && slice.header&.size == 1
         slice.each { |row, line, number| yield parse(value ? row.first : row), line, number }
       end

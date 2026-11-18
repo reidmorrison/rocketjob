@@ -627,6 +627,10 @@ json_job.upload("really_big.json")
 json_job.save!
 ~~~
 
+A file name that gives no format, or no file name, is read as CSV. A `.text` file is read in the
+`:text` format, whose rows are lines: without a schema, `perform` receives each line as a `String`,
+a blank line too.
+
 ### Typed values with a schema
 
 Set `schema` on a category to read each value as its type, instead of as text. A schema is a
