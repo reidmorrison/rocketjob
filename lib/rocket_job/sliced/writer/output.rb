@@ -45,17 +45,20 @@ module RocketJob
         end
 
         # Write categorized results to their relevant collections
+        # The output category writes the results of each category as the records of its output slice, see
+        # RocketJob::Category::Output#output_records.
         def close
-          categorized_records.each_pair do |category, results|
-            collection = job.output(category)
-            append ? collection.append(results, input_slice) : collection.insert(results, input_slice)
+          categorized_records.each_pair do |name, results|
+            records    = output_category(name).output_records(results)
+            collection = job.output(name)
+            append ? collection.append(records, input_slice) : collection.insert(records, input_slice)
           end
         end
 
         private
 
-        # Stores the categorized result from one result, rendered by its output category, see
-        # RocketJob::Category::Output#render, unless it is nil, which is only kept when the category keeps nils.
+        # Keeps the categorized result from one result, unless it is nil, which is only kept when the category keeps
+        # nils, for its output category to write when the slice is closed, see #close.
         def extract_categorized_result(result)
           named_category = :main
           value          = result
@@ -63,9 +66,9 @@ module RocketJob
             named_category = result.category
             value          = result.value
           end
-          category = output_category(named_category)
-          value    = category.render(value) unless value.nil?
-          (categorized_records[named_category] ||= []) << value unless value.nil? && !category.nils
+          return if value.nil? && !output_category(named_category).nils
+
+          (categorized_records[named_category] ||= []) << value
         end
 
         # Returns [RocketJob::Category::Output] the named output category of the job, looked up once per slice.

@@ -214,7 +214,7 @@ module Batch
 
           error = assert_raises(ArgumentError) { input.parse("Jack      12345") }
           assert_equal "Input category main: #{removed_message}", error.message
-          error = assert_raises(ArgumentError) { output.render({"name" => "Jack"}) }
+          error = assert_raises(ArgumentError) { output.output_records([{"name" => "Jack"}]) }
           assert_equal "Output category other: #{removed_message}", error.message
         end
 
@@ -246,8 +246,8 @@ module Batch
           schema   = {"fieldsMatch" => "subset", "fields" => [{"name" => "abc"}, {"name" => "def", "type" => "integer"}]}
           category = RocketJob::Category::Output.new(format: :csv, schema: schema)
 
-          assert_equal "abc,def", category.render_header
-          assert_equal "1,2", category.tabular.render({"def" => 2, "abc" => 1, "other" => 3})
+          assert_equal "abc,def", category.header_line
+          assert_equal ["1,2"], category.output_records([{"def" => 2, "abc" => 1}]).rows
         end
 
         it "uses the file_name when format is not set" do

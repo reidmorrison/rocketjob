@@ -3416,8 +3416,8 @@ matches the column to that field.
 ## Writing tabular files
 
 To produce a tabular output file, set `format` on the `output_category` and return a `Hash` from
-`perform`. Rocket Job renders each hash into a line of the chosen format, and writes the header row
-automatically:
+`perform`. IOStreams writes the results of each slice in the chosen format, by the category's schema,
+and the download writes the header row once:
 
 ~~~ruby
 class ExportUsersJob < RocketJob::Job
@@ -3457,7 +3457,11 @@ kadams,2019-01-12T01:20:20Z
 
 The header row is the names of the fields. The keys of each hash are matched to the fields the same
 way as the columns of an input file, so a hash keyed `"Login"`, or by the Symbol `:login`, writes the
-`login` field too.
+`login` field too. `perform` can also return an `Array` of the values of the fields, in order, such as
+`[u.login, u.updated_at]`. In a category with a format, `perform` returns a `Hash` or an `Array`: a
+`String` raises `ArgumentError`, since IOStreams writes the line. A `nil` is skipped, unless the
+category sets `nils: true`, which writes an empty row. A CSV, PSV or fixed width output category needs
+a schema, whose fields are the columns that it writes.
 
 ### Filtering output columns
 
@@ -3517,14 +3521,20 @@ class TransformJob < RocketJob::Job
   self.destroy_on_complete = false
 
   input_category  format: :csv
-  output_category format: :csv
+  output_category format: :csv,
+                  schema: {
+                    "fields" => [
+                      {"name" => "name"},
+                      {"name" => "age", "type" => "integer"}
+                    ]
+                  }
 
   after_batch :download_file
 
   def perform(row)
     {
-      name: "#{row['first_name'].downcase} #{row['last_name'].downcase}",
-      age:  row["age"]
+      "name" => "#{row['first_name'].downcase} #{row['last_name'].downcase}",
+      "age"  => row["age"]
     }
   end
 
@@ -3637,7 +3647,13 @@ class ExportJob < RocketJob::Job
   self.destroy_on_complete = false
 
   input_category  format: :csv
-  output_category format: :csv
+  output_category format: :csv,
+                  schema: {
+                    "fields" => [
+                      {"name" => "name"},
+                      {"name" => "age", "type" => "integer"}
+                    ]
+                  }
 
   field :pgp_public_key, type: String
   validates_presence_of :pgp_public_key
@@ -3645,7 +3661,7 @@ class ExportJob < RocketJob::Job
   after_batch :download_file
 
   def perform(row)
-    {name: "#{row['first_name']} #{row['last_name']}", age: row["age"]}
+    {"name" => "#{row['first_name']} #{row['last_name']}", "age" => row["age"]}
   end
 
   def download_file

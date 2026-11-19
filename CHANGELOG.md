@@ -7,6 +7,12 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Breaking changes
 
+- An output category with a format no longer renders each result itself: IOStreams writes the results of each slice
+  in the format, by the category's schema, and the download writes the header row once. `#perform` returns a Hash, or
+  an Array of the values of the fields in order, where a String now raises `ArgumentError`. A `nil` that the category
+  keeps (`nils: true`) is written as an empty row, such as `,` in CSV, where v7 wrote a blank line. Output that v7
+  wrote is still downloaded line for line. `Category::Output#render` and `#render_header` are removed;
+  `#header_line` returns the header row.
 - Removed the category options that Rocket Job 7.1 and 7.2 deprecate, since a category's `schema` replaces them:
   - `format_options`, the layout of a fixed width file. A category with `format: :fixed` needs a schema, with the
     `width` of each field, without which IOStreams 3.0 raises `ArgumentError`.
