@@ -166,6 +166,23 @@ module Batch
           with_file(".csv", "amount\n1\n") { |path| assert_empty PlainJob.input_contract_errors(path) }
         end
 
+        it "merges each main input category of the properties, in order, as the job is built from them" do
+          properties = {"input_categories" => [{"format" => "csv"}, {"name" => "main", "format" => "psv"}]}
+
+          with_file(".txt", "id|amount\n1|2\n") { |path| assert_empty ContractJob.input_contract_errors(path, properties) }
+        end
+
+        it "is empty for a job class without a main input category" do
+          job_class = Class.new(ContractJob) { input_category name: :orders }
+          job_class.defined_input_categories = job_class.defined_input_categories.reject { |category| category.name == :main }
+
+          with_file(".csv", "amount\n1\n") { |path| assert_empty job_class.input_contract_errors(path) }
+        end
+
+        it "ignores an entry of the properties that is not a Hash, which property_errors reports" do
+          with_file(".csv", "id\n1\n") { |path| assert_empty ContractJob.input_contract_errors(path, {"input_categories" => ["main"]}) }
+        end
+
         it "reads the file as the properties of the job say, without building it" do
           properties = {"input_categories" => [{"name" => "main", "format" => "psv"}]}
 
@@ -183,16 +200,15 @@ module Batch
       end
 
       describe "an UploadFileJob" do
-        it "fails before it creates the job, naming every problem, for a file that does not meet the contract" do
+        it "fails before it uploads any slice, naming each column that the contract requires, for a file without them" do
           IOStreams.temp_file("contracts_test", ".csv") do |path|
-            ::File.write(path.to_s, "amount\n1\n")
+            ::File.write(path.to_s, "other\n1\n")
             upload = RocketJob::Jobs::UploadFileJob.new(job_class_name: ContractJob.name, upload_file_name: path.to_s)
             count  = ContractJob.count
 
-            error = assert_raises(ArgumentError) { upload.perform }
+            error = assert_raises(IOStreams::Errors::InvalidHeader) { upload.perform }
 
-            assert_includes error.message, "cannot read"
-            assert_includes error.message, "missing the required field \"id\""
+            assert_includes error.message, 'missing the required field "id"'
             assert_equal count, ContractJob.count
           end
         end

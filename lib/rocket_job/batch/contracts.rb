@@ -70,7 +70,9 @@ module RocketJob
         # for each field that the contract requires and the file does not have, or an IOStreams::Errors::IncompatibleType
         # for a column whose declared type never fits, or [] when it can, or when this job class has no contract. It
         # reads only the start of the file, see Category::Input#contract_errors, so that a web request that accepts a
-        # file, or an UploadFileJob, can report every problem before any job is created.
+        # file can report every problem before any job is created. An upload raises for the columns of a file before
+        # its first slice, see Category::Input#copy_slices, but not for a file without a header row, such as an empty
+        # one, which uploads no records. Empty for a job class without a main input category.
         #
         # Parameters:
         #   path [String|IOStreams::Path]
@@ -84,11 +86,9 @@ module RocketJob
         def input_contract_errors(path, properties = nil, original_file_name: nil)
           return [] unless input_contract
 
-          category = rocketjob_new_categories(:input_categories).find { |default| default.name == :main }
-          main     = properties.to_h.stringify_keys["input_categories"].to_a.find do |category_properties|
-            RocketJob::Category::Input.name_in(category_properties) == :main
-          end
-          category.merge_properties(main) if main
+          category = rocketjob_input_category_from(properties)
+          return [] unless category
+
           category.contract_errors(path, input_contract, original_file_name: original_file_name)
         end
 

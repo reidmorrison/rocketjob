@@ -59,6 +59,24 @@ module RocketJob
           category
         end
 
+        # Returns [RocketJob::Category::Input] a copy of the named input category that a new job of this class starts
+        # with, merged with each of the input categories of the supplied properties of that name, in order, as
+        # .from_properties merges them, without building the job, or nil when this class does not define it. An entry
+        # that is not a Hash is left to .property_errors, which reports it.
+        def rocketjob_input_category_from(properties, name = :main)
+          name     = name.to_sym
+          category = rocketjob_new_categories(:input_categories).find { |default| default.name == name }
+          entries  = properties.to_h.stringify_keys["input_categories"]
+          return category unless category && entries.is_a?(Array)
+
+          entries.each do |entry|
+            next unless entry.is_a?(Hash) && RocketJob::Category::Input.name_in(entry) == name
+
+            category.merge_properties(entry)
+          end
+          category
+        end
+
         # Builds this job instance from the supplied properties hash that may contain input and output categories.
         # Keeps the defaults and merges in settings without replacing existing categories.
         # The keys can be Strings or Symbols, since Mongoid 9 returns Hash field keys as Strings, earlier versions as

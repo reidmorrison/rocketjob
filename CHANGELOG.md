@@ -230,9 +230,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   The values are checked by the workers, or at upload with `validate_rows: true`.
 - `input_contract_errors(path, properties)` on a batch job class returns every reason that a file cannot be read
   through its contract, such as each required column that it does not have, reading only the start of the file and
-  without building the job, so that a web request that accepts a file can report every problem at once. An
-  `UploadFileJob`, such as one that Dirmon creates, asks it before it creates the job, and fails naming every problem,
-  leaving the file in the archive.
+  without building the job, so that a web request that accepts a file can report every problem at once.
 - An input category in the `:text` format, or `:auto` with a `.text` file, gives `#perform` each line as a String
   without a schema, a blank line too, where it raised `IOStreams::Errors::InvalidHeader`. With a schema, each line is
   read by its fields. Rocket Job 7 read a `.text` file with `:auto` as CSV.

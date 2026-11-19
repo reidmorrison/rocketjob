@@ -69,12 +69,7 @@ module RocketJob
       end
 
       # Create the job and upload the file into it.
-      #
-      # Raises ArgumentError, naming every problem, before the job is created, when the file cannot be read through the
-      # input contract of a batch job, see RocketJob::Batch::Contracts.input_contract_errors, so that the file is left
-      # where it is, and this job can be retried once it is fixed.
       def perform
-        check_input_contract
         job    = job_class.from_properties(properties)
         job.id = job_id if job_id
         upload_file(job)
@@ -103,18 +98,6 @@ module RocketJob
       # failed job.
       def job_class
         job_class_name.to_s.safe_constantize
-      end
-
-      # Raises ArgumentError for every reason that the file cannot be read through the input contract of the job class,
-      # see #perform.
-      def check_input_contract
-        return unless job_class.respond_to?(:input_contract_errors)
-
-        errors = job_class.input_contract_errors(upload_file_name, properties, original_file_name: original_file_name)
-        return if errors.empty?
-
-        raise(ArgumentError, "#{job_class_name} cannot read #{RocketJob.path_display_name(upload_file_name)} through " \
-                             "its input contract: #{errors.map(&:message).join('; ')}")
       end
 
       def upload_file(job)
