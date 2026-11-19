@@ -85,6 +85,183 @@ job.output.each do |slice|
 end
 ~~~
 
+## Declaring what perform receives
+
+A batch job declares the fields that `perform` needs, and the type of each one, with
+`input_contract`. Every record of the main input category is then read through the contract, whatever
+the source, and `perform` receives a record of the contract instead of a `Hash` keyed by the columns
+of one file:
+
+~~~ruby
+class ImportOrdersJob < RocketJob::Job
+  include RocketJob::Batch
+
+  input_contract do
+    fields_match "partial"
+
+    field :id,         :integer,  required: true
+    field :amount,     :number,   decimals: 2
+    field :ordered_at, :datetime, aliases: ["created_at"]
+  end
+
+  def perform(order)
+    Ledger.post(order.id, order.amount, order.ordered_at)
+  end
+end
+~~~
+
+~~~ruby
+job = ImportOrdersJob.new
+job.upload("orders.csv")
+job.save!
+~~~
+
+The contract is an [IOStreams contract](https://iostreams.reidmorrison.com/contracts.html): the block
+is the body of a subclass of `IOStreams::Contract`, which Rocket Job names
+`ImportOrdersJob::InputContract`. To share one contract between jobs, or with the web request that
+accepts an upload, declare it as a class and name it instead:
+
+~~~ruby
+class OrderContract < IOStreams::Contract
+  fields_match "partial"
+
+  field :id,     :integer, required: true
+  field :amount, :number,  decimals: 2
+end
+
+class ImportOrdersJob < RocketJob::Job
+  include RocketJob::Batch
+
+  input_contract OrderContract
+
+  def perform(order)
+    Ledger.post(order.id, order.amount)
+  end
+end
+~~~
+
+What `perform` receives:
+
+* A record of the contract, such as `order.amount`, rather than `order["amount"]`, so a misspelled
+  field raises `NoMethodError` instead of returning `nil`.
+* The same fields, in their types, whatever the source: a CSV, JSON, Excel or Parquet file, the lines
+  that the block of `upload` writes, a query, a range, or the Hashes or Arrays of `upload_slice`. A
+  column is matched to its field by its name or one of its `aliases`, whatever its case, spaces and
+  punctuation, so `ID` and `Ordered At` match `id` and `ordered_at`.
+* A blank row is skipped, rather than passed to `perform` as `nil`. It still counts as a record, so
+  record and line numbers are those of the file, see [Record and line numbers](#record-and-line-numbers).
+
+A test builds its input with the contract, which converts and checks each value as it is set:
+
+~~~ruby
+order = ImportOrdersJob::InputContract.new(id: 1, amount: "12.5")
+ImportOrdersJob.new.perform(order)
+~~~
+
+The job class owns the contract: it is code, never saved with the job, and changes in a pull request
+together with `perform`. The input category keeps what describes the file instead, such as its
+`format`, `encoding`, and a `schema` for a file that cannot describe itself, see
+[A file that cannot describe itself](#a-file-that-cannot-describe-itself). With a contract, the main
+input category reads the format of each file from its name (`format: :auto`), unless the job class
+declares its format. A job without a contract works as before.
+
+### Where the contract is checked
+
+| When | What is checked | When it does not fit
+|:-----|:----------------|:--------------------
+| A new job is saved, or its input categories change | A schema of the main input category, held as a Hash, against the contract, without a file | The job is not valid, and is not saved
+| Before a job exists | The columns of a file, from its start only, with `input_contract_errors` | A list of every problem
+| At upload | The header row of a file, or of the lines that the block of `upload` writes, before the first slice; for Parquet, also each column type that can never fit | `IOStreams::Errors::InvalidHeader` or `IOStreams::Errors::IncompatibleType`, and nothing is uploaded
+| In the worker | Each value, as its record is read | `IOStreams::Errors::InvalidValue`, which fails its slice, naming the field, record and line
+
+`upload(..., validate_rows: true)` moves the worker's check of the values to the upload, so that a
+file with a value that does not fit is not uploaded at all. The columns of a query are checked by the
+workers.
+
+A record that fails its slice, such as `Field "amount": "N/A" is not a valid number, in record 2 on
+line 3`, can be corrected and retried, see
+[Editing and retrying failed records](#editing-and-retrying-failed-records).
+
+### Checking a file before the job is created
+
+`input_contract_errors` on the job class lists every reason that a file cannot be read through the
+contract, reading only its start, so that the web request that accepts a file can show them all at
+once, before any job is created:
+
+~~~ruby
+errors = ImportOrdersJob.input_contract_errors(params[:file].path, original_file_name: params[:file].original_filename)
+if errors.empty?
+  job = ImportOrdersJob.new
+  job.upload(params[:file].path, file_name: params[:file].original_filename)
+  job.save!
+else
+  flash[:alert] = errors.map(&:message).join("; ")
+end
+~~~
+
+Supply the properties that the job will be built from, such as those of a
+[Dirmon entry](dirmon.html), as the second argument, so that the file is read as the main input
+category that they set, such as in another format. The job is not built.
+
+### A file that cannot describe itself
+
+A fixed width file, or a CSV file without a header row, does not name its columns. Give the input
+category a schema of the file, which configuration can set per source, such as in a Dirmon entry,
+while the job class keeps the contract. The schema reads the file, and the contract meets its fields
+by their names:
+
+~~~ruby
+class ImportOrdersJob < RocketJob::Job
+  include RocketJob::Batch
+
+  input_contract OrderContract
+
+  input_category format: :fixed,
+                 schema: {
+                   "fields" => [
+                     {"name" => "id", "type" => "integer", "width" => 10, "constraints" => {"required" => true}},
+                     {"name" => "amount", "type" => "number", "width" => 12, "decimals" => 2}
+                   ]
+                 }
+
+  def perform(order)
+    Ledger.post(order.id, order.amount)
+  end
+end
+~~~
+
+A schema that would read files that do not meet the contract, such as one that does not require a
+field that the contract requires, makes the job, or the Dirmon entry that sets it, invalid when it is
+saved.
+
+### Ranges and upload_slice
+
+A range uploads one `[first_id, last_id]` record per slice, so a job that uploads a range declares a
+contract of its two ids, which are read by position:
+
+~~~ruby
+class ReprocessUsersJob < RocketJob::Job
+  include RocketJob::Batch
+
+  input_contract do
+    field :first_id, :integer
+    field :last_id,  :integer
+  end
+
+  def perform(range)
+    User.where(id: range.first_id..range.last_id).find_each(&:reprocess!)
+  end
+end
+
+job = ReprocessUsersJob.new
+job.upload(1..1_000_000)
+job.save!
+~~~
+
+The Hashes that `upload_slice` uploads are read by the names of their keys, and Arrays by position,
+which needs a contract whose fields are the values of each Array in order (the default
+`fields_match`).
+
 ## Uploading input data
 
 Input data is uploaded into the job before it is saved. Rocket Job stores it in a MongoDB collection
@@ -571,8 +748,10 @@ end
 ## Reading tabular files
 
 Received data is often tabular, like a spreadsheet, with a header row describing each column (CSV,
-PSV, Excel, and so on). Set `format` on the `input_category` and Rocket Job parses each row just
-before `perform` is called, passing in a `Hash` of header name to value instead of the raw line:
+PSV, Excel, and so on). A job with a contract receives each row as a record of it, see
+[Declaring what perform receives](#declaring-what-perform-receives). Without one, set `format` on the
+`input_category` and Rocket Job parses each row just before `perform` is called, passing in a `Hash`
+of header name to value instead of the raw line:
 
 ~~~ruby
 class TabularJob < RocketJob::Job
@@ -1122,6 +1301,10 @@ class ImportJob < RocketJob::Job
   end
 end
 ~~~
+
+A blank row of a file is `nil`, as `return if row.nil?` checks. A job with a contract never receives
+one: the row is skipped, and still counts, so the numbers of the records after it are unchanged, see
+[Declaring what perform receives](#declaring-what-perform-receives).
 
 Each log entry written while a record is processed is tagged with its `record`, and its `line` when it
 has one, so that support staff can find the row in its file.
