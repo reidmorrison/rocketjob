@@ -459,6 +459,28 @@ module Batch
         end
       end
 
+      describe "#formatted?" do
+        it "is true for a format whose rows are lines of text" do
+          assert RocketJob::Category::Input.new(format: :csv).send(:formatted?)
+          assert RocketJob::Category::Input.new(format: :json).send(:formatted?)
+        end
+
+        it "is false for a format whose rows are values" do
+          refute RocketJob::Category::Input.new(format: :hash).send(:formatted?)
+          refute RocketJob::Category::Input.new(format: :array).send(:formatted?)
+          refute RocketJob::Category::Input.new(format: :parquet).send(:formatted?)
+        end
+
+        it "is false without a format" do
+          refute RocketJob::Category::Input.new.send(:formatted?)
+        end
+
+        it "answers for the format alone, rather than the file name of another upload" do
+          refute RocketJob::Category::Input.new(format: :hash, file_name: "people.xlsx").send(:formatted?)
+          assert RocketJob::Category::Input.new(format: :json, file_name: "people.xlsx").send(:formatted?)
+        end
+      end
+
       describe "#write_slices" do
         # A store of slices that keeps each slice that IOStreams writes to it.
         let(:store) do
@@ -488,6 +510,12 @@ module Batch
         it "holds the records of a format whose rows are Ruby objects as they are" do
           assert_equal [nil, :hash, [{"name" => "Jack"}]],
                        written(RocketJob::Category::Input.new(format: :hash)) { |io| io << {"name" => "Jack"} }
+        end
+
+        it "holds the records of a format whose rows are Ruby objects, whatever the file name of an earlier upload" do
+          category = RocketJob::Category::Input.new(format: :hash, file_name: "people.xlsx")
+
+          assert_equal [nil, :hash, [{"name" => "Jack"}]], written(category) { |io| io << {"name" => "Jack"} }
         end
 
         it "reads a format of :auto from the file name, otherwise CSV" do

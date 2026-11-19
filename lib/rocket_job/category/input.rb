@@ -450,10 +450,11 @@ module RocketJob
 
       # Returns [true|false] whether the rows of this category's format are lines of text, such as CSV or JSON, which a
       # file, or the block of an upload, gives as they are, see #copy_slices and #write_slices, rather than Ruby objects,
-      # such as those of :hash or :array, or rows that are not lines, such as those of Parquet. A format of :auto is that
-      # of the file name, otherwise CSV, see #detect_format.
+      # such as those of :hash or :array, or rows that are not lines, such as those of Parquet, see
+      # IOStreams::Stream#lines_of_text?. Asked once an upload has replaced a format of :auto, see #detect_format, and of
+      # the format alone, since the file name of the category can be that of another upload, such as a spreadsheet's.
       def rows_are_lines?
-        IOStreams::Tabular.lines_of_text?(upload_format)
+        IOStreams.stream(StringIO.new).format(format).lines_of_text?
       end
 
       # Returns [true|false] whether IOStreams writes the records of an upload into this category in its format, see
@@ -502,12 +503,6 @@ module RocketJob
       def parse_rows(slice)
         value = !tabular? && slice.header&.size == 1
         slice.each { |row, line, number| yield parse(value ? row.first : row), line, number }
-      end
-
-      # Returns [Symbol] this category's format, or the format of its file name when it is :auto, otherwise CSV, which an
-      # upload replaces :auto with, see #detect_format.
-      def upload_format
-        format == :auto ? (file_name && IOStreams.new(file_name).format) || :csv : format
       end
 
       # Returns [IOStreams::Stream] that writes lines to the supplied store of slices, see Sliced::Writer::Input, by this

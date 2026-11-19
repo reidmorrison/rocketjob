@@ -233,29 +233,9 @@ module RocketJob
     end
 
     # Returns [String] the pattern to show, for example in a web interface, which leaves out any credentials,
-    # such as the user name and password of `sftp://user:password@host/in/*.csv`, see IOStreams::Path#display_name.
-    #
-    # A url cannot hold some pattern characters, such as the braces of `sftp://host/in/*.{csv,txt}`. Such a pattern
-    # is shown as the display name of the directory that is scanned, followed by the pattern within it,
-    # the same way that IOStreams.each_child splits it.
-    #
-    # Unless the pattern within the directory has a `?`, which cannot be told apart from the query of a url, such as
-    # `sftp://host/in/*.csv?password=secret`, which could hold a secret, since a url once held ssh options there.
-    # IOStreams rejects a url with a query, so such a pattern is not shown.
-    # Nor when the pattern within the directory would start within the user name, password or host of a url, such as
-    # at the brace in the host of `sftp://user:secret@ho{st/in/*.csv`, since it would show them.
+    # such as the user name and password of `sftp://user:password@host/in/*.csv`, see RocketJob.pattern_display_name.
     def pattern_display_name
-      display_name = RocketJob.path_display_name(pattern)
-      return display_name unless display_name == RocketJob::INVALID_PATH_DISPLAY_NAME
-
-      matcher = IOStreams::Paths::Matcher.new(pattern)
-      return display_name if matcher.directory.empty? || matcher.pattern.include?("?")
-      return display_name unless split_after_authority?(matcher.directory)
-
-      directory = RocketJob.path_display_name(matcher.directory)
-      directory == RocketJob::INVALID_PATH_DISPLAY_NAME ? directory : "#{directory}/#{matcher.pattern}"
-    rescue ArgumentError
-      RocketJob::INVALID_PATH_DISPLAY_NAME
+      RocketJob.pattern_display_name(pattern)
     end
 
     # Returns [String] the archive directory to show, without any credentials, see #pattern_display_name.
@@ -352,18 +332,6 @@ module RocketJob
     # The settings of an entry, which #replicate copies. A new field is not copied unless it is added here.
     REPLICATED_ATTRIBUTES = %w[name pattern job_class_name properties archive_directory].freeze
     private_constant :REPLICATED_ATTRIBUTES
-
-    # Whether the supplied directory, which the matcher splits from the pattern, holds the whole scheme, user name,
-    # password and host of a url, so that the pattern within the directory holds none of them, see
-    # #pattern_display_name. A pattern that is not a url, such as a local path, has none of them.
-    #
-    # They are taken to end at the first `/` after the scheme, which is never before they end in a url, whose user name
-    # and password hold a `/` only percent-encoded, as `%2F`. IOStreams reads a url with a `/` in its password, such as
-    # `sftp://user:12/34@host/in/*.csv`, as the host `user`, so that every path display name shows what follows it.
-    def split_after_authority?(directory)
-      authority = pattern[%r{\A[^:/]+://[^/]*}]
-      authority.nil? || directory.start_with?(authority)
-    end
 
     # An entry that is enabled again starts a new period in which its storage can be unavailable.
     def clear_unavailable_at
