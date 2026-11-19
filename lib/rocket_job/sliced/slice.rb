@@ -113,8 +113,8 @@ module RocketJob
       # Returns whether this is a specialized binary slice for creating binary data from each slice
       # that is downloaded without conversion into output files.
       #
-      # Since its text is not converted when it is downloaded, a binary slice writes it in the encoding of the output
-      # file, which it holds as its `text_encoding`, see RocketJob::Sliced::Output#new.
+      # Since its text is not converted when it is downloaded, a binary slice writes it in the format and encoding of the
+      # output file, which it holds, see RocketJob::Sliced::Output#new.
       def self.binary_format
       end
 

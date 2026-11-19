@@ -14,29 +14,39 @@ module RocketJob
         :bz2
       end
 
-      # Compress the supplied records with BZip2, as text in the supplied encoding, since they are downloaded as they
-      # are. Raises Encoding::UndefinedConversionError for a character that the encoding does not have.
+      # Compress the supplied records with BZip2, since they are downloaded as they are, as IOStreams writes their lines
+      # in the supplied format and encoding: in the format's own encoding, such as ASCII for fixed width, unless an
+      # encoding is supplied, and otherwise UTF-8, with the replacement and cleaning that the encoding stream applies.
+      # Raises Encoding::UndefinedConversionError for a character that the encoding does not have.
       #
       # Parameters
-      #   encoding: [String]
-      #     The encoding of the text in the output file, see RocketJob::Category::Output#text_encoding.
-      #     Default: nil, which writes UTF-8
-      def self.to_binary(records, record_delimiter = "\n", encoding: nil)
+      #   text_format: [String]
+      #     The format of the lines, such as "fixed", see RocketJob::Category::Output#binary_text.
+      #     Default: nil
+      #
+      #   text_encoding: [String]
+      #     The encoding of the text in the output file, such as "Windows-1252".
+      #     Default: nil
+      def self.to_binary(records, text_format: nil, text_encoding: nil)
         return [] if records.blank?
 
         # The rows of a slice of a file, see IOStreams::Slice, are its lines.
         records = records.rows if records.is_a?(IOStreams::Slice)
-        lines   = Array(records).join(record_delimiter) + record_delimiter
-        lines = lines.encode(encoding) if encoding
         # Binary, since compressed data is bytes, so that it can follow the compressed records of a slice read back.
-        s     = StringIO.new("".b)
-        IOStreams.stream(s).stream(:bz2).writer { |io| io.write(lines) }
+        s       = StringIO.new("".b)
+        stream  = IOStreams.stream(s).stream(:bz2)
+        stream.format(text_format) if text_format
+        stream.encoding("#{text_encoding}:UTF-8") if text_encoding
+        # Each record is a line of its text, as Array#join writes it, a nested Array a line for each of its values.
+        stream.writer(:line) { |io| Array(records).flatten.each { |record| io << record.to_s } }
         s.string
       end
 
-      # The encoding of the text of the records, see .to_binary. It is saved with the slice, so that records that
-      # are appended after the slice is read back, see #append_records, are written in it too.
+      # The format and encoding that the text of the records is written in, see .to_binary. They are saved with the
+      # slice, so that records that are appended after the slice is read back, see #append_records, are written as
+      # those before them.
       # Default: nil, which writes UTF-8
+      field :text_format, type: String
       field :text_encoding, type: String
 
       # Appends the supplied records. Once this slice has been read back its records are compressed, so the supplied
@@ -45,7 +55,7 @@ module RocketJob
         return super unless @compressed
         return if records.blank?
 
-        @records = [compressed_records + self.class.to_binary(records, encoding: text_encoding)]
+        @records = [compressed_records + self.class.to_binary(records, text_format: text_format, text_encoding: text_encoding)]
       end
 
       private
@@ -70,7 +80,7 @@ module RocketJob
       # Returns [String] the records compressed with BZip2: as they were read back, or compressed now.
       def compressed_records
         # TODO: Make the line terminator configurable
-        @compressed ? records.join : self.class.to_binary(records, encoding: text_encoding)
+        @compressed ? records.join : self.class.to_binary(records, text_format: text_format, text_encoding: text_encoding)
       end
 
       # Returns [String] the compressed records held in the supplied saved data, see #write_binary.

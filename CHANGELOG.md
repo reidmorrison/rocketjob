@@ -393,6 +393,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixes
 
+- The slices of a `:bz2` or `:encrypted_bz2` output category write their text through IOStreams, in the category's
+  format and encoding, as IOStreams writes any other output file, such as ASCII for fixed width, where they encoded
+  it themselves from an encoding worked out from the format.
 - An Array record of `upload_slice`, or of the block of `upload`, in an input category without a format, reaches
   `#perform` as a whole, such as `["Jack", 21]`, where `#perform` received only its first value, since the worker
   spread it over the record and the numbers that it yields: a second and third value were taken as its line and
