@@ -303,6 +303,31 @@ if active.size > 1
 end
 ~~~
 
+### Declare what perform receives with an input contract
+
+A batch job can now declare the fields that `perform` needs, and their types, with `input_contract`,
+so that `perform` receives a record of the contract, whatever the format of the file, see
+[Declaring what perform receives](batch.html#declaring-what-perform-receives). A job without a contract
+works as before, so adopting one is optional, and can be done one job at a time.
+
+To move a job that reads a `Hash` of a file's columns onto a contract:
+
+1. Declare a field for each value that `perform` reads, with its type, and `fields_match "partial"`
+   or `"subset"` when the files have other columns too. IOStreams drafts one from a sample file, such
+   as `puts IOStreams.path("sample.csv").infer_schema(sample: 1_000).to_dsl("OrderContract")`, see
+   [Drafting a contract](https://iostreams.reidmorrison.com/contracts.html#drafting-a-contract).
+2. Read each value by its field, such as `order.amount` in place of `row["amount"]`, and remove the
+   conversions that the contract now makes, such as `row["amount"].to_d`, and checks for a blank row
+   of a file, which a contract skips. A record of `upload_slice` is kept even when its values are all
+   `nil`.
+3. Keep the `format`, `encoding` and `schema` of the input category, which still describe the file. A
+   category without a declared format reads the format of each file from its name (`:auto`).
+
+Deploy the contract once the queued and running jobs of that class have finished. A job uploaded
+before the deploy is read through the contract after it: one uploaded without a format holds the text
+of each line, which a contract cannot read, so its slices fail, also when they are retried, and a file
+without a field that the contract requires fails its slices with `IOStreams::Errors::InvalidHeader`.
+
 ### Removed
 
 These were deprecated or unused, and are removed in v8:
