@@ -143,6 +143,48 @@ module Batch
         end
       end
 
+      describe "the schema of the main input category" do
+        let(:missing_id) { {"fields" => [{"name" => "amount", "type" => "number"}]} }
+        let(:with_id) do
+          {"fields" => [{"name" => "id", "type" => "integer", "constraints" => {"required" => true}}, {"name" => "amount", "type" => "number"}]}
+        end
+
+        it "is checked against the contract when the job is saved" do
+          job = ContractJob.new
+          job.input_category.schema = missing_id
+
+          refute_predicate job, :valid?
+          assert_includes job.errors.messages[:input_categories].join, "id"
+        end
+
+        it "is valid when every file that it reads meets the contract" do
+          job = ContractJob.new
+          job.input_category.schema = with_id
+
+          assert_predicate job, :valid?, -> { job.errors.full_messages.inspect }
+        end
+
+        it "is not checked again when a job is saved without a change to its categories, such as by a worker" do
+          job = ContractJob.new
+          job.input_category.schema = missing_id
+          job.save!(validate: false)
+          job = ContractJob.find(job.id)
+          job.description = "running"
+
+          assert_predicate job, :valid?, -> { job.errors.full_messages.inspect }
+        ensure
+          job&.destroy
+        end
+
+        it "is checked in the properties of a Dirmon entry, without building the job" do
+          properties = {"input_categories" => [{"name" => "main", "schema" => missing_id}]}
+
+          assert_equal 1, ContractJob.property_errors(properties).size
+          assert ContractJob.property_errors(properties).first.start_with?("Input category main: ")
+          assert_empty ContractJob.property_errors({"input_categories" => [{"name" => "main", "schema" => with_id}]})
+        end
+      end
+
       describe ".input_contract_errors" do
         def with_file(extension, data)
           IOStreams.temp_file("contracts_test", extension) do |path|
