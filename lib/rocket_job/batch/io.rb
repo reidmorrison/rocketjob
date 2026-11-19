@@ -344,7 +344,7 @@ module RocketJob
 
         if output_collection.binary_format
           # The slices of a binary format already hold their text in the category's format and encoding, see
-          # Category::Output#binary_text, so the header line is written in them too.
+          # Category::Output#text_settings, so the header line is written in them too.
           binary_header_line = output_collection.binary_header(header_line) if header_line
 
           # Don't overwrite supplied stream options if any

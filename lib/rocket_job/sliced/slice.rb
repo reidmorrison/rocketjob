@@ -123,6 +123,12 @@ module RocketJob
         raise NotImplementedError
       end
 
+      # Returns [Hash] the attributes of a binary slice, see .binary_format, that write its text in the supplied format
+      # and encoding of the output file, see RocketJob::Sliced::Output#new. None for other slices.
+      def self.binary_attributes(format: nil, encoding: nil) # rubocop:disable Lint/UnusedMethodArgument
+        {}
+      end
+
       # `records` array has special handling so that it can be modified in place instead of having
       # to replace the entire array every time. For example, when appending lines with `<<`.
       #

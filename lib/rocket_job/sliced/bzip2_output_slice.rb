@@ -14,14 +14,20 @@ module RocketJob
         :bz2
       end
 
+      # Returns [Hash] the attributes that write the text of the slice in the supplied format and encoding, see .to_binary,
+      # which the slice saves.
+      def self.binary_attributes(format: nil, encoding: nil)
+        {text_format: format&.to_s, text_encoding: encoding}.compact
+      end
+
       # Compress the supplied records with BZip2, since they are downloaded as they are, as IOStreams writes their lines
-      # in the supplied format and encoding: in the format's own encoding, such as ASCII for fixed width, unless an
-      # encoding is supplied, and otherwise UTF-8, with the replacement and cleaning that the encoding stream applies.
-      # Raises Encoding::UndefinedConversionError for a character that the encoding does not have.
+      # in the supplied format and encoding, as it writes an output file: in the format's own encoding, such as ASCII
+      # for fixed width, unless an encoding is supplied, and otherwise UTF-8. Raises
+      # Encoding::UndefinedConversionError for a character that the encoding does not have.
       #
       # Parameters
       #   text_format: [String]
-      #     The format of the lines, such as "fixed", see RocketJob::Category::Output#binary_text.
+      #     The format of the lines, such as "fixed", see RocketJob::Category::Output#text_settings.
       #     Default: nil
       #
       #   text_encoding: [String]

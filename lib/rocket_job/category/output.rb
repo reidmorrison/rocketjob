@@ -83,12 +83,12 @@ module RocketJob
         path
       end
 
-      # Returns [Hash] how the slices of a binary serializer, such as `:bz2`, write their text, since they are
-      # downloaded as they are, see Sliced::BZip2OutputSlice.to_binary: this category's format, by which IOStreams
-      # writes it in the format's own encoding, such as ASCII for fixed width, and its #encoding, when it has one.
-      # Other slices are converted when they are downloaded, see #download_path.
-      def binary_text
-        {text_format: (output_format.to_s if tabular?), text_encoding: encoding.presence}.compact
+      # Returns [Hash] the format and encoding that the text of this category's output file is written in, as
+      # `format:` and `encoding:`, for the slices of a binary serializer, such as `:bz2`, which are downloaded as they
+      # are, and so write their text as the file does, see Sliced::Output#new. Other slices are converted when they are
+      # downloaded, see #download_path.
+      def text_settings
+        {format: (output_format if tabular?), encoding: encoding.presence}
       end
 
       def data_store(job)
@@ -96,7 +96,7 @@ module RocketJob
           collection_name: build_collection_name(:output, job),
           slice_class:     serializer_class,
           # Asked for each slice, so that a change to the encoding or format of this category still applies.
-          binary_text:     -> { binary_text }
+          text_settings:   -> { text_settings }
         )
       end
 
