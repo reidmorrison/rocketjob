@@ -144,12 +144,15 @@ What `perform` receives:
 
 * A record of the contract, such as `order.amount`, rather than `order["amount"]`, so a misspelled
   field raises `NoMethodError` instead of returning `nil`.
-* The same fields, in their types, whatever the source: a CSV, JSON, Excel or Parquet file, the lines
-  that the block of `upload` writes, a query, a range, or the Hashes or Arrays of `upload_slice`. A
+* The same fields, in their types, from every source that the main input category is uploaded from:
+  a CSV, JSON, Excel or Parquet file, what the block of `upload` writes, a query, a range, or the
+  Hashes or Arrays of `upload_slice`. A
   column is matched to its field by its name or one of its `aliases`, whatever its case, spaces and
   punctuation, so `ID` and `Ordered At` match `id` and `ordered_at`.
-* A blank row is skipped, rather than passed to `perform` as `nil`. It still counts as a record, so
-  record and line numbers are those of the file, see [Record and line numbers](#record-and-line-numbers).
+* A blank row of a file is skipped, rather than passed to `perform` as `nil`. It still counts as a
+  record, so record and line numbers are those of the file, see
+  [Record and line numbers](#record-and-line-numbers). A record of `upload_slice` is always kept, even
+  when its values are all `nil`.
 
 A test builds its input with the contract, which converts and checks each value as it is set:
 
@@ -171,12 +174,14 @@ declares its format. A job without a contract works as before.
 |:-----|:----------------|:--------------------
 | A new job is saved, or its input categories change | A schema of the main input category, held as a Hash, against the contract, without a file | The job is not valid, and is not saved
 | Before a job exists | The columns of a file, from its start only, with `input_contract_errors` | A list of every problem
-| At upload | The header row of a file, or of the lines that the block of `upload` writes, before the first slice; for Parquet, also each column type that can never fit | `IOStreams::Errors::InvalidHeader` or `IOStreams::Errors::IncompatibleType`, and nothing is uploaded
+| At upload | The header row of a file, or of the lines that the block of `upload` writes, before the first slice; for Parquet, also each column type that can never fit | `IOStreams::Errors::InvalidHeader` or `IOStreams::Errors::IncompatibleType`, and nothing is uploaded; a file into a main input category without a format raises `ArgumentError`
 | In the worker | Each value, as its record is read | `IOStreams::Errors::InvalidValue`, which fails its slice, naming the field, record and line
 
+For a file, or block lines, in a format of lines, such as CSV, JSON or fixed width,
 `upload(..., validate_rows: true)` moves the worker's check of the values to the upload, so that a
-file with a value that does not fit is not uploaded at all. The columns of a query are checked by the
-workers.
+file with a value that does not fit is not uploaded at all. The workers check the rest: the columns of
+a query, the records that the block of `upload` writes in a format whose rows are values, such as
+`:hash`, and the values of a Parquet file.
 
 A record that fails its slice, such as `Field "amount": "N/A" is not a valid number, in record 2 on
 line 3`, can be corrected and retried, see
@@ -186,7 +191,9 @@ line 3`, can be corrected and retried, see
 
 `input_contract_errors` on the job class lists every reason that a file cannot be read through the
 contract, reading only its start, so that the web request that accepts a file can show them all at
-once, before any job is created:
+once, before any job is created. It reads the file as an upload into the main input category would,
+so it is empty for a category without a format, into which `upload` raises `ArgumentError` for a file
+instead:
 
 ~~~ruby
 errors = ImportOrdersJob.input_contract_errors(params[:file].path, original_file_name: params[:file].original_filename)
@@ -230,9 +237,10 @@ class ImportOrdersJob < RocketJob::Job
 end
 ~~~
 
-A schema that would read files that do not meet the contract, such as one that does not require a
-field that the contract requires, makes the job, or the Dirmon entry that sets it, invalid when it is
-saved.
+A schema given as a Hash that would read files that do not meet the contract, such as one that does
+not require a field that the contract requires, makes the job, or the Dirmon entry that sets it,
+invalid when it is saved. A schema held in a file, at a path or url, is checked when a file is
+uploaded.
 
 ### Ranges and upload_slice
 
@@ -484,6 +492,10 @@ order. `upload` raises `ArgumentError` for a range in a format that reads a head
 and raises for one that the category's schema cannot read, such as a schema whose `fieldsMatch` is
 not `"exact"`. Without a schema, it also raises `ArgumentError` for a format whose rows cannot be
 that Hash: `:text`, whose rows are each one value, and Parquet, which needs a schema.
+
+A job with a contract receives each range as a record of a contract of its two ids, read by position,
+whatever the format of the category, and `upload` raises for a range that the contract cannot read,
+see [Ranges and upload_slice](#ranges-and-upload_slice).
 
 `upload_arel`, `upload_mongo_query`, `upload_integer_range` and
 `upload_integer_range_in_reverse_order`, which uploaded a query or a range before `upload` accepted

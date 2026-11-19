@@ -317,15 +317,16 @@ To move a job that reads a `Hash` of a file's columns onto a contract:
    as `puts IOStreams.path("sample.csv").infer_schema(sample: 1_000).to_dsl("OrderContract")`, see
    [Drafting a contract](https://iostreams.reidmorrison.com/contracts.html#drafting-a-contract).
 2. Read each value by its field, such as `order.amount` in place of `row["amount"]`, and remove the
-   conversions that the contract now makes, such as `row["amount"].to_d`, and checks for a blank row,
-   which a contract skips.
+   conversions that the contract now makes, such as `row["amount"].to_d`, and checks for a blank row
+   of a file, which a contract skips. A record of `upload_slice` is kept even when its values are all
+   `nil`.
 3. Keep the `format`, `encoding` and `schema` of the input category, which still describe the file. A
    category without a declared format reads the format of each file from its name (`:auto`).
 
-Deploy the contract once the queued and running jobs of that class have finished, or retry their
-failed slices after the deploy: a job uploaded without a format holds the text of each line, which a
-contract cannot read, and a contract that gains a required field fails the slices of a file without it
-with `IOStreams::Errors::InvalidHeader`.
+Deploy the contract once the queued and running jobs of that class have finished. A job uploaded
+before the deploy is read through the contract after it: one uploaded without a format holds the text
+of each line, which a contract cannot read, so its slices fail, also when they are retried, and a file
+without a field that the contract requires fails its slices with `IOStreams::Errors::InvalidHeader`.
 
 ### Removed
 
