@@ -788,23 +788,6 @@ class DirmonEntryTest < Minitest::Test
             assert_equal %w[orders.csv], files
           end
         end
-
-        it "skips a file whose directory is not writable, since it cannot be moved to the archive" do
-          skip "Root can move any file" if Process.uid.zero?
-
-          Dir.mktmpdir do |dir|
-            File.write(File.join(dir, "file.txt"), "Hello World")
-            File.chmod(0o555, dir)
-            dirmon_entry.pattern           = "#{dir}/*"
-            dirmon_entry.archive_directory = nil
-            files                          = []
-            dirmon_entry.each { |file_name| files << file_name }
-
-            assert_empty files
-          ensure
-            File.chmod(0o755, dir)
-          end
-        end
       end
 
       describe "#later" do
@@ -847,6 +830,132 @@ class DirmonEntryTest < Minitest::Test
 
           assert_includes error.message, "other"
           assert_path_exists file_name
+          assert_equal 0, RocketJob::Jobs::UploadFileJob.count
+        end
+
+        it "leaves a file that it may not move, such as in a directory that is not writable" do
+          skip "Root can move any file" if Process.uid.zero?
+
+          Dir.mktmpdir do |dir|
+            path = File.join(dir, "file.txt")
+            File.write(path, "Hello World")
+            File.chmod(0o555, dir)
+
+            assert_nil dirmon_entry.later(IOStreams.path(path))
+            assert_path_exists path
+            assert_equal 0, RocketJob::Jobs::UploadFileJob.count
+            assert_empty Dir.glob(File.join(archive_directory, "*_file.txt"))
+          ensure
+            File.chmod(0o755, dir)
+          end
+        end
+
+        it "fails when it may not write to the archive directory" do
+          skip "Root can write to any directory" if Process.uid.zero?
+
+          Dir.mktmpdir do |archive|
+            File.chmod(0o555, archive)
+            dirmon_entry.archive_directory = archive
+
+            assert_raises(IOStreams::Errors::PermissionDenied) { dirmon_entry.later(iopath) }
+            assert_path_exists file_name
+            assert_equal 0, RocketJob::Jobs::UploadFileJob.count
+          ensure
+            File.chmod(0o755, archive)
+          end
+        end
+
+        it "leaves a file in a directory that it may not write to, which holds the default archive directory" do
+          skip "Root can move any file" if Process.uid.zero?
+
+          Dir.mktmpdir do |dir|
+            path = File.join(dir, "file.txt")
+            File.write(path, "Hello World")
+            File.chmod(0o555, dir)
+            dirmon_entry.archive_directory = RocketJob::DirmonEntry.default_archive_directory
+
+            assert_nil dirmon_entry.later(IOStreams.path(path))
+            assert_path_exists path
+            assert_equal 0, RocketJob::Jobs::UploadFileJob.count
+          ensure
+            File.chmod(0o755, dir)
+          end
+        end
+
+        it "fails when it may not write to a relative archive directory that exists" do
+          skip "Root can write to any directory" if Process.uid.zero?
+
+          Dir.mktmpdir do |dir|
+            path    = File.join(dir, "file.txt")
+            archive = File.join(dir, "archive")
+            File.write(path, "Hello World")
+            FileUtils.mkdir(archive)
+            File.chmod(0o555, archive)
+            dirmon_entry.archive_directory = "archive"
+
+            assert_raises(IOStreams::Errors::PermissionDenied) { dirmon_entry.later(IOStreams.path(path)) }
+            assert_path_exists path
+          ensure
+            File.chmod(0o755, archive)
+          end
+        end
+
+        it "fails when it may not write to a directory that exists between the file's and a relative archive directory" do
+          skip "Root can write to any directory" if Process.uid.zero?
+
+          Dir.mktmpdir do |dir|
+            path    = File.join(dir, "file.txt")
+            archive = File.join(dir, "archive")
+            File.write(path, "Hello World")
+            FileUtils.mkdir(archive)
+            File.chmod(0o555, archive)
+            dirmon_entry.archive_directory = "archive/2026"
+
+            assert_raises(IOStreams::Errors::PermissionDenied) { dirmon_entry.later(IOStreams.path(path)) }
+            assert_path_exists path
+          ensure
+            File.chmod(0o755, archive)
+          end
+        end
+
+        it "leaves a file in a directory that may not hold a nested relative archive directory" do
+          skip "Root can move any file" if Process.uid.zero?
+
+          Dir.mktmpdir do |dir|
+            path = File.join(dir, "file.txt")
+            File.write(path, "Hello World")
+            File.chmod(0o555, dir)
+            dirmon_entry.archive_directory = "archive/2026"
+
+            assert_nil dirmon_entry.later(IOStreams.path(path))
+            assert_path_exists path
+          ensure
+            File.chmod(0o755, dir)
+          end
+        end
+
+        it "leaves a file in a directory that may not hold a relative archive directory written with ./" do
+          skip "Root can move any file" if Process.uid.zero?
+
+          Dir.mktmpdir do |dir|
+            path = File.join(dir, "file.txt")
+            File.write(path, "Hello World")
+            File.chmod(0o555, dir)
+            dirmon_entry.archive_directory = "./archive/"
+
+            assert_nil dirmon_entry.later(IOStreams.path(path))
+            assert_path_exists path
+          ensure
+            File.chmod(0o755, dir)
+          end
+        end
+
+        it "leaves a file that its storage may not delete, such as on S3 or SFTP" do
+          sftp   = IOStreams.path("sftp://jack:secret@sftp.example.org/files/data.csv")
+          denied = IOStreams::Errors::PermissionDenied.tag(RuntimeError.new("Permission denied"), sftp.display_name)
+          sftp.define_singleton_method(:move_to) { |_target| raise denied }
+
+          assert_nil dirmon_entry.later(sftp)
           assert_equal 0, RocketJob::Jobs::UploadFileJob.count
         end
 
