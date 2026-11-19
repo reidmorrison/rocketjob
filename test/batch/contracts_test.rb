@@ -143,6 +143,102 @@ module Batch
         end
       end
 
+      describe "upload" do
+        let(:job) { ContractJob.new }
+
+        after do
+          job.cleanup!
+        end
+
+        def upload(extension, data, job: self.job, **)
+          IOStreams.temp_file("contracts_test", extension) do |path|
+            ::File.write(path.to_s, data)
+            job.upload(path.to_s, **)
+          end
+        end
+
+        it "raises for a file without a column that the contract requires, before it uploads any slice" do
+          error = assert_raises(IOStreams::Errors::InvalidHeader) { upload(".csv", "amount\n1\n") }
+
+          assert_includes error.message, "id"
+          assert_equal 0, job.input.count
+          assert_equal :auto, job.input_category.format
+        end
+
+        it "keeps the lines and header row of the file in each slice" do
+          upload(".csv", "ID,Amount,Extra\n1,2.5,x\n")
+
+          assert_equal %w[ID Amount Extra], job.input.first.records.header
+          assert_equal ["1,2.5,x"], job.input.first.to_a
+        end
+
+        it "leaves the values to the workers, unless it validates the rows" do
+          assert_equal 1, upload(".csv", "id\nx\n")
+
+          job.input.delete_all
+          assert_raises(IOStreams::Errors::InvalidValue) { upload(".csv", "id\nx\n", validate_rows: true) }
+        end
+
+        it "raises for lines written by a block without a column that the contract requires" do
+          assert_raises(IOStreams::Errors::InvalidHeader) do
+            job.upload do |lines|
+              lines << "amount"
+              lines << "1"
+            end
+          end
+          assert_equal 0, job.input.count
+        end
+
+        it "raises for a file in a category without a format, whose columns a contract cannot read" do
+          job_class = Class.new(ContractJob) { input_category format: nil }
+          job       = job_class.new
+
+          error = assert_raises(ArgumentError) { upload(".csv", "id\n1\n", job: job) }
+
+          assert_includes error.message, "has no format"
+          assert_equal 0, job.input.count
+        ensure
+          job&.cleanup!
+        end
+
+        it "uploads the rows of a query as they are, which the workers read through the contract" do
+          RocketJob::Job.create!(description: "one")
+          job_class = Class.new(ContractJob) do
+            input_contract { field :description, :string }
+            input_category format: :csv
+
+            def perform(record)
+              record.to_h
+            end
+          end
+          job = job_class.new
+          job.upload(RocketJob::Job.where(description: "one"), columns: [:description])
+          job.save!
+          job.perform_now
+
+          assert_equal [{"description" => "one"}], job.output.collect(&:to_a).flatten(1)
+        ensure
+          job&.cleanup!
+          RocketJob::Job.delete_all
+        end
+
+        it "leaves a value of a query that does not fit the contract to the workers" do
+          RocketJob::Job.create!(description: "abc")
+          job_class = Class.new(ContractJob) do
+            input_contract { field :description, :integer }
+            input_category format: :csv
+          end
+          job = job_class.new
+
+          assert_equal 1, job.upload(RocketJob::Job.where(description: "abc"), columns: [:description])
+          job.save!
+          assert_raises(IOStreams::Errors::InvalidValue) { job.perform_now }
+        ensure
+          job&.cleanup!
+          RocketJob::Job.delete_all
+        end
+      end
+
       describe "#perform" do
         let(:job) { ContractJob.new }
 
