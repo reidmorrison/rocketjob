@@ -522,9 +522,10 @@ which MongoDB deprecated, also for the keys of a `Hash`. The `:hash` and `:array
 
 For an input category with a `format` whose rows are lines of text, such as CSV or JSON, the block
 writes the lines of a file: its header row first, when the file has one, then its rows. They are read as the lines of a file are, in slices
-that each hold the header row. Writing anything other than a line, such as an `Array` of the values
-of a row, or a `Hash`, raises `ArgumentError`: write each row as a line of the format, such as
-`row.to_csv`, or upload it into a category without a `format`, which passes it to `perform` as it is. In the `:hash`
+that each hold the header row. The first record that the block writes decides what the others are:
+it can also write each record as a `Hash`, or each row as an `Array` after an `Array` of the names of
+the columns, which the workers read by the category's schema, as they read the `:hash` and `:array`
+formats below. A record of another kind than the first raises. In the `:hash`
 format, whose rows are Ruby objects, the block writes each record as a Hash instead, and in the `:array` format each
 row as an Array, after an Array of the names of the columns, by which `perform` receives each row as a Hash. In either format with a
 `schema`, `perform` receives each value as the type of its field, such as a date as a `Date`. With a `schema`, a header row that does not match it raises

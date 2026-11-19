@@ -358,24 +358,33 @@ module RocketJob
       # as it is, whatever it is, to the store of slices itself, see Sliced::Writer::Input#<<, which `#perform`
       # receives, see #parse.
       #
-      # With a contract, the header row that the block writes is checked against it before the first slice, see
-      # #slice_target.
+      # In a format whose rows are lines, such as CSV or JSON, the block can also write Hashes, or Arrays after a header
+      # row, as the first record it writes says, see FirstRecordWriter, which IOStreams holds in a :hash or :array store,
+      # as it does for a format whose rows are values, see #typed_target, and the workers read by this category's
+      # schema. Records of another kind than the first raise.
       #
-      # Raises ArgumentError for a record written to the writer that is not a line, such as a Hash, in a format whose
-      # rows are lines, and when this category cannot read the lines, see #slice_target.
-      def write_slices(writer, validate_rows: nil, contract: nil, &)
+      # With a contract, the header row of the lines that the block writes is checked against it before the first
+      # slice, see #slice_target. Hashes and Arrays, whose values a contract would convert as they are written, are
+      # checked by the workers instead.
+      #
+      # Raises ArgumentError when this category cannot read the lines, see #slice_target.
+      def write_slices(writer, validate_rows: nil, contract: nil, &block)
         # Records written without a format can be any object, such as an Integer or nil, so they are written as they
         # are, to the store of slices itself, see Sliced::Writer::Input#<<.
         return yield(writer) unless tabular?
 
         detect_format(file_name)
         validate = upload_validates_rows?(validate_rows)
-        return typed_target(writer).writer(typed_mode, validate: validate, &) unless formatted?
+        return typed_target(writer).writer(typed_mode, validate: validate, &block) unless formatted?
 
-        target      = slice_target(writer, contract).encoding(cleaner: upload_cleaner)
-        replacement = invalid_character_replacement
-        target.encoding(replace: replacement) if replacement
-        target.writer(:line, validate: validate, &)
+        FirstRecordWriter.write(block) do |mode, &rows|
+          next slice_target(writer).format(mode).writer(mode, validate: validate, &rows) unless mode == :line
+
+          target      = slice_target(writer, contract).encoding(cleaner: upload_cleaner)
+          replacement = invalid_character_replacement
+          target.encoding(replace: replacement) if replacement
+          target.writer(:line, validate: validate, &rows)
+        end
       end
 
       # Returns [true|false] whether an upload into this category parses each row of its file as it uploads it: the

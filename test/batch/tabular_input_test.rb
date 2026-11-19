@@ -436,26 +436,30 @@ module Batch
           assert_equal 0, job.input.count
         end
 
-        it "raises for a Hash written to the block of an upload, since the block writes the lines of a file" do
-          error = assert_raises(ArgumentError) do
+        it "uploads the Hashes that the block of an upload writes" do
+          job.upload do |records|
+            records << {"name" => "Jack", "age" => "21"}
+          end
+
+          assert_equal [{"name" => "Jack", "age" => "21"}], output_records
+        end
+
+        it "uploads the Arrays that the block of an upload writes, after a header row" do
+          job.upload do |records|
+            records << %w[name age]
+            records << %w[Jack 21]
+          end
+
+          assert_equal [{"name" => "Jack", "age" => "21"}], output_records
+        end
+
+        it "raises for a record of another kind than the first that the block of an upload writes" do
+          assert_raises(ArgumentError, IOStreams::Errors::TypeMismatch) do
             job.upload do |records|
+              records << "name,age"
               records << {"name" => "Jack"}
             end
           end
-
-          assert_includes error.message, "not a Hash"
-          assert_equal 0, job.input.count
-        end
-
-        it "raises for an Array written to the block of an upload, which Rocket Job 7 read as a row" do
-          error = assert_raises(ArgumentError) do
-            job.upload do |records|
-              records << %w[name age]
-              records << %w[Jack 21]
-            end
-          end
-
-          assert_includes error.message, "not a Array"
           assert_equal 0, job.input.count
         end
 
@@ -829,15 +833,12 @@ module Batch
             assert_equal 0, job.input.count
           end
 
-          it "raise for a record that is not a line" do
-            error = assert_raises(ArgumentError) do
-              job.upload do |records|
-                records << {"name" => "Jack"}
-              end
+          it "uploads Hashes written to a block, which are read by the schema" do
+            job.upload do |records|
+              records << {"name" => "Jack", "age" => "21", "balance" => "12.5", "joined" => "2026-10-13"}
             end
 
-            assert_includes error.message, "not a Hash"
-            assert_equal 0, job.input.count
+            assert_equal 21, output_records.first["age"]
           end
         end
       end
