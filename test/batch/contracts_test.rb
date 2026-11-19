@@ -143,6 +143,77 @@ module Batch
         end
       end
 
+      describe ".input_contract_errors" do
+        def with_file(extension, data)
+          IOStreams.temp_file("contracts_test", extension) do |path|
+            ::File.write(path.to_s, data)
+            yield(path.to_s)
+          end
+        end
+
+        it "is empty for a file that meets the contract" do
+          with_file(".csv", "ID,Amount\n1,2\n") { |path| assert_empty ContractJob.input_contract_errors(path) }
+        end
+
+        it "names each column that the contract requires and the file does not have" do
+          errors = with_file(".csv", "amount\n1\n") { |path| ContractJob.input_contract_errors(path) }
+
+          assert_equal [IOStreams::Errors::InvalidHeader], errors.map(&:class)
+          assert_includes errors.first.message, "id"
+        end
+
+        it "is empty without a contract" do
+          with_file(".csv", "amount\n1\n") { |path| assert_empty PlainJob.input_contract_errors(path) }
+        end
+
+        it "merges each main input category of the properties, in order, as the job is built from them" do
+          properties = {"input_categories" => [{"format" => "csv"}, {"name" => "main", "format" => "psv"}]}
+
+          with_file(".txt", "id|amount\n1|2\n") { |path| assert_empty ContractJob.input_contract_errors(path, properties) }
+        end
+
+        it "is empty for a job class without a main input category" do
+          job_class = Class.new(ContractJob) { input_category name: :orders }
+          job_class.defined_input_categories = job_class.defined_input_categories.reject { |category| category.name == :main }
+
+          with_file(".csv", "amount\n1\n") { |path| assert_empty job_class.input_contract_errors(path) }
+        end
+
+        it "ignores an entry of the properties that is not a Hash, which property_errors reports" do
+          with_file(".csv", "id\n1\n") { |path| assert_empty ContractJob.input_contract_errors(path, {"input_categories" => ["main"]}) }
+        end
+
+        it "reads the file as the properties of the job say, without building it" do
+          properties = {"input_categories" => [{"name" => "main", "format" => "psv"}]}
+
+          with_file(".txt", "id|amount\n1|2\n") do |path|
+            assert_empty ContractJob.input_contract_errors(path, properties)
+            refute_empty ContractJob.input_contract_errors(path, {"input_categories" => [{"name" => "main", "format" => "csv"}]})
+          end
+        end
+
+        it "reads the format of a file from the name that it was uploaded with" do
+          with_file(".bin", %({"id":1}\n)) do |path|
+            assert_empty ContractJob.input_contract_errors(path, original_file_name: "orders.json")
+          end
+        end
+      end
+
+      describe "an UploadFileJob" do
+        it "fails before it uploads any slice, naming each column that the contract requires, for a file without them" do
+          IOStreams.temp_file("contracts_test", ".csv") do |path|
+            ::File.write(path.to_s, "other\n1\n")
+            upload = RocketJob::Jobs::UploadFileJob.new(job_class_name: ContractJob.name, upload_file_name: path.to_s)
+            count  = ContractJob.count
+
+            error = assert_raises(IOStreams::Errors::InvalidHeader) { upload.perform }
+
+            assert_includes error.message, 'missing the required field "id"'
+            assert_equal count, ContractJob.count
+          end
+        end
+      end
+
       describe "upload" do
         let(:job) { ContractJob.new }
 

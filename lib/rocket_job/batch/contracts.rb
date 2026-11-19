@@ -65,6 +65,33 @@ module RocketJob
           self.rocketjob_input_contract = contract
         end
 
+        # Returns [Array<Exception>] every reason that the supplied file cannot be uploaded into the main input category
+        # through the input contract, each an exception that is not raised, such as an IOStreams::Errors::InvalidHeader
+        # for each field that the contract requires and the file does not have, or an IOStreams::Errors::IncompatibleType
+        # for a column whose declared type never fits, or [] when it can, or when this job class has no contract. It
+        # reads only the start of the file, see Category::Input#contract_errors, so that a web request that accepts a
+        # file can report every problem before any job is created. An upload raises for the columns of a file before
+        # its first slice, see Category::Input#copy_slices, but not for a file without a header row, such as an empty
+        # one, which uploads no records. Empty for a job class without a main input category.
+        #
+        # Parameters:
+        #   path [String|IOStreams::Path]
+        #     The file to check.
+        #   properties [Hash]
+        #     The properties that the job would be built from, see .from_properties, such as those of a Dirmon entry,
+        #     whose main input category, such as its format or schema, describes the file. The job is not built.
+        #   original_file_name [String]
+        #     The name that the file was uploaded with, whose extension gives its format and streams, when the path has
+        #     another name, such as once a Dirmon entry archived it.
+        def input_contract_errors(path, properties = nil, original_file_name: nil)
+          return [] unless input_contract
+
+          category = rocketjob_input_category_from(properties)
+          return [] unless category
+
+          category.contract_errors(path, input_contract, original_file_name: original_file_name)
+        end
+
         # Returns [Array<RocketJob::Category::Input|RocketJob::Category::Output>] the categories that a new job starts
         # with, see RocketJob::Batch::Categories. With a contract, the main input category reads the format of each file
         # from its name, see Category::Input#detect_format, since the contract, rather than the format, decides what
