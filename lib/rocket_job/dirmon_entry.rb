@@ -417,13 +417,14 @@ module RocketJob
     # Moves the file to the archive path.
     #
     # Returns [true|false] whether the file was moved, false when it was removed after it was found, or when this
-    # process may not move it, such as from a directory that it cannot write to, whichever storage it is on. The file is
-    # then left where it is, without a copy in the archive, since a store that moves a file by copying it and deleting
-    # the file, such as S3 or SFTP, leaves the copy when it may not delete the file.
+    # process may not move it, whichever storage it is on, such as from a directory that it cannot write to, also when
+    # that denies the creation of a relative archive directory within it, see #archive_denied_by_directory?. The file
+    # is then left where it is, for the next scan, and a move that copies it, such as on S3 or SFTP, deletes the copy,
+    # see IOStreams::Path#move_to.
     #
     # Raises IOStreams::Errors::NotFound when the file still exists, since then it is the archive path that was
-    # not found, for example when its S3 bucket does not exist, and IOStreams::Errors::PermissionDenied when it is the
-    # archive path that this process may not write to.
+    # not found, for example when its S3 bucket does not exist, and IOStreams::Errors::PermissionDenied when this
+    # process may not write to an archive directory that exists, or one elsewhere.
     def archive_file(iopath, archive_path)
       iopath.move_to(archive_path)
       true
@@ -433,21 +434,41 @@ module RocketJob
       logger.info("Skipping file: #{RocketJob.path_display_name(iopath)} since it no longer exists")
       false
     rescue IOStreams::Errors::PermissionDenied => e
-      raise unless e.display_name == iopath.display_name
+      raise unless e.display_name == iopath.display_name || archive_denied_by_directory?(iopath)
 
-      archive_path.delete if archive_path.exist?
       logger.warn("Skipping file: #{RocketJob.path_display_name(iopath)} since it cannot be moved to the archive " \
                   "directory: #{e.message}")
       false
     end
 
-    # Returns [Pathname] to the archive directory, and creates it if it does not exist.
-    #
-    # If `archive_directory` is a relative path, it is appended to the `file_pathname`.
-    # If `archive_directory` is an absolute path, it is returned as-is.
+    # Returns [true|false] whether the archive directory is within the directory of each file, since it is relative,
+    # see #archive_iopath.
+    def archive_within_directory?
+      IOStreams.path(archive_name).relative?
+    end
+
+    # Returns [true|false] whether the directory of the supplied file denied the move of the file to the archive
+    # directory within it, see #archive_within_directory?: the nearest of the archive directory and the directories
+    # between them that exists is the directory of the file, so that the archive directory would be created in it. A
+    # directory between them, or an archive directory, that exists, but may not be written to, fails the entry
+    # instead, as an archive directory elsewhere does. False, so that the move's own error is raised, when the storage
+    # cannot answer.
+    def archive_denied_by_directory?(iopath)
+      return false unless archive_within_directory?
+
+      directory = iopath.directory
+      nearest   = archive_iopath(iopath)
+      nearest   = nearest.directory until nearest.to_s == directory.to_s || nearest.exist? || nearest.directory.to_s == nearest.to_s
+      nearest.to_s == directory.to_s
+    rescue IOStreams::Errors::StorageError, IOStreams::Errors::AccessDenied
+      false
+    end
+
+    # Returns [IOStreams::Path] the archive directory of the supplied file, without creating it: within the directory of
+    # the file when `archive_directory` is relative, see #archive_within_directory?, otherwise as it is, without a
+    # leading `./` or a trailing `/`, see #archive_name.
     def archive_iopath(iopath)
-      path = IOStreams.path(archive_directory)
-      path.relative? ? iopath.directory.join(archive_directory) : path
+      archive_within_directory? ? iopath.directory.join(archive_name) : IOStreams.path(archive_name)
     end
 
     # Validates that the job class is defined, and that the UploadFileJob that each file starts can start it, see

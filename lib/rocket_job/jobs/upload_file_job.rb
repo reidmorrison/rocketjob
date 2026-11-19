@@ -148,9 +148,13 @@ module RocketJob
       end
 
       # Returns [true|false] whether the storage answers that the file to upload is not there, false when it could not
-      # be asked, see #file_exists.
+      # be asked, see #file_exists, whatever its store raised, such as an error of the AWS SDK for an S3 endpoint whose
+      # host does not resolve, which IOStreams does not tag, apart from IOStreams::Errors::AccessDenied, for a path that
+      # the application does not allow, see IOStreams.allowed_paths.
       def file_missing?
         !upload_file_name.exist?
+      rescue IOStreams::Errors::AccessDenied
+        raise
       rescue StandardError, NotImplementedError, LoadError => e
         logger.info("Not checking that #{RocketJob.path_display_name(upload_file_name)} exists, since its storage " \
                     "could not be asked: #{e.class}")

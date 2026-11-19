@@ -222,11 +222,18 @@ module Jobs
             assert valid_with(sftp_path), -> { job.errors.messages.inspect }
           end
 
+          it "raises what does not say whether the storage can be asked, such as a path that is not allowed" do
+            sftp_path.define_singleton_method(:exist?) { raise IOStreams::Errors::AccessDenied, "not allowed" }
+
+            assert_raises(IOStreams::Errors::AccessDenied) { valid_with(sftp_path) }
+          end
+
           {
             "cannot be reached"          => -> { raise IOStreams::Errors::Unavailable.tag(Errno::ECONNREFUSED.new, "sftp") },
             "may not be read"            => -> { raise IOStreams::Errors::PermissionDenied.tag(Errno::EACCES.new, "sftp") },
             "has a host that is unknown" => -> { raise SocketError, "getaddrinfo: nodename nor servname provided" },
             "needs a gem not installed"  => -> { raise LoadError, "Please install the gem 'net-sftp'" },
+            "raises an untagged error"   => -> { raise ArgumentError, "missing region; use :region option" },
             "cannot answer"              => -> { raise NotImplementedError }
           }.each_pair do |reason, exist|
             it "saves the job when the storage #{reason}, since it is checked when the job runs" do

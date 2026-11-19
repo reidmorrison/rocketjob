@@ -865,19 +865,97 @@ class DirmonEntryTest < Minitest::Test
           end
         end
 
-        it "removes the copy in the archive of a file that its storage may not delete, such as on S3 or SFTP" do
-          sftp    = IOStreams.path("sftp://jack:secret@sftp.example.org/files/data.csv")
-          copies  = []
-          denied  = IOStreams::Errors::PermissionDenied.tag(RuntimeError.new("Permission denied"), sftp.display_name)
-          sftp.define_singleton_method(:move_to) do |target|
-            target.write("data")
-            copies << target
-            raise denied
+        it "leaves a file in a directory that it may not write to, which holds the default archive directory" do
+          skip "Root can move any file" if Process.uid.zero?
+
+          Dir.mktmpdir do |dir|
+            path = File.join(dir, "file.txt")
+            File.write(path, "Hello World")
+            File.chmod(0o555, dir)
+            dirmon_entry.archive_directory = RocketJob::DirmonEntry.default_archive_directory
+
+            assert_nil dirmon_entry.later(IOStreams.path(path))
+            assert_path_exists path
+            assert_equal 0, RocketJob::Jobs::UploadFileJob.count
+          ensure
+            File.chmod(0o755, dir)
           end
+        end
+
+        it "fails when it may not write to a relative archive directory that exists" do
+          skip "Root can write to any directory" if Process.uid.zero?
+
+          Dir.mktmpdir do |dir|
+            path    = File.join(dir, "file.txt")
+            archive = File.join(dir, "archive")
+            File.write(path, "Hello World")
+            FileUtils.mkdir(archive)
+            File.chmod(0o555, archive)
+            dirmon_entry.archive_directory = "archive"
+
+            assert_raises(IOStreams::Errors::PermissionDenied) { dirmon_entry.later(IOStreams.path(path)) }
+            assert_path_exists path
+          ensure
+            File.chmod(0o755, archive)
+          end
+        end
+
+        it "fails when it may not write to a directory that exists between the file's and a relative archive directory" do
+          skip "Root can write to any directory" if Process.uid.zero?
+
+          Dir.mktmpdir do |dir|
+            path    = File.join(dir, "file.txt")
+            archive = File.join(dir, "archive")
+            File.write(path, "Hello World")
+            FileUtils.mkdir(archive)
+            File.chmod(0o555, archive)
+            dirmon_entry.archive_directory = "archive/2026"
+
+            assert_raises(IOStreams::Errors::PermissionDenied) { dirmon_entry.later(IOStreams.path(path)) }
+            assert_path_exists path
+          ensure
+            File.chmod(0o755, archive)
+          end
+        end
+
+        it "leaves a file in a directory that may not hold a nested relative archive directory" do
+          skip "Root can move any file" if Process.uid.zero?
+
+          Dir.mktmpdir do |dir|
+            path = File.join(dir, "file.txt")
+            File.write(path, "Hello World")
+            File.chmod(0o555, dir)
+            dirmon_entry.archive_directory = "archive/2026"
+
+            assert_nil dirmon_entry.later(IOStreams.path(path))
+            assert_path_exists path
+          ensure
+            File.chmod(0o755, dir)
+          end
+        end
+
+        it "leaves a file in a directory that may not hold a relative archive directory written with ./" do
+          skip "Root can move any file" if Process.uid.zero?
+
+          Dir.mktmpdir do |dir|
+            path = File.join(dir, "file.txt")
+            File.write(path, "Hello World")
+            File.chmod(0o555, dir)
+            dirmon_entry.archive_directory = "./archive/"
+
+            assert_nil dirmon_entry.later(IOStreams.path(path))
+            assert_path_exists path
+          ensure
+            File.chmod(0o755, dir)
+          end
+        end
+
+        it "leaves a file that its storage may not delete, such as on S3 or SFTP" do
+          sftp   = IOStreams.path("sftp://jack:secret@sftp.example.org/files/data.csv")
+          denied = IOStreams::Errors::PermissionDenied.tag(RuntimeError.new("Permission denied"), sftp.display_name)
+          sftp.define_singleton_method(:move_to) { |_target| raise denied }
 
           assert_nil dirmon_entry.later(sftp)
-          assert_equal 1, copies.size
-          refute_predicate copies.first, :exist?
           assert_equal 0, RocketJob::Jobs::UploadFileJob.count
         end
 
