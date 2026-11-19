@@ -288,6 +288,14 @@ module Sliced
           assert_equal 54, slice.processing_at_record
         end
 
+        it "yields an Array record as a whole, numbered by the slice rather than by its values" do
+          slice.first_record_number = 51
+          slice.records             = [["a", 1, 99], ["b", 2, 98]]
+
+          assert_equal [[["a", 1, 99], nil, 51, 51], [["b", 2, 98], nil, 52, 52]], unprocessed(slice)
+          assert_equal 53, slice.processing_at_record
+        end
+
         it "resumes at the record being processed" do
           slice.first_record_number  = 51
           slice.records              = %w[a b c]

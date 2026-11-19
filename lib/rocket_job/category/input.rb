@@ -150,8 +150,8 @@ module RocketJob
       # file, see IOStreams::Slice, are read by IOStreams by the header row and format that they carry, with this
       # category's schema when it has one, see #schema, and are each yielded with the line of their file that they
       # start on, or nil when it is not a line of a file, and their record number, as the slice holds them, see
-      # IOStreams::Stream#each_with_numbers. Otherwise each record is parsed on its own, see #parse, and yielded alone,
-      # since only the slice knows its number, see Sliced::Slice#each_unprocessed_record. A blank row is nil,
+      # IOStreams::Stream#each_with_numbers. Otherwise each record is parsed on its own, see #parse, and yielded with no
+      # line or record number, which the slice fills in, see Sliced::Slice#each_unprocessed_record. A blank row is nil,
       # apart from a line of the :text format without a schema.
       #
       # With a contract, see RocketJob::Batch::Contracts, IOStreams reads every record through it, see
@@ -166,9 +166,8 @@ module RocketJob
       # each slice that a worker processes, since the options that a saved category holds do not change.
       def parse_records(records, contract: nil, &)
         # Without a contract, records that are not the rows of a slice, such as those that the block of an upload without
-        # a format writes, are each parsed on their own. A slice yields each row alone to a block of one argument.
-        # Yielded with no line or record number, so that an Array record is not spread over the arguments of a block
-        # that takes them, see Sliced::Slice#each_unprocessed_record.
+        # a format writes, are each parsed on their own, and yielded with no line or record number, so that an Array
+        # record is not spread over the arguments of a block that takes them, see Sliced::Slice#each_unprocessed_record.
         return records.each { |record| yield(parse(record), nil, nil) } unless contract || records.is_a?(IOStreams::Slice)
         return parse_rows(records, &) if !contract && rows_parsed_alone?(records)
 

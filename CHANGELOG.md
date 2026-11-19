@@ -387,9 +387,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixes
 
-- An Array record of `upload_slice`, in an input category without a format, reaches `#perform` as a whole, such as
-  `["Jack", 21]`, where `#perform` received only its first value, since the worker spread it over the record and
-  the numbers that it yields.
+- An Array record of `upload_slice`, or of the block of `upload`, in an input category without a format, reaches
+  `#perform` as a whole, such as `["Jack", 21]`, where `#perform` received only its first value, since the worker
+  spread it over the record and the numbers that it yields: a second and third value were taken as its line and
+  record number, which a retry then resumed at. A one-value Array, such as `[42]`, now reaches `#perform` as the
+  Array, where it was its value.
 - A field of type `IOStreams::Path`, such as the `file_name` of a category, whose stored url IOStreams cannot make a
   path of, such as one whose scheme IOStreams does not know, returns it as stored, a String, rather than raising
   `ArgumentError` when it is read, so that a page of a web interface, such as Mission Control, that shows the job can
