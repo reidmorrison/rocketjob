@@ -74,6 +74,8 @@ Metrics/ClassLength:
   Max: 250
   Exclude:
     - "test/**/*"
+    # Reads, uploads and checks the records of every source and format.
+    - "lib/rocket_job/category/input.rb"
 
 # TODO: Soften Limits for phase 1 only
 Metrics/CyclomaticComplexity:

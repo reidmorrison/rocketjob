@@ -171,9 +171,9 @@ module RocketJob
       end
 
       # Yields each record that is still to be processed, from the record being processed on, see
-      # #processing_at_record, as the supplied input category reads it, see Category::Input#parse_records, with the line
-      # of its file that it starts on, or nil when it is not a line of a file, and its record number, see
-      # #record_number_at.
+      # #processing_at_record, as the supplied input category reads it, through the supplied contract when there is one,
+      # see Category::Input#parse_records, with the line of its file that it starts on, or nil when it is not a line of
+      # a file, and its record number, see #record_number_at.
       #
       # Points #processing_at_record at each record before it is yielded, and once the block returns, at the next
       # record, since a record that cannot be parsed raises before the category yields it, so that a failure names
@@ -183,13 +183,15 @@ module RocketJob
       #
       # Yields nothing when this slice no longer holds the record that it was processing, nor a record after it, such as
       # once they were removed, see #delete_record.
-      def each_unprocessed_record(category)
+      def each_unprocessed_record(category, contract: nil)
         index = current_index
         return if index >= size
 
         number                    = record_number_at(index)
         self.processing_at_record = number
-        category.parse_records(records_after(index)) do |record, line_number, record_number|
+        records                   = records_after(index)
+        records                   = contract_rows(records, number) if contract && !records.is_a?(IOStreams::Slice)
+        category.parse_records(records, contract: contract) do |record, line_number, record_number|
           # Only the rows of a file are yielded with their numbers, see #records_from.
           record_number           ||= number
           self.processing_at_record = record_number
@@ -378,6 +380,22 @@ module RocketJob
       # record that this slice still holds at or after #processing_at_record, or #size when it holds none.
       def current_index
         processing_at_record ? record_index(processing_at_record) : 0
+      end
+
+      # Returns [IOStreams::Slice] the supplied records of this slice, which are not the rows of a file, such as those of
+      # `upload_slice`, as rows of the form that they are in, Hashes or Arrays, numbered from the supplied record number,
+      # so that an input category reads them through a contract, see #each_unprocessed_record.
+      #
+      # Raises ArgumentError for other records, such as the lines that Rocket Job 7 uploaded, which only the header row
+      # that it kept in the category could read.
+      def contract_rows(records, record_number)
+        format = [Hash, Array].find { |kind| records.all? { |record| record.nil? || record.is_a?(kind) } }
+        unless format
+          raise(ArgumentError, "Only records that are Hashes or Arrays are read through an input contract, not the " \
+                               "lines that Rocket Job 7 uploaded, see #{self.class.name}##{id}")
+        end
+
+        IOStreams.slice("rows" => records.to_a, "format" => format.name.downcase, "record_number" => record_number)
       end
 
       # Returns [Array|IOStreams::Slice] the records of this slice from the supplied index on, which keep their numbers,

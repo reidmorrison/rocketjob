@@ -8,6 +8,7 @@ require "rocket_job/batch/throttle"
 require "rocket_job/batch/throttle_running_workers"
 require "rocket_job/batch/worker"
 require "rocket_job/batch/categories"
+require "rocket_job/batch/contracts"
 
 module RocketJob
   module Batch
@@ -19,6 +20,7 @@ module RocketJob
     include Logger
     include Worker
     include Categories
+    include Contracts
     include Throttle
     include ThrottleRunningWorkers
     include IO
