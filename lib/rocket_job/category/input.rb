@@ -167,7 +167,9 @@ module RocketJob
       def parse_records(records, contract: nil, &)
         # Without a contract, records that are not the rows of a slice, such as those that the block of an upload without
         # a format writes, are each parsed on their own. A slice yields each row alone to a block of one argument.
-        return records.each { |record| yield parse(record) } unless contract || records.is_a?(IOStreams::Slice)
+        # Yielded with no line or record number, so that an Array record is not spread over the arguments of a block
+        # that takes them, see Sliced::Slice#each_unprocessed_record.
+        return records.each { |record| yield(parse(record), nil, nil) } unless contract || records.is_a?(IOStreams::Slice)
         return parse_rows(records, &) if !contract && rows_parsed_alone?(records)
 
         @removed_options_checked ||= check_removed_options || true

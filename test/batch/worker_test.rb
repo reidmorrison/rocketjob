@@ -232,6 +232,17 @@ module Batch
       end
 
       describe "#work" do
+        it "passes each Array record of upload_slice to #perform as a whole" do
+          job = SimpleJob.new
+          job.upload_slice([["Jack", 21], ["Jill", 22]])
+          job.save!
+          job.perform_now
+
+          assert_equal [["Jack", 21], ["Jill", 22]], job.output.first.to_a
+        ensure
+          job&.cleanup!
+        end
+
         it "keeps the output of the records processed before a retry that removes them" do
           job      = SimpleJob.new
           failures = 0
