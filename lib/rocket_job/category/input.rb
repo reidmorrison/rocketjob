@@ -154,20 +154,25 @@ module RocketJob
       # since only the slice knows its number, see Sliced::Slice#each_unprocessed_record. A blank row is nil,
       # apart from a line of the :text format without a schema.
       #
+      # With a contract, see RocketJob::Batch::Contracts, IOStreams reads every record through it, see
+      # IOStreams::Stream#as, and yields a record of the contract, skipping each blank row, which still counts as a
+      # record. The records must then be the rows of a slice, see Sliced::Slice#each_unprocessed_record.
+      #
       # A record that cannot be parsed raises before it is yielded, after the records before it, so that the caller
       # knows which record failed.
       #
       # Raises ArgumentError when this category was saved before Rocket Job v8 with an option that v8 removed, see
       # Category::Base#check_removed_options, which is checked once for each instance of the category, rather than for
       # each slice that a worker processes, since the options that a saved category holds do not change.
-      def parse_records(records, &)
-        # Records that are not the rows of a slice, such as those that the block of an upload without a format writes,
-        # are each parsed on their own. A slice yields each row alone to a block of one argument.
-        return records.each { |record| yield parse(record) } unless records.is_a?(IOStreams::Slice)
-        return parse_rows(records, &) if rows_parsed_alone?(records)
+      def parse_records(records, contract: nil, &)
+        # Without a contract, records that are not the rows of a slice, such as those that the block of an upload without
+        # a format writes, are each parsed on their own. A slice yields each row alone to a block of one argument.
+        return records.each { |record| yield parse(record) } unless contract || records.is_a?(IOStreams::Slice)
+        return parse_rows(records, &) if !contract && rows_parsed_alone?(records)
 
         @removed_options_checked ||= check_removed_options || true
-        IOStreams.stream(records).schema(schema_descriptor).each_with_numbers(:hash, &)
+        stream = IOStreams.stream(records).schema(schema_descriptor)
+        contract ? stream.as(contract).each_with_numbers(:record, skip_blanks: true, &) : stream.each_with_numbers(:hash, &)
       end
 
       # Returns the supplied record of a slice of this category as `#perform` receives it: parsed in this category's
@@ -364,7 +369,11 @@ module RocketJob
       # category's format, as IOStreams says when it writes them: not of the :text format, whose rows are each one value,
       # nor of Parquet, which needs a schema. Otherwise every slice would fail once a worker parsed it, or give `#perform`
       # a record that its format cannot hold. The rows of a query are written in the format instead, see #copy_rows.
-      def check_record_upload(kind, slice)
+      #
+      # With a contract, see RocketJob::Batch::Contracts, the records are checked by reading them through it, whatever
+      # the format of this category, since the slice says how its rows are read.
+      def check_record_upload(kind, slice, contract: nil)
+        return parse_records(slice, contract: contract) { nil } if contract
         return unless tabular?
         raise(ArgumentError, "It reads the header row of a file. Upload it into a category without a format") if tabular.header?
 

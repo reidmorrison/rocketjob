@@ -151,7 +151,9 @@ module RocketJob
       #
       # Resumes after the records of the slice that an earlier attempt processed, whose results are already in its
       # output, see Sliced::Writer::Output, without reading them again, see Sliced::Slice#each_unprocessed_record, which
-      # yields each record with its line and record number, and points the slice at the record being processed.
+      # yields each record with its line and record number, and points the slice at the record being processed. With
+      # an input contract, see RocketJob::Batch::Contracts, each record is a record of the contract, and a blank row is
+      # skipped, rather than passed to `#perform` as nil.
       def rocket_job_perform_slice(slice, &block)
         append = slice.partly_processed?
         record_number = slice.current_record_number if append
@@ -160,7 +162,8 @@ module RocketJob
         count = 0
         # The writer renders each result in its output category, see Sliced::Writer::Output.
         RocketJob::Sliced::Writer::Output.collect(self, input_slice: slice, append: append) do |writer|
-          slice.each_unprocessed_record(input_category) do |record, line_number, record_number|
+          slice.each_unprocessed_record(input_category,
+                                        contract: input_contract_for(:main)) do |record, line_number, record_number|
             # The line is only tagged for the line of a file.
             tags = line_number ? {record: record_number, line: line_number} : {record: record_number}
             SemanticLogger.named_tagged(**tags) do

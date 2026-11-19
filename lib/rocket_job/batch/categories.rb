@@ -23,6 +23,8 @@ module RocketJob
         # Internal attributes
         class_attribute :defined_input_categories, instance_accessor: false, instance_predicate: false
         class_attribute :defined_output_categories, instance_accessor: false, instance_predicate: false
+        class_attribute :rocketjob_input_formats_declared, instance_accessor: false, instance_predicate: false,
+                                                           default: [].freeze
 
         # For RJMC to be able to edit jobs
         accepts_nested_attributes_for :input_categories, :output_categories
@@ -36,7 +38,15 @@ module RocketJob
         def input_category(**args)
           category                      = RocketJob::Category::Input.new(**RocketJob::Category::Input.supported_properties(args))
           self.defined_input_categories = rocketjob_categories_with(defined_input_categories, category)
+          declared                      = rocketjob_input_formats_declared - [category.name]
+          self.rocketjob_input_formats_declared = (args.key?(:format) ? declared + [category.name] : declared).freeze
           category
+        end
+
+        # Returns [true|false] whether this job class declares the format of the named input category, also as nil, see
+        # .input_category, rather than leaving it to the default.
+        def input_format_declared?(name = :main)
+          rocketjob_input_formats_declared.include?(name.to_sym)
         end
 
         # Define a new output category, or replace the output category with the same name.

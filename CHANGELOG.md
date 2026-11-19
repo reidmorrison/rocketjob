@@ -213,6 +213,13 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### New features
 
+- A batch job declares the contract of its main input category with `input_contract`, as a block of fields or an
+  `IOStreams::Contract` class, and `#perform` receives a record of the contract for each record, such as
+  `order.amount`, whatever the source: a file in any format, a query, a range, or the Hashes or Arrays of
+  `upload_slice`. Each value is converted to the type of its field, and a value that cannot be fails its slice with
+  `IOStreams::Errors::InvalidValue`, naming the field, record and line. A blank row is skipped, and still counts as a
+  record. With a contract, the main input category reads the format of each file from its name (`:auto`) unless the
+  job class sets one. A job without a contract is unchanged.
 - An input category in the `:text` format, or `:auto` with a `.text` file, gives `#perform` each line as a String
   without a schema, a blank line too, where it raised `IOStreams::Errors::InvalidHeader`. With a schema, each line is
   read by its fields. Rocket Job 7 read a `.text` file with `:auto` as CSV.
