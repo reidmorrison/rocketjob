@@ -126,6 +126,18 @@ module Batch
           assert_equal :psv, job_class.new.input_category.format
         end
 
+        it "reads the format from the file name when the job class declares the category without a format" do
+          job_class = Class.new(ContractJob) { input_category slice_size: 10 }
+
+          assert_equal :auto, job_class.new.input_category.format
+        end
+
+        it "keeps a format of nil that the job class declares" do
+          job_class = Class.new(ContractJob) { input_category format: nil }
+
+          assert_nil job_class.new.input_category.format
+        end
+
         it "has no format without a contract, as before" do
           assert_nil PlainJob.new.input_category.format
         end
@@ -173,6 +185,50 @@ module Batch
           assert_equal([[1, 1, 2], [2, 3, 4]], output_records.map { |result| [result["order"]["id"], result["record"], result["line"]] })
         end
 
+        it "points the failed slice at the record that failed after a blank row" do
+          upload(".csv", "id,amount\n1,1\n\nx,2\n")
+          job.save!
+
+          assert_raises(IOStreams::Errors::InvalidValue) { job.perform_now }
+          slice = job.input.failed.first
+
+          assert_equal 3, slice.processing_at_record
+          assert_equal "x,2", slice.failed_record
+        end
+
+        it "points a slice after its last row once every record is processed, also after a blank row" do
+          upload(".csv", "id,amount\n1,1\n\n")
+          job.save!
+          job.define_singleton_method(:rocket_job_perform_slice) do |slice, &block|
+            super(slice, &block)
+            raise "after the records"
+          end
+
+          assert_raises(RuntimeError) { job.perform_now }
+          slice = job.input.failed.first
+
+          assert_equal 3, slice.processing_at_record
+          assert_nil slice.failed_record
+        end
+
+        it "keeps the slice on its record when #perform raises a row error of another stream" do
+          job_class = Class.new(ContractJob) do
+            def perform(order)
+              raise IOStreams::Errors::InvalidValue.new("other stream").at(record_number: 8) if order.id == 2
+
+              super
+            end
+          end
+          job = job_class.new
+          job.upload_slice([{"id" => 1}, {"id" => 2}, {"id" => 3}])
+          job.save!
+
+          assert_raises(IOStreams::Errors::InvalidValue) { job.perform_now }
+          assert_equal 2, job.input.failed.first.processing_at_record
+        ensure
+          job&.cleanup!
+        end
+
         it "fails the slice for a value that is not of the type of its field, naming the field" do
           upload(".csv", "id,amount\n1,1\nx,2\n")
           job.save!
@@ -208,6 +264,16 @@ module Batch
                        output_records.map { |result| result["order"] })
         end
 
+        it "keeps a record of upload_slice whose values are all nil, which a required field then fails" do
+          job.upload_slice([{"id" => 1}, {"id" => nil, "amount" => nil}])
+          job.save!
+
+          error = assert_raises(IOStreams::Errors::InvalidValue) { job.perform_now }
+
+          assert_includes error.message, "id"
+          assert_equal 2, job.input.failed.first.processing_at_record
+        end
+
         it "receives the Arrays of upload_slice as records of a contract of their fields in order" do
           job = ExactJob.new
           job.upload_slice([["1", "1.5"], [2, 3]])
@@ -224,7 +290,7 @@ module Batch
 
           error = assert_raises(ArgumentError) { job.perform_now }
 
-          assert_includes error.message, "Hashes or Arrays"
+          assert_includes error.message, "Hashes or Arrays, such as those of upload_slice"
         end
       end
     end

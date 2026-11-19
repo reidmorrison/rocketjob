@@ -66,16 +66,16 @@ module RocketJob
         end
 
         # Returns [Array<RocketJob::Category::Input|RocketJob::Category::Output>] the categories that a new job starts
-        # with, see RocketJob::Batch::Categories. With a contract, a main input category without a format reads the
-        # format of each file from its name, see Category::Input#detect_format, since the contract, rather than the
-        # format, decides what `#perform` receives.
+        # with, see RocketJob::Batch::Categories. With a contract, the main input category reads the format of each file
+        # from its name, see Category::Input#detect_format, since the contract, rather than the format, decides what
+        # `#perform` receives, unless this job class declares the format of the main input category, see
+        # .input_format_declared?, which it keeps, also when it is nil.
         def rocketjob_new_categories(key)
           categories = super
           return categories unless key == :input_categories && input_contract
+          return categories if input_format_declared?(:main)
 
-          main        = categories.find { |category| category.name == :main }
-          main.format = :auto if main && main.format.nil?
-          categories
+          categories.each { |category| category.format = :auto if category.name == :main && category.format.nil? }
         end
 
         private

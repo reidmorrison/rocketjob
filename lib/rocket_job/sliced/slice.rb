@@ -183,6 +183,10 @@ module RocketJob
       #
       # Yields nothing when this slice no longer holds the record that it was processing, nor a record after it, such as
       # once they were removed, see #delete_record.
+      #
+      # With a contract, see RocketJob::Batch::Contracts, a blank row is skipped, so the slice points at the record that
+      # failed by the number that IOStreams' error names, see IOStreams::Errors::RowError#record_number, and after its
+      # last row once every record is processed.
       def each_unprocessed_record(category, contract: nil)
         index = current_index
         return if index >= size
@@ -191,14 +195,24 @@ module RocketJob
         self.processing_at_record = number
         records                   = records_after(index)
         records                   = contract_rows(records, number) if contract && !records.is_a?(IOStreams::Slice)
+        parsing                   = true
         category.parse_records(records, contract: contract) do |record, line_number, record_number|
           # Only the rows of a file are yielded with their numbers, see #records_from.
           record_number           ||= number
           self.processing_at_record = record_number
+          parsing                   = false
           yield(record, line_number, record_number)
+          parsing                   = true
           number                    = record_number + 1
           self.processing_at_record = number
         end
+        # A contract skips each blank row, which is not yielded, so that the last record yielded may not be the last.
+        self.processing_at_record = record_number_at(size - 1) + 1 if contract
+      rescue IOStreams::Errors::RowError => e
+        # A blank row that a contract skipped may be before the record that failed to parse, which the error names. An
+        # error that the block raised, such as from another stream that `#perform` reads, names a record of that stream.
+        self.processing_at_record = e.record_number if contract && parsing && e.record_number
+        raise
       end
 
       # Returns [true|false] whether an earlier attempt started on this slice, see #processing_at_record, so that the
@@ -386,16 +400,19 @@ module RocketJob
       # `upload_slice`, as rows of the form that they are in, Hashes or Arrays, numbered from the supplied record number,
       # so that an input category reads them through a contract, see #each_unprocessed_record.
       #
-      # Raises ArgumentError for other records, such as the lines that Rocket Job 7 uploaded, which only the header row
-      # that it kept in the category could read.
+      # Raises ArgumentError for other records, such as Strings written without a format, or the lines that Rocket Job 7
+      # uploaded, which only the header row that it kept in the category could read.
       def contract_rows(records, record_number)
         format = [Hash, Array].find { |kind| records.all? { |record| record.nil? || record.is_a?(kind) } }
         unless format
-          raise(ArgumentError, "Only records that are Hashes or Arrays are read through an input contract, not the " \
-                               "lines that Rocket Job 7 uploaded, see #{self.class.name}##{id}")
+          raise(ArgumentError, "Only records that are Hashes or Arrays, such as those of upload_slice, are read through " \
+                               "an input contract, not records without a format, such as Strings, see " \
+                               "#{self.class.name}##{id}")
         end
 
-        IOStreams.slice("rows" => records.to_a, "format" => format.name.downcase, "record_number" => record_number)
+        # A record whose values are all nil is kept, as a typed row is, see IOStreams::Slice#blank_rows?.
+        IOStreams.slice("rows" => records.to_a, "format" => format.name.downcase, "blank_rows" => false,
+                        "record_number" => record_number)
       end
 
       # Returns [Array|IOStreams::Slice] the records of this slice from the supplied index on, which keep their numbers,
