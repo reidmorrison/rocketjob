@@ -270,14 +270,23 @@ module RocketJob
       # With a contract, see RocketJob::Batch::Contracts, the columns of the file are checked against it before the first
       # slice is written, see #slice_target, and in a format whose rows are values, the types that the file declares,
       # such as those of Parquet, see #check_contract, so that a file that the workers could not read raises
-      # IOStreams::Errors::InvalidHeader or IOStreams::Errors::IncompatibleType, and nothing is uploaded.
+      # IOStreams::Errors::InvalidHeader or IOStreams::Errors::IncompatibleType, and nothing is uploaded. A category
+      # without a format raises ArgumentError, since a contract cannot read the text of each row. The rows of a query,
+      # whose values a contract would convert as they are written, are checked by the workers instead.
       #
       # Raises ArgumentError when this category cannot read a file, see #slice_target.
       def copy_slices(path, writer, validate_rows: nil, contract: nil)
         validate = upload_validates_rows?(validate_rows)
         return slice_target(writer, contract).copy_from(path, mode: :line, validate: validate) if formatted?
 
-        check_contract(path, contract) if contract && tabular?
+        if contract
+          unless tabular?
+            raise(ArgumentError, "Input category #{name} has no format, so that its input contract cannot read the " \
+                                 "columns of a file: set its format, such as :auto")
+          end
+
+          check_contract(path, contract)
+        end
         return typed_target(writer).copy_from(path, mode: typed_mode, validate: validate) if tabular?
 
         # The :text format holds the text of each row as it is, also when the file name gives a format, such as `.csv`.
@@ -289,21 +298,19 @@ module RocketJob
       # after the names of the columns, as a file of the query would hold them, by this category's schema, otherwise by
       # the schema of the columns of the query, so that the workers read them as the rows of a file. Without a format,
       # IOStreams holds the typed values of each row after the names of the columns, see #rows_target, and the record
-      # of each row is the value of its column when it has one, otherwise an Array of its values, see #parse_rows. In a
-      # format whose rows are lines, the names of the columns are checked against the supplied contract, when there is
-      # one, before the first slice, see #slice_target.
-      def copy_rows(stream, writer, contract: nil)
+      # of each row is the value of its column when it has one, otherwise an Array of its values, see #parse_rows.
+      def copy_rows(stream, writer)
         detect_format(file_name)
-        rows_target(writer, contract).copy_from(stream, mode: :array)
+        rows_target(writer).copy_from(stream, mode: :array)
       end
 
       # Yields the writer of the rows of a query, such as of a Mongoid criteria, see Sliced::Input#upload_mongo_query,
       # which takes the names of the columns first, with `#write_header(columns)`, and then each row as an Array of its
       # values, with `<<`, which IOStreams writes to the supplied store of slices, see Sliced::Writer::Input, as
       # #copy_rows does.
-      def write_rows(writer, contract: nil, &)
+      def write_rows(writer, &)
         detect_format(file_name)
-        rows_target(writer, contract).writer(:array, &)
+        rows_target(writer).writer(:array, &)
       end
 
       # Yields to the supplied block of an upload, see RocketJob::Batch::IO#upload, the writer of the lines of a file,
@@ -502,8 +509,8 @@ module RocketJob
       # Returns [IOStreams::Stream] that writes the rows of a query, see #copy_rows and #write_rows: in this category's
       # format when its rows are lines, see #formatted?, otherwise as the typed values of each row, after the names of
       # the columns, in the :array format, which #parse_rows reads.
-      def rows_target(writer, contract = nil)
-        formatted? ? slice_target(writer, contract) : IOStreams.stream(writer).format(:array)
+      def rows_target(writer)
+        formatted? ? slice_target(writer) : IOStreams.stream(writer).format(:array)
       end
 
       # Returns [true|false] whether the rows of the supplied slice are each parsed on their own, see #parse_rows, rather
@@ -547,6 +554,7 @@ module RocketJob
       # column whose declared type, such as of Parquet, can never be that of its field. It reads only the start of the
       # file.
       def check_contract(path, contract)
+        check_removed_options
         path.dup.schema(schema_descriptor).as(contract).validate_contract!
       end
 

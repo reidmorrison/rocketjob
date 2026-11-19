@@ -218,7 +218,6 @@ module RocketJob
             rocketjob_check_upload("a Mongoid::Criteria", ":category, :columns, or :slice_batch_size", file_options)
             rocketjob_upload_query(category) do |input_category|
               input_collection.upload_mongo_query(object, category: input_category, columns: columns,
-                                                          contract: input_contract_for(input_category),
                                                           slice_batch_size: slice_batch_size, upload_id: rocketjob_upload_id)
             end
           when ->(query) { rocketjob_active_record_query?(query) }
@@ -231,7 +230,6 @@ module RocketJob
             end
             rocketjob_upload_query(category) do |input_category|
               input_collection.upload_arel(object, category: input_category, columns: columns,
-                                                   contract: input_contract_for(input_category),
                                                    slice_batch_size: slice_batch_size, upload_id: rocketjob_upload_id)
             end
           else
