@@ -51,12 +51,14 @@ module RocketJob
       end
 
       # Returns [true|false] whether to check the schema of the main input category against the input contract: for a
-      # new job, or one whose input categories changed, so that a job that a worker saves as it runs is not checked
-      # against a contract that a later deploy changed.
+      # new job, or one whose main input category, or its schema, is new, so that a job that a worker saves as it runs,
+      # such as once it uploads a file, is not checked against a contract that a later deploy changed. A job without a
+      # main input category has nothing that the contract reads.
       def rocketjob_check_input_contract_schema?
         return false unless self.class.input_contract
 
-        new_record? || input_categories.any? { |category| category.new_record? || category.changed? }
+        main = input_categories.find { |category| category.name == :main }
+        main && (new_record? || main.new_record? || main.schema_changed?)
       end
 
       module ClassMethods
@@ -121,9 +123,10 @@ module RocketJob
           errors = super
           return errors unless errors.empty? && input_contract
 
-          rocketjob_input_category_from(properties).schema_contract_errors(input_contract).map do |error|
-            "Input category main: #{error.message}"
-          end
+          category = rocketjob_input_category_from(properties)
+          return errors unless category
+
+          category.schema_contract_errors(input_contract).map { |error| "Input category main: #{error.message}" }
         end
 
         # Returns [Array<RocketJob::Category::Input|RocketJob::Category::Output>] the categories that a new job starts

@@ -226,10 +226,16 @@ module RocketJob
 
       # Returns [Array<Exception>] why the files that this category's schema reads would not meet the supplied contract,
       # see IOStreams::Schema#contract_errors, such as a field that the contract requires and the schema does not, or a
-      # field whose type never fits, without a file. Empty without a schema, and for a schema held in a file, at a path
-      # or url, which is not read until an upload, since its store may not be available, see #schema_valid.
+      # field whose type never fits, without a file. Empty without a schema, for a schema that is not valid, which
+      # #schema_valid reports, and for a schema held in a file, at a path or url, which is not read until an upload,
+      # since its store may not be available.
       def schema_contract_errors(contract)
-        schema.is_a?(Hash) ? tabular_schema.contract_errors(contract) : []
+        return [] unless schema.is_a?(Hash) && schema.present?
+
+        tabular_schema.contract_errors(contract)
+      rescue ArgumentError
+        # A schema that is not valid is reported as such, see #schema_valid.
+        []
       end
 
       # Returns [IOStreams::Path] of file to upload.

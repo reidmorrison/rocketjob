@@ -176,6 +176,47 @@ module Batch
           job&.destroy
         end
 
+        it "leaves an empty or invalid schema to the category, which reports it, rather than raise" do
+          job = ContractJob.new
+
+          [{}, {"fields" => [{"name" => "id", "type" => "bogus"}]}].each do |schema|
+            job.input_category.schema = schema
+
+            refute_predicate job, :valid?
+            assert_empty job.errors.messages[:input_categories].grep(/main:/)
+          end
+        end
+
+        it "is not checked again when a running job uploads a file, which sets its file name" do
+          job = ContractJob.new
+          job.input_category.schema = missing_id
+          job.save!(validate: false)
+          job = ContractJob.find(job.id)
+          job.input_category.file_name = "orders.csv"
+
+          assert_predicate job, :valid?, -> { job.errors.full_messages.inspect }
+        ensure
+          job&.destroy
+        end
+
+        it "is checked when the schema of a saved job changes" do
+          job = ContractJob.create!
+          job = ContractJob.find(job.id)
+          job.input_category.schema = missing_id
+
+          refute_predicate job, :valid?
+        ensure
+          job&.destroy
+        end
+
+        it "is not checked for a job class without a main input category" do
+          job_class = Class.new(ContractJob) { input_category name: :orders }
+          job_class.defined_input_categories = job_class.defined_input_categories.reject { |category| category.name == :main }
+
+          assert_predicate job_class.new, :valid?
+          assert_empty job_class.property_errors({})
+        end
+
         it "is checked in the properties of a Dirmon entry, without building the job" do
           properties = {"input_categories" => [{"name" => "main", "schema" => missing_id}]}
 
