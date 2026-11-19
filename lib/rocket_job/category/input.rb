@@ -359,7 +359,8 @@ module RocketJob
       # receives, see #parse.
       #
       # In a format whose rows are lines, such as CSV or JSON, the block can also write Hashes, or Arrays after a header
-      # row, as the first record it writes says, see FirstRecordWriter, which IOStreams holds in a :hash or :array store,
+      # row, as the first record it writes says, see FirstRecordWriter, which IOStreams holds as they are, without the
+      # cleaning and replacement of the text of lines, in a :hash or :array store,
       # as it does for a format whose rows are values, see #typed_target, and the workers read by this category's
       # schema. Records of another kind than the first raise.
       #
@@ -377,8 +378,11 @@ module RocketJob
         validate = upload_validates_rows?(validate_rows)
         return typed_target(writer).writer(typed_mode, validate: validate, &block) unless formatted?
 
+        # Raises for an option that v8 removed, or for stale columns, before the block runs, also when it writes nothing.
+        check_removed_options
+        check_columns_not_set if schema.blank?
         FirstRecordWriter.write(block) do |mode, &rows|
-          next slice_target(writer).format(mode).writer(mode, validate: validate, &rows) unless mode == :line
+          next typed_target(writer, mode).writer(mode, validate: validate, &rows) unless mode == :line
 
           target      = slice_target(writer, contract).encoding(cleaner: upload_cleaner)
           replacement = invalid_character_replacement
@@ -529,9 +533,10 @@ module RocketJob
 
       # Returns [IOStreams::Stream] that writes the records of an upload in a format whose rows are values, see
       # #formatted?: Hashes for :hash and Parquet, whose records are typed, as those of a query are, and Arrays for
-      # :array, after their header row, see #typed_mode, by this category's schema, when it has one.
-      def typed_target(writer)
-        slice_target(writer).format(typed_mode == :array ? :array : :hash)
+      # :array, after their header row, see #typed_mode, or as the supplied mode says, by this category's schema, when
+      # it has one.
+      def typed_target(writer, mode = typed_mode)
+        slice_target(writer).format(mode == :array ? :array : :hash)
       end
 
       # Returns [Symbol] the mode that IOStreams writes the records of an upload in, in a format whose rows are values,

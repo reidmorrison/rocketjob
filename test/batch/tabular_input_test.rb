@@ -454,12 +454,13 @@ module Batch
         end
 
         it "raises for a record of another kind than the first that the block of an upload writes" do
-          assert_raises(ArgumentError, IOStreams::Errors::TypeMismatch) do
+          error = assert_raises(ArgumentError) do
             job.upload do |records|
               records << "name,age"
               records << {"name" => "Jack"}
             end
           end
+          assert_includes error.message, "Hash"
           assert_equal 0, job.input.count
         end
 
