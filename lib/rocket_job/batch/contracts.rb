@@ -30,12 +30,35 @@ module RocketJob
 
       included do
         class_attribute :rocketjob_input_contract, instance_accessor: false, instance_predicate: false
+
+        validate :rocketjob_input_contract_schema, if: :rocketjob_check_input_contract_schema?
       end
 
       # Returns [Class|nil] the contract that the records of the supplied input category are read through, see
       # .input_contract, which applies to the main input category only, or nil without one.
       def input_contract_for(category)
         self.class.input_contract if input_category(category).name == :main
+      end
+
+      private
+
+      # Adds an error when the schema of the main input category would not meet the input contract, see
+      # Category::Input#schema_contract_errors.
+      def rocketjob_input_contract_schema
+        input_category.schema_contract_errors(self.class.input_contract).each do |error|
+          errors.add(:input_categories, "main: #{error.message}")
+        end
+      end
+
+      # Returns [true|false] whether to check the schema of the main input category against the input contract: for a
+      # new job, or one whose main input category, or its schema, is new, so that a job that a worker saves as it runs,
+      # such as once it uploads a file, is not checked against a contract that a later deploy changed. A job without a
+      # main input category has nothing that the contract reads.
+      def rocketjob_check_input_contract_schema?
+        return false unless self.class.input_contract
+
+        main = input_categories.find { |category| category.name == :main }
+        main && (new_record? || main.new_record? || main.schema_changed?)
       end
 
       module ClassMethods
@@ -90,6 +113,20 @@ module RocketJob
           return [] unless category
 
           category.contract_errors(path, input_contract, original_file_name: original_file_name)
+        end
+
+        # Returns [Array<String>] why the supplied properties cannot build this job, see
+        # RocketJob::Batch::Categories.property_errors, also when the schema of the main input category that they give
+        # it would not meet the input contract, see Category::Input#schema_contract_errors, so that a Dirmon entry whose
+        # files no upload could read is not saved.
+        def property_errors(properties)
+          errors = super
+          return errors unless errors.empty? && input_contract
+
+          category = rocketjob_input_category_from(properties)
+          return errors unless category
+
+          category.schema_contract_errors(input_contract).map { |error| "Input category main: #{error.message}" }
         end
 
         # Returns [Array<RocketJob::Category::Input|RocketJob::Category::Output>] the categories that a new job starts

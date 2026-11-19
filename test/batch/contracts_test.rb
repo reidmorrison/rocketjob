@@ -143,6 +143,89 @@ module Batch
         end
       end
 
+      describe "the schema of the main input category" do
+        let(:missing_id) { {"fields" => [{"name" => "amount", "type" => "number"}]} }
+        let(:with_id) do
+          {"fields" => [{"name" => "id", "type" => "integer", "constraints" => {"required" => true}}, {"name" => "amount", "type" => "number"}]}
+        end
+
+        it "is checked against the contract when the job is saved" do
+          job = ContractJob.new
+          job.input_category.schema = missing_id
+
+          refute_predicate job, :valid?
+          assert_includes job.errors.messages[:input_categories].join, "id"
+        end
+
+        it "is valid when every file that it reads meets the contract" do
+          job = ContractJob.new
+          job.input_category.schema = with_id
+
+          assert_predicate job, :valid?, -> { job.errors.full_messages.inspect }
+        end
+
+        it "is not checked again when a job is saved without a change to its categories, such as by a worker" do
+          job = ContractJob.new
+          job.input_category.schema = missing_id
+          job.save!(validate: false)
+          job = ContractJob.find(job.id)
+          job.description = "running"
+
+          assert_predicate job, :valid?, -> { job.errors.full_messages.inspect }
+        ensure
+          job&.destroy
+        end
+
+        it "leaves an empty or invalid schema to the category, which reports it, rather than raise" do
+          job = ContractJob.new
+
+          [{}, {"fields" => [{"name" => "id", "type" => "bogus"}]}].each do |schema|
+            job.input_category.schema = schema
+
+            refute_predicate job, :valid?
+            assert_empty job.errors.messages[:input_categories].grep(/main:/)
+          end
+        end
+
+        it "is not checked again when a running job uploads a file, which sets its file name" do
+          job = ContractJob.new
+          job.input_category.schema = missing_id
+          job.save!(validate: false)
+          job = ContractJob.find(job.id)
+          job.input_category.file_name = "orders.csv"
+
+          assert_predicate job, :valid?, -> { job.errors.full_messages.inspect }
+        ensure
+          job&.destroy
+        end
+
+        it "is checked when the schema of a saved job changes" do
+          job = ContractJob.create!
+          job = ContractJob.find(job.id)
+          job.input_category.schema = missing_id
+
+          refute_predicate job, :valid?
+        ensure
+          job&.destroy
+        end
+
+        it "is not checked for a job class without a main input category" do
+          job_class = Class.new(ContractJob) { input_category name: :orders }
+          job_class.defined_input_categories = job_class.defined_input_categories.reject { |category| category.name == :main }
+
+          assert_predicate job_class.new, :valid?
+          assert_empty job_class.property_errors({})
+        end
+
+        it "is checked in the properties of a Dirmon entry, without building the job" do
+          properties = {"input_categories" => [{"name" => "main", "schema" => missing_id}]}
+
+          assert_equal 1, ContractJob.property_errors(properties).size
+          assert ContractJob.property_errors(properties).first.start_with?("Input category main: ")
+          assert_empty ContractJob.property_errors({"input_categories" => [{"name" => "main", "schema" => with_id}]})
+        end
+      end
+
       describe ".input_contract_errors" do
         def with_file(extension, data)
           IOStreams.temp_file("contracts_test", extension) do |path|
