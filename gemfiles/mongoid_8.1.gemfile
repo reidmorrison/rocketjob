@@ -14,6 +14,7 @@ gem "rubyzip", platform: :ruby
 gem "bzip2-ffi"
 # Excel spreadsheet support, for reading `.xlsx` files
 gem "creek"
+gem "json", "~> 2.21"
 gem "activerecord-jdbcsqlite3-adapter", "~> 72.1", platform: :jruby
 gem "jdbc-sqlite3", platform: :jruby
 
