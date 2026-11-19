@@ -3457,8 +3457,8 @@ kadams,2019-01-12T01:20:20Z
 
 The header row is the names of the fields. The keys of each hash are matched to the fields the same
 way as the columns of an input file, so a hash keyed `"Login"`, or by the Symbol `:login`, writes the
-`login` field too. `perform` can also return an `Array` of the values of the fields, in order, such as
-`[u.login, u.updated_at]`. In a category with a format, `perform` returns a `Hash` or an `Array`: a
+`login` field too. With a schema, `perform` can also return an `Array` of the values of its fields, in
+order, such as `[u.login, u.updated_at]`. In a category with a format, `perform` returns a `Hash` or an `Array`: a
 `String` raises `ArgumentError`, since IOStreams writes the line. A `nil` is skipped, unless the
 category sets `nils: true`, which writes an empty row. A CSV, PSV or fixed width output category needs
 a schema, whose fields are the columns that it writes.

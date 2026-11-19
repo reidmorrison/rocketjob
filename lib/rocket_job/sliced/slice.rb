@@ -245,6 +245,11 @@ module RocketJob
       # format.
       def append_records(records)
         existing = self.records
+        if existing.is_a?(IOStreams::Slice) && records.is_a?(IOStreams::Slice) && existing.header != records.header
+          raise(ArgumentError, "Cannot append the rows of another header row #{records.header.inspect} to the rows of " \
+                               "#{existing.header.inspect} in slice #{id}")
+        end
+
         self.records = if existing.is_a?(IOStreams::Slice) && records.is_a?(IOStreams::Slice)
                          existing.with_rows(existing.rows + records.rows, record_number: existing.record_number_at(0) || 1)
                        elsif existing.empty? || records.empty?

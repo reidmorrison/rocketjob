@@ -76,6 +76,8 @@ Metrics/ClassLength:
     - "test/**/*"
     # Reads, uploads and checks the records of every source and format.
     - "lib/rocket_job/category/input.rb"
+    # Holds, numbers, appends and converts the records of every kind of slice.
+    - "lib/rocket_job/sliced/slice.rb"
 
 # TODO: Soften Limits for phase 1 only
 Metrics/CyclomaticComplexity:

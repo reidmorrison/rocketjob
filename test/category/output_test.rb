@@ -22,6 +22,12 @@ module Batch
           assert_equal ["Jack,12345"], category.output_records([%w[Jack 12345]]).rows
         end
 
+        it "raises for Arrays without a schema, whose first IOStreams would read as the header row" do
+          error = assert_raises(ArgumentError) { RocketJob::Category::Output.new(format: :json).output_records([%w[name age]]) }
+
+          assert_includes error.message, "set a schema on the category"
+        end
+
         it "writes a format without a header row, such as JSON" do
           category = RocketJob::Category::Output.new(format: :json)
 
@@ -39,7 +45,27 @@ module Batch
         it "returns the results as they are without a format" do
           results = ["Jack", {"name" => "Jill"}]
 
-          assert_same results, RocketJob::Category::Output.new.output_records(results)
+          assert_equal results, RocketJob::Category::Output.new.output_records(results)
+        end
+
+        it "raises for a Hash after an Array, as the first result decides" do
+          category = RocketJob::Category::Output.new(format: :csv, schema: schema(%w[name]))
+
+          assert_raises(ArgumentError, IOStreams::Errors::TypeMismatch) { category.output_records([["Jack"], {"name" => "Jill"}]) }
+        end
+
+        it "raises for a format that writes a header row without a schema, rather than take it from the first result" do
+          category = RocketJob::Category::Output.new(format: :csv)
+
+          error = assert_raises(ArgumentError) { category.output_records([{"name" => "Jack"}]) }
+          assert_equal "Output category main: the :csv format writes a header row, so set a schema on the category, " \
+                       "whose fields are the columns of the file", error.message
+        end
+
+        it "writes the nil results before the first, which a category that keeps nils keeps" do
+          category = RocketJob::Category::Output.new(format: :csv, schema: schema(%w[name]), nils: true)
+
+          assert_equal ["", "Jack"], category.output_records([nil, {"name" => "Jack"}]).rows
         end
 
         it "returns no records for no results" do

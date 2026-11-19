@@ -39,6 +39,7 @@ module RocketJob
 
   module Category
     autoload :Base,                  "rocket_job/category/base"
+    autoload :FirstRecordWriter,     "rocket_job/category/first_record_writer"
     autoload :Input,                 "rocket_job/category/input"
     autoload :Output,                "rocket_job/category/output"
   end

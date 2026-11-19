@@ -64,10 +64,62 @@ module Batch
         assert_equal ["name,age", "Jack,21"], lines
       end
 
+      it "points the failed slice at the record whose result cannot be written, keeping the results before it" do
+        job.upload_slice([{"name" => "Jack", "age" => 21}, {"name" => "Jill", "oops" => 1}, {"name" => "Bo", "age" => 3}])
+        job.save!
+
+        assert_raises(IOStreams::Errors::InvalidHeader) { job.perform_now }
+        assert_equal 2, job.input.failed.first.processing_at_record
+        assert_equal ["Jack,21"], job.output.first.to_a
+      end
+
       it "raises for a String, which a format writes from values" do
         error = assert_raises(ArgumentError) { run_job(["Jack,21"]) }
 
         assert_includes error.message, "must return a Hash or an Array"
+      end
+
+      it "drops the results that a record wrote before one that could not be written, since it runs again" do
+        job.upload_slice([{"name" => "Jack", "age" => 21}])
+        job.save!
+        slice = job.input.first
+        results = RocketJob::Batch::Results.new
+        results << RocketJob::Batch::Result.new(:main, {"name" => "Jack", "age" => 21})
+        results << RocketJob::Batch::Result.new(:main, {"name" => "Jill", "oops" => 1})
+
+        assert_raises(IOStreams::Errors::InvalidHeader) do
+          RocketJob::Sliced::Writer::Output.collect(job, input_slice: slice) { |writer| writer << results }
+        end
+        assert_empty job.output.first.to_a
+      end
+
+      it "raises at the first result of a retry under another header row than an earlier attempt wrote" do
+        job.upload_slice([{"name" => "Jack", "age" => 21}])
+        job.save!
+        slice = job.input.first
+        RocketJob::Sliced::Writer::Output.collect(job, input_slice: slice) { |writer| writer << {"name" => "Jack", "age" => 21} }
+        job.output_category.schema = {"fields" => [{"name" => "age"}, {"name" => "name"}]}
+
+        assert_raises(ArgumentError) do
+          RocketJob::Sliced::Writer::Output.collect(job, input_slice: slice, append: true) do |writer|
+            writer << {"name" => "Jill", "age" => 22}
+          end
+        end
+        assert_equal ["Jack,21"], job.output.first.to_a
+      end
+
+      it "raises for a result of another kind than the first, naming it" do
+        error = assert_raises(ArgumentError) { job.output_category.output_records([{"name" => "Jack"}, "Jill"]) }
+
+        assert_includes error.message, "must return a Hash, as the first result is, for the :csv format, not a String"
+      end
+
+      it "raises for the rows of a retry under another header row than an earlier attempt wrote" do
+        slice = RocketJob::Sliced::Slice.new(records: IOStreams.slice({"rows" => ["Jack,21"], "header" => %w[name age], "format" => "csv", "record_number" => 1}))
+
+        assert_raises(ArgumentError) do
+          slice.append_records(IOStreams.slice({"rows" => ["21,Jill"], "header" => %w[age name], "format" => "csv", "record_number" => 1}))
+        end
       end
 
       it "appends the rows of a retry to the rows that an earlier attempt wrote" do
