@@ -198,7 +198,7 @@ module RocketJob
               category.file_name = file_name if file_name
               # IOStreams writes the records that the block writes to the slices, as the category says.
               input_collection.upload(upload_id: rocketjob_upload_id) do |writer|
-                category.write_slices(writer, validate_rows: validate_rows, &block)
+                category.write_slices(writer, validate_rows: validate_rows, contract: input_contract_for(category), &block)
               end
             end
           return rocketjob_add_record_count(count)
@@ -218,6 +218,7 @@ module RocketJob
             rocketjob_check_upload("a Mongoid::Criteria", ":category, :columns, or :slice_batch_size", file_options)
             rocketjob_upload_query(category) do |input_category|
               input_collection.upload_mongo_query(object, category: input_category, columns: columns,
+                                                          contract: input_contract_for(input_category),
                                                           slice_batch_size: slice_batch_size, upload_id: rocketjob_upload_id)
             end
           when ->(query) { rocketjob_active_record_query?(query) }
@@ -230,6 +231,7 @@ module RocketJob
             end
             rocketjob_upload_query(category) do |input_category|
               input_collection.upload_arel(object, category: input_category, columns: columns,
+                                                   contract: input_contract_for(input_category),
                                                    slice_batch_size: slice_batch_size, upload_id: rocketjob_upload_id)
             end
           else
@@ -491,7 +493,7 @@ module RocketJob
       # Returns [Integer] the number of records uploaded.
       def rocketjob_upload_slices(input_collection, category, path, validate_rows:, slice_batch_size:)
         input_collection.upload(slice_batch_size: slice_batch_size, upload_id: rocketjob_upload_id) do |writer|
-          category.copy_slices(path, writer, validate_rows: validate_rows)
+          category.copy_slices(path, writer, validate_rows: validate_rows, contract: input_contract_for(category))
         end
       end
 

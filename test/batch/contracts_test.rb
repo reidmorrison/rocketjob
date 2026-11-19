@@ -143,6 +143,77 @@ module Batch
         end
       end
 
+      describe "upload" do
+        let(:job) { ContractJob.new }
+
+        after do
+          job.cleanup!
+        end
+
+        def upload(extension, data, **)
+          IOStreams.temp_file("contracts_test", extension) do |path|
+            ::File.write(path.to_s, data)
+            job.upload(path.to_s, **)
+          end
+        end
+
+        it "raises for a file without a column that the contract requires, before it uploads any slice" do
+          error = assert_raises(IOStreams::Errors::InvalidHeader) { upload(".csv", "amount\n1\n") }
+
+          assert_includes error.message, "id"
+          assert_equal 0, job.input.count
+          assert_equal :auto, job.input_category.format
+        end
+
+        it "keeps the lines and header row of the file in each slice" do
+          upload(".csv", "ID,Amount,Extra\n1,2.5,x\n")
+
+          assert_equal %w[ID Amount Extra], job.input.first.records.header
+          assert_equal ["1,2.5,x"], job.input.first.to_a
+        end
+
+        it "leaves the values to the workers, unless it validates the rows" do
+          assert_equal 1, upload(".csv", "id\nx\n")
+
+          job.input.delete_all
+          assert_raises(IOStreams::Errors::InvalidValue) { upload(".csv", "id\nx\n", validate_rows: true) }
+        end
+
+        it "raises for lines written by a block without a column that the contract requires" do
+          assert_raises(IOStreams::Errors::InvalidHeader) do
+            job.upload do |lines|
+              lines << "amount"
+              lines << "1"
+            end
+          end
+          assert_equal 0, job.input.count
+        end
+
+        it "raises for a query without a column that the contract requires" do
+          RocketJob::Job.create!(description: "not a column of the contract")
+
+          assert_raises(IOStreams::Errors::InvalidHeader) { job.upload(RocketJob::Job.all, columns: [:description]) }
+          assert_equal 0, job.input.count
+        ensure
+          RocketJob::Job.delete_all
+        end
+
+        it "checks a query by its columns" do
+          RocketJob::Job.create!(description: "one")
+          job_class = Class.new(ContractJob) do
+            input_contract { field :id, :string }
+            input_category format: :csv
+          end
+          job = job_class.new
+          job.upload(RocketJob::Job.all.where(description: "one"), columns: [:_id])
+
+          assert_equal 1, job.input.count
+        ensure
+          job&.cleanup!
+          RocketJob::Job.delete_all
+        end
+      end
+
       describe "#perform" do
         let(:job) { ContractJob.new }
 

@@ -37,16 +37,19 @@ module RocketJob
       # a dotted name reads the field of an embedded document, such as `address.city`, or of each of a list of them, as
       # an Array. The columns replace any projection of the criteria, such as `without(:secret)`.
       #
+      # The names of the columns are checked against the supplied contract, when there is one, see
+      # Category::Input#write_rows.
+      #
       # The documents are read outside any session or transaction of the caller, so that a large upload is not bound by
       # the time limit of a transaction. Raises ArgumentError for a criteria of embedded documents, which are read
       # within the documents that embed them rather than queried.
-      def upload_mongo_query(criteria, category:, columns: [], slice_batch_size: nil, upload_id: nil)
+      def upload_mongo_query(criteria, category:, columns: [], slice_batch_size: nil, upload_id: nil, contract: nil)
         columns = columns.blank? ? ["_id"] : columns.collect { |column| criteria.klass.database_field_name(column) }
         view    = mongo_query_view(criteria, columns)
         paths   = columns.collect { |column| column.split(".") }
 
         upload(slice_batch_size: slice_batch_size, upload_id: upload_id) do |writer|
-          category.write_rows(writer) do |rows|
+          category.write_rows(writer, contract: contract) do |rows|
             rows.write_header(columns)
             # Drop down to the mongo driver level to avoid constructing a Model for each document returned
             view&.each do |document|
@@ -62,12 +65,13 @@ module RocketJob
       # query, which the supplied input category writes, see Category::Input#copy_rows: in its format, as a file of the
       # query would hold them, otherwise the value of each row when it has one column, or an Array of its values. A
       # relation reads the supplied columns, by default the id, and batches read the columns that their relation
-      # selects. Returns how many it uploaded.
+      # selects, checked against the supplied contract, when there is one, see Category::Input#copy_rows. Returns how many
+      # it uploaded.
       #
       # Raises ArgumentError for columns supplied with batches, whose relation selects the columns instead, and for
       # batches whose relation selects no columns, which would upload every column of each row, where a relation
       # uploads only the id.
-      def upload_arel(query, category:, columns: nil, slice_batch_size: nil, upload_id: nil)
+      def upload_arel(query, category:, columns: nil, slice_batch_size: nil, upload_id: nil, contract: nil)
         if query.is_a?(ActiveRecord::Batches::BatchEnumerator)
           if columns.present?
             raise(ArgumentError, "Select the columns to upload before `in_batches`, rather than with `columns:`")
@@ -83,7 +87,7 @@ module RocketJob
 
         stream = IOStreams.stream(query)
         upload(slice_batch_size: slice_batch_size, upload_id: upload_id) do |writer|
-          category.copy_rows(stream, writer)
+          category.copy_rows(stream, writer, contract: contract)
         end
       end
 

@@ -220,6 +220,12 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   `IOStreams::Errors::InvalidValue`, naming the field, record and line. A blank row is skipped, and still counts as a
   record. With a contract, the main input category reads the format of each file from its name (`:auto`) unless the
   job class sets one. A job without a contract is unchanged.
+- An upload into the main input category of a job with a contract checks the columns of a file, of the lines that
+  the block of `upload` writes, or of a query, against the contract before it writes the first slice, and raises
+  `IOStreams::Errors::InvalidHeader` for a column that the contract requires and the source does not have, so that
+  nothing is uploaded. A Parquet file is also checked for a column whose type can never be that of its field
+  (`IOStreams::Errors::IncompatibleType`). Each slice still holds the lines and header row of the file as they are.
+  The values are checked by the workers, or at upload with `validate_rows: true`.
 - An input category in the `:text` format, or `:auto` with a `.text` file, gives `#perform` each line as a String
   without a schema, a blank line too, where it raised `IOStreams::Errors::InvalidHeader`. With a schema, each line is
   read by its fields. Rocket Job 7 read a `.text` file with `:auto` as CSV.

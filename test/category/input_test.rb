@@ -481,6 +481,25 @@ module Batch
         end
       end
 
+      describe "#copy_slices" do
+        it "checks a file in a format whose rows are values, such as Parquet, against the contract before it uploads it" do
+          contract = IOStreams::Contract.new({"fields" => [{"name" => "id", "type" => "integer"}]})
+          checked  = []
+          path     = Object.new
+          path.define_singleton_method(:dup) { self }
+          path.define_singleton_method(:schema) { |_schema| self }
+          path.define_singleton_method(:as) do |as|
+            checked << as
+            self
+          end
+          path.define_singleton_method(:validate_contract!) { raise IOStreams::Errors::InvalidHeader, "missing id" }
+          category = RocketJob::Category::Input.new(format: :parquet)
+
+          assert_raises(IOStreams::Errors::InvalidHeader) { category.copy_slices(path, nil, contract: contract) }
+          assert_equal [contract], checked
+        end
+      end
+
       describe "#write_slices" do
         # A store of slices that keeps each slice that IOStreams writes to it.
         let(:store) do
