@@ -214,6 +214,16 @@ module RocketJob
         )
       end
 
+      # Returns [Array<Exception>] why the supplied file cannot be read through the supplied contract, as an upload into
+      # this category would read it, see #upload_path, such as by its format and schema, see
+      # IOStreams::Stream#contract_errors, reading only the start of the file. Empty without a format, whose records are
+      # not read by their columns. It sets the file name, and a format of :auto, as an upload does, so ask a copy of the
+      # category, see RocketJob::Batch::Contracts.input_contract_errors.
+      def contract_errors(path, contract, original_file_name: nil)
+        path = upload_path(path, original_file_name: original_file_name)
+        tabular? ? path.as(contract).contract_errors : []
+      end
+
       # Returns [IOStreams::Path] of file to upload.
       # Auto-detects file format from file name when format is :auto.
       def upload_path(stream = nil, original_file_name: nil)
