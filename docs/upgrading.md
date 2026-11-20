@@ -326,7 +326,8 @@ To move a job that reads a `Hash` of a file's columns onto a contract:
 A job that uploads a range declares `input_contract RocketJob::Batch::RangeContract`, and reads
 `range.first_id` and `range.last_id`, or `range.to_range`, in place of the Array of its two ids. A
 record of a contract is not an Array, so `first_id, last_id = range` sets `first_id` to the record and
-`last_id` to `nil`, without raising.
+`last_id` to `nil`, without raising. `RocketJob::Jobs::ReEncrypt::RelationalJob` now declares it, so a
+subclass that overrides its `perform` reads the ids of each range the same way.
 
 Deploy the contract once the queued and running jobs of that class have finished. A job uploaded
 before the deploy is read through the contract after it: one uploaded without a format holds the text

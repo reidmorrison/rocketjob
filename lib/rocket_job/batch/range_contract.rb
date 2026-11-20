@@ -3,10 +3,8 @@ module RocketJob
     # The input contract of a job that uploads a range of integers, such as `job.upload(1..1_000_000)`, whose records
     # are each one range of ids, `[first_id, last_id]`, of up to `slice_size` ids, one per slice, see
     # RocketJob::Batch::IO#upload. `#perform` receives a record of this contract, read by position, rather than the Array.
-    #
-    # It also names the two ids as a range writes them, see RocketJob::Sliced::Input#upload_integer_range, so that a
-    # job without a contract, whose input category has a format without a header row, such as JSON, receives a Hash of
-    # these names, such as `{"first_id" => 1, "last_id" => 100}`.
+    # It reads the row of each range as an upload writes it, and does not lay it out, so a job without a contract is
+    # unchanged.
     #
     # Example:
     #   class ReprocessUsersJob < RocketJob::Job
