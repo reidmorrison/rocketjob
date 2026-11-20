@@ -24,6 +24,7 @@ if defined?(ActiveRecord) && defined?(SyncAttr)
           self.throttle_running_workers = 10
 
           input_category slice_size: 1_000
+          input_contract RocketJob::Batch::RangeContract
 
           # Name of the table being re-encrypted
           field :table_name, type: String
@@ -61,7 +62,8 @@ if defined?(ActiveRecord) && defined?(SyncAttr)
           # Re-encrypt all encrypted columns for the named table.
           # Does not use AR models since we do not have models for all tables.
           def perform(range)
-            start_id, end_id = range
+            start_id = range.first_id
+            end_id   = range.last_id
 
             columns = self.class.encrypted_columns[table_name]
             unless columns&.size&.positive?
@@ -112,16 +114,14 @@ if defined?(ActiveRecord) && defined?(SyncAttr)
             SymmetricEncryption.encrypt(SymmetricEncryption.decrypt(encrypted_value))
           end
 
-          # Upload range to re-encrypt all rows in the specified table.
+          # Upload the range of ids of all rows in the specified table, highest ids first, one range per slice, see
+          # RocketJob::Batch::RangeContract, which also counts each id as a record.
           def upload_records
-            start_id          = self.class.connection.select_value("select min(id) from #{quoted_table_name}").to_i
-            last_id           = self.class.connection.select_value("select max(id) from #{quoted_table_name}").to_i
-            self.record_count =
-              if last_id.positive?
-                input.upload_integer_range_in_reverse_order(start_id, last_id) * input_category.slice_size
-              else
-                0
-              end
+            start_id = self.class.connection.select_value("select min(id) from #{quoted_table_name}").to_i
+            last_id  = self.class.connection.select_value("select max(id) from #{quoted_table_name}").to_i
+            return self.record_count = 0 unless last_id.positive?
+
+            upload(last_id..start_id)
           end
         end
       end

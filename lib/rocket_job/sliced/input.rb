@@ -130,9 +130,9 @@ module RocketJob
       private :upload_ranges
 
       # Yields the writer of ranges of ids to the supplied store of slices, see `IOStreams::Slice::Target`, which
-      # IOStreams writes as the typed rows of the :array format, without a header row, see RANGE_SCHEMA.
+      # IOStreams writes as the typed rows of the :array format, without a header row, see #range_schema.
       def write_ranges(store, &)
-        IOStreams.stream(store).format(:array).schema(RANGE_SCHEMA).writer(:array, &)
+        IOStreams.stream(store).format(:array).schema(range_schema).writer(:array, &)
       end
       private :write_ranges
 
@@ -148,20 +148,16 @@ module RocketJob
       end
       private_constant :SliceHolder
 
-      # The fields of the `[first_id, last_id]` row of each range of ids, see #upload_ranges, without a header row, so
-      # that each slice holds the range as it is, which a worker passes to `#perform` as it is in a category without a
-      # format. Each slice carries this schema, see `IOStreams::Slice#schema`, so a category in a format without a header
-      # row, such as JSON, and without a schema of its own, reads each range as a Hash of these names, such as
+      # Returns [Hash] the schema of the `[first_id, last_id]` row of each range of ids, see #upload_ranges: the fields
+      # of RocketJob::Batch::RangeContract, which names the two ids, without a header row, so that each slice holds the
+      # range as it is, which a worker passes to `#perform` as it is in a category without a format. Each slice carries
+      # this schema, see `IOStreams::Slice#schema`, so a category in a format without a header row, such as JSON, and
+      # without a schema of its own, reads each range as a Hash of these names, such as
       # `{"first_id" => 1, "last_id" => 100}`, which `#perform` receives, as "Integer ranges" in docs/batch.md says.
-      # Renaming a field changes the keys of that Hash.
-      RANGE_SCHEMA = {
-        "header" => false,
-        "fields" => [
-          {"name" => "first_id", "type" => "integer"},
-          {"name" => "last_id", "type" => "integer"}
-        ]
-      }.freeze
-      private_constant :RANGE_SCHEMA
+      def range_schema
+        RocketJob::Batch::RangeContract.to_h.merge(header: false)
+      end
+      private :range_schema
 
       # Iterate over each failed record, if any
       # Since each slice can only contain 1 failed record, only the failed

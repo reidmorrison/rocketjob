@@ -26,7 +26,7 @@ module Jobs
 
         def perform(range)
           super
-          range
+          [range.first_id, range.last_id]
         end
       end
 
@@ -55,6 +55,7 @@ module Jobs
           job.perform_now
 
           assert_predicate job, :completed?, -> { job.input.failed.first&.exception&.message }
+          assert_equal 5, job.record_count
           assert_equal [[4, 5], [2, 3], [1, 1]], job.output.flat_map(&:to_a)
 
           values = connection.select_rows("select encrypted_name from relational_job_users order by id").flatten

@@ -244,6 +244,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - The block of `upload`, in an input category with a format of lines, such as CSV or JSON, also takes Hashes, or
   Arrays after a header row, as the first record that it writes says, which IOStreams holds as typed values and the
   workers read by the category's schema, as Rocket Job 7 took them. Records of another kind than the first raise.
+- `RocketJob::Batch::RangeContract` is the input contract of a job that uploads a range of integers, whose
+  `#perform` receives each range as a record of its `first_id` and `last_id`, and `to_range`, the Range of its ids.
+  Its fields name the two ids of each range that an upload writes. `RocketJob::Jobs::ReEncrypt::RelationalJob`
+  declares it, and uploads its range with `upload`, so that its `record_count` is the number of ids, rather than the
+  number of slices times `slice_size`.
 - An input category in the `:text` format, or `:auto` with a `.text` file, gives `#perform` each line as a String
   without a schema, a blank line too, where it raised `IOStreams::Errors::InvalidHeader`. With a schema, each line is
   read by its fields. Rocket Job 7 read a `.text` file with `:auto` as CSV.
