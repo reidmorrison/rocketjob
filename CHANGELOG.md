@@ -404,9 +404,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   spread it over the record and the numbers that it yields: a second and third value were taken as its line and
   record number, which a retry then resumed at. A one-value Array, such as `[42]`, now reaches `#perform` as the
   Array, where it was its value.
-- `RocketJob::Jobs::ReEncrypt::RelationalJob` re-encrypts each row again, where every slice failed with a
-  `FrozenError` on Active Record 8, whose `select_rows` returns frozen rows. It quotes each value with the connection,
-  rather than in double quotes, which PostgreSQL, and MySQL with `ANSI_QUOTES`, read as the name of a column.
+- `RocketJob::Jobs::ReEncrypt::RelationalJob` no longer fails every slice with a `FrozenError` on Active Record 8,
+  whose `select_rows` returns frozen rows. It also quotes each value with the connection, rather than in double
+  quotes, which PostgreSQL, and MySQL with `ANSI_QUOTES`, read as the name of a column, and quotes each column.
 - A field of type `IOStreams::Path`, such as the `file_name` of a category, whose stored url IOStreams cannot make a
   path of, such as one whose scheme IOStreams does not know, returns it as stored, a String, rather than raising
   `ArgumentError` when it is read, so that a page of a web interface, such as Mission Control, that shows the job can

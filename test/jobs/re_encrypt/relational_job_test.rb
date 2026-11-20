@@ -35,6 +35,13 @@ module Jobs
         let(:names) { %w[one two three four five] }
 
         before do
+          # The encrypted columns of each table are found once, and kept, so that a table created after they were read
+          # would be missing: find them again.
+          [RocketJob::Jobs::ReEncrypt::RelationalJob, RangesJob].each do |job_class|
+            next unless job_class.class_variables(false).include?(:@@encrypted_columns)
+
+            job_class.remove_class_variable(:@@encrypted_columns)
+          end
           RangesJob.delete_all
           connection.execute("delete from relational_job_users")
           names.each_with_index do |name, index|

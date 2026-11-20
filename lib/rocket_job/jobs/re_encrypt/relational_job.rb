@@ -70,13 +70,14 @@ if defined?(ActiveRecord) && defined?(SyncAttr)
             end
 
             logger.info "Processing: #{table_name} from #{start_id} to #{end_id}"
-            sql = "select id, #{columns.join(',')} from #{quoted_table_name} where id >= #{start_id} and id <= #{end_id}"
+            connection = self.class.connection
+            selected   = columns.map { |column| connection.quote_column_name(column) }.join(", ")
+            sql        = "select id, #{selected} from #{quoted_table_name} where id >= #{start_id} and id <= #{end_id}"
 
             # Use AR to fetch all the records, whose rows Active Record may freeze.
-            connection = self.class.connection
             connection.select_rows(sql).each do |id, *values|
               updates = columns.zip(values).filter_map do |column, value|
-                # Prevent re-encryption
+                # Skip blank values, which are not encrypted.
                 next if value.blank?
 
                 new_value = re_encrypt(value)
@@ -86,7 +87,7 @@ if defined?(ActiveRecord) && defined?(SyncAttr)
                 logger.trace { "Skipping empty values #{table_name}:#{id}" }
               else
                 update = "update #{quoted_table_name} set #{updates.join(', ')} where id=#{connection.quote(id)}"
-                logger.trace update
+                logger.trace { update }
                 connection.execute update
               end
             end
