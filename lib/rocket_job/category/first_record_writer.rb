@@ -68,9 +68,11 @@ module RocketJob
 
       def start(record)
         mode   = @mode || mode_of(record)
-        @fiber = Fiber.new do |first|
+        # The first record is not passed to #resume, since JRuby spreads an Array passed to the first #resume over the
+        # parameters of the block, which would give it only the first value of a row.
+        @fiber = Fiber.new do
           @open.call(mode) do |io|
-            current = first
+            current = record
             until current.equal?(DONE)
               error = nil
               begin
@@ -82,7 +84,7 @@ module RocketJob
             end
           end
         end
-        @fiber.resume(record)
+        @fiber.resume
       end
 
       def mode_of(record)
