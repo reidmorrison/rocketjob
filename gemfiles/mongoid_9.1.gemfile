@@ -28,6 +28,7 @@ group :test do
   gem "minitest-reporters"
   gem "minitest-stub_any_instance"
   gem "simplecov", require: false
+  gem "sync_attr"
 end
 
 gemspec path: "../"

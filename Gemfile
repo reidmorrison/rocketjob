@@ -44,4 +44,6 @@ group :test do
   gem "minitest-reporters"
   gem "minitest-stub_any_instance"
   gem "simplecov", require: false
+  # Loads RocketJob::Jobs::ReEncrypt::RelationalJob, which is only defined when it is available.
+  gem "sync_attr"
 end
