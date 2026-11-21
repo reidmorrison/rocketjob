@@ -117,6 +117,33 @@ module Sliced
         end
       end
 
+      describe ".to_binary" do
+        def decompressed(binary)
+          IOStreams.stream(StringIO.new(binary)).stream(:bz2).read.b
+        end
+
+        it "writes the lines in the encoding of the format, such as ASCII for fixed width" do
+          binary = RocketJob::Sliced::BZip2OutputSlice.to_binary(%w[abc], text_format: "fixed")
+
+          assert_equal "abc\n".b, decompressed(binary)
+          assert_raises(Encoding::UndefinedConversionError) do
+            RocketJob::Sliced::BZip2OutputSlice.to_binary(["café"], text_format: "fixed")
+          end
+        end
+
+        it "writes the lines in the supplied encoding" do
+          binary = RocketJob::Sliced::BZip2OutputSlice.to_binary(["café"], text_format: "csv", text_encoding: "Windows-1252")
+
+          assert_equal "caf\xE9\n".b, decompressed(binary)
+        end
+
+        it "writes the lines of a slice of a file" do
+          slice = IOStreams.slice({"rows" => ["Jack,21"], "header" => %w[name age], "format" => "csv"})
+
+          assert_equal "Jack,21\n".b, decompressed(RocketJob::Sliced::BZip2OutputSlice.to_binary(slice, text_format: "csv"))
+        end
+      end
+
       it "keeps the compressed records of a slice that was read back when it is saved again" do
         slice << "hello"
         slice.save!

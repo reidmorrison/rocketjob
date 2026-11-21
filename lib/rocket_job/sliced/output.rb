@@ -4,28 +4,27 @@ module RocketJob
   module Sliced
     class Output < Slices
       # Parameters
-      #   text_encoding: [String|Proc]
-      #     The encoding of the text in the output file, or a Proc that returns it when it is needed, so that it
-      #     can change after this collection is created, see RocketJob::Category::Output#text_encoding.
-      #     Default: nil, which writes UTF-8
+      #   text_settings: [Proc]
+      #     Returns the format and encoding that the text of the output file is written in, see
+      #     RocketJob::Category::Output#text_settings, when it is needed, so that they can change after this collection
+      #     is created.
       #
       #   See Slices#initialize for the other parameters.
-      def initialize(text_encoding: nil, **)
+      def initialize(text_settings: nil, **)
         super(**)
-        @text_encoding = text_encoding
+        @text_settings = text_settings
       end
 
-      # Returns [String] the encoding of the text that a binary slice, such as BZip2OutputSlice, writes its records
-      # in, see Slice.binary_format, or nil for UTF-8. Other slices keep their records as UTF-8, which is converted
-      # when they are downloaded.
-      def text_encoding
-        @text_encoding.respond_to?(:call) ? @text_encoding.call : @text_encoding
+      # Returns [Hash] the format and encoding of the text of the output file, as `format:` and `encoding:`, see
+      # #initialize.
+      def text_settings
+        @text_settings&.call || {}
       end
 
-      # Returns [RocketJob::Sliced::Slice] a new slice, which writes its records in #text_encoding when it is binary.
+      # Returns [RocketJob::Sliced::Slice] a new slice, which writes its text in the format and encoding of the output
+      # file when it is binary, see Slice.binary_format, as the slice class says, see Slice.binary_attributes.
       def new(params = {})
-        encoding = text_encoding if binary_format
-        super(encoding ? params.merge(text_encoding: encoding) : params)
+        binary_format ? super(slice_class.binary_attributes(**text_settings).merge(params)) : super
       end
 
       # Returns [Symbol] the binary format of the slices, such as :bz2, which are downloaded as they are, or nil
@@ -34,10 +33,10 @@ module RocketJob
         slice_class.binary_format
       end
 
-      # Returns [String] the supplied header line in the binary format of the slices, see #binary_format, and in
-      # #text_encoding, to download in front of them.
+      # Returns [String] the supplied header line in the binary format of the slices, see #binary_format, in the format
+      # and encoding of the output file, see #text_settings, to download in front of them.
       def binary_header(header_line)
-        slice_class.to_binary(header_line, encoding: text_encoding)
+        slice_class.to_binary(header_line, **slice_class.binary_attributes(**text_settings).symbolize_keys)
       end
 
       def download(header_line: nil)

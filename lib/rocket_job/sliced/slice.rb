@@ -113,14 +113,20 @@ module RocketJob
       # Returns whether this is a specialized binary slice for creating binary data from each slice
       # that is downloaded without conversion into output files.
       #
-      # Since its text is not converted when it is downloaded, a binary slice writes it in the encoding of the output
-      # file, which it holds as its `text_encoding`, see RocketJob::Sliced::Output#new.
+      # Since its text is not converted when it is downloaded, a binary slice writes it in the format and encoding of the
+      # output file, which it holds, see RocketJob::Sliced::Output#new.
       def self.binary_format
       end
 
       # For binary formats only, format the supplied records into the binary format for this slice
       def self.to_binary(_records)
         raise NotImplementedError
+      end
+
+      # Returns [Hash] the attributes of a binary slice, see .binary_format, that write its text in the supplied format
+      # and encoding of the output file, see RocketJob::Sliced::Output#new. None for other slices.
+      def self.binary_attributes(format: nil, encoding: nil) # rubocop:disable Lint/UnusedMethodArgument
+        {}
       end
 
       # `records` array has special handling so that it can be modified in place instead of having
