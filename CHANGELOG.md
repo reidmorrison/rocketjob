@@ -196,6 +196,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   `RocketJob::Category::Base#property_errors`, without building the job.
 - `.from_properties` of a batch job merges category properties whose keys are Symbols onto the categories
   that the job defines, as it did for String keys. Previously they replaced the job's categories.
+- `RocketJob::Jobs::ReEncrypt::RelationalJob#perform` receives each range as a record of
+  `RocketJob::Batch::RangeContract`, rather than the Array `[first_id, last_id]`. A subclass that overrides `perform`
+  reads `range.first_id` and `range.last_id`, or `range.to_range`: `start_id, end_id = range` now sets `start_id` to
+  the record and `end_id` to `nil`, without raising.
 
 ### Security
 
@@ -244,6 +248,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - The block of `upload`, in an input category with a format of lines, such as CSV or JSON, also takes Hashes, or
   Arrays after a header row, as the first record that it writes says, which IOStreams holds as typed values and the
   workers read by the category's schema, as Rocket Job 7 took them. Records of another kind than the first raise.
+- `RocketJob::Batch::RangeContract` is the input contract of a job that uploads a range of integers, whose
+  `#perform` receives each range as a record of its `first_id` and `last_id`, and `to_range`, the Range of its ids.
+  `RocketJob::Jobs::ReEncrypt::RelationalJob` declares it, and uploads its range with `upload`, so that its `record_count` is the number of ids, rather than the
+  number of slices times `slice_size`.
 - An input category in the `:text` format, or `:auto` with a `.text` file, gives `#perform` each line as a String
   without a schema, a blank line too, where it raised `IOStreams::Errors::InvalidHeader`. With a schema, each line is
   read by its fields. Rocket Job 7 read a `.text` file with `:auto` as CSV.

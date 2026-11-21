@@ -244,20 +244,18 @@ uploaded.
 
 ### Ranges and upload_slice
 
-A range uploads one `[first_id, last_id]` record per slice, so a job that uploads a range declares a
-contract of its two ids, which are read by position:
+A range uploads one `[first_id, last_id]` record per slice, so a job that uploads a range declares
+`RocketJob::Batch::RangeContract`, the contract of its two ids, which are read by position.
+`to_range` returns the ids of each range:
 
 ~~~ruby
 class ReprocessUsersJob < RocketJob::Job
   include RocketJob::Batch
 
-  input_contract do
-    field :first_id, :integer
-    field :last_id,  :integer
-  end
+  input_contract RocketJob::Batch::RangeContract
 
   def perform(range)
-    User.where(id: range.first_id..range.last_id).find_each(&:reprocess!)
+    User.where(id: range.to_range).find_each(&:reprocess!)
   end
 end
 
@@ -494,8 +492,9 @@ not `"exact"`. Without a schema, it also raises `ArgumentError` for a format who
 that Hash: `:text`, whose rows are each one value, and Parquet, which needs a schema.
 
 A job with a contract receives each range as a record of a contract of its two ids, read by position,
-whatever the format of the category, and `upload` raises for a range that the contract cannot read,
-see [Ranges and upload_slice](#ranges-and-upload_slice).
+whatever the format of the category, and `upload` raises for a range that the contract cannot read.
+`RocketJob::Batch::RangeContract` is that contract, with `first_id`, `last_id` and `to_range`, see
+[Ranges and upload_slice](#ranges-and-upload_slice).
 
 `upload_arel`, `upload_mongo_query`, `upload_integer_range` and
 `upload_integer_range_in_reverse_order`, which uploaded a query or a range before `upload` accepted
