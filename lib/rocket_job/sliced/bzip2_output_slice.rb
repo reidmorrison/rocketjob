@@ -24,7 +24,9 @@ module RocketJob
       def self.to_binary(records, record_delimiter = "\n", encoding: nil)
         return [] if records.blank?
 
-        lines = Array(records).join(record_delimiter) + record_delimiter
+        # The rows of a slice of a file, see IOStreams::Slice, are its lines.
+        records = records.rows if records.is_a?(IOStreams::Slice)
+        lines   = Array(records).join(record_delimiter) + record_delimiter
         lines = lines.encode(encoding) if encoding
         # Binary, since compressed data is bytes, so that it can follow the compressed records of a slice read back.
         s     = StringIO.new("".b)

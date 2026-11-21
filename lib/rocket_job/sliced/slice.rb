@@ -240,8 +240,23 @@ module RocketJob
       def_instance_delegators :record_list, :each, :at
 
       # Appends the supplied records after the records already in this slice, see Slices#append.
+      # The rows of a slice of a file, see IOStreams::Slice, such as those that an output category writes, see
+      # RocketJob::Category::Output#output_records, are appended to those of this slice, which keep its header row and
+      # format.
       def append_records(records)
-        self.records = self.records + records
+        existing = self.records
+        if existing.is_a?(IOStreams::Slice) && records.is_a?(IOStreams::Slice) && existing.header != records.header
+          raise(ArgumentError, "Cannot append the rows of another header row #{records.header.inspect} to the rows of " \
+                               "#{existing.header.inspect} in slice #{id}")
+        end
+
+        self.records = if existing.is_a?(IOStreams::Slice) && records.is_a?(IOStreams::Slice)
+                         existing.with_rows(existing.rows + records.rows, record_number: existing.record_number_at(0) || 1)
+                       elsif existing.empty? || records.empty?
+                         existing.empty? ? records : existing
+                       else
+                         existing.to_a + records.to_a
+                       end
       end
       def_instance_delegators :record_list, *(Enumerable.instance_methods - Module.methods)
 

@@ -36,26 +36,37 @@ module RocketJob
 
         # Writes the supplied result, RocketJob::Batch::Result or RocketJob::Batch::Results
         # to the relevant collections
+        #
+        # The results of one record are written whole: when one of them cannot be written, those written before it are
+        # dropped, since the record runs again when its slice is retried.
         def <<(result)
-          if result.is_a?(RocketJob::Batch::Results)
+          return extract_categorized_result(result) unless result.is_a?(RocketJob::Batch::Results)
+
+          sizes = categorized_records.transform_values(&:size)
+          begin
             result.each { |single| extract_categorized_result(single) }
-          else
-            extract_categorized_result(result)
+          rescue Exception
+            categorized_records.each_pair { |name, writer| writer.keep(sizes.fetch(name, 0)) }
+            raise
           end
         end
 
         # Write categorized results to their relevant collections
+        # Stores the records that each output category wrote, see RocketJob::Category::Output#output_writer, in its
+        # output slice.
         def close
-          categorized_records.each_pair do |category, results|
-            collection = job.output(category)
-            append ? collection.append(results, input_slice) : collection.insert(results, input_slice)
+          categorized_records.each_pair do |name, writer|
+            records    = writer.records
+            collection = job.output(name)
+            append ? collection.append(records, input_slice) : collection.insert(records, input_slice)
           end
         end
 
         private
 
-        # Stores the categorized result from one result, rendered by its output category, see
-        # RocketJob::Category::Output#render, unless it is nil, which is only kept when the category keeps nils.
+        # Writes the categorized result from one result with the writer of its output category, see
+        # RocketJob::Category::Output#output_writer, unless it is nil, which is only kept when the category keeps nils,
+        # so that a result that cannot be written raises for the record that returned it.
         def extract_categorized_result(result)
           named_category = :main
           value          = result
@@ -64,8 +75,16 @@ module RocketJob
             value          = result.value
           end
           category = output_category(named_category)
-          value    = category.render(value) unless value.nil?
-          (categorized_records[named_category] ||= []) << value unless value.nil? && !category.nils
+          return if value.nil? && !category.nils
+
+          (categorized_records[named_category] ||= output_writer(named_category, category)) << value
+        end
+
+        # Returns [#<<] the writer of the results of the supplied output category, which appends to the records of the
+        # output slice that an earlier attempt wrote, when there is one, see RocketJob::Category::Output#output_writer.
+        def output_writer(name, category)
+          existing = job.output(name).where(id: input_slice.id).first if append && input_slice
+          category.output_writer(append_to: existing&.records)
         end
 
         # Returns [RocketJob::Category::Output] the named output category of the job, looked up once per slice.

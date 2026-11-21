@@ -7,51 +7,97 @@ module Batch
         {"fields" => names.collect { |name| {"name" => name} }}
       end
 
-      describe "#render" do
-        it "renders a record in the format of the category" do
+      describe "#output_records" do
+        it "writes Hashes as the rows of a slice in the format of the category, after its header row" do
+          category = RocketJob::Category::Output.new(format: :csv, schema: schema(%w[name zip_code]))
+          records  = category.output_records([{"name" => "Jack", "zip_code" => "12345"}, {"zip_code" => "2", "name" => "J,ill"}])
+
+          assert_equal %w[name zip_code], records.header
+          assert_equal ["Jack,12345", "\"J,ill\",2"], records.rows
+        end
+
+        it "writes Arrays by position, against the fields of the schema" do
           category = RocketJob::Category::Output.new(format: :csv, schema: schema(%w[name zip_code]))
 
-          assert_equal "Jack,12345", category.render("name" => "Jack", "zip_code" => "12345")
+          assert_equal ["Jack,12345"], category.output_records([%w[Jack 12345]]).rows
         end
 
-        it "returns the record as it is without a format" do
-          record = {"name" => "Jack"}
+        it "raises for Arrays without a schema, whose first IOStreams would read as the header row" do
+          error = assert_raises(ArgumentError) { RocketJob::Category::Output.new(format: :json).output_records([%w[name age]]) }
 
-          assert_same record, RocketJob::Category::Output.new.render(record)
-        end
-      end
-
-      describe "#tabular" do
-        it "is built again after a field that it is built from is set" do
-          category = RocketJob::Category::Output.new(format: :csv, schema: schema(%w[a b]))
-
-          assert_equal "a,b", category.render_header
-          category.schema = schema(%w[c d])
-
-          assert_equal "c,d", category.render_header
-          category.format = :psv
-
-          assert_equal "c|d", category.render_header
-        end
-      end
-
-      describe "#render_header" do
-        it "renders the header when tabular" do
-          category = RocketJob::Category::Output.new(format: :csv, schema: schema(%w[name address zip_code]))
-
-          assert_equal category.render_header, %w[name address zip_code].to_csv.strip
+          assert_includes error.message, "set a schema on the category"
         end
 
-        it "returns nil when not tabular" do
-          category = RocketJob::Category::Output.new
-
-          assert_nil category.render_header
-        end
-
-        it "returns nil tabular, but does not need a header line" do
+        it "writes a format without a header row, such as JSON" do
           category = RocketJob::Category::Output.new(format: :json)
 
-          assert_nil category.render_header
+          assert_equal [%({"name":"Jack"})], category.output_records([{"name" => "Jack"}]).rows
+        end
+
+        it "raises for a String in a format, which IOStreams writes from values" do
+          category = RocketJob::Category::Output.new(format: :csv, schema: schema(%w[name]))
+
+          error = assert_raises(ArgumentError) { category.output_records(["Jack"]) }
+          assert_equal "Output category main: #perform must return a Hash or an Array for the :csv format, not a String",
+                       error.message
+        end
+
+        it "returns the results as they are without a format" do
+          results = ["Jack", {"name" => "Jill"}]
+
+          assert_equal results, RocketJob::Category::Output.new.output_records(results)
+        end
+
+        it "raises for a Hash after an Array, as the first result decides" do
+          category = RocketJob::Category::Output.new(format: :csv, schema: schema(%w[name]))
+
+          assert_raises(ArgumentError, IOStreams::Errors::TypeMismatch) { category.output_records([["Jack"], {"name" => "Jill"}]) }
+        end
+
+        it "raises for a format that writes a header row without a schema, rather than take it from the first result" do
+          category = RocketJob::Category::Output.new(format: :csv)
+
+          error = assert_raises(ArgumentError) { category.output_records([{"name" => "Jack"}]) }
+          assert_equal "Output category main: the :csv format writes a header row, so set a schema on the category, " \
+                       "whose fields are the columns of the file", error.message
+        end
+
+        it "writes the nil results before the first, which a category that keeps nils keeps" do
+          category = RocketJob::Category::Output.new(format: :csv, schema: schema(%w[name]), nils: true)
+
+          assert_equal ["", "Jack"], category.output_records([nil, {"name" => "Jack"}]).rows
+        end
+
+        it "returns no records for no results" do
+          category = RocketJob::Category::Output.new(format: :csv, schema: schema(%w[name]))
+
+          assert_empty category.output_records([])
+        end
+      end
+
+      describe "#header_line" do
+        it "is the header row of the format, by the schema" do
+          category = RocketJob::Category::Output.new(format: :csv, schema: schema(%w[name address zip_code]))
+
+          assert_equal "name,address,zip_code", category.header_line
+        end
+
+        it "follows a change to the schema or the format" do
+          category = RocketJob::Category::Output.new(format: :csv, schema: schema(%w[a b]))
+          category.schema = schema(%w[c d])
+
+          assert_equal "c,d", category.header_line
+          category.format = :psv
+
+          assert_equal "c|d", category.header_line
+        end
+
+        it "is nil without a format" do
+          assert_nil RocketJob::Category::Output.new.header_line
+        end
+
+        it "is nil for a format without a header row" do
+          assert_nil RocketJob::Category::Output.new(format: :json).header_line
         end
       end
 
@@ -80,7 +126,7 @@ module Batch
             "columns" => %w[name]
           )
 
-          error = assert_raises(ArgumentError) { category.render({"name" => "Jack", "zip" => "12345"}) }
+          error = assert_raises(ArgumentError) { category.output_records([{"name" => "Jack", "zip" => "12345"}]) }
           assert_match(/\AOutput category main: columns was removed in Rocket Job v8/, error.message)
         end
 

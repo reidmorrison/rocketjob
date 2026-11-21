@@ -336,7 +336,7 @@ module RocketJob
         # Store the output file name in the category
         category.file_name = stream if !block && (stream.is_a?(String) || stream.is_a?(IOStreams::Path))
 
-        header_line ||= category.render_header
+        header_line ||= category.header_line
 
         return output_collection.download(header_line: header_line, &block) if block
 
