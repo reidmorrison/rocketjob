@@ -70,30 +70,25 @@ if defined?(ActiveRecord) && defined?(SyncAttr)
             end
 
             logger.info "Processing: #{table_name} from #{start_id} to #{end_id}"
-            sql = "select id, #{columns.join(',')} from #{quoted_table_name} where id >= #{start_id} and id <= #{end_id}"
+            connection = self.class.connection
+            selected   = columns.map { |column| connection.quote_column_name(column) }.join(", ")
+            sql        = "select id, #{selected} from #{quoted_table_name} where id >= #{start_id} and id <= #{end_id}"
 
-            # Use AR to fetch all the records
-            self.class.connection.select_rows(sql).each do |row|
-              row.unshift(nil)
-              index   = 1
-              sql     = "update #{quoted_table_name} set "
-              updates = []
-              columns.collect do |column|
-                index += 1
-                value = row[index]
-                # Prevent re-encryption
-                unless value.blank?
-                  new_value = re_encrypt(value)
-                  updates << "#{column} = \"#{new_value}\"" if new_value != value
-                end
+            # Use AR to fetch all the records, whose rows Active Record may freeze.
+            connection.select_rows(sql).each do |id, *values|
+              updates = columns.zip(values).filter_map do |column, value|
+                # Skip blank values, which are not encrypted.
+                next if value.blank?
+
+                new_value = re_encrypt(value)
+                "#{connection.quote_column_name(column)} = #{connection.quote(new_value)}" if new_value != value
               end
-              if updates.size.positive?
-                sql << updates.join(", ")
-                sql << " where id=#{row[1]}"
-                logger.trace sql
-                self.class.connection.execute sql
+              if updates.empty?
+                logger.trace { "Skipping empty values #{table_name}:#{id}" }
               else
-                logger.trace { "Skipping empty values #{table_name}:#{row[1]}" }
+                update = "update #{quoted_table_name} set #{updates.join(', ')} where id=#{connection.quote(id)}"
+                logger.trace { update }
+                connection.execute update
               end
             end
           end
