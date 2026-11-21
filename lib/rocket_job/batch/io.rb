@@ -105,7 +105,9 @@ module RocketJob
       # row first, which are uploaded as a file is, and takes `validate_rows:` too. Each line is read as UTF-8, converted
       # from its encoding, and each character that is not valid in it is removed, replaced or raises, as the input
       # category's `invalid_characters` says. Its non-printable characters are removed, or replaced with spaces in a
-      # fixed width format, as those of a file are, see RocketJob::Category::Input#write_slices.
+      # fixed width format, as those of a file are, see RocketJob::Category::Input#write_slices. The block can instead
+      # write each record as a Hash, or each row as an Array after an Array of the names of the columns, as its first
+      # record says, which are held as they are, as in the :hash and :array formats, and read by the category's schema.
       #
       # Notes:
       # * Only call from one thread at a time against a single instance of this job.

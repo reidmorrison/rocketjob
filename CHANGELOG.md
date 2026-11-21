@@ -241,6 +241,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   meet the contract, such as a schema that does not require a field that the contract requires, see
   `IOStreams::Schema#contract_errors`. It is checked for a new job, or one whose categories changed, and in the
   properties of a Dirmon entry or an `UploadFileJob`, without a file. A schema held in a file is checked at upload.
+- The block of `upload`, in an input category with a format of lines, such as CSV or JSON, also takes Hashes, or
+  Arrays after a header row, as the first record that it writes says, which IOStreams holds as typed values and the
+  workers read by the category's schema, as Rocket Job 7 took them. Records of another kind than the first raise.
 - An input category in the `:text` format, or `:auto` with a `.text` file, gives `#perform` each line as a String
   without a schema, a blank line too, where it raised `IOStreams::Errors::InvalidHeader`. With a schema, each line is
   read by its fields. Rocket Job 7 read a `.text` file with `:auto` as CSV.
