@@ -154,13 +154,14 @@ module RocketJob
       # record. The records must then be the rows of a slice, see Sliced::Slice#each_unprocessed_record.
       #
       # A record that cannot be parsed raises before it is yielded, after the records before it, so that the caller
-      # knows which record failed.
+      # knows which record failed. The supplied record number is that of the first of records that are not the rows of a
+      # slice, which IOStreams names in its error for one that it cannot parse, see #parse_saved_records.
       #
       # Raises ArgumentError when this category was saved before Rocket Job v8 with an option that v8 removed, see
       # Category::Base#check_removed_options, which is checked once for each instance of the category, rather than for
       # each slice that a worker processes, since the options that a saved category holds do not change.
-      def parse_records(records, contract: nil, &)
-        return parse_saved_records(records, &) unless contract || records.is_a?(IOStreams::Slice)
+      def parse_records(records, contract: nil, record_number: nil, &)
+        return parse_saved_records(records, record_number: record_number, &) unless contract || records.is_a?(IOStreams::Slice)
         return parse_rows(records, &) if !contract && rows_parsed_alone?(records)
 
         @removed_options_checked ||= check_removed_options || true
@@ -182,12 +183,14 @@ module RocketJob
       # They are kept as they are in a category without a format, or in the :text format without a schema, whose records
       # are the lines of a file, a blank line too. A Hash is kept as it is with a schema too, since it was parsed when it
       # was uploaded, such as by Rocket Job 7 in its :hash mode. Otherwise IOStreams reads them together, as it reads the
-      # rows of a file, see #saved_records_stream, and a blank record is nil.
+      # rows of a file, see #saved_records_stream, numbered from the supplied record number, which IOStreams names in its
+      # error for a record that it cannot parse. A blank record, such as nil, "" or {}, is nil, as Rocket Job 7 parsed it,
+      # whatever the format and columns, so IOStreams reads each run of records between them.
       #
       # Raises ArgumentError when this category holds columns that are not the header row of a file, see
       # #check_header_row, or for records that its format cannot read, such as the lines of CSV without columns or a
       # schema, which name the keys of their records, or records of more than one kind, such as Strings and Hashes.
-      def parse_saved_records(records, &)
+      def parse_saved_records(records, record_number: nil, &)
         kept = !tabular? || (format == :text && schema.blank?)
         return records.each { |record| yield(record, nil, nil) } if kept
 
@@ -197,7 +200,7 @@ module RocketJob
 
         @removed_options_checked ||= check_removed_options || true
         check_header_row if columns.present? && schema.blank?
-        saved_records_stream(records).each(:hash) { |record| yield(record, nil, nil) }
+        parse_record_runs(records, record_number || 1, &)
       end
 
       def data_store(job)
@@ -424,11 +427,13 @@ module RocketJob
       # the format of this category, since the slice says how its rows are read.
       def check_record_upload(kind, slice, contract: nil)
         return parse_records(slice, contract: contract) { nil } if contract
-        return check_record_lines(slice) if formatted?
         return unless tabular?
+        return check_record_lines(slice) if rows_are_lines?(records_format)
         return parse_records(slice) { nil } if schema.present?
 
-        IOStreams.stream(StringIO.new).format(format).writer(:hash) { |rows| parse_records(slice) { |row| rows << row } }
+        IOStreams.stream(StringIO.new).format(records_format).writer(:hash) do |rows|
+          parse_records(slice) { |row| rows << row }
+        end
       rescue ArgumentError => e
         raise(ArgumentError, "Input category #{name}: cannot upload #{kind} in the #{format.inspect} format. #{e.message}")
       end
@@ -500,18 +505,20 @@ module RocketJob
 
       # Replaces a format of :auto with the format of the supplied path, which its file name gives, otherwise CSV, so
       # that an upload reads its file, or the lines that its block writes, in it, see #upload_path and #write_slices.
-      # A stored url that IOStreams cannot make a path of, which the
-      # file name holds as a String, see IOStreams::Path.demongoize, raises what IOStreams raises for it.
+      # A stored url that IOStreams cannot make a path of, which the file name holds as a String, see
+      # IOStreams::Path.demongoize, raises what IOStreams raises for it.
       def detect_format(path)
         self.format = (path && IOStreams.new(path).format) || :csv if format == :auto
       end
 
-      # Returns [true|false] whether the rows of this category's format are lines of text, such as CSV or JSON, which a
-      # file, or the block of an upload, gives as they are, see #copy_slices and #write_slices, rather than Ruby objects,
-      # such as those of :hash or :array, or rows that are not lines, such as those of Parquet, see
-      # IOStreams::Stream#lines_of_text?. Asked once an upload has replaced a format of :auto, see #detect_format, and of
-      # the format alone, since the file name of the category can be that of another upload, such as a spreadsheet's.
-      def rows_are_lines?
+      # Returns [true|false] whether the rows of this category's format, or of the supplied format, are lines of text,
+      # such as CSV or JSON, which a file, or the block of an upload, gives as they are, see #copy_slices and
+      # #write_slices, rather than Ruby objects, such as those of :hash or :array, or rows that are not lines, such as
+      # those of Parquet, see IOStreams::Stream#lines_of_text?. An upload asks once it has replaced a format of :auto, see
+      # #detect_format, and of the format alone, since the file name of the category can be that of another upload, such
+      # as a spreadsheet's. #check_record_upload asks of a format of :auto resolved by the file name, see #records_format,
+      # as the workers read the records.
+      def rows_are_lines?(format = self.format)
         IOStreams.stream(StringIO.new).format(format).lines_of_text?
       end
 
@@ -626,6 +633,20 @@ module RocketJob
         format == :fixed ? FIXED_WIDTH_CLEANER : :printable
       end
 
+      # Yields nil for each blank record of the supplied records, see #parse_saved_records, and each other record as
+      # IOStreams reads it, see #saved_records_stream, with each run of them between blank records numbered from the
+      # number of its first record, the supplied record number being that of the first of the records.
+      def parse_record_runs(records, number)
+        records.chunk_while { |record, other| record.blank? == other.blank? }.each do |run|
+          if run.first.blank?
+            run.each { yield(nil, nil, nil) }
+          else
+            saved_records_stream(run, number).each(:hash) { |record| yield(record, nil, nil) }
+          end
+          number += run.size
+        end
+      end
+
       # Returns [IOStreams::Stream] that reads the supplied records, see #parse_saved_records, as one IOStreams::Slice, as
       # #parse_records reads the slices of a file. The kind of the first record that is not nil says how they are read:
       # - A Hash, such as one that Rocket Job 7 parsed in its :hash mode, by the keys of the columns, see #columns, which
@@ -634,9 +655,9 @@ module RocketJob
       #   values in their order.
       # - A line of a file, in this category's format, by the columns as its header row, see #columns, and this
       #   category's schema, see #schema, as the slices of a file are read.
-      def saved_records_stream(records)
-        stream = IOStreams.stream(saved_records_slice(records))
-        case records.find { |record| !record.nil? }
+      def saved_records_stream(records, record_number)
+        stream = IOStreams.stream(saved_records_slice(records, record_number))
+        case records.first
         when Hash
           columns.present? ? stream.schema(columns_schema.merge("fieldsMatch" => "partial")) : stream
         when Array
@@ -646,27 +667,29 @@ module RocketJob
         end
       end
 
-      # Returns [IOStreams::Slice] the supplied records, see #saved_records_stream, in the :hash format for Hashes, the
+      # Returns [IOStreams::Slice] the supplied records, see #saved_records_stream, numbered from the supplied record
+      # number, in the :hash format for Hashes, which keeps a Hash whose values are all blank, as Rocket Job 7 did, the
       # :array format for Arrays, otherwise in this category's format, see #records_format, after the columns as their
       # header row.
-      def saved_records_slice(records)
-        case records.find { |record| !record.nil? }
+      def saved_records_slice(records, record_number)
+        case records.first
         when Hash
-          IOStreams::Slice.new(records, format: :hash)
+          IOStreams::Slice.new(records, format: :hash, blank_rows: false, record_number: record_number)
         when Array
-          IOStreams::Slice.new(records, format: :array)
+          IOStreams::Slice.new(records, format: :array, record_number: record_number)
         else
-          IOStreams::Slice.new(records, header: columns.presence, format: records_format)
+          IOStreams::Slice.new(records, header: columns.presence, format: records_format, record_number: record_number)
         end
       end
 
-      # Raises when this category, in a format whose rows are lines, see #formatted?, cannot hold the supplied records,
+      # Raises when this category, in a format whose rows are lines, see #rows_are_lines?, which is its format, or that
+      # of its file name when it is :auto, see #records_format, cannot hold the supplied records,
       # see #check_record_upload: IOStreams writes them, by this category's schema, into a slice in its format, as it
       # writes the lines of an upload, which raises ArgumentError when the format reads the header row of a file, such as
       # CSV, since the slice then carries one.
       def check_record_lines(slice)
-        store = Sliced::Input::SliceHolder.new
-        IOStreams.stream(store).schema(schema_descriptor).format(format).writer(:hash) do |rows|
+        store = Sliced::SliceHolder.new
+        IOStreams.stream(store).schema(schema_descriptor).format(records_format).writer(:hash) do |rows|
           parse_records(slice) { |row| rows << row }
         end
         return unless store.slice&.header?
@@ -692,10 +715,18 @@ module RocketJob
       # uploaded, reads them as other names, since Rocket Job v8 cannot read the lines by them as Rocket Job 7 did:
       # columns that were not cleansed, which an application set before v8 for a file without a header row, see
       # .removed_option_names.
+      #
+      # Checked once for the columns and format, rather than for each slice.
       def check_header_row
+        checked = [columns.dup, records_format]
+        return if @header_row_checked == checked
+
         header = IOStreams::Slice.new(header: columns, format: records_format)
         fields = IOStreams.stream(header).infer_schema.to_h[:fields]
-        return if fields.map { |field| field[:name] } == columns
+        if fields.map { |field| field[:name] } == columns
+          @header_row_checked = checked
+          return
+        end
 
         raise(ArgumentError,
               "Input category #{name} holds columns that are not the header row of an uploaded file, so they are the " \

@@ -346,6 +346,11 @@ module Batch
           end
         end
 
+        it "raises for a range in the :auto format, which reads the format of its file name, otherwise CSV" do
+          assert_equal "Input category main: cannot upload a Range in the :auto format. It reads the header row of a " \
+                       "file. Upload it into a category without a format", range_error(format: :auto).message
+        end
+
         it "raises for a range in a format that reads the header row of a file" do
           assert_equal "Input category main: cannot upload a Range in the :csv format. It reads the header row of a " \
                        "file. Upload it into a category without a format", range_error(format: :csv, schema: schema).message
@@ -421,6 +426,14 @@ module Batch
                        "#{RocketJob::Category::Base::REMOVED_OPTIONS_GUIDE}", error.message
         end
 
+        it "checks the columns again once they are changed in place" do
+          category = RocketJob::Category::Input.new(format: :csv, columns: %w[name])
+          category.parse("Jack")
+          category.columns << "Zip Code"
+
+          assert_raises(ArgumentError) { category.parse("Jack,12345") }
+        end
+
         it "reads by the columns that are set when it is asked" do
           category = RocketJob::Category::Input.new(format: :csv, columns: %w[name zip])
 
@@ -435,6 +448,42 @@ module Batch
 
           assert_equal({"first_name" => "Jack", "zip" => "12345"}, category.parse({"First Name" => "Jack", "zip" => "12345", "x" => 1}))
           assert_nil category.parse({})
+        end
+
+        it "keeps a Hash whose values are all blank, as Rocket Job 7 parsed it" do
+          category = RocketJob::Category::Input.new(format: :csv, columns: %w[a b])
+
+          assert_equal({"a" => nil, "b" => nil}, category.parse({"a" => nil, "b" => ""}).transform_values(&:presence))
+        end
+
+        it "raises for a Hash that holds none of the columns" do
+          category = RocketJob::Category::Input.new(format: :csv, columns: %w[a b])
+
+          assert_raises(IOStreams::Errors::InvalidHeader) { category.parse({"z" => 1}) }
+        end
+
+        it "is nil for a blank record, whatever the format and columns" do
+          category = RocketJob::Category::Input.new(format: :csv)
+
+          assert_nil category.parse(nil)
+          assert_nil category.parse("")
+          assert_nil category.parse({})
+        end
+
+        it "reads the records between blank records, in order" do
+          category = RocketJob::Category::Input.new(format: :csv, columns: %w[a b])
+          records  = []
+          category.parse_records(["1,2", nil, "", "3,4"]) { |record| records << record }
+
+          assert_equal [{"a" => "1", "b" => "2"}, nil, nil, {"a" => "3", "b" => "4"}], records
+        end
+
+        it "names the record number in the slice of a record that it cannot parse" do
+          category = RocketJob::Category::Input.new(format: :json)
+          error    = assert_raises(JSON::ParserError) do
+            category.parse_records(['{"a":1}', "", "bad"], record_number: 50) { nil }
+          end
+          assert_includes error.message, "in record 52"
         end
 
         it "keeps a Hash as it is in a category with a schema, since it was parsed when it was uploaded" do

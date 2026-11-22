@@ -116,7 +116,7 @@ module RocketJob
       # Returns [IOStreams::Slice] a slice of one range of ids, written as #upload_ranges writes each one, so that an
       # input category can check that it parses them before they are uploaded, see Category::Input#check_record_upload.
       def range_slice
-        store = SliceHolder.new
+        store = Sliced::SliceHolder.new
         write_ranges(store) { |ranges| ranges << [1, 1] }
         store.slice
       end
@@ -135,18 +135,6 @@ module RocketJob
         IOStreams.stream(store).format(:array).schema(RANGE_SCHEMA).writer(:array, &)
       end
       private :write_ranges
-
-      # Holds the last slice that IOStreams writes to it, such as one range, see #range_slice, or the records that an input
-      # category writes in its format, see Category::Input#check_record_upload.
-      class SliceHolder
-        include IOStreams::Slice::Target
-
-        attr_reader :slice
-
-        def write_slice(slice)
-          @slice = slice
-        end
-      end
 
       # The fields of the `[first_id, last_id]` row of each range of ids, see #upload_ranges, without a header row, so
       # that each slice holds the range as it is, which a worker passes to `#perform` as it is in a category without a
