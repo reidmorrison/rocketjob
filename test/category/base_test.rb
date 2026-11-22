@@ -228,18 +228,15 @@ module Batch
         end
       end
 
-      describe "tabular" do
-        it "returns tabular for the current settings" do
+      describe "schema" do
+        it "reads each line of a fixed width file into the values of its fields, by their types" do
           schema = {
             "fields" => [{"name" => "action", "width" => 1}, {"name" => "date", "type" => "date", "width" => 10}],
             "width"  => "remainder"
           }
           category = RocketJob::Category::Input.new(format: :fixed, schema: schema)
 
-          assert tabular = category.tabular
-          assert_kind_of IOStreams::Tabular::Parser::Fixed, tabular.parser, tabular.parser.class.name
-          # The schema reads each line into the values of its fields, by their types.
-          assert_equal({"action" => "A", "date" => Date.new(2026, 10, 13)}, tabular.record_parse("A2026-10-13rest"))
+          assert_equal({"action" => "A", "date" => Date.new(2026, 10, 13)}, category.parse("A2026-10-13rest"))
         end
 
         it "writes the fields of the schema, in order" do
@@ -248,13 +245,6 @@ module Batch
 
           assert_equal "abc,def", category.header_line
           assert_equal ["1,2"], category.output_records([{"def" => 2, "abc" => 1}]).rows
-        end
-
-        it "uses the file_name when format is not set" do
-          category = RocketJob::Category::Input.new(file_name: "sample.json")
-
-          assert tabular = category.tabular
-          assert_kind_of IOStreams::Tabular::Parser::Json, tabular.parser, tabular.parser.class.name
         end
       end
 

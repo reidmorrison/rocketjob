@@ -380,7 +380,7 @@ module Batch
         end
       end
 
-      describe "#tabular" do
+      describe "#parse" do
         def deprecation_warnings(&)
           warnings = []
           Warning.stub(:warn, ->(message, category: nil) { warnings << message if category == :deprecated }, &)
@@ -390,7 +390,7 @@ module Batch
         it "reads the header row that an upload stored without a deprecation warning" do
           category = RocketJob::Category::Input.new(format: :csv, columns: %w[first_name zip_code])
           record   = nil
-          warnings = deprecation_warnings { record = category.parse_record("Jack,12345") }
+          warnings = deprecation_warnings { record = category.parse("Jack,12345") }
 
           assert_equal({"first_name" => "Jack", "zip_code" => "12345"}, record)
           assert_empty warnings
@@ -402,60 +402,80 @@ module Batch
             {"name" => "main", "format" => "csv", "columns" => %w[first_name zip_code]}
           )
 
-          assert_equal({"first_name" => "Jack", "zip_code" => "12345"}, category.parse_record("Jack,12345"))
+          assert_equal({"first_name" => "Jack", "zip_code" => "12345"}, category.parse("Jack,12345"))
         end
 
         it "reads the keys of the first JSON record that Rocket Job 7 read as the header row in the :array mode" do
           category = RocketJob::Category::Input.new(format: :json, columns: ["First Name", "zip"])
 
-          assert_equal({"First Name" => "Jack", "zip" => "12345"}, category.parse_record(%w[Jack 12345]))
+          assert_equal({"First Name" => "Jack", "zip" => "12345"}, category.parse(%w[Jack 12345]))
         end
 
         it "raises for columns that are not a header row, which were set for a file without one before v8" do
           category = RocketJob::Category::Input.new(format: :csv, columns: %w[Name Zip])
 
-          error = assert_raises(ArgumentError) { category.parse_record("Jack,12345") }
+          error = assert_raises(ArgumentError) { category.parse("Jack,12345") }
           assert_equal "Input category main holds columns that are not the header row of an uploaded file, so they " \
                        "are the columns of a file without a header row: columns was removed in Rocket Job v8, describe " \
                        "the columns of the file with the category's schema instead, see " \
                        "#{RocketJob::Category::Base::REMOVED_OPTIONS_GUIDE}", error.message
         end
 
-        it "is built again after a field that it is built from is set" do
-          category = RocketJob::Category::Input.new(format: :csv)
-          tabular  = category.tabular
-          category.columns = %w[name]
+        it "reads by the columns that are set when it is asked" do
+          category = RocketJob::Category::Input.new(format: :csv, columns: %w[name zip])
 
-          refute_same tabular, category.tabular
+          assert_equal({"name" => "Jack", "zip" => "12345"}, category.parse("Jack,12345"))
+          category.columns = %w[first_name zip_code]
+
+          assert_equal({"first_name" => "Jack", "zip_code" => "12345"}, category.parse("Jack,12345"))
         end
-      end
 
-      describe "#tabular" do
-        it "returns tabular for the current settings" do
+        it "narrows a Hash that Rocket Job 7 parsed in its :hash mode to the columns, which IOStreams matches" do
+          category = RocketJob::Category::Input.new(format: :csv, columns: %w[first_name zip])
+
+          assert_equal({"first_name" => "Jack", "zip" => "12345"}, category.parse({"First Name" => "Jack", "zip" => "12345", "x" => 1}))
+          assert_nil category.parse({})
+        end
+
+        it "keeps a Hash as it is in a category with a schema, since it was parsed when it was uploaded" do
+          category = RocketJob::Category::Input.new(format: :csv, schema: {"fields" => [{"name" => "name"}]})
+          record   = {"name" => "Jack", "age" => "21"}
+
+          assert_same record, category.parse(record)
+        end
+
+        it "raises for a line of a format with a header row, without columns or a schema to name its values" do
+          error = assert_raises(ArgumentError) { RocketJob::Category::Input.new(format: :csv).parse("Jack,12345") }
+          assert_includes error.message, "The :csv rows have no header row"
+        end
+
+        it "raises for the records of a slice of more than one kind, rather than read them in another format" do
+          category = RocketJob::Category::Input.new(format: :csv, columns: %w[name zip])
+          error    = assert_raises(ArgumentError) { category.parse_records(["Jack,12345", {"name" => "Jill"}]) { nil } }
+          assert_includes error.message, "Hash"
+        end
+
+        it "reads a line of a fixed width file by the schema, by the types of its fields" do
           schema = {
             "fields" => [{"name" => "action", "width" => 1}, {"name" => "date", "type" => "date", "width" => 10}],
             "width"  => "remainder"
           }
           category = RocketJob::Category::Input.new(format: :fixed, schema: schema)
 
-          assert tabular = category.tabular
-          assert_kind_of IOStreams::Tabular::Parser::Fixed, tabular.parser, tabular.parser.class.name
-          # The schema reads each line into the values of its fields, by their types.
-          assert_equal({"action" => "A", "date" => Date.new(2026, 10, 13)}, tabular.record_parse("A2026-10-13rest"))
+          assert_equal({"action" => "A", "date" => Date.new(2026, 10, 13)}, category.parse("A2026-10-13rest"))
         end
 
         it "reads a record without a header row by the schema, such as a line of JSON" do
           schema   = {"fields" => [{"name" => "first_name"}, {"name" => "age", "type" => "integer"}]}
           category = RocketJob::Category::Input.new(format: :json, schema: schema)
 
-          assert_equal({"first_name" => "Jack", "age" => 21}, category.parse_record(%({"first_name":"Jack","age":"21"})))
+          assert_equal({"first_name" => "Jack", "age" => 21}, category.parse(%({"first_name":"Jack","age":"21"})))
         end
 
-        it "uses the file_name when format is not set" do
-          category = RocketJob::Category::Input.new(file_name: "sample.json")
+        it "reads a record in the format of the file name when the format is :auto" do
+          category = RocketJob::Category::Input.new(format: :auto, file_name: "sample.json")
 
-          assert tabular = category.tabular
-          assert_kind_of IOStreams::Tabular::Parser::Json, tabular.parser, tabular.parser.class.name
+          assert_equal({"first_name" => "Jack"}, category.parse(%({"first_name":"Jack"})))
         end
       end
 
@@ -637,7 +657,7 @@ module Batch
           assert_equal [{"name" => "Jack", "age" => 21}], parse_records(category, rows)
         end
 
-        it "reads a schema held in a file once for the tabular too, until the schema is set" do
+        it "reads a schema held in a file once, until the schema is set" do
           IOStreams.temp_file("input_test", ".json") do |path|
             path.write(JSON.generate(schema))
             category = RocketJob::Category::Input.new(format: :csv, schema: path.to_s)
@@ -648,7 +668,6 @@ module Batch
             category.file_name = "people.csv"
             category.format    = :csv
 
-            assert_equal %w[name age], category.tabular.render_header.split(",")
             assert_equal [{"name" => "Jack", "age" => 21}], parse_records(category, rows)
 
             category.schema = path.to_s
@@ -661,8 +680,9 @@ module Batch
           IOStreams.temp_file("input_test", ".json") do |path|
             path.write(JSON.generate("fields" => [{"name" => "name"}], "fieldMatch" => "exact"))
             category = RocketJob::Category::Input.new(format: :csv, schema: path.to_s)
+            rows     = IOStreams::Slice.new(["Jack"], header: %w[name], format: :csv)
 
-            error = assert_raises(ArgumentError) { category.tabular }
+            error = assert_raises(ArgumentError) { parse_records(category, rows) }
             assert_includes error.message, "Invalid schema in"
           end
         end

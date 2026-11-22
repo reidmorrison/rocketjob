@@ -136,7 +136,8 @@ module RocketJob
       end
       private :write_ranges
 
-      # Holds the slice that IOStreams writes to it, see #range_slice.
+      # Holds the last slice that IOStreams writes to it, such as one range, see #range_slice, or the records that an input
+      # category writes in its format, see Category::Input#check_record_upload.
       class SliceHolder
         include IOStreams::Slice::Target
 
@@ -146,7 +147,6 @@ module RocketJob
           @slice = slice
         end
       end
-      private_constant :SliceHolder
 
       # The fields of the `[first_id, last_id]` row of each range of ids, see #upload_ranges, without a header row, so
       # that each slice holds the range as it is, which a worker passes to `#perform` as it is in a category without a
