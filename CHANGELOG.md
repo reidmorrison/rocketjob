@@ -13,6 +13,15 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   keeps (`nils: true`) is written as an empty row, such as `,` in CSV, where v7 wrote a blank line. Output that v7
   wrote is still downloaded line for line. `Category::Output#render` and `#render_header` are removed;
   `#header_line` returns the header row.
+- The records of a slice that Rocket Job 7 uploaded, or that `upload_slice` uploads into a category with a format,
+  are read by IOStreams together, as the slices of a file are, rather than one at a time by `IOStreams::Tabular`,
+  which Rocket Job no longer uses. `Category::Input#tabular` and `#parse_record` are removed; `#parse` still parses
+  one record. The records of such a slice must all be of one kind, such as all lines or all Hashes, and an Array with
+  more values than the columns that Rocket Job 7 uploaded raises `IOStreams::Errors::InvalidHeader`, where its extra
+  values were dropped, as does a Hash that holds none of the columns, where it was read as `{}`. A line of a format
+  with a header row, such as CSV, without columns or a schema, raises IOStreams' `ArgumentError`, which says to set a
+  schema. A range can now be uploaded into a category in the `:array` format without a schema, as into `:json` or
+  `:hash`.
 - Removed the category options that Rocket Job 7.1 and 7.2 deprecate, since a category's `schema` replaces them:
   - `format_options`, the layout of a fixed width file. A category with `format: :fixed` needs a schema, with the
     `width` of each field, without which IOStreams 3.0 raises `ArgumentError`.

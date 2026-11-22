@@ -77,17 +77,8 @@ module RocketJob
         field :encoding, type: String
         validates_with EncodingValidator, attributes: [:encoding]
 
-        # Setting a field that the tabular is built from builds it again when it is next used, see #tabular.
-        %i[format file_name].each do |name|
-          define_method(:"#{name}=") do |value|
-            @tabular = nil
-            super(value)
-          end
-        end
-
         # Setting the schema also reads it again, see #schema_descriptor.
         define_method(:schema=) do |value|
-          @tabular           = nil
           @schema_descriptor = nil
           super(value)
         end
@@ -215,19 +206,13 @@ module RocketJob
         end
       end
 
-      # Returns [IOStreams::Tabular] that reads or writes the records of this category in its format, by its schema,
-      # see #schema. It is built again after one of the fields that it is built from is set, such as #format.
-      def tabular
-        @tabular ||= build_tabular
-      end
-
       # Returns [RocketJob::Category::Input|RocketJob::Category::Output] a copy of this category, with its settings, for
       # the next run of its job, see RocketJob::Batch::Categories#rocket_job_restart_copy_to.
       def restart_copy
         clone
       end
 
-      # Returns [true|false] whether this category has the attributes defined for tabular to work.
+      # Returns [true|false] whether this category has a format, which its records are read or written in.
       def tabular?
         format.present?
       end
@@ -240,11 +225,6 @@ module RocketJob
 
       private
 
-      def build_tabular
-        check_removed_options
-        IOStreams::Tabular.new(format: tabular_format, file_name: file_name, schema: tabular_schema)
-      end
-
       # Raises ArgumentError when this category was saved before Rocket Job v8 with an option that v8 removed, which
       # IOStreams no longer reads, so that its records are not read or written as though it had none, see
       # .removed_options. Mongoid keeps such an option among the attributes of a saved category, but not as a field.
@@ -256,12 +236,6 @@ module RocketJob
         raise(ArgumentError, "#{self.class.name.demodulize} category #{name}: #{self.class.removed_options_message(removed)}")
       end
 
-      # Returns [Symbol] the format to read and write this category's files in, or nil to take it from the file name,
-      # when its format is :auto.
-      def tabular_format
-        format == :auto ? nil : format
-      end
-
       # Returns [IOStreams::Schema] this category's schema, see #schema, read once, see #schema_descriptor, or nil when
       # it has none.
       def tabular_schema
@@ -269,8 +243,8 @@ module RocketJob
       end
 
       # Returns [Hash] this category's schema, see #schema, reading its file the first time when it is a path or url,
-      # so that the tabular, and IOStreams for each slice of a file, see RocketJob::Category::Input#parse_records, use
-      # it without reading the file again. Returns nil when it has none.
+      # so that IOStreams reads each slice with it, see RocketJob::Category::Input#parse_records, without reading the
+      # file again. Returns nil when it has none.
       def schema_descriptor
         return schema unless schema.is_a?(String)
 

@@ -54,7 +54,6 @@ module Extensions
 
           assert_equal "foo://host/in/data.csv", category.file_name
           assert_equal RocketJob::INVALID_PATH_DISPLAY_NAME, RocketJob.path_display_name(category.file_name)
-          assert_equal :csv, category.tabular.format
         end
 
         it "raises what IOStreams raises when a category of format :auto asks a stored url that it cannot read for its format" do

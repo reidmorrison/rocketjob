@@ -9,6 +9,7 @@ module RocketJob
     autoload :Input, "rocket_job/sliced/input"
     autoload :Output, "rocket_job/sliced/output"
     autoload :Slice, "rocket_job/sliced/slice"
+    autoload :SliceHolder, "rocket_job/sliced/slice_holder"
     autoload :Slices, "rocket_job/sliced/slices"
 
     module Writer

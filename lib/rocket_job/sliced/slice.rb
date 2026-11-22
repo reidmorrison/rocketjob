@@ -202,7 +202,7 @@ module RocketJob
         records                   = records_after(index)
         records                   = contract_rows(records, number) if contract && !records.is_a?(IOStreams::Slice)
         parsing                   = true
-        category.parse_records(records, contract: contract) do |record, line_number, record_number|
+        category.parse_records(records, contract: contract, record_number: number) do |record, line_number, record_number|
           # Only the rows of a file are yielded with their numbers, see #records_from.
           record_number           ||= number
           self.processing_at_record = record_number

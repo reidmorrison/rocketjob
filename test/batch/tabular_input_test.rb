@@ -469,7 +469,7 @@ module Batch
           job.upload_slice(["Joe,23,z"])
 
           error = assert_raises(ArgumentError) { output_records }
-          assert_includes error.message, "The tabular header columns _must_ be set"
+          assert_includes error.message, "The :csv rows have no header row"
         end
 
         it "uploads a Hash written to the block of an upload into a category without a format, as it is" do
